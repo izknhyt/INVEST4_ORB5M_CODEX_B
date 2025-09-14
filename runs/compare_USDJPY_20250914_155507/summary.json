@@ -1,0 +1,11 @@
+{
+  "run_dir": "runs/compare_USDJPY_20250914_155507",
+  "symbol": "USDJPY",
+  "trades_cons": 0,
+  "trades_bridge": 0,
+  "wins_cons": 0,
+  "wins_bridge": 0,
+  "total_pips_cons": 0.0,
+  "total_pips_bridge": 0.0,
+  "diff_total_pips": 0.0
+}

@@ -1,0 +1,11 @@
+{
+  "trades": 0,
+  "wins": 0,
+  "total_pips": 0.0,
+  "debug": {
+    "no_breakout": 5,
+    "gate_block": 2,
+    "ev_reject": 0,
+    "zero_qty": 0
+  }
+}

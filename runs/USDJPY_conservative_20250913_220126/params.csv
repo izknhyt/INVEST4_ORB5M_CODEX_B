@@ -1,0 +1,2 @@
+csv,symbol,mode,equity,threshold_lcb,min_or_atr,rv_cuts,allow_low_rv,k_tp,k_sl,k_tr,warmup,dump_max
+data/usdjpy_5m_2018-2024_utc.csv,USDJPY,conservative,100000.0,0.0,0.4,"0.004,0.012",True,1.2,0.8,,50,500

@@ -1,0 +1,194 @@
+"""
+Day ORB 5m v1 (skeleton) — Design v1.1 / ADR-012..025
+"""
+from __future__ import annotations
+from typing import Dict, Any, Iterable, Optional, List
+from core.strategy_api import Strategy, OrderIntent
+from router.router_v0 import pass_gates
+from core.sizing import (
+    SizingConfig,
+    base_units,
+    kelly_multiplier_oco,
+    apply_guards,
+)
+from core.pips import pip_size
+
+class DayORB5m(Strategy):
+    api_version = "1.0"
+    def on_start(self, cfg: Dict[str,Any], instruments: List[str], state_store: Dict[str,Any]) -> None:
+        self.cfg = cfg
+        self.state = {
+            "or_h": None, "or_l": None, "in_or_window": True,
+            "bar_idx": 0, "last_signal_bar": -10**9, "broken": False,
+            "waiting_retest": False, "retest_seen": False, "retest_deadline": 0
+        }
+        self._pending_signal: Optional[Dict[str,Any]] = None
+        self.symbol = instruments[0] if instruments else ""
+        self._pip = pip_size(self.symbol) if self.symbol else 0.0001
+
+    def _update_or(self, bars: List[Dict[str,Any]], n: int = 6):
+        if len(bars) < n: 
+            self.state["in_or_window"] = True
+            return
+        if self.state["in_or_window"]:
+            win = bars[:n]
+            self.state["or_h"] = max(b["h"] for b in win)
+            self.state["or_l"] = min(b["l"] for b in win)
+            self.state["in_or_window"] = False
+
+    def on_bar(self, bar: Dict[str,Any]) -> None:
+        # Expect external provides recent window bars list in bar["window"]
+        # Reset OR window at new session/day boundary
+        if bar.get("new_session"):
+            self.state["or_h"] = None
+            self.state["or_l"] = None
+            self.state["in_or_window"] = True
+            self.state["broken"] = False
+            self.state["waiting_retest"] = False
+            self.state["retest_seen"] = False
+        self.state["bar_idx"] += 1
+        window = bar.get("window", [])
+        self._update_or(window, n=self.cfg.get("or_n", 6))
+        or_h, or_l = self.state["or_h"], self.state["or_l"]
+        self._pending_signal = None
+        if or_h is None or or_l is None: 
+            return
+        k_tp = self.cfg.get("k_tp", 1.0)
+        k_sl = self.cfg.get("k_sl", 0.8)
+        k_tr = self.cfg.get("k_tr", 0.0)
+        atr14 = bar.get("atr14", 0.0)
+        # Convert ATR from price units to pips
+        atr_pips = (atr14 / self._pip) if self._pip else 0.0
+        tp_pips = k_tp * atr_pips
+        sl_pips = k_sl * atr_pips
+        trail_pips = k_tr * atr_pips if k_tr>0 else 0.0
+        require_close = self.cfg.get("require_close_breakout", False)
+        require_retest = self.cfg.get("require_retest", False)
+        retest_max = int(self.cfg.get("retest_max_bars", 6))
+        tol_k = float(self.cfg.get("retest_tol_k", 0.25))
+        tol_price = tol_k * atr_pips * self._pip
+
+        if not self.state.get("broken"):
+            if require_retest:
+                # Step1: detect first touch (initial breakout), then wait for retest
+                if not self.state["waiting_retest"] and not self.state["retest_seen"]:
+                    if (bar["h"] >= or_h) or (bar["l"] <= or_l):
+                        # first breakout seen; set waiting retest
+                        self.state["waiting_retest"] = True
+                        self.state["retest_deadline"] = self.state["bar_idx"] + retest_max
+                else:
+                    # While waiting for retest / after retest seen
+                    if self.state["waiting_retest"] and not self.state["retest_seen"]:
+                        # check retest toward OR line
+                        if (bar["l"] <= or_h + tol_price) or (bar["h"] >= or_l - tol_price):
+                            self.state["retest_seen"] = True
+                            self.state["waiting_retest"] = False
+                        elif self.state["bar_idx"] >= self.state["retest_deadline"]:
+                            # expire this session (skip trade)
+                            self.state["broken"] = True
+                            self.state["waiting_retest"] = False
+                    elif self.state["retest_seen"]:
+                        # require re-break with optional close filter
+                        if (bar["h"] >= or_h) and ((not require_close) or (bar["c"] >= or_h)):
+                            self._pending_signal = {"side":"BUY","tp_pips":tp_pips,"sl_pips":sl_pips,"trail_pips":trail_pips,"entry":or_h}
+                        elif (bar["l"] <= or_l) and ((not require_close) or (bar["c"] <= or_l)):
+                            self._pending_signal = {"side":"SELL","tp_pips":tp_pips,"sl_pips":sl_pips,"trail_pips":trail_pips,"entry":or_l}
+            else:
+                if (bar["h"] >= or_h) and ((not require_close) or (bar["c"] >= or_h)):
+                    self._pending_signal = {"side":"BUY","tp_pips":tp_pips,"sl_pips":sl_pips,"trail_pips":trail_pips,"entry":or_h}
+                elif (bar["l"] <= or_l) and ((not require_close) or (bar["c"] <= or_l)):
+                    self._pending_signal = {"side":"SELL","tp_pips":tp_pips,"sl_pips":sl_pips,"trail_pips":trail_pips,"entry":or_l}
+
+    def signals(self) -> Iterable[OrderIntent]:
+        if not self._pending_signal:
+            return []
+        # Context should include router gates + EV + sizing related configs
+        ctx = self.cfg.get("ctx", {}).copy()
+        ctx.update({"or_atr_ratio": self.cfg.get("or_atr_ratio", 0.6)})
+        # Simple cooldown by bars
+        cooldown = int(ctx.get("cooldown_bars", self.cfg.get("cooldown_bars", 0)))
+        if cooldown > 0 and (self.state["bar_idx"] - self.state["last_signal_bar"] < cooldown):
+            return []
+        if not pass_gates(ctx):
+            return []
+        sig = self._pending_signal
+
+        # Calibration mode: bypass EV sizing and emit minimal intent for fill simulation
+        if ctx.get("calibrating") or ctx.get("ev_mode") == "off":
+            tag = f"day_orb5m#{sig['side']}#calib"
+            # size: base * size_floor_mult when ev_mode=='off', else 1.0 (ignored downstream in calib)
+            qty = 1.0
+            if ctx.get("ev_mode") == "off":
+                from core.sizing import SizingConfig as _SZ, base_units as _BU, apply_guards as _AG
+                sz_cfg = _SZ()
+                equity = float(ctx.get("equity", 0.0))
+                pip_value = float(ctx.get("pip_value", 0.0))
+                base = _BU(equity, pip_value, sig["sl_pips"], sz_cfg)
+                qty = _AG(base * float(ctx.get("size_floor_mult", 0.01)), equity, pip_value, sig["sl_pips"], sz_cfg)
+            return [OrderIntent(sig["side"], qty=qty, price=sig["entry"], tif="IOC", tag=tag,
+                                oco={"tp_pips":sig["tp_pips"], "sl_pips":sig["sl_pips"], "trail_pips":sig["trail_pips"]})]
+
+        # Warmup path: bypass EV and use minimal fixed multiplier to bootstrap statistics
+        warmup_left = int(ctx.get("warmup_left", 0))
+        if warmup_left > 0:
+            equity = float(ctx.get("equity", 0.0))
+            pip_value = float(ctx.get("pip_value", 0.0))
+            sizing_cfg_dict = ctx.get("sizing_cfg", {})
+            sz_cfg = SizingConfig(
+                risk_per_trade_pct=sizing_cfg_dict.get("risk_per_trade_pct", 0.25),
+                kelly_fraction=sizing_cfg_dict.get("kelly_fraction", 0.25),
+                units_cap=sizing_cfg_dict.get("units_cap", 5.0),
+                max_trade_loss_pct=sizing_cfg_dict.get("max_trade_loss_pct", 0.5),
+            )
+            base = base_units(equity, pip_value, sig["sl_pips"], sz_cfg)
+            warm_mult = float(ctx.get("warmup_mult", 0.05))  # 5% of base as minimal size
+            qty = apply_guards(base * max(0.0, warm_mult), equity, pip_value, sig["sl_pips"], sz_cfg)
+            if qty <= 0:
+                return []
+            tag = f"day_orb5m#{sig['side']}#warmup"
+            return [OrderIntent(sig["side"], qty=qty, price=sig["entry"], tif="IOC", tag=tag,
+                                oco={"tp_pips":sig["tp_pips"], "sl_pips":sig["sl_pips"], "trail_pips":sig["trail_pips"]})]
+
+        # EV gate (Beta-Binomial for OCO)
+        ev = ctx.get("ev_oco")  # expected: instance of BetaBinomialEV
+        cost_pips = float(ctx.get("cost_pips", 0.0))
+        threshold = float(ctx.get("threshold_lcb_pip", 0.5))
+        ev_lcb = None
+        p_lcb = None
+        if ev is not None:
+            mode = ctx.get("ev_mode", "lcb")
+            if mode == "mean":
+                p_lcb = getattr(ev, 'p_mean')()
+                ev_lcb = p_lcb*sig["tp_pips"] - (1.0-p_lcb)*sig["sl_pips"] - cost_pips
+            else:
+                ev_lcb = ev.ev_lcb_oco(sig["tp_pips"], sig["sl_pips"], cost_pips)
+                p_lcb = ev.p_lcb()
+        else:
+            # If EV estimator is missing, act conservatively: no trade
+            return []
+
+        if ctx.get("ev_mode", "lcb") == "lcb" and (ev_lcb is None or ev_lcb < threshold):
+            return []
+
+        # Position sizing
+        equity = float(ctx.get("equity", 0.0))
+        pip_value = float(ctx.get("pip_value", 0.0))
+        sizing_cfg_dict = ctx.get("sizing_cfg", {})
+        sz_cfg = SizingConfig(
+            risk_per_trade_pct=sizing_cfg_dict.get("risk_per_trade_pct", 0.25),
+            kelly_fraction=sizing_cfg_dict.get("kelly_fraction", 0.25),
+            units_cap=sizing_cfg_dict.get("units_cap", 5.0),
+            max_trade_loss_pct=sizing_cfg_dict.get("max_trade_loss_pct", 0.5),
+        )
+        base = base_units(equity, pip_value, sig["sl_pips"], sz_cfg)
+        mult = kelly_multiplier_oco(p_lcb or 0.0, sig["tp_pips"], sig["sl_pips"], sz_cfg)
+        qty = apply_guards(base * mult, equity, pip_value, sig["sl_pips"], sz_cfg)
+
+        if qty <= 0:
+            return []
+
+        tag = f"day_orb5m#{sig['side']}"
+        self.state["last_signal_bar"] = self.state["bar_idx"]
+        self.state["broken"] = True  # block re-entry until next session reset
+        return [OrderIntent(sig["side"], qty=qty, price=sig["entry"], tif="IOC", tag=tag,
+                            oco={"tp_pips":sig["tp_pips"], "sl_pips":sig["sl_pips"], "trail_pips":sig["trail_pips"]})]

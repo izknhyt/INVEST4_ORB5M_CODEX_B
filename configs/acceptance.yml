@@ -1,0 +1,13 @@
+acceptance:
+  oos_2018_2025:
+    total_profit_pip: "> 0"
+    sharpe: ">= 1.2"
+    max_dd_pct: "<= 10"
+    positive_year_ratio: ">= 0.5"
+  paper_30d:
+    ev_bias_abs_bps: "<= 2"
+    reject_rate_pct: "<= 2"
+  stability:
+    plateau_top20_connected: true
+    neg_controls_zero_performance: true
+    worst_day_p1_sigma: ">= -2"
