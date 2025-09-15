@@ -7,17 +7,82 @@ from dataclasses import dataclass
 from typing import Dict, Tuple, List, Optional
 
 def beta_inv_cdf(alpha: float, beta: float, q: float) -> float:
-    """Approximate inverse CDF for Beta using Wilson score-like approximation (skeleton).
-    Replace with scipy if available."""
-    # Wilson lower bound for Bernoulli as a safe proxy
-    n = alpha + beta
-    if n <= 0: return 0.0
-    p_hat = alpha / n
-    z = 1.6448536269514722 if q>=0.95 else 1.2815515655446004
-    denom = 1 + z*z/n
-    centre = p_hat + z*z/(2*n)
-    adj = z*math.sqrt((p_hat*(1-p_hat)+z*z/(4*n))/n)
-    return max(0.0, (centre - adj)/denom)
+    """Inverse CDF for the Beta distribution.
+
+    Attempts to use ``scipy.stats.beta.ppf`` if SciPy is installed; otherwise
+    falls back to a numerical bisection solver using the incomplete beta
+    function.  The fallback implementation is adapted from the algorithm in
+    *Numerical Recipes* and provides a reasonably accurate result for ``q`` in
+    ``[0, 1]``.
+    """
+    try:  # SciPy provides a precise and fast implementation
+        from scipy.stats import beta as scipy_beta  # type: ignore
+        return float(scipy_beta.ppf(q, alpha, beta))
+    except Exception:
+        pass
+
+    if q <= 0.0:
+        return 0.0
+    if q >= 1.0:
+        return 1.0
+
+    # Helper: continued fraction for incomplete beta
+    def _betacf(a: float, b: float, x: float) -> float:
+        MAXIT = 200
+        EPS = 3e-8
+        FPMIN = 1e-30
+        m2 = 0
+        aa = 0.0
+        c = 1.0
+        d = 1.0 - (a + b) * x / (a + 1.0)
+        if abs(d) < FPMIN:
+            d = FPMIN
+        d = 1.0 / d
+        h = d
+        for m in range(1, MAXIT + 1):
+            m2 = 2 * m
+            aa = m * (b - m) * x / ((a + m2 - 1) * (a + m2))
+            d = 1.0 + aa * d
+            if abs(d) < FPMIN:
+                d = FPMIN
+            c = 1.0 + aa / c
+            if abs(c) < FPMIN:
+                c = FPMIN
+            d = 1.0 / d
+            h *= d * c
+            aa = -(a + m) * (a + b + m) * x / ((a + m2) * (a + m2 + 1))
+            d = 1.0 + aa * d
+            if abs(d) < FPMIN:
+                d = FPMIN
+            c = 1.0 + aa / c
+            if abs(c) < FPMIN:
+                c = FPMIN
+            d = 1.0 / d
+            del_ = d * c
+            h *= del_
+            if abs(del_ - 1.0) < EPS:
+                break
+        return h
+
+    def _betai(a: float, b: float, x: float) -> float:
+        if x <= 0.0:
+            return 0.0
+        if x >= 1.0:
+            return 1.0
+        lbeta = math.lgamma(a + b) - math.lgamma(a) - math.lgamma(b)
+        bt = math.exp(a * math.log(x) + b * math.log(1 - x) + lbeta)
+        if x < (a + 1.0) / (a + b + 2.0):
+            return bt * _betacf(a, b, x) / a
+        return 1.0 - bt * _betacf(b, a, 1.0 - x) / b
+
+    lo, hi = 0.0, 1.0
+    for _ in range(100):
+        mid = (lo + hi) / 2.0
+        if _betai(alpha, beta, mid) < q:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2.0
 
 @dataclass
 class EwmaStats:
@@ -57,7 +122,8 @@ class BetaBinomialEV:
     def p_lcb(self) -> float:
         a = self.prior_alpha + self.alpha
         b = self.prior_beta + self.beta
-        return beta_inv_cdf(a, b, self.conf_level)
+        # Lower confidence bound corresponds to the (1 - conf_level) quantile
+        return beta_inv_cdf(a, b, 1.0 - self.conf_level)
 
     def p_mean(self) -> float:
         a = self.prior_alpha + self.alpha
