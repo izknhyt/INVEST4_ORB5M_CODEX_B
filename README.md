@@ -102,3 +102,79 @@ ctx = {
 ## 注意
 - この雛形は**設計に沿った骨格**です。実データ接続/BTランナー/ダッシュボードは以後の実装で追加します。
 -　現在の設計方針及び詳細設計はreadmeフォルダを参照すること。
+
+
+## Codex Cloud の使い方（必読）
+
+> Cloudタスクは毎回まっさらな環境で動きます。**下の3ファイルだけ読めば連続作業が再開できる**設計です。
+
+### 1. まず読むもの
+- `readme/ops/AGENTS.md` … ルール・受け入れ基準
+- `readme/ops/STATE.md` … 要約・Next・決定事項・履歴
+- `readme/ops/missions/<当該ミッション>.md` … 1タスク=1枚（例：`readme/ops/missions/2025-09-15_orb_acceptance.md`）
+
+### 2. Cloud に貼る定型プロンプト
+    これから Cloud タスク。以下の3ファイルだけ読んで実行：
+    1) readme/ops/AGENTS.md
+    2) readme/ops/STATE.md
+    3) readme/ops/missions/2025-09-15_orb_acceptance.md  # ←必要に応じて差し替え
+
+    手順:
+    - Steps の一番上だけやる
+    - 必要な最小ファイルのみ編集
+    - `pytest -q` で緑を確認
+    - `readme/ops/STATE.md` の Next/Done を更新し、意味のあるメッセージでコミット
+    - 失敗したら原因を STATE.md の Summary に1行で追記して再提案
+
+### 3. 注意
+- **未コミットの変更は Cloud から見えません。必ずコミットしてから実行。**
+- 大きなデータや生成物は `tests/runs_test/` に出力して管理（破壊的変更は避ける）。
+
+
+## タスク運用（Now / Next ルール・必読）
+
+> 連続性は `readme/ops/STATE.md` に一本化します。Cloud/ローカル問わず **毎回ここを読んでから作業**します。
+
+### 1) 記載場所
+- **必ず** `readme/ops/STATE.md` に現在タスクと次タスクを記載します。
+- ミッションの詳細手順は `readme/ops/missions/<日付_名前>.md` に1枚＝1タスクで置きます。
+- プロジェクトの掟（許可/禁止/受け入れ基準）は `readme/ops/AGENTS.md` に固定します。
+
+### 2) STATE.md の書式（固定）
+```md
+# STATE.md (必読)
+
+## Summary
+1–3行で現状メモ
+
+## Now (do this first)
+- [ ] いま着手すべき1件だけを書く（ミッション名や対象ファイルを具体的に）
+
+## Next (queue)
+- [ ] 次にやる候補（上から順）
+- [ ] 次にやる候補
+
+## Decisions
+- 決定事項と理由（簡潔に）
+
+## Done
+- YYYY-MM-DD: 完了タスク（1行ずつ）
+
+### 3) Cloud に貼る定型プロンプト
+- これから Cloud タスク。以下の3ファイルだけ読んで実行：
+- 1) readme/ops/AGENTS.md
+- 2) readme/ops/STATE.md   ← **Now を必ず実行**（空なら Next の先頭を Now に昇格）
+- 3) readme/ops/missions/<当該ミッション>.md
+
+手順:
+- Now の1件だけを最小編集で完了
+- `pytest -q` で緑を確認
+- STATE.md の Now を Done に移し、必要なら Next 先頭を Now に昇格
+- 意味のあるコミットメッセージでコミット
+- 失敗したら原因を STATE.md の Summary に1行追記して再提案
+
+### 4) レビュー時のチェックリスト
+
+- PR の内容が STATE.md の Now と一致している
+- 作業後に STATE.md が更新されている（Now→Done、Next の繰り上げ）
+- テストが緑（pytest -q）／受け入れ基準に合致している
