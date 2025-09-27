@@ -14,7 +14,7 @@ import sys
 import urllib.error
 import urllib.request
 from statistics import NormalDist
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -156,6 +156,53 @@ def save_history(path: Path, history: List[Dict]) -> None:
         json.dump(history, f, ensure_ascii=False, indent=2)
 
 
+def rotate_history(history: List[Dict], record: Dict, limit: int) -> List[Dict]:
+    updated = list(history)
+    updated.append(record)
+    if limit > 0 and len(updated) > limit:
+        updated = updated[-limit:]
+    return updated
+
+
+def build_record(state_path: Path, summary: Dict, warnings: List[str], *, confidence: float,
+                 thresholds: Dict[str, float]) -> Dict[str, object]:
+    checked_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return {
+        "checked_at": checked_at,
+        "state_path": str(state_path),
+        "metrics": {
+            "ev_total_samples": summary["ev_total_samples"],
+            "ev_win_mean": summary["ev_win_mean"],
+            "ev_win_lcb": summary["ev_win_lcb"],
+            "slip_a": summary["slip_a"],
+        },
+        "bucket_samples": [
+            {
+                "bucket": b["bucket"],
+                "samples": b["samples"],
+                "win_mean": b["win_mean"],
+                "win_lcb": b["win_lcb"],
+            }
+            for b in summary["bucket_summaries"]
+        ],
+        "warnings": warnings,
+        "config": {
+            "confidence": confidence,
+            **thresholds,
+        },
+    }
+
+
+def build_webhook_payload(record: Dict[str, object]) -> Dict[str, object]:
+    return {
+        "event": "state_health_warning",
+        "state_path": record["state_path"],
+        "checked_at": record["checked_at"],
+        "warnings": record["warnings"],
+        "metrics": record["metrics"],
+    }
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Check health metrics of state.json")
     parser.add_argument("--state", default=str(DEFAULT_STATE), help="Path to state.json")
@@ -194,47 +241,27 @@ def main(argv=None) -> int:
         max_slip=args.max_slip,
     )
 
-    record = {
-        "checked_at": datetime.utcnow().isoformat() + "Z",
-        "state_path": str(state_path),
-        "metrics": {
-            "ev_total_samples": summary["ev_total_samples"],
-            "ev_win_mean": summary["ev_win_mean"],
-            "ev_win_lcb": summary["ev_win_lcb"],
-            "slip_a": summary["slip_a"],
-        },
-        "bucket_samples": [
-            {
-                "bucket": b["bucket"],
-                "samples": b["samples"],
-                "win_mean": b["win_mean"],
-                "win_lcb": b["win_lcb"],
-            }
-            for b in summary["bucket_summaries"]
-        ],
-        "warnings": warnings,
-        "config": {
-            "confidence": conf,
-            "min_global_sample": args.min_global_sample,
-            "min_win_lcb": args.min_win_lcb,
-            "min_bucket_sample": args.min_bucket_sample,
-            "min_bucket_win_lcb": args.min_bucket_win_lcb,
-            "max_slip": args.max_slip,
-        },
+    thresholds = {
+        "min_global_sample": args.min_global_sample,
+        "min_win_lcb": args.min_win_lcb,
+        "min_bucket_sample": args.min_bucket_sample,
+        "min_bucket_win_lcb": args.min_bucket_win_lcb,
+        "max_slip": args.max_slip,
     }
+    record = build_record(
+        state_path,
+        summary,
+        warnings,
+        confidence=conf,
+        thresholds=thresholds,
+    )
 
     print(json.dumps(record, ensure_ascii=False))
 
     deliveries: List[Dict[str, object]] = []
     webhook_urls = _parse_webhook_urls(args.webhook)
     if warnings and webhook_urls and not args.dry_run:
-        payload = {
-            "event": "state_health_warning",
-            "state_path": str(state_path),
-            "checked_at": record["checked_at"],
-            "warnings": warnings,
-            "metrics": record["metrics"],
-        }
+        payload = build_webhook_payload(record)
         for url in webhook_urls:
             ok, detail = _post_webhook(url, payload)
             deliveries.append({"url": url, "ok": ok, "detail": detail})
@@ -243,9 +270,7 @@ def main(argv=None) -> int:
     if not args.dry_run:
         history_path = Path(args.json_out)
         history = load_history(history_path)
-        history.append(record)
-        if args.history_limit > 0 and len(history) > args.history_limit:
-            history = history[-args.history_limit :]
+        history = rotate_history(history, record, args.history_limit)
         save_history(history_path, history)
     elif deliveries:
         record["webhook"] = deliveries
