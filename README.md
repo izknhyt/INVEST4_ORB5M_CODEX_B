@@ -137,7 +137,19 @@ python3 scripts/optimize_params.py \
 
 ### 日次ワークフロー実行
 - `scripts/run_daily_workflow.py` でインジェスト、state 更新、ベンチマーク実行、レポート集約を順番に呼び出せる。
+- `--benchmarks` フラグは `scripts/run_benchmark_pipeline.py` を起動し、ベースライン/ローリング run → サマリー生成 → `ops/runtime_snapshot.json` の更新まで一括で実行する。`--min-sharpe`・`--max-drawdown`・`--benchmark-windows`・`--webhook` を指定すると、パイプライン全体へ同じ値が伝播する。
 - いずれかの工程が非ゼロ終了コードを返した場合はその時点で終了し、返り値として失敗コードをそのまま伝播する（例: `--benchmarks` で失敗した場合は `--benchmark-summary` へ進まずに同じコードで停止する）。
+
+ベンチマーク専用で実行したい場合は以下のように呼び出せる。
+
+```bash
+python3 scripts/run_daily_workflow.py \
+  --benchmarks \
+  --symbol USDJPY --mode conservative --equity 100000 \
+  --benchmark-windows 365,180,90 \
+  --min-sharpe 0.5 --max-drawdown 200 \
+  --webhook https://hooks.slack.com/services/XXX/YYY/ZZZ
+```
 
 開発時は、実行側で以下のような`ctx`辞書を戦略へ提供してください（例）:
 

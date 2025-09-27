@@ -27,6 +27,7 @@ def main(argv=None) -> int:
     parser.add_argument("--benchmarks", action="store_true", help="Run baseline + rolling benchmarks")
     parser.add_argument("--state-health", action="store_true", help="Run state health checker")
     parser.add_argument("--benchmark-summary", action="store_true", help="Aggregate benchmark reports")
+    parser.add_argument("--benchmark-windows", default="365,180,90", help="Rolling windows in days for benchmarks")
     parser.add_argument(
         "--min-sharpe",
         type=float,
@@ -68,13 +69,20 @@ def main(argv=None) -> int:
             return exit_code
 
     if args.benchmarks:
-        cmd = [sys.executable, str(ROOT / "scripts/run_benchmark_runs.py"),
+        cmd = [sys.executable, str(ROOT / "scripts/run_benchmark_pipeline.py"),
                "--bars", bars_csv,
                "--symbol", args.symbol,
                "--mode", args.mode,
                "--equity", args.equity,
                "--runs-dir", str(ROOT / "runs"),
-               "--reports-dir", str(ROOT / "reports")]
+               "--reports-dir", str(ROOT / "reports"),
+               "--summary-json", str(ROOT / "reports/benchmark_summary.json"),
+               "--summary-plot", str(ROOT / "reports/benchmark_summary.png"),
+               "--windows", args.benchmark_windows]
+        if args.min_sharpe is not None:
+            cmd += ["--min-sharpe", str(args.min_sharpe)]
+        if args.max_drawdown is not None:
+            cmd += ["--max-drawdown", str(args.max_drawdown)]
         if args.webhook:
             cmd += ["--webhook", args.webhook]
         exit_code = run_cmd(cmd)
@@ -95,7 +103,8 @@ def main(argv=None) -> int:
                "--mode", args.mode,
                "--reports-dir", str(ROOT / "reports"),
                "--json-out", str(ROOT / "reports/benchmark_summary.json"),
-               "--plot-out", str(ROOT / "reports/benchmark_summary.png")]
+               "--plot-out", str(ROOT / "reports/benchmark_summary.png"),
+               "--windows", args.benchmark_windows]
         if args.min_sharpe is not None:
             cmd += ["--min-sharpe", str(args.min_sharpe)]
         if args.max_drawdown is not None:
