@@ -59,6 +59,23 @@ python3 scripts/run_sim.py \
 python3 scripts/run_sim.py --csv data/ohlc5m.csv --symbol USDJPY --json-out out.json
 ```
 
+### オンデマンドインジェスト CLI
+- `scripts/pull_prices.py` はヒストリカルCSV（またはAPIエクスポート）から未処理バーを検出し、`raw/`→`validated/`→`features/` に冪等に追記する。
+- 直近の成功時刻は `ops/runtime_snapshot.json` の `ingest` セクションで管理し、異常は `ops/logs/ingest_anomalies.jsonl` に記録。
+- タイムスタンプは ISO 8601 (`Z` や `+00:00` 付き)・空白区切りどちらにも対応。
+
+実行例:
+
+```
+python3 scripts/pull_prices.py --source data/usdjpy_5m_2018-2024_utc.csv --symbol USDJPY --tf 5m
+```
+
+ドライラン（スナップショット更新なし）:
+
+```
+python3 scripts/pull_prices.py --source data/usdjpy_5m_2018-2024_utc.csv --symbol USDJPY --dry-run
+```
+
 ### 両Fill併走レポート
 - ConservativeとBridgeを同条件で比較するCLI
   - `scripts/run_compare.py`

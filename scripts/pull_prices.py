@@ -21,7 +21,7 @@ import csv
 import json
 import sys
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Deque, Dict, Iterable, List, Optional, Tuple
 
@@ -66,8 +66,14 @@ def _parse_ts(value: str) -> datetime:
     value = value.strip()
     if not value:
         raise ValueError("empty timestamp")
-    if "T" in value:
-        return datetime.fromisoformat(value)
+    if "T" in value or " " in value:
+        normalized = value
+        if normalized.endswith("Z"):
+            normalized = normalized[:-1] + "+00:00"
+        dt = datetime.fromisoformat(normalized)
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+        return dt
     try:
         return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
     except ValueError:

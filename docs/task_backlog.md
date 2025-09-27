@@ -3,7 +3,6 @@
 このバックログは「最新値動きを取り込みながら継続学習し、複数戦略ポートフォリオでシグナルを出す」ツールを実現するための優先順位付きタスク群です。各タスク完了時は成果物（コード/ドキュメント/レポート）へのリンクを追記してください。
 
 ## P0: 即着手（オンデマンドインジェスト + 基盤整備）
-- **オンデマンド値動きインジェスト**: 起動時バッチで Bid/Ask/5分足を取得し、前回成功時刻からの空白期間をヒストリカルAPI/CSVで補完。結果を `raw/`→`validated/`→`features/` に追記し、欠損・異常値はログ＋再実行可能な形で記録する。
 - **state 更新ワーカー**: 取得済みバーを時系列順に処理し、`BacktestRunner.load_state` → `runner.run_partial()` → `runner.export_state` を繰り返す CLI を実装。`ops/state_archive/<strategy>/<symbol>/<mode>/` に最新5件を保存し、更新後に `scripts/aggregate_ev.py` を自動実行できるようにする。
 - **ベースライン/ローリング run 起動ジョブ**: ORB コア設定の通し run と直近ローリング run を起動時にまとめて再計算し、`runs/index.csv`・`reports/baseline/*.json`・`reports/rolling/<window>/` を更新。前回結果との乖離が閾値超過したら Webhook 通知。
 
