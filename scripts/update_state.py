@@ -18,6 +18,7 @@ if str(ROOT) not in sys.path:
 
 from core.runner import BacktestRunner
 from scripts.config_utils import build_runner_config
+from scripts.pull_prices import _parse_ts as _parse_ingest_ts
 
 
 SNAPSHOT_PATH = Path("ops/runtime_snapshot.json")
@@ -40,15 +41,23 @@ def _save_snapshot(path: Path, data: dict) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+def _parse_timestamp(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return _parse_ingest_ts(value)
+    except Exception:
+        return None
+
+
+def _format_timestamp(ts: datetime) -> str:
+    return ts.replace(tzinfo=None).isoformat()
+
+
 def _get_last_state_ts(snapshot: dict, key: str) -> Optional[datetime]:
     section = snapshot.get("state_update", {})
     ts_str = section.get(key)
-    if not ts_str:
-        return None
-    try:
-        return datetime.fromisoformat(ts_str)
-    except ValueError:
-        return None
+    return _parse_timestamp(ts_str)
 
 
 def _set_last_state_ts(snapshot: dict, key: str, ts: datetime) -> dict:
@@ -116,12 +125,11 @@ def _iter_new_bars(path: Path, since: Optional[datetime]) -> Iterable[Dict[str, 
             ts_raw = row.get("timestamp")
             if ts_raw is None:
                 continue
-            try:
-                stamp = datetime.fromisoformat(ts_raw) if "T" in ts_raw else datetime.strptime(ts_raw, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                stamp = None
+            stamp = _parse_timestamp(ts_raw)
             if since is not None and stamp is not None and stamp <= since:
                 continue
+            if stamp is not None:
+                row["timestamp"] = _format_timestamp(stamp)
             try:
                 yield _parse_row(row)
             except (ValueError, KeyError):
@@ -188,7 +196,7 @@ def main(argv=None) -> int:
     chunk_size = max(1, int(args.chunk_size))
 
     total_processed = 0
-    latest_ts_str: Optional[str] = None
+    latest_ts: Optional[datetime] = None
     metrics = None
 
     new_bar_iter = _iter_new_bars(bars_path, last_state_ts)
@@ -196,7 +204,10 @@ def main(argv=None) -> int:
     chunk: List[Dict[str, Any]] = []
     for bar in new_bar_iter:
         chunk.append(bar)
-        latest_ts_str = bar.get("timestamp") if isinstance(bar.get("timestamp"), str) else latest_ts_str
+        ts_value = bar.get("timestamp")
+        parsed_ts = _parse_timestamp(ts_value) if isinstance(ts_value, str) else None
+        if parsed_ts is not None:
+            latest_ts = parsed_ts
         if len(chunk) >= chunk_size:
             metrics = runner.run_partial(chunk, mode=args.mode)
             total_processed += len(chunk)
@@ -204,7 +215,10 @@ def main(argv=None) -> int:
     if chunk:
         metrics = runner.run_partial(chunk, mode=args.mode)
         total_processed += len(chunk)
-        latest_ts_str = chunk[-1].get("timestamp") if isinstance(chunk[-1].get("timestamp"), str) else latest_ts_str
+        ts_value = chunk[-1].get("timestamp")
+        parsed_ts = _parse_timestamp(ts_value) if isinstance(ts_value, str) else None
+        if parsed_ts is not None:
+            latest_ts = parsed_ts
 
     if total_processed == 0:
         print(json.dumps({
@@ -240,12 +254,6 @@ def main(argv=None) -> int:
         pruned = _prune_archives(archive_dir, keep=5)
         agg_rc = _run_aggregate_ev(archive_root, strategy_key, args.symbol, args.mode)
 
-        latest_ts = None
-        if latest_ts_str:
-            try:
-                latest_ts = datetime.fromisoformat(latest_ts_str) if "T" in latest_ts_str else datetime.strptime(latest_ts_str, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                latest_ts = None
         if latest_ts:
             snapshot = _set_last_state_ts(snapshot, state_key, latest_ts)
             _save_snapshot(snapshot_path, snapshot)
