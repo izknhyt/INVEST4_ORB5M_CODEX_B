@@ -9,6 +9,7 @@ NOTE: Placeholder thresholds and simplified assumptions to keep dependencies min
 """
 from __future__ import annotations
 from typing import List, Dict, Any, Optional, Tuple
+from collections import deque
 import json
 import hashlib
 from datetime import datetime, timezone
@@ -154,22 +155,7 @@ class BacktestRunner:
         self.ev_var = TLowerEV(conf_level=0.95, decay=0.02)
         self.fill_engine_c = ConservativeFill()
         self.fill_engine_b = BridgeFill()
-        self.metrics = Metrics()
-        self.window: List[Dict[str, Any]] = []
-        self.session_bars: List[Dict[str, Any]] = []
-        self.debug_counts: Dict[str,int] = {"no_breakout":0, "gate_block":0, "ev_reject":0, "zero_qty":0}
-        self.debug_records: List[Dict[str,Any]] = []
-        self.records: List[Dict[str,Any]] = []
-        self.daily: Dict[str, Dict[str, Any]] = {}
-        # RV quantile calibration state
-        from collections import deque
-        self.rv_hist: Dict[str, Any] = {
-            "TOK": deque(maxlen=self.rcfg.rv_q_lookback_bars),
-            "LDN": deque(maxlen=self.rcfg.rv_q_lookback_bars),
-            "NY":  deque(maxlen=self.rcfg.rv_q_lookback_bars),
-        }
-        self.rv_thresh: Dict[str, Optional[tuple]] = {"TOK": None, "LDN": None, "NY": None}
-        self.calib_positions: List[Dict[str, Any]] = []
+        self._reset_runtime_state()
         self._ev_profile_lookup: Dict[tuple, Dict[str, Any]] = {}
         # Slip/size expectation tracking
         self.slip_a = {
@@ -182,8 +168,30 @@ class BacktestRunner:
         # strategy
         self.stg = self.strategy_cls()
         self.stg.on_start({"or_n": self.rcfg.or_n, "k_tp": self.rcfg.k_tp, "k_sl": self.rcfg.k_sl, "k_tr": self.rcfg.k_tr}, [symbol], {})
-        self._warmup_left = max(0, int(self.rcfg.warmup_trades))
         self._apply_ev_profile()
+
+    def _reset_runtime_state(self) -> None:
+        self.metrics = Metrics()
+        self.records: List[Dict[str, Any]] = []
+        self.window: List[Dict[str, Any]] = []
+        self.session_bars: List[Dict[str, Any]] = []
+        self.debug_counts: Dict[str, int] = {"no_breakout": 0, "gate_block": 0, "ev_reject": 0, "zero_qty": 0}
+        self.debug_records: List[Dict[str, Any]] = []
+        self.daily: Dict[str, Dict[str, Any]] = {}
+        self.rv_hist: Dict[str, Any] = {
+            "TOK": deque(maxlen=self.rcfg.rv_q_lookback_bars),
+            "LDN": deque(maxlen=self.rcfg.rv_q_lookback_bars),
+            "NY": deque(maxlen=self.rcfg.rv_q_lookback_bars),
+        }
+        self.rv_thresh: Dict[str, Optional[tuple]] = {"TOK": None, "LDN": None, "NY": None}
+        self.calib_positions: List[Dict[str, Any]] = []
+        self.pos: Optional[Dict[str, Any]] = None
+        self._warmup_left = max(0, int(self.rcfg.warmup_trades))
+        self._last_session: Optional[str] = None
+        self._last_day: Optional[int] = None
+        self._current_date: Optional[str] = None
+        self._day_count: int = 0
+        self._last_timestamp: Optional[str] = None
 
     def _log_trade_record(
         self,
@@ -255,6 +263,7 @@ class BacktestRunner:
             "meta": {
                 "symbol": self.symbol,
                 "config_fingerprint": self._config_fingerprint(),
+                "last_timestamp": self._last_timestamp,
             },
             "ev_global": {
                 "alpha": self.ev_global.alpha,
@@ -271,6 +280,12 @@ class BacktestRunner:
                 "ewma_alpha": getattr(self.rcfg, "slip_ewma_alpha", 0.1),
             },
             "rv_thresh": self.rv_thresh,
+            "runtime": {
+                "warmup_left": self._warmup_left,
+                "day_count": self._day_count,
+                "current_date": self._current_date,
+                "last_session": self._last_session,
+            },
         }
         return state
 
@@ -279,6 +294,8 @@ class BacktestRunner:
             meta = state.get("meta", {})
             # Optionally check fingerprint compatibility
             # fp = meta.get("config_fingerprint")
+            if meta.get("last_timestamp"):
+                self._last_timestamp = meta.get("last_timestamp")
             evg = state.get("ev_global", {})
             self.ev_global.alpha = float(evg.get("alpha", self.ev_global.alpha))
             self.ev_global.beta = float(evg.get("beta", self.ev_global.beta))
@@ -307,6 +324,21 @@ class BacktestRunner:
             rv_th = state.get("rv_thresh")
             if rv_th:
                 self.rv_thresh = rv_th
+            runtime = state.get("runtime", {})
+            if "warmup_left" in runtime:
+                try:
+                    self._warmup_left = max(0, int(runtime.get("warmup_left", self._warmup_left)))
+                except Exception:
+                    pass
+            if "day_count" in runtime:
+                try:
+                    self._day_count = max(0, int(runtime.get("day_count", self._day_count)))
+                except Exception:
+                    pass
+            if runtime.get("current_date"):
+                self._current_date = runtime.get("current_date")
+            if runtime.get("last_session"):
+                self._last_session = runtime.get("last_session")
         except Exception:
             # Fallback: ignore loading errors to avoid crashing
             pass
@@ -472,12 +504,8 @@ class BacktestRunner:
             return "NY"
         return "TOK"
 
-    def run(self, bars: List[Dict[str, Any]], mode: str = "conservative") -> Metrics:
+    def run_partial(self, bars: List[Dict[str, Any]], mode: str = "conservative") -> Metrics:
         ps = pip_size(self.symbol)
-        last_session: Optional[str] = None
-        last_day: Optional[int] = None
-        current_date: Optional[str] = None
-        day_count: int = 0
         for bar in bars:
             if not validate_bar(bar):
                 continue
@@ -490,6 +518,7 @@ class BacktestRunner:
                     day = int(ts[8:10])
                     date_str = ts[:10]
                     sess = self._session_of_ts(ts)
+                    self._last_timestamp = ts
                 else:
                     day = None
                     date_str = None
@@ -498,21 +527,23 @@ class BacktestRunner:
                 day = None
                 date_str = None
                 sess = "TOK"
+            if not isinstance(ts, str) and isinstance(bar.get("timestamp"), str):
+                self._last_timestamp = bar.get("timestamp")
             new_session = False
             # session boundary reset: on first bar or when session changes
-            if last_session is None or sess != last_session:
+            if self._last_session is None or sess != self._last_session:
                 new_session = True
-            last_session = sess
+            self._last_session = sess
             if day is not None:
-                if last_day is None:
-                    last_day = day
-                elif day != last_day:
-                    last_day = day
-            if date_str and date_str != current_date:
-                current_date = date_str
-                day_count += 1
-                if current_date not in self.daily:
-                    self.daily[current_date] = {
+                if self._last_day is None:
+                    self._last_day = day
+                elif day != self._last_day:
+                    self._last_day = day
+            if date_str and date_str != self._current_date:
+                self._current_date = date_str
+                self._day_count += 1
+                if self._current_date not in self.daily:
+                    self.daily[self._current_date] = {
                         "breakouts":0,
                         "gate_pass":0,
                         "gate_block":0,
@@ -569,7 +600,7 @@ class BacktestRunner:
             ctx = self._build_ctx(bar, bar_input["atr14"], adx14, or_h if or_h==or_h else None, or_l if or_l==or_l else None)
             # inject ctx for strategy
             # calibration flag: bypass EV threshold inside strategy by lowering threshold
-            calibrating = (self.rcfg.calibrate_days > 0 and day_count <= self.rcfg.calibrate_days)
+            calibrating = (self.rcfg.calibrate_days > 0 and self._day_count <= self.rcfg.calibrate_days)
             if calibrating:
                 ctx["threshold_lcb_pip"] = -1e9
                 ctx["calibrating"] = True
@@ -662,14 +693,14 @@ class BacktestRunner:
                     ev_key = self.pos.get("ev_key", (ctx["session"], ctx["spread_band"], ctx["rv_band"]))
                     self._get_ev_manager(ev_key).update(exit_reason == "tp")
                     self.ev_var.update(pnl_pips)
-                    if current_date:
-                        self.daily[current_date]["fills"] += 1
+                    if self._current_date:
+                        self.daily[self._current_date]["fills"] += 1
                         if exit_reason == "tp":
-                            self.daily[current_date]["wins"] += 1
-                        self.daily[current_date]["pnl_pips"] += pnl_pips
+                            self.daily[self._current_date]["wins"] += 1
+                        self.daily[self._current_date]["pnl_pips"] += pnl_pips
                         slip_actual = self.pos.get("entry_slip_pip", 0.0)
-                        self.daily[current_date]["slip_est"] += est_slip_used
-                        self.daily[current_date]["slip_real"] += slip_actual
+                        self.daily[self._current_date]["slip_est"] += est_slip_used
+                        self.daily[self._current_date]["slip_real"] += slip_actual
                     self._log_trade_record(
                         exit_ts=bar.get("timestamp"),
                         entry_ts=self.pos.get("entry_ts"),
@@ -696,7 +727,7 @@ class BacktestRunner:
                 continue
 
             # During calibration phase, resolve calibration positions (no metrics, only EV updates)
-            calibrating = (self.rcfg.calibrate_days > 0 and day_count <= self.rcfg.calibrate_days)
+            calibrating = (self.rcfg.calibrate_days > 0 and self._day_count <= self.rcfg.calibrate_days)
             if calibrating and self.calib_positions:
                 still: List[Dict[str, Any]] = []
                 for p in self.calib_positions:
@@ -729,8 +760,8 @@ class BacktestRunner:
                 if self.debug and self.debug_sample_limit and len(self.debug_records) < self.debug_sample_limit:
                     self.debug_records.append({"ts": bar.get("timestamp"), "stage": "no_breakout"})
                 continue
-            if current_date:
-                self.daily[current_date]["breakouts"] += 1
+            if self._current_date:
+                self.daily[self._current_date]["breakouts"] += 1
 
             # Recompute gating/EV/sizing locally for transparent diagnostics
             ctx_dbg = self._build_ctx(bar, bar_input["atr14"], adx14, or_h if or_h==or_h else None, or_l if or_l==or_l else None)
@@ -738,8 +769,8 @@ class BacktestRunner:
             if callable(strategy_gate_fn):
                 if not strategy_gate_fn(ctx_dbg, pending):
                     self.debug_counts["gate_block"] += 1
-                    if current_date:
-                        self.daily[current_date]["gate_block"] += 1
+                    if self._current_date:
+                        self.daily[self._current_date]["gate_block"] += 1
                     if self.debug and self.debug_sample_limit and len(self.debug_records) < self.debug_sample_limit:
                         reason = getattr(self.stg, "_last_gate_reason", {}) or {}
                         rec = {"ts": bar.get("timestamp"), "stage": reason.get("stage", "strategy_gate"),
@@ -749,8 +780,8 @@ class BacktestRunner:
                     continue
             if not pass_gates(ctx_dbg):
                 self.debug_counts["gate_block"] += 1
-                if current_date:
-                    self.daily[current_date]["gate_block"] += 1
+                if self._current_date:
+                    self.daily[self._current_date]["gate_block"] += 1
                 if self.debug and self.debug_sample_limit and len(self.debug_records) < self.debug_sample_limit:
                     self.debug_records.append({
                         "ts": bar.get("timestamp"), "stage": "gate_block",
@@ -759,8 +790,8 @@ class BacktestRunner:
                         "or_atr_ratio": ctx_dbg.get("or_atr_ratio")
                     })
                 continue
-            if current_date:
-                self.daily[current_date]["gate_pass"] += 1
+            if self._current_date:
+                self.daily[self._current_date]["gate_pass"] += 1
 
             ev_mgr_dbg = self._get_ev_manager(ctx_dbg.get("ev_key", (ctx_dbg["session"], ctx_dbg["spread_band"], ctx_dbg["rv_band"])))
             threshold_lcb = self.rcfg.threshold_lcb_pip
@@ -771,7 +802,7 @@ class BacktestRunner:
                 except Exception:
                     threshold_lcb = self.rcfg.threshold_lcb_pip
             ctx_dbg["threshold_lcb_pip"] = threshold_lcb
-            calibrating = (self.rcfg.calibrate_days > 0 and day_count <= self.rcfg.calibrate_days)
+            calibrating = (self.rcfg.calibrate_days > 0 and self._day_count <= self.rcfg.calibrate_days)
             ev_lcb = ev_mgr_dbg.ev_lcb_oco(pending["tp_pips"], pending["sl_pips"], ctx_dbg["cost_pips"]) if (pending and not calibrating) else 1e9
             ev_bypass = False
             if not calibrating and ev_lcb < threshold_lcb:
@@ -781,8 +812,8 @@ class BacktestRunner:
                     self.debug_counts["ev_bypass"] = self.debug_counts.get("ev_bypass", 0) + 1
                 else:
                     self.debug_counts["ev_reject"] += 1
-                    if current_date:
-                        self.daily[current_date]["ev_reject"] += 1
+                    if self._current_date:
+                        self.daily[self._current_date]["ev_reject"] += 1
                     if self.debug and self.debug_sample_limit and len(self.debug_records) < self.debug_sample_limit:
                         self.debug_records.append({
                             "ts": bar.get("timestamp"), "stage": "ev_reject",
@@ -792,8 +823,8 @@ class BacktestRunner:
                         })
                     continue
             else:
-                if current_date:
-                    self.daily[current_date]["ev_pass"] += 1
+                if self._current_date:
+                    self.daily[self._current_date]["ev_pass"] += 1
 
             ctx_dbg["ev_lcb"] = ev_lcb
             ctx_dbg["threshold_lcb"] = threshold_lcb
@@ -802,8 +833,8 @@ class BacktestRunner:
             slip_cap = ctx_dbg.get("slip_cap_pip", self.rcfg.slip_cap_pip)
             if ctx_dbg.get("expected_slip_pip", 0.0) > slip_cap:
                 self.debug_counts["gate_block"] += 1
-                if current_date:
-                    self.daily[current_date]["gate_block"] += 1
+                if self._current_date:
+                    self.daily[self._current_date]["gate_block"] += 1
                 if self.debug and self.debug_sample_limit and len(self.debug_records) < self.debug_sample_limit:
                     self.debug_records.append({
                         "ts": bar.get("timestamp"),
@@ -896,13 +927,13 @@ class BacktestRunner:
                 hit = result.get("exit_reason") == "tp"
                 if hit:
                     self.metrics.wins += 1
-                if current_date:
-                    self.daily[current_date]["fills"] += 1
+                if self._current_date:
+                    self.daily[self._current_date]["fills"] += 1
                     if hit:
-                        self.daily[current_date]["wins"] += 1
-                    self.daily[current_date]["pnl_pips"] += pnl_pips
-                    self.daily[current_date]["slip_est"] += est_slip_used
-                    self.daily[current_date]["slip_real"] += slip_actual
+                        self.daily[self._current_date]["wins"] += 1
+                    self.daily[self._current_date]["pnl_pips"] += pnl_pips
+                    self.daily[self._current_date]["slip_est"] += est_slip_used
+                    self.daily[self._current_date]["slip_real"] += slip_actual
                 if self.debug and self.debug_sample_limit and len(self.debug_records) < self.debug_sample_limit:
                     self.debug_records.append({
                         "ts": bar.get("timestamp"), "stage": "trade", "side": it.side,
@@ -985,3 +1016,10 @@ class BacktestRunner:
             if self.daily:
                 self.metrics.daily = dict(self.daily)
         return self.metrics
+
+    def run(self, bars: List[Dict[str, Any]], mode: str = "conservative") -> Metrics:
+        """Run a full batch simulation resetting runtime state first."""
+        self._reset_runtime_state()
+        self._ev_profile_lookup = {}
+        self._apply_ev_profile()
+        return self.run_partial(bars, mode=mode)
