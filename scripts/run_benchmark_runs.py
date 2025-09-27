@@ -359,6 +359,16 @@ def main(argv=None) -> int:
         print(json.dumps(result, ensure_ascii=False))
         return 0
 
+    latest_ts = _parse_ts(rows[-1]["timestamp"])
+    base_result: Dict[str, object] = {
+        "baseline": str(baseline_out),
+        "baseline_metrics": baseline_metrics,
+        "rolling": rolling_outputs,
+        "windows": windows,
+        "latest_ts": latest_ts.isoformat(),
+        "alert": alert_info,
+    }
+
     index_rc = None
     if runs_dir_path:
         rebuild_cmd = [
@@ -367,24 +377,46 @@ def main(argv=None) -> int:
             "--runs-dir", str(runs_dir_path),
             "--out", str(runs_dir_path / "index.csv"),
         ]
-        rebuild_proc = subprocess.run(rebuild_cmd, check=False)
+        rebuild_proc = subprocess.run(
+            rebuild_cmd,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
         index_rc = rebuild_proc.returncode
+        if index_rc != 0:
+            error_payload: Dict[str, object] = {
+                "message": "rebuild_runs_index_failed",
+                "returncode": index_rc,
+            }
+            if rebuild_proc.stdout:
+                stdout_text = rebuild_proc.stdout.rstrip()
+                if stdout_text:
+                    error_payload["stdout"] = stdout_text
+                    print(
+                        "[rebuild_runs_index.py stdout]\n" + rebuild_proc.stdout,
+                        file=sys.stderr,
+                        end="",
+                    )
+            if rebuild_proc.stderr:
+                stderr_text = rebuild_proc.stderr.rstrip()
+                if stderr_text:
+                    error_payload["stderr"] = stderr_text
+                    print(
+                        "[rebuild_runs_index.py stderr]\n" + rebuild_proc.stderr,
+                        file=sys.stderr,
+                        end="",
+                    )
+            failure_result = {**base_result, "runs_index_rc": index_rc, "error": error_payload}
+            print(json.dumps(failure_result, ensure_ascii=False))
+            return index_rc
 
     snapshot_path = Path(args.snapshot)
     snapshot = _load_snapshot(snapshot_path)
-    latest_ts = _parse_ts(rows[-1]["timestamp"])
     key = f"{args.symbol}_{args.mode}"
     snapshot = _set_snapshot(snapshot, key, latest_ts)
     _save_snapshot(snapshot_path, snapshot)
-    result = {
-        "baseline": str(baseline_out),
-        "baseline_metrics": baseline_metrics,
-        "rolling": rolling_outputs,
-        "windows": windows,
-        "latest_ts": latest_ts.isoformat(),
-        "alert": alert_info,
-        "runs_index_rc": index_rc,
-    }
+    result = {**base_result, "runs_index_rc": index_rc}
     print(json.dumps(result, ensure_ascii=False))
     return 0
 
