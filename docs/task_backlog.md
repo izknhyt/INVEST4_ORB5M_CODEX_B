@@ -3,7 +3,7 @@
 このバックログは「最新値動きを取り込みながら継続学習し、複数戦略ポートフォリオでシグナルを出す」ツールを実現するための優先順位付きタスク群です。各タスク完了時は成果物（コード/ドキュメント/レポート）へのリンクを追記してください。
 
 ## P0: 即着手（オンデマンドインジェスト + 基盤整備）
-- **state 更新ワーカー**: 取得済みバーを時系列順に処理し、`BacktestRunner.load_state` → `runner.run_partial()` → `runner.export_state` を繰り返す CLI を実装。`ops/state_archive/<strategy>/<symbol>/<mode>/` に最新5件を保存し、更新後に `scripts/aggregate_ev.py` を自動実行できるようにする。
+- ~~**state 更新ワーカー**~~ (完了): `scripts/update_state.py` に部分実行ワークフローを実装し、`BacktestRunner.run_partial` と状態スナップショット/EVアーカイブ連携を整備。`ops/state_archive/<strategy>/<symbol>/<mode>/` へ最新5件を保持し、更新後は `scripts/aggregate_ev.py` を自動起動するようにした。
 - **ベースライン/ローリング run 起動ジョブ**: ORB コア設定の通し run と直近ローリング run を起動時にまとめて再計算し、`runs/index.csv`・`reports/baseline/*.json`・`reports/rolling/<window>/` を更新。前回結果との乖離が閾値超過したら Webhook 通知。
 
 ## P1: ローリング検証 + 健全性モニタリング

@@ -198,11 +198,11 @@ def main(argv=None) -> int:
         chunk.append(bar)
         latest_ts_str = bar.get("timestamp") if isinstance(bar.get("timestamp"), str) else latest_ts_str
         if len(chunk) >= chunk_size:
-            metrics = runner.run(chunk, mode=args.mode)
+            metrics = runner.run_partial(chunk, mode=args.mode)
             total_processed += len(chunk)
             chunk = []
     if chunk:
-        metrics = runner.run(chunk, mode=args.mode)
+        metrics = runner.run_partial(chunk, mode=args.mode)
         total_processed += len(chunk)
         latest_ts_str = chunk[-1].get("timestamp") if isinstance(chunk[-1].get("timestamp"), str) else latest_ts_str
 
