@@ -1,0 +1,14 @@
+{
+  "trades": 382,
+  "wins": 254,
+  "total_pips": 100.38857142857262,
+  "debug": {
+    "no_breakout": 142934,
+    "gate_block": 202393,
+    "ev_reject": 177634,
+    "zero_qty": 0,
+    "ev_bypass": 31
+  },
+  "state_loaded": "ops/state_archive/day_orb_5m.DayORB5m/USDJPY/conservative/20250922_080914_USDJPY_conservative_20250922_170914.json",
+  "ev_profile_path": "configs/ev_profiles/day_orb_5m.yaml"
+}

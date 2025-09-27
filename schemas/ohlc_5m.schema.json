@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OHLC5m",
+  "type": "object",
+  "required": [
+    "timestamp",
+    "symbol",
+    "tf",
+    "o",
+    "h",
+    "l",
+    "c",
+    "v",
+    "spread"
+  ],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "symbol": {
+      "type": "string"
+    },
+    "tf": {
+      "type": "string",
+      "const": "5m"
+    },
+    "o": {
+      "type": "number"
+    },
+    "h": {
+      "type": "number"
+    },
+    "l": {
+      "type": "number"
+    },
+    "c": {
+      "type": "number"
+    },
+    "v": {
+      "type": "number"
+    },
+    "spread": {
+      "type": "number",
+      "minimum": 0
+    }
+  }
+}

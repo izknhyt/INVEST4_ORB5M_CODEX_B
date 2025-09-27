@@ -1,0 +1,75 @@
+{
+  "meta": {
+    "symbol": "USDJPY",
+    "config_fingerprint": "22a2441a82887be9"
+  },
+  "ev_global": {
+    "alpha": 15.796630658193028,
+    "beta": 28.787634258936183,
+    "prior_alpha": 0.0,
+    "prior_beta": 0.0,
+    "decay": 0.02,
+    "conf": 0.95
+  },
+  "ev_buckets": {
+    "TOK:narrow:high": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "TOK:narrow:mid": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "LDN:narrow:high": {
+      "alpha": 15.643246169624902,
+      "beta": 27.861102113081042
+    },
+    "LDN:narrow:mid": {
+      "alpha": 1.8827681599999997,
+      "beta": 3.84356016
+    },
+    "NY:narrow:high": {
+      "alpha": 1.9404,
+      "beta": 1.9604
+    },
+    "NY:narrow:mid": {
+      "alpha": 1.901592,
+      "beta": 2.9211919999999996
+    },
+    "NY:narrow:low": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "TOK:narrow:low": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "LDN:narrow:low": {
+      "alpha": 1.0,
+      "beta": 1.0
+    }
+  },
+  "slip": {
+    "a": null,
+    "curve": {
+      "narrow": {
+        "a": 0.02,
+        "b": 0.0
+      },
+      "normal": {
+        "a": 0.05,
+        "b": 0.0
+      },
+      "wide": {
+        "a": 0.1,
+        "b": 0.0
+      }
+    },
+    "ewma_alpha": 0.1
+  },
+  "rv_thresh": {
+    "TOK": null,
+    "LDN": null,
+    "NY": null
+  }
+}

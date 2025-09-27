@@ -1,0 +1,12 @@
+{
+  "trades": 108,
+  "wins": 73,
+  "total_pips": -47.82571428570685,
+  "bars_processed": 523743,
+  "state_out": "runs/active/state_pipeline.json",
+  "strategy_key": "strategies.day_orb_5m.DayORB5m",
+  "archive_dir": "ops/state_archive_pipeline/strategies.day_orb_5m.DayORB5m/USDJPY/conservative",
+  "ev_archive_latest": "ops/state_archive_pipeline/strategies.day_orb_5m.DayORB5m/USDJPY/conservative/20250924_133458_state.json",
+  "ev_archives_pruned": [],
+  "aggregate_ev_rc": 0
+}

@@ -1,0 +1,23 @@
+ev_estimator:
+  oco:
+    mode: beta_binomial
+    conf_level: 0.95
+    decay: 0.02
+    min_trades_per_bucket: 50
+  trailing:
+    mode: t_lower
+    conf_level: 0.95
+    decay: 0.02
+cost_model:
+  spread_source: live_or_bar_mid
+  slippage_estimator: ewma
+  slip_cap_pip: 1.5
+buckets:
+  keys: [session, spread_band, rv_band, trend_flag]
+  bands:
+    spread_band: [narrow, normal, wide]
+    rv_band: [low, mid, high]
+  trend_flag:
+    adx_threshold: 18
+gate:
+  threshold_lcb_pip: 0.5

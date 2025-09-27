@@ -1,0 +1,11 @@
+{
+  "total": 1,
+  "failures": 1,
+  "failure_rate": 1.0,
+  "avg_latency": 0.000135,
+  "p50_latency": 0.000135,
+  "p95_latency": 0.000135,
+  "p99_latency": 0.000135,
+  "slo_threshold": 5.0,
+  "slo_breach_ratio": 0.0
+}

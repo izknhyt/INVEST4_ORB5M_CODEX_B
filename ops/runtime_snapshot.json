@@ -1,0 +1,11 @@
+{
+  "ingest": {
+    "USDJPY_5m": "2024-12-31T21:55:00"
+  },
+  "state_update": {
+    "USDJPY_conservative": "2024-12-31T21:55:00"
+  },
+  "benchmarks": {
+    "USDJPY_conservative": "2024-12-31T21:55:00"
+  }
+}

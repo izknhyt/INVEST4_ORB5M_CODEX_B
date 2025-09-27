@@ -1,0 +1,10 @@
+bucket,alpha_avg,beta_avg,p_mean,observations
+TOK:narrow:high,1.0,1.0,0.5,2
+TOK:narrow:mid,1.0,1.0,0.5,2
+LDN:narrow:high,26.444100130841846,19.94162891789173,0.570091290428124,2
+LDN:narrow:mid,4.184711868297075,4.111242717379328,0.5044280106742989,2
+NY:narrow:high,1.9404,1.9604,0.4974364232977851,2
+NY:narrow:mid,4.810324591546415,4.052668813055938,0.5427426572436037,2
+NY:narrow:low,1.0,1.0,0.5,2
+TOK:narrow:low,1.0,1.0,0.5,2
+LDN:narrow:low,1.0,1.0,0.5,2

@@ -1,0 +1,12 @@
+{
+  "trades": 113,
+  "wins": 67,
+  "total_pips": -16.637142857136894,
+  "debug": {
+    "no_breakout": 155187,
+    "gate_block": 171511,
+    "ev_reject": 196845,
+    "zero_qty": 0,
+    "ev_bypass": 10
+  }
+}

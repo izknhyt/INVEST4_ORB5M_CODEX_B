@@ -1,0 +1,70 @@
+[
+  {
+    "iteration": 1,
+    "optuna": {
+      "best_params": {
+        "or_n": 5,
+        "k_tp": 1.1536551850413117,
+        "k_sl": 0.5937119785099357,
+        "threshold_lcb": 0.024985243878647645
+      },
+      "best_value": -0.0
+    },
+    "metrics": {
+      "sharpe": 0.0,
+      "max_drawdown": 0.0,
+      "profit_factor": Infinity,
+      "expectancy": 0.0,
+      "cagr": 0.0,
+      "input_metrics": {
+        "trades": 0,
+        "wins": 0,
+        "total_pips": 0.0,
+        "debug": {
+          "no_breakout": 110494,
+          "gate_block": 181256,
+          "ev_reject": 231993,
+          "zero_qty": 0
+        },
+        "dump_daily": "reports/iter1_daily.csv"
+      }
+    },
+    "evaluation": {
+      "metrics": {
+        "sharpe": 0.0,
+        "max_drawdown": 0.0,
+        "profit_factor": Infinity,
+        "expectancy": 0.0,
+        "cagr": 0.0,
+        "input_metrics": {
+          "trades": 0,
+          "wins": 0,
+          "total_pips": 0.0,
+          "debug": {
+            "no_breakout": 110494,
+            "gate_block": 181256,
+            "ev_reject": 231993,
+            "zero_qty": 0
+          },
+          "dump_daily": "reports/iter1_daily.csv"
+        }
+      },
+      "targets": {
+        "sharpe_min": 0.5,
+        "max_dd_max": 2000,
+        "profit_factor_min": 1.5,
+        "expectancy_min": 0.5,
+        "cagr_min": 0.1
+      },
+      "results": {
+        "sharpe_min": false,
+        "max_dd_max": true,
+        "profit_factor_min": true,
+        "expectancy_min": false,
+        "cagr_min": false
+      },
+      "passed": false,
+      "returncode": 1
+    }
+  }
+]

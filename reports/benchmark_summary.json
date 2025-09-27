@@ -1,0 +1,37 @@
+{
+  "generated_at": "2025-09-24T13:14:17.755085Z",
+  "symbol": "USDJPY",
+  "mode": "conservative",
+  "baseline": {
+    "trades": 133,
+    "wins": 89,
+    "win_rate": 0.6691729323308271,
+    "total_pips": -68.5171428571345
+  },
+  "rolling": [
+    {
+      "trades": 98,
+      "wins": 65,
+      "win_rate": 0.6632653061224489,
+      "total_pips": 123.42142857153056,
+      "window": 90
+    },
+    {
+      "trades": 134,
+      "wins": 83,
+      "win_rate": 0.6194029850746269,
+      "total_pips": 104.35428571444038,
+      "window": 180
+    },
+    {
+      "trades": 187,
+      "wins": 119,
+      "win_rate": 0.6363636363636364,
+      "total_pips": 288.7557142859381,
+      "window": 365
+    }
+  ],
+  "warnings": [
+    "baseline total_pips negative: -68.52"
+  ]
+}

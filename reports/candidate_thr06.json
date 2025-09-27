@@ -1,0 +1,20 @@
+{
+  "sharpe": -0.003633531434166572,
+  "max_drawdown": -42.457142857139615,
+  "profit_factor": 0.9136407714686254,
+  "expectancy": -0.27757575757565156,
+  "cagr": -1.5267249377060033e-05,
+  "input_metrics": {
+    "trades": 33,
+    "wins": 17,
+    "total_pips": -9.1599999999965,
+    "debug": {
+      "no_breakout": 96542,
+      "gate_block": 185915,
+      "ev_reject": 241250,
+      "zero_qty": 0,
+      "ev_bypass": 9
+    },
+    "dump_daily": "/tmp/daily_thr06.csv"
+  }
+}

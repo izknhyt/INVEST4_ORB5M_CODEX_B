@@ -1,0 +1,15 @@
+bar_tf: 5m
+buffer_len: 200
+persist: parquet
+symbols: [USDJPY, EURUSD]
+sessions:
+  tokyo: { start: "00:00", end: "08:59" }
+  london: { start: "08:00", end: "16:59" }
+  newyork: { start: "13:00", end: "21:59" }
+news_freeze_window:
+  before_minutes: 2
+  after_minutes: 8
+or_quality:
+  min_or_atr_ratio: 0.6   # ρ_min
+spread:
+  bands: { narrow: 0.5, normal: 1.2, wide: 99 }  # pip幅目安（例値）

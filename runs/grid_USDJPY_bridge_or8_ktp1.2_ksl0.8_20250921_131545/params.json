@@ -1,0 +1,14 @@
+{
+  "csv": "data/usdjpy_5m_2018-2024_utc.csv",
+  "symbol": "USDJPY",
+  "equity": 100000.0,
+  "mode": "bridge",
+  "or_n": 8,
+  "k_tp": 1.2,
+  "k_sl": 0.8,
+  "threshold_lcb": 0.0,
+  "min_or_atr": 0.4,
+  "rv_cuts": null,
+  "allow_low_rv": true,
+  "warmup": 50
+}

@@ -1,0 +1,19 @@
+{
+  "jobs": [
+    {
+      "name": "optimize_params_daily",
+      "schedule": "0 22 * * 5",
+      "command": "python3 scripts/auto_optimize.py --opt-args --top-k 5 --min-trades 300 --rebuild-index --csv data/usdjpy_5m_2018-2024_utc.csv --symbol USDJPY --mode conservative --or-n 4,6 --k-tp 0.8,1.0,1.2 --k-sl 0.4,0.6,0.8 --threshold-lcb 0.3 --allowed-sessions LDN,NY --warmup 10 --include-expected-slip --report reports/auto_optimize.json --webhook $OPTIMIZE_WEBHOOK"
+    },
+    {
+      "name": "signal_latency_check",
+      "schedule": "30 23 * * *",
+      "command": "python3 scripts/analyze_signal_latency.py --input ops/signal_latency.csv --slo-threshold 5 --json-out reports/signal_latency.json"
+    },
+    {
+      "name": "state_archive",
+      "schedule": "0 0 * * *",
+      "command": "python3 scripts/archive_state.py --runs-dir runs --output ops/state_archive"
+    }
+  ]
+}

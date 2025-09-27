@@ -1,0 +1,20 @@
+{
+  "sharpe": -0.0764945448226512,
+  "max_drawdown": -243.08430993976012,
+  "profit_factor": 0.198955864988179,
+  "expectancy": -2.430843099397601,
+  "cagr": -0.0004055514742901112,
+  "input_metrics": {
+    "trades": 100,
+    "wins": 61,
+    "total_pips": -243.08430993976012,
+    "debug": {
+      "no_breakout": 124153,
+      "gate_block": 178078,
+      "ev_reject": 221393,
+      "zero_qty": 0,
+      "ev_bypass": 8
+    },
+    "dump_daily": "reports/long_conservative_daily.csv"
+  }
+}

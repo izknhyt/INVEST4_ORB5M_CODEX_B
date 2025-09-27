@@ -1,0 +1,122 @@
+[
+  {
+    "checked_at": "2025-09-24T12:34:05.993237Z",
+    "state_path": "/Users/izumimotohayato/development/invest3_orb5m_codex/runs/active/state.json",
+    "metrics": {
+      "ev_total_samples": 49.99996805532121,
+      "ev_win_mean": 0.5601068146841263,
+      "slip_a": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      }
+    },
+    "bucket_samples": [
+      {
+        "bucket": "NY:narrow:high",
+        "samples": 6.6118017536
+      },
+      {
+        "bucket": "NY:narrow:mid",
+        "samples": 49.88104417370556
+      },
+      {
+        "bucket": "TOK:narrow:mid",
+        "samples": 2.0
+      },
+      {
+        "bucket": "TOK:narrow:low",
+        "samples": 2.0
+      },
+      {
+        "bucket": "TOK:narrow:high",
+        "samples": 2.0
+      },
+      {
+        "bucket": "LDN:narrow:mid",
+        "samples": 49.98484885555233
+      },
+      {
+        "bucket": "LDN:narrow:low",
+        "samples": 2.0
+      },
+      {
+        "bucket": "LDN:narrow:high",
+        "samples": 4.8227839999999995
+      },
+      {
+        "bucket": "NY:narrow:low",
+        "samples": 2.0
+      }
+    ],
+    "warnings": [
+      "bucket NY:narrow:high samples=6.6 below threshold",
+      "bucket TOK:narrow:mid samples=2.0 below threshold",
+      "bucket TOK:narrow:low samples=2.0 below threshold",
+      "bucket TOK:narrow:high samples=2.0 below threshold",
+      "bucket LDN:narrow:low samples=2.0 below threshold",
+      "bucket LDN:narrow:high samples=4.8 below threshold",
+      "bucket NY:narrow:low samples=2.0 below threshold"
+    ]
+  },
+  {
+    "checked_at": "2025-09-24T12:35:51.349372Z",
+    "state_path": "/Users/izumimotohayato/development/invest3_orb5m_codex/runs/active/state.json",
+    "metrics": {
+      "ev_total_samples": 49.99996805532121,
+      "ev_win_mean": 0.5601068146841263,
+      "slip_a": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      }
+    },
+    "bucket_samples": [
+      {
+        "bucket": "NY:narrow:high",
+        "samples": 6.6118017536
+      },
+      {
+        "bucket": "NY:narrow:mid",
+        "samples": 49.88104417370556
+      },
+      {
+        "bucket": "TOK:narrow:mid",
+        "samples": 2.0
+      },
+      {
+        "bucket": "TOK:narrow:low",
+        "samples": 2.0
+      },
+      {
+        "bucket": "TOK:narrow:high",
+        "samples": 2.0
+      },
+      {
+        "bucket": "LDN:narrow:mid",
+        "samples": 49.98484885555233
+      },
+      {
+        "bucket": "LDN:narrow:low",
+        "samples": 2.0
+      },
+      {
+        "bucket": "LDN:narrow:high",
+        "samples": 4.8227839999999995
+      },
+      {
+        "bucket": "NY:narrow:low",
+        "samples": 2.0
+      }
+    ],
+    "warnings": [
+      "bucket NY:narrow:high samples=6.6 below threshold",
+      "bucket TOK:narrow:mid samples=2.0 below threshold",
+      "bucket TOK:narrow:low samples=2.0 below threshold",
+      "bucket TOK:narrow:high samples=2.0 below threshold",
+      "bucket LDN:narrow:low samples=2.0 below threshold",
+      "bucket LDN:narrow:high samples=4.8 below threshold",
+      "bucket NY:narrow:low samples=2.0 below threshold"
+    ]
+  }
+]

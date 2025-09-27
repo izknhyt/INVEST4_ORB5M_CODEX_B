@@ -1,0 +1,50 @@
+[
+  {
+    "trades": 2646,
+    "wins": 1095,
+    "total_pips": -4640.837057101647,
+    "debug": {
+      "no_breakout": 238490,
+      "gate_block": 184169,
+      "ev_reject": 97746,
+      "zero_qty": 0,
+      "ev_bypass": 3
+    },
+    "dump_csv": "/tmp/records_case.csv",
+    "dump_rows": 1000,
+    "dump_daily": "/tmp/daily_case.csv",
+    "threshold_lcb": 0.0
+  },
+  {
+    "trades": 1885,
+    "wins": 806,
+    "total_pips": -2249.034675908187,
+    "debug": {
+      "no_breakout": 198990,
+      "gate_block": 188588,
+      "ev_reject": 133775,
+      "zero_qty": 0,
+      "ev_bypass": 4
+    },
+    "dump_csv": "/tmp/records_case.csv",
+    "dump_rows": 1000,
+    "dump_daily": "/tmp/daily_case.csv",
+    "threshold_lcb": 0.3
+  },
+  {
+    "trades": 1871,
+    "wins": 847,
+    "total_pips": -1801.6728625852422,
+    "debug": {
+      "no_breakout": 199100,
+      "gate_block": 187969,
+      "ev_reject": 134354,
+      "zero_qty": 0,
+      "ev_bypass": 5
+    },
+    "dump_csv": "/tmp/records_case.csv",
+    "dump_rows": 1000,
+    "dump_daily": "/tmp/daily_case.csv",
+    "threshold_lcb": 0.5
+  }
+]

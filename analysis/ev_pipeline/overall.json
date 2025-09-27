@@ -1,0 +1,131 @@
+{
+  "runs": [
+    {
+      "run_id": "USDJPY_conservative_20250922_143631",
+      "days_with_pnl": 1,
+      "realized_total": 46.361428571427666,
+      "ev_total": 0.0,
+      "gap_total": 46.361428571427666,
+      "mean_gap": 46.361428571427666,
+      "max_gap": 46.361428571427666,
+      "min_gap": 46.361428571427666
+    },
+    {
+      "run_id": "USDJPY_conservative_20250922_143714",
+      "days_with_pnl": 1,
+      "realized_total": 46.361428571427666,
+      "ev_total": 0.0,
+      "gap_total": 46.361428571427666,
+      "mean_gap": 46.361428571427666,
+      "max_gap": 46.361428571427666,
+      "min_gap": 46.361428571427666
+    },
+    {
+      "run_id": "USDJPY_conservative_20250922_143756",
+      "days_with_pnl": 1,
+      "realized_total": 46.361428571427666,
+      "ev_total": 0.0,
+      "gap_total": 46.361428571427666,
+      "mean_gap": 46.361428571427666,
+      "max_gap": 46.361428571427666,
+      "min_gap": 46.361428571427666
+    },
+    {
+      "run_id": "USDJPY_conservative_20250922_150418",
+      "days_with_pnl": 1,
+      "realized_total": 45.511428571428326,
+      "ev_total": 0.0,
+      "gap_total": 45.511428571428326,
+      "mean_gap": 45.511428571428326,
+      "max_gap": 45.511428571428326,
+      "min_gap": 45.511428571428326
+    },
+    {
+      "run_id": "USDJPY_conservative_20250922_152942",
+      "days_with_pnl": 1,
+      "realized_total": 45.511428571428326,
+      "ev_total": 0.0,
+      "gap_total": 45.511428571428326,
+      "mean_gap": 45.511428571428326,
+      "max_gap": 45.511428571428326,
+      "min_gap": 45.511428571428326
+    },
+    {
+      "run_id": "USDJPY_conservative_20250922_153303",
+      "days_with_pnl": 1,
+      "realized_total": 45.511428571428326,
+      "ev_total": 0.0,
+      "gap_total": 45.511428571428326,
+      "mean_gap": 45.511428571428326,
+      "max_gap": 45.511428571428326,
+      "min_gap": 45.511428571428326
+    },
+    {
+      "run_id": "USDJPY_conservative_20250922_170854",
+      "days_with_pnl": 1,
+      "realized_total": 46.361428571427666,
+      "ev_total": 0.0,
+      "gap_total": 46.361428571427666,
+      "mean_gap": 46.361428571427666,
+      "max_gap": 46.361428571427666,
+      "min_gap": 46.361428571427666
+    },
+    {
+      "run_id": "USDJPY_conservative_20250922_170914",
+      "days_with_pnl": 1,
+      "realized_total": 45.511428571428326,
+      "ev_total": 0.0,
+      "gap_total": 45.511428571428326,
+      "mean_gap": 45.511428571428326,
+      "max_gap": 45.511428571428326,
+      "min_gap": 45.511428571428326
+    },
+    {
+      "run_id": "USDJPY_conservative_20250922_175708",
+      "days_with_pnl": 1,
+      "realized_total": 45.5400000000007,
+      "ev_total": 0.0,
+      "gap_total": 45.5400000000007,
+      "mean_gap": 45.5400000000007,
+      "max_gap": 45.5400000000007,
+      "min_gap": 45.5400000000007
+    },
+    {
+      "run_id": "USDJPY_conservative_20250923_202605",
+      "days_with_pnl": 86,
+      "realized_total": -22.918571428560092,
+      "ev_total": 94.10460405223921,
+      "gap_total": -117.0231754807993,
+      "mean_gap": -1.3607345986139452,
+      "max_gap": 75.91874256024907,
+      "min_gap": -49.07373435432295
+    },
+    {
+      "run_id": "USDJPY_conservative_20250923_215717",
+      "days_with_pnl": 86,
+      "realized_total": -23.518571428560115,
+      "ev_total": 94.54231984225262,
+      "gap_total": -118.06089127081275,
+      "mean_gap": -1.3728010612885202,
+      "max_gap": 75.51875003499885,
+      "min_gap": -49.076271438573485
+    },
+    {
+      "run_id": "USDJPY_conservative_20250923_221030",
+      "days_with_pnl": 144,
+      "realized_total": 205.96000000009053,
+      "ev_total": 139.3434021702376,
+      "gap_total": 66.61659782985294,
+      "mean_gap": 0.46261526270731207,
+      "max_gap": 75.60907042201438,
+      "min_gap": -64.1256850207186
+    }
+  ],
+  "overall": {
+    "runs": 12,
+    "days_with_pnl": 145,
+    "realized_total": 572.5542857143951,
+    "ev_total": 327.9903260647294,
+    "gap_total": 244.56395964966555
+  }
+}

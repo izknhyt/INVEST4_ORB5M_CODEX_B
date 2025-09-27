@@ -1,0 +1,20 @@
+{
+  "sharpe": -0.10390496960409157,
+  "max_drawdown": -957.4674790692396,
+  "profit_factor": 0.5921401736045728,
+  "expectancy": -1.231536697328815,
+  "cagr": -0.001561927719641254,
+  "input_metrics": {
+    "trades": 758,
+    "wins": 436,
+    "total_pips": -933.5048165752418,
+    "debug": {
+      "no_breakout": 171237,
+      "gate_block": 179335,
+      "ev_reject": 172054,
+      "zero_qty": 0,
+      "ev_bypass": 8
+    },
+    "dump_daily": "reports/long_bridge_daily.csv"
+  }
+}

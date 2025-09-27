@@ -1,0 +1,148 @@
+meta:
+  strategy_key: strategies.day_orb_5m.DayORB5m
+  symbol: USDJPY
+  mode: conservative
+  generated_at: '2025-09-24T13:34:58Z'
+  files_total: 1
+  recent_count: 1
+  latest_state_ts: '2025-09-24T13:34:58Z'
+  alpha_prior: 1.0
+  beta_prior: 1.0
+global:
+  long_term:
+    alpha_avg: 24.446286992455548
+    beta_avg: 20.137977924673653
+    p_mean: 0.5483164752832635
+    observations: 1
+  recent:
+    alpha_avg: 24.446286992455548
+    beta_avg: 20.137977924673653
+    p_mean: 0.5483164752832635
+    observations: 1
+buckets:
+- bucket:
+    session: LDN
+    spread_band: narrow
+    rv_band: high
+  long_term:
+    alpha_avg: 25.050561985036644
+    beta_avg: 18.45378629766929
+    p_mean: 0.5758174291509814
+    observations: 1
+  recent:
+    alpha_avg: 25.050561985036644
+    beta_avg: 18.45378629766929
+    p_mean: 0.5758174291509814
+    observations: 1
+- bucket:
+    session: LDN
+    spread_band: narrow
+    rv_band: low
+  long_term:
+    alpha_avg: 1.0
+    beta_avg: 1.0
+    p_mean: 0.5
+    observations: 1
+  recent:
+    alpha_avg: 1.0
+    beta_avg: 1.0
+    p_mean: 0.5
+    observations: 1
+- bucket:
+    session: LDN
+    spread_band: narrow
+    rv_band: mid
+  long_term:
+    alpha_avg: 2.8443207968
+    beta_avg: 3.7674809568
+    p_mean: 0.43018845736736155
+    observations: 1
+  recent:
+    alpha_avg: 2.8443207968
+    beta_avg: 3.7674809568
+    p_mean: 0.43018845736736155
+    observations: 1
+- bucket:
+    session: NY
+    spread_band: narrow
+    rv_band: high
+  long_term:
+    alpha_avg: 1.9404
+    beta_avg: 1.9604
+    p_mean: 0.4974364232977851
+    observations: 1
+  recent:
+    alpha_avg: 1.9404
+    beta_avg: 1.9604
+    p_mean: 0.4974364232977851
+    observations: 1
+- bucket:
+    session: NY
+    spread_band: narrow
+    rv_band: low
+  long_term:
+    alpha_avg: 1.0
+    beta_avg: 1.0
+    p_mean: 0.5
+    observations: 1
+  recent:
+    alpha_avg: 1.0
+    beta_avg: 1.0
+    p_mean: 0.5
+    observations: 1
+- bucket:
+    session: NY
+    spread_band: narrow
+    rv_band: mid
+  long_term:
+    alpha_avg: 1.9604
+    beta_avg: 1.9404
+    p_mean: 0.502563576702215
+    observations: 1
+  recent:
+    alpha_avg: 1.9604
+    beta_avg: 1.9404
+    p_mean: 0.502563576702215
+    observations: 1
+- bucket:
+    session: TOK
+    spread_band: narrow
+    rv_band: high
+  long_term:
+    alpha_avg: 1.0
+    beta_avg: 1.0
+    p_mean: 0.5
+    observations: 1
+  recent:
+    alpha_avg: 1.0
+    beta_avg: 1.0
+    p_mean: 0.5
+    observations: 1
+- bucket:
+    session: TOK
+    spread_band: narrow
+    rv_band: low
+  long_term:
+    alpha_avg: 1.0
+    beta_avg: 1.0
+    p_mean: 0.5
+    observations: 1
+  recent:
+    alpha_avg: 1.0
+    beta_avg: 1.0
+    p_mean: 0.5
+    observations: 1
+- bucket:
+    session: TOK
+    spread_band: narrow
+    rv_band: mid
+  long_term:
+    alpha_avg: 1.0
+    beta_avg: 1.0
+    p_mean: 0.5
+    observations: 1
+  recent:
+    alpha_avg: 1.0
+    beta_avg: 1.0
+    p_mean: 0.5
+    observations: 1

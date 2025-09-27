@@ -1,0 +1,74 @@
+{
+  "meta": {
+    "strategy": "day_orb_5m.DayORB5m",
+    "symbol": "USDJPY",
+    "mode": "conservative",
+    "generated_at": "2025-09-23T13:10:30Z",
+    "runs_used": 12,
+    "total_trades": 473,
+    "alpha_prior": 1.0,
+    "beta_prior": 1.0
+  },
+  "global": {
+    "alpha": 315.0,
+    "beta": 160.0,
+    "p_mean": 0.6631578947368421,
+    "trades": 473,
+    "hits": 314,
+    "pnl_sum": 96.17285714296122,
+    "ev_lcb_sum": 327.99032606472923
+  },
+  "buckets": [
+    {
+      "bucket": {
+        "session": "LDN",
+        "spread_band": "narrow",
+        "rv_band": "high"
+      },
+      "stats": {
+        "trades": 401,
+        "hits": 272,
+        "hit_rate": 0.6783042394014963,
+        "alpha": 273.0,
+        "beta": 130.0,
+        "p_mean": 0.6774193548387096,
+        "pnl_avg": -0.3103811898823722,
+        "ev_lcb_avg": 0.6840208287510902
+      }
+    },
+    {
+      "bucket": {
+        "session": "LDN",
+        "spread_band": "narrow",
+        "rv_band": "mid"
+      },
+      "stats": {
+        "trades": 6,
+        "hits": 3,
+        "hit_rate": 0.5,
+        "alpha": 4.0,
+        "beta": 4.0,
+        "p_mean": 0.5,
+        "pnl_avg": -0.9580952380955242,
+        "ev_lcb_avg": 0.6366421764259195
+      }
+    },
+    {
+      "bucket": {
+        "session": "NY",
+        "spread_band": "narrow",
+        "rv_band": "mid"
+      },
+      "stats": {
+        "trades": 66,
+        "hits": 39,
+        "hit_rate": 0.5909090909090909,
+        "alpha": 40.0,
+        "beta": 28.0,
+        "p_mean": 0.5882352941176471,
+        "pnl_avg": 3.4300649350661456,
+        "ev_lcb_avg": 0.7557291011664632
+      }
+    }
+  ]
+}

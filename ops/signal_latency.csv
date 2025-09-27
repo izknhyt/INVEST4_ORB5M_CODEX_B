@@ -1,0 +1,2 @@
+signal_id,ts_emit,ts_ack,status,detail
+test123,2025-09-21T03:45:16.872661+00:00,2025-09-21T03:45:16.872796+00:00,failure,noop

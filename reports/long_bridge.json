@@ -1,0 +1,1 @@
+{"trades": 758, "wins": 436, "total_pips": -933.5048165752418, "debug": {"no_breakout": 171237, "gate_block": 179335, "ev_reject": 172054, "zero_qty": 0, "ev_bypass": 8}, "dump_daily": "reports/long_bridge_daily.csv"}

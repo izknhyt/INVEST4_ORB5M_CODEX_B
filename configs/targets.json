@@ -1,0 +1,7 @@
+{
+  "sharpe_min": 0.5,
+  "max_dd_max": 2000,
+  "profit_factor_min": 1.5,
+  "expectancy_min": 0.5,
+  "cagr_min": 0.10
+}
