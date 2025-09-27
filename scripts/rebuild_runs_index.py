@@ -17,6 +17,7 @@ DEFAULT_COLUMNS = [
     "or_n",
     "k_tp",
     "k_sl",
+    "k_tr",
     "threshold_lcb",
     "min_or_atr",
     "rv_cuts",
@@ -26,7 +27,13 @@ DEFAULT_COLUMNS = [
     "trades",
     "wins",
     "total_pips",
+    "win_rate",
+    "pnl_per_trade",
     "state_path",
+    "gate_block",
+    "ev_reject",
+    "ev_bypass",
+    "dump_rows",
     "state_loaded",
     "state_archive_path",
     "ev_profile_path",
@@ -45,6 +52,20 @@ def extract_timestamp(run_id: str) -> str:
 def load_json(path: Path) -> Dict[str, Any]:
     with path.open() as f:
         return json.load(f)
+
+
+def _as_float(value: Any) -> float:
+    try:
+        if value is None:
+            raise TypeError
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _coerce_debug(metrics: Dict[str, Any]) -> Dict[str, Any]:
+    debug = metrics.get("debug", {})
+    return debug if isinstance(debug, dict) else {}
 
 
 def gather_rows(runs_dir: Path) -> List[Dict[str, Any]]:
@@ -72,6 +93,7 @@ def gather_rows(runs_dir: Path) -> List[Dict[str, Any]]:
         row["or_n"] = params.get("or_n")
         row["k_tp"] = params.get("k_tp")
         row["k_sl"] = params.get("k_sl")
+        row["k_tr"] = params.get("k_tr")
         row["threshold_lcb"] = params.get("threshold_lcb")
         row["min_or_atr"] = params.get("min_or_atr")
         row["rv_cuts"] = params.get("rv_cuts")
@@ -81,11 +103,34 @@ def gather_rows(runs_dir: Path) -> List[Dict[str, Any]]:
         row["trades"] = metrics.get("trades")
         row["wins"] = metrics.get("wins")
         row["total_pips"] = metrics.get("total_pips")
+        trades_f = _as_float(metrics.get("trades"))
+        wins_f = _as_float(metrics.get("wins"))
+        total_pips_f = _as_float(metrics.get("total_pips"))
+        row["win_rate"] = wins_f / trades_f if trades_f else 0.0
+        row["pnl_per_trade"] = total_pips_f / trades_f if trades_f else 0.0
+        debug = _coerce_debug(metrics)
+        gate_block = metrics.get("gate_block")
+        if gate_block is None:
+            gate_block = debug.get("gate_block")
+        row["gate_block"] = gate_block
+        ev_reject = metrics.get("ev_reject")
+        if ev_reject is None:
+            ev_reject = debug.get("ev_reject")
+        row["ev_reject"] = ev_reject
+        ev_bypass = metrics.get("ev_bypass")
+        if ev_bypass is None:
+            ev_bypass = debug.get("ev_bypass")
+        row["ev_bypass"] = ev_bypass
+        row["dump_rows"] = metrics.get("dump_rows")
         row["state_loaded"] = metrics.get("state_loaded")
         row["state_archive_path"] = metrics.get("state_archive_path")
         row["ev_profile_path"] = metrics.get("ev_profile_path")
-        state_path = run_dir / "state.json"
-        row["state_path"] = str(state_path) if state_path.exists() else ""
+        state_path = metrics.get("state_path")
+        if state_path:
+            row["state_path"] = state_path
+        else:
+            state_file = run_dir / "state.json"
+            row["state_path"] = str(state_file) if state_file.exists() else ""
         rows.append(row)
     rows.sort(key=lambda r: r.get("timestamp", ""))
     return rows
