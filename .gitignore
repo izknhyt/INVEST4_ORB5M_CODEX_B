@@ -1,10 +1,10 @@
 .DS_Store
-.vscode/
-node_modules/
-venv/
 __pycache__/
 *.pyc
-dist/
-build/
 *.log
-ENV/
+runs/
+tests/runs_*/
+# 必要なら生データ
+*.csv
+*.parquet
+*.feather
