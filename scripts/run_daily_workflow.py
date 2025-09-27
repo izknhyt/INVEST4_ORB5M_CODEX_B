@@ -11,7 +11,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def run_cmd(cmd):
     print(f"[wf] running: {' '.join(cmd)}")
-    return subprocess.run(cmd, check=False)
+    result = subprocess.run(cmd, check=False)
+    if result.returncode != 0:
+        print(f"[wf] command failed with exit code {result.returncode}")
+    return result.returncode
 
 
 def main(argv=None) -> int:
@@ -49,7 +52,9 @@ def main(argv=None) -> int:
         cmd = [sys.executable, str(ROOT / "scripts/pull_prices.py"),
                "--source", str(ROOT / "data/usdjpy_5m_2018-2024_utc.csv"),
                "--symbol", args.symbol]
-        run_cmd(cmd)
+        exit_code = run_cmd(cmd)
+        if exit_code:
+            return exit_code
 
     if args.update_state:
         cmd = [sys.executable, str(ROOT / "scripts/update_state.py"),
@@ -58,7 +63,9 @@ def main(argv=None) -> int:
                "--mode", args.mode,
                "--equity", args.equity,
                "--state-out", str(ROOT / "runs/active/state.json")]
-        run_cmd(cmd)
+        exit_code = run_cmd(cmd)
+        if exit_code:
+            return exit_code
 
     if args.benchmarks:
         cmd = [sys.executable, str(ROOT / "scripts/run_benchmark_runs.py"),
@@ -70,13 +77,17 @@ def main(argv=None) -> int:
                "--reports-dir", str(ROOT / "reports")]
         if args.webhook:
             cmd += ["--webhook", args.webhook]
-        run_cmd(cmd)
+        exit_code = run_cmd(cmd)
+        if exit_code:
+            return exit_code
 
     if args.state_health:
         cmd = [sys.executable, str(ROOT / "scripts/check_state_health.py"),
                "--state", str(ROOT / "runs/active/state.json"),
                "--json-out", str(ROOT / "ops/health/state_checks.json")]
-        run_cmd(cmd)
+        exit_code = run_cmd(cmd)
+        if exit_code:
+            return exit_code
 
     if args.benchmark_summary:
         cmd = [sys.executable, str(ROOT / "scripts/report_benchmark_summary.py"),
@@ -89,7 +100,9 @@ def main(argv=None) -> int:
             cmd += ["--min-sharpe", str(args.min_sharpe)]
         if args.max_drawdown is not None:
             cmd += ["--max-drawdown", str(args.max_drawdown)]
-        run_cmd(cmd)
+        exit_code = run_cmd(cmd)
+        if exit_code:
+            return exit_code
 
     if args.optimize:
         cmd = [sys.executable, str(ROOT / "scripts/auto_optimize.py"),
@@ -107,20 +120,26 @@ def main(argv=None) -> int:
                "--report", "reports/auto_optimize.json"]
         if args.webhook:
             cmd += ["--webhook", args.webhook]
-        run_cmd(cmd)
+        exit_code = run_cmd(cmd)
+        if exit_code:
+            return exit_code
 
     if args.analyze_latency:
         cmd = [sys.executable, str(ROOT / "scripts/analyze_signal_latency.py"),
                "--input", "ops/signal_latency.csv",
                "--slo-threshold", "5",
                "--json-out", "reports/signal_latency.json"]
-        run_cmd(cmd)
+        exit_code = run_cmd(cmd)
+        if exit_code:
+            return exit_code
 
     if args.archive_state:
         cmd = [sys.executable, str(ROOT / "scripts/archive_state.py"),
                "--runs-dir", "runs",
                "--output", "ops/state_archive"]
-        run_cmd(cmd)
+        exit_code = run_cmd(cmd)
+        if exit_code:
+            return exit_code
 
     return 0
 
