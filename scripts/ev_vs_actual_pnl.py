@@ -42,6 +42,8 @@ class DailySummary:
     mean_daily_gap: float
     max_positive_gap: float
     max_negative_gap: float
+    sharpe: Optional[float] = None
+    max_drawdown: Optional[float] = None
 
     def to_dict(self) -> Dict[str, float]:
         return asdict(self)
@@ -131,7 +133,25 @@ def _merge_with_daily(daily_df: Optional[pd.DataFrame], trade_daily: pd.DataFram
     return merged
 
 
-def _build_summary(run_id: str, merged: pd.DataFrame) -> DailySummary:
+def _extract_metric(metrics: Optional[Dict[str, Any]], key: str) -> Optional[float]:
+    if not metrics:
+        return None
+    value = metrics.get(key)
+    try:
+        if value is None:
+            raise TypeError
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _build_summary(
+    run_id: str,
+    merged: pd.DataFrame,
+    metrics: Optional[Dict[str, Any]],
+) -> DailySummary:
+    sharpe = _extract_metric(metrics, "sharpe")
+    max_drawdown = _extract_metric(metrics, "max_drawdown")
     filled = merged.dropna(subset=["realized_pnl_pips", "ev_lcb_sum"], how="any").copy()
     if filled.empty:
         return DailySummary(
@@ -143,6 +163,8 @@ def _build_summary(run_id: str, merged: pd.DataFrame) -> DailySummary:
             mean_daily_gap=0.0,
             max_positive_gap=0.0,
             max_negative_gap=0.0,
+            sharpe=sharpe,
+            max_drawdown=max_drawdown,
         )
     filled["ev_gap"] = filled["realized_pnl_pips"] - filled["ev_lcb_sum"]
     return DailySummary(
@@ -154,6 +176,8 @@ def _build_summary(run_id: str, merged: pd.DataFrame) -> DailySummary:
         mean_daily_gap=float(filled["ev_gap"].mean()),
         max_positive_gap=float(filled["ev_gap"].max()),
         max_negative_gap=float(filled["ev_gap"].min()),
+        sharpe=sharpe,
+        max_drawdown=max_drawdown,
     )
 
 
@@ -213,7 +237,15 @@ def process_single_run(
     daily_df = _load_daily(daily_path)
     merged = _merge_with_daily(daily_df, trade_daily)
 
-    summary = _build_summary(run_id, merged)
+    metrics_path = run_dir / "metrics.json"
+    metrics = {}
+    if metrics_path.exists():
+        try:
+            metrics = json.loads(metrics_path.read_text())
+        except json.JSONDecodeError:
+            metrics = {}
+
+    summary = _build_summary(run_id, merged, metrics)
     top_days = _show_top_days(merged, top_n)
 
     result: Dict[str, object] = {

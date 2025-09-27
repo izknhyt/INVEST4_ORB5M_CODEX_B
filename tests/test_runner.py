@@ -1,3 +1,5 @@
+import csv
+from pathlib import Path
 import unittest
 from datetime import datetime, timedelta, timezone
 
@@ -70,12 +72,39 @@ class TestRunner(unittest.TestCase):
         metrics = Metrics()
         returns = [10.0, -5.0, 20.0, -15.0]
         metrics.trade_returns.extend(returns)
+        metrics.equity_curve = [0.0]
+        cumulative = 0.0
+        for r in returns:
+            cumulative += r
+            metrics.equity_curve.append(cumulative)
         metrics.total_pips = sum(returns)
         result = metrics.as_dict()
         self.assertIn("sharpe", result)
         self.assertIn("max_drawdown", result)
         self.assertAlmostEqual(result["sharpe"], 0.3713906763541037, places=6)
-        self.assertAlmostEqual(result["max_drawdown"], 15.0, places=6)
+        self.assertAlmostEqual(result["max_drawdown"], -15.0, places=6)
+
+    def test_metrics_records_equity_curve_from_records_csv(self):
+        metrics = Metrics()
+        csv_path = Path(__file__).parent / "data" / "runner_sample_records.csv"
+        with csv_path.open() as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row.get("stage") != "trade":
+                    continue
+                pnl = float(row.get("pnl_pips", 0.0))
+                metrics.record_trade(pnl, pnl > 0)
+
+        result = metrics.as_dict()
+        self.assertEqual(metrics.trades, 4)
+        self.assertEqual(metrics.wins, 2)
+        self.assertAlmostEqual(metrics.total_pips, 5.0)
+        self.assertListEqual(
+            [round(v, 6) for v in metrics.equity_curve],
+            [0.0, 12.0, 7.0, 15.0, 5.0],
+        )
+        self.assertAlmostEqual(result["sharpe"], 0.27660638840895513)
+        self.assertAlmostEqual(result["max_drawdown"], -10.0)
 
 
 if __name__ == "__main__":

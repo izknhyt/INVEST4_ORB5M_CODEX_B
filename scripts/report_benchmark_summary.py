@@ -6,7 +6,7 @@ import argparse
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 
 def load_json(path: Path) -> Dict:
@@ -14,20 +14,29 @@ def load_json(path: Path) -> Dict:
         return json.load(f)
 
 
-def compute_summary(metrics: Dict) -> Dict[str, float]:
+def _as_float(value: object) -> Optional[float]:
+    try:
+        if value is None:
+            raise TypeError
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def compute_summary(metrics: Dict) -> Dict[str, Optional[float]]:
     trades = metrics.get("trades", 0)
     wins = metrics.get("wins", 0)
     total_pips = metrics.get("total_pips", 0.0)
-    sharpe = metrics.get("sharpe", 0.0)
-    max_drawdown = metrics.get("max_drawdown", 0.0)
+    sharpe = _as_float(metrics.get("sharpe"))
+    max_drawdown = _as_float(metrics.get("max_drawdown"))
     win_rate = (wins / trades) if trades else 0.0
     return {
         "trades": trades,
         "wins": wins,
         "win_rate": win_rate,
         "total_pips": total_pips,
-        "sharpe": sharpe if isinstance(sharpe, (int, float)) else 0.0,
-        "max_drawdown": max_drawdown if isinstance(max_drawdown, (int, float)) else 0.0,
+        "sharpe": sharpe,
+        "max_drawdown": max_drawdown,
     }
 
 
@@ -39,6 +48,8 @@ def parse_args(argv=None):
     parser.add_argument("--windows", default="365,180,90", help="Comma separated rolling windows")
     parser.add_argument("--json-out", default="reports/benchmark_summary.json")
     parser.add_argument("--plot-out", default=None, help="Optional path to save summary plot (PNG)")
+    parser.add_argument("--min-sharpe", type=float, default=None, help="Warn when Sharpe ratio falls below this value")
+    parser.add_argument("--max-drawdown", type=float, default=None, help="Warn when |max_drawdown| exceeds this value (pips)")
     return parser.parse_args(argv)
 
 
@@ -57,6 +68,20 @@ def main(argv=None) -> int:
     rolling_results: List[Dict] = []
     warnings: List[str] = []
 
+    def _apply_threshold_checks(label: str, summary: Dict[str, Optional[float]]) -> None:
+        sharpe_val = summary.get("sharpe")
+        if args.min_sharpe is not None and sharpe_val is not None and sharpe_val < args.min_sharpe:
+            warnings.append(
+                f"{label} sharpe {sharpe_val:.2f} below min_sharpe {args.min_sharpe:.2f}"
+            )
+        drawdown_val = summary.get("max_drawdown")
+        if args.max_drawdown is not None and drawdown_val is not None:
+            magnitude = abs(drawdown_val)
+            if magnitude > args.max_drawdown:
+                warnings.append(
+                    f"{label} max_drawdown {drawdown_val:.2f} exceeds threshold {args.max_drawdown:.2f}"
+                )
+
     for w in windows:
         path = reports_dir / "rolling" / w / f"{args.symbol}_{args.mode}.json"
         if not path.exists():
@@ -68,9 +93,11 @@ def main(argv=None) -> int:
         rolling_results.append(summary)
         if summary["total_pips"] < 0:
             warnings.append(f"rolling window {w} total_pips negative: {summary['total_pips']:.2f}")
+        _apply_threshold_checks(f"rolling window {w}", summary)
 
     if baseline_summary["total_pips"] < 0:
         warnings.append(f"baseline total_pips negative: {baseline_summary['total_pips']:.2f}")
+    _apply_threshold_checks("baseline", baseline_summary)
 
     payload = {
         "generated_at": datetime.utcnow().isoformat() + "Z",

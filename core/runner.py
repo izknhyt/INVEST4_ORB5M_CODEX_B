@@ -47,6 +47,21 @@ class Metrics:
     records: List[Dict[str, Any]] = field(default_factory=list)
     daily: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     debug: Dict[str, Any] = field(default_factory=dict)
+    starting_equity: float = 0.0
+
+    def __post_init__(self) -> None:
+        if not self.equity_curve:
+            self.equity_curve.append(float(self.starting_equity))
+
+    def record_trade(self, pnl_pips: float, hit: bool) -> None:
+        pnl_val = float(pnl_pips)
+        self.trades += 1
+        self.total_pips += pnl_val
+        if hit:
+            self.wins += 1
+        self.trade_returns.append(pnl_val)
+        last_equity = self.equity_curve[-1] if self.equity_curve else float(self.starting_equity)
+        self.equity_curve.append(last_equity + pnl_val)
 
     def as_dict(self):
         return {
@@ -71,16 +86,15 @@ class Metrics:
         return mean_ret / std_dev * math.sqrt(float(n))
 
     def _compute_max_drawdown(self) -> Optional[float]:
-        if not self.trade_returns:
+        if not self.equity_curve:
             return None
-        peak = 0.0
-        cumulative = 0.0
+        peak = self.equity_curve[0]
         max_drawdown = 0.0
-        for pnl in self.trade_returns:
-            cumulative += pnl
-            peak = max(peak, cumulative)
-            drawdown = peak - cumulative
-            if drawdown > max_drawdown:
+        for equity in self.equity_curve:
+            if equity > peak:
+                peak = equity
+            drawdown = equity - peak
+            if drawdown < max_drawdown:
                 max_drawdown = drawdown
         return max_drawdown
 
@@ -277,16 +291,7 @@ class BacktestRunner:
         self.records.append(record)
 
     def _record_trade_metrics(self, pnl_pips: float, hit: bool) -> None:
-        pnl_val = float(pnl_pips)
-        self.metrics.trades += 1
-        self.metrics.total_pips += pnl_val
-        if hit:
-            self.metrics.wins += 1
-        cumulative = pnl_val
-        if self.metrics.equity_curve:
-            cumulative += self.metrics.equity_curve[-1]
-        self.metrics.equity_curve.append(cumulative)
-        self.metrics.trade_returns.append(pnl_val)
+        self.metrics.record_trade(pnl_pips, hit)
 
     # ---------- State persistence ----------
     def _config_fingerprint(self) -> str:
