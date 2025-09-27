@@ -18,6 +18,11 @@ from typing import Dict, Iterable, List, Optional, Tuple
 SNAPSHOT_PATH = Path("ops/runtime_snapshot.json")
 ROOT = Path(__file__).resolve().parents[1]
 
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts._ts_utils import parse_naive_utc_timestamp
+
 
 def _load_snapshot(path: Path) -> dict:
     if not path.exists():
@@ -125,9 +130,10 @@ def _post_webhook(url: str, payload: Dict[str, object], timeout: float = 5.0) ->
 
 
 def _parse_ts(value: str) -> datetime:
-    if "T" in value:
-        return datetime.fromisoformat(value)
-    return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+    return parse_naive_utc_timestamp(
+        value,
+        fallback_formats=("%Y-%m-%d %H:%M:%S",),
+    )
 
 
 def _filter_window(rows: List[dict], days: int) -> List[dict]:

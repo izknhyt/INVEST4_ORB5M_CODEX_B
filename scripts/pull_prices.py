@@ -29,6 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scripts._ts_utils import parse_naive_utc_timestamp
 from core.feature_store import adx as calc_adx
 from core.feature_store import atr as calc_atr
 from core.feature_store import opening_range, realized_vol
@@ -63,21 +64,10 @@ def _save_snapshot(path: Path, data: dict) -> None:
 
 
 def _parse_ts(value: str) -> datetime:
-    value = value.strip()
-    if not value:
-        raise ValueError("empty timestamp")
-    if "T" in value or " " in value:
-        normalized = value
-        if normalized.endswith("Z"):
-            normalized = normalized[:-1] + "+00:00"
-        dt = datetime.fromisoformat(normalized)
-        if dt.tzinfo is not None:
-            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-        return dt
-    try:
-        return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
-    except ValueError:
-        return datetime.strptime(value, "%Y-%m-%d")
+    return parse_naive_utc_timestamp(
+        value,
+        fallback_formats=("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"),
+    )
 
 
 def _last_ts_from_snapshot(snapshot: dict, key: str) -> Optional[datetime]:
