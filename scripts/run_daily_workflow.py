@@ -24,6 +24,18 @@ def main(argv=None) -> int:
     parser.add_argument("--benchmarks", action="store_true", help="Run baseline + rolling benchmarks")
     parser.add_argument("--state-health", action="store_true", help="Run state health checker")
     parser.add_argument("--benchmark-summary", action="store_true", help="Aggregate benchmark reports")
+    parser.add_argument(
+        "--min-sharpe",
+        type=float,
+        default=None,
+        help="Warn when Sharpe ratio falls below this value",
+    )
+    parser.add_argument(
+        "--max-drawdown",
+        type=float,
+        default=None,
+        help="Warn when |max_drawdown| exceeds this value (pips)",
+    )
     parser.add_argument("--optimize", action="store_true", help="Run parameter optimization")
     parser.add_argument("--analyze-latency", action="store_true", help="Analyze signal latency")
     parser.add_argument("--archive-state", action="store_true", help="Archive state.json files")
@@ -73,6 +85,10 @@ def main(argv=None) -> int:
                "--reports-dir", str(ROOT / "reports"),
                "--json-out", str(ROOT / "reports/benchmark_summary.json"),
                "--plot-out", str(ROOT / "reports/benchmark_summary.png")]
+        if args.min_sharpe is not None:
+            cmd += ["--min-sharpe", str(args.min_sharpe)]
+        if args.max_drawdown is not None:
+            cmd += ["--max-drawdown", str(args.max_drawdown)]
         run_cmd(cmd)
 
     if args.optimize:
