@@ -12,6 +12,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from collections import deque
 import json
 import hashlib
+import math
 from datetime import datetime, timezone
 from dataclasses import dataclass, field
 
@@ -41,12 +42,47 @@ class Metrics:
     trades: int = 0
     wins: int = 0
     total_pips: float = 0.0
+    trade_returns: List[float] = field(default_factory=list)
+    equity_curve: List[float] = field(default_factory=list)
     records: List[Dict[str, Any]] = field(default_factory=list)
     daily: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     debug: Dict[str, Any] = field(default_factory=dict)
 
     def as_dict(self):
-        return {"trades": self.trades, "wins": self.wins, "total_pips": self.total_pips}
+        return {
+            "trades": self.trades,
+            "wins": self.wins,
+            "total_pips": self.total_pips,
+            "sharpe": self._compute_sharpe(),
+            "max_drawdown": self._compute_max_drawdown(),
+        }
+
+    def _compute_sharpe(self) -> Optional[float]:
+        if not self.trade_returns:
+            return None
+        n = len(self.trade_returns)
+        if n < 2:
+            return 0.0
+        mean_ret = sum(self.trade_returns) / n
+        variance = sum((r - mean_ret) ** 2 for r in self.trade_returns) / n
+        std_dev = math.sqrt(variance)
+        if std_dev == 0.0:
+            return 0.0
+        return mean_ret / std_dev * math.sqrt(float(n))
+
+    def _compute_max_drawdown(self) -> Optional[float]:
+        if not self.trade_returns:
+            return None
+        peak = 0.0
+        cumulative = 0.0
+        max_drawdown = 0.0
+        for pnl in self.trade_returns:
+            cumulative += pnl
+            peak = max(peak, cumulative)
+            drawdown = peak - cumulative
+            if drawdown > max_drawdown:
+                max_drawdown = drawdown
+        return max_drawdown
 
 
 @dataclass
@@ -239,6 +275,18 @@ class BacktestRunner:
         if ctx_snapshot.get("cost_base") is not None:
             record["cost_base"] = ctx_snapshot["cost_base"]
         self.records.append(record)
+
+    def _record_trade_metrics(self, pnl_pips: float, hit: bool) -> None:
+        pnl_val = float(pnl_pips)
+        self.metrics.trades += 1
+        self.metrics.total_pips += pnl_val
+        if hit:
+            self.metrics.wins += 1
+        cumulative = pnl_val
+        if self.metrics.equity_curve:
+            cumulative += self.metrics.equity_curve[-1]
+        self.metrics.equity_curve.append(cumulative)
+        self.metrics.trade_returns.append(pnl_val)
 
     # ---------- State persistence ----------
     def _config_fingerprint(self) -> str:
@@ -685,17 +733,15 @@ class BacktestRunner:
                         est_slip_used = max(0.0, coeff * qty_sample + intercept)
                     cost = base_cost + est_slip_used
                     pnl_pips = price_to_pips(pnl_px, self.symbol) - cost
-                    self.metrics.trades += 1
-                    self.metrics.total_pips += pnl_pips
-                    if exit_reason == "tp":
-                        self.metrics.wins += 1
+                    hit = exit_reason == "tp"
+                    self._record_trade_metrics(pnl_pips, hit)
                     # update EV models
                     ev_key = self.pos.get("ev_key", (ctx["session"], ctx["spread_band"], ctx["rv_band"]))
                     self._get_ev_manager(ev_key).update(exit_reason == "tp")
                     self.ev_var.update(pnl_pips)
                     if self._current_date:
                         self.daily[self._current_date]["fills"] += 1
-                        if exit_reason == "tp":
+                        if hit:
                             self.daily[self._current_date]["wins"] += 1
                         self.daily[self._current_date]["pnl_pips"] += pnl_pips
                         slip_actual = self.pos.get("entry_slip_pip", 0.0)
@@ -922,11 +968,8 @@ class BacktestRunner:
                     est_slip_used = max(0.0, coeff * qty_sample + intercept)
                 cost = base_cost + est_slip_used
                 pnl_pips = price_to_pips(pnl_px, self.symbol) - cost
-                self.metrics.trades += 1
-                self.metrics.total_pips += pnl_pips
                 hit = result.get("exit_reason") == "tp"
-                if hit:
-                    self.metrics.wins += 1
+                self._record_trade_metrics(pnl_pips, hit)
                 if self._current_date:
                     self.daily[self._current_date]["fills"] += 1
                     if hit:

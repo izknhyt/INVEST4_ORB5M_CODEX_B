@@ -8,7 +8,7 @@
 - **ベースライン/ローリング run 起動ジョブ**: ORB コア設定の通し run と直近ローリング run を起動時にまとめて再計算し、`runs/index.csv`・`reports/baseline/*.json`・`reports/rolling/<window>/` を更新。前回結果との乖離が閾値超過したら Webhook 通知。
 
 ## P1: ローリング検証 + 健全性モニタリング
-- **ローリング検証パイプライン**: 直近365D/180D/90Dのシミュレーションを起動バッチで更新。`scripts/run_benchmark_runs.py` と `scripts/report_benchmark_summary.py` で `reports/rolling/<window>/*.json`・`reports/benchmark_summary.json` を生成し、勝率/Sharpe/DD のトレンドを可視化する仕込みを進める。
+- **ローリング検証パイプライン**: 直近365D/180D/90Dのシミュレーションを起動バッチで更新。`scripts/run_benchmark_runs.py` と `scripts/report_benchmark_summary.py` で `reports/rolling/<window>/*.json`・`reports/benchmark_summary.json` を生成し、勝率/Sharpe/DD のトレンドを可視化する仕込みを進める。→ `run_sim.py` 出力に Sharpe / max drawdown を追加済み（2024-06-03）。
 - **state ヘルスチェック**: 最新 state から EV 下限、勝率 LCB、滑り推定値を抽出する `scripts/check_state_health.py` を活用し、結果を `ops/health/state_checks.json` に追記。逸脱時の通知/Runbook 追記を行う。
 - **インシデントリプレイテンプレート**: 本番での負けトレードを `ops/incidents/` に保存し、同期間のリプレイを `scripts/run_sim.py --start-ts/--end-ts` で再実行する Notebook (`analysis/incident_review.ipynb`) にメモを残す。
 

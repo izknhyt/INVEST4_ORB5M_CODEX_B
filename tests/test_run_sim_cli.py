@@ -1,6 +1,9 @@
+import json
 import os
+import tempfile
 import unittest
-from scripts.run_sim import load_bars_csv
+
+from scripts.run_sim import load_bars_csv, main as run_sim_main
 
 
 CSV_CONTENT = """timestamp,symbol,tf,o,h,l,c,v,spread
@@ -29,6 +32,30 @@ class TestRunSimCLI(unittest.TestCase):
                 os.remove(path)
             except OSError:
                 pass
+
+    def test_run_sim_outputs_extended_metrics(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path = os.path.join(tmpdir, "bars.csv")
+            with open(csv_path, "w", encoding="utf-8") as f:
+                f.write(CSV_CONTENT)
+            json_out = os.path.join(tmpdir, "metrics.json")
+            args = [
+                "--csv", csv_path,
+                "--symbol", "USDJPY",
+                "--mode", "conservative",
+                "--equity", "100000",
+                "--json-out", json_out,
+                "--dump-max", "0",
+                "--no-auto-state",
+                "--no-ev-profile",
+                "--no-aggregate-ev",
+            ]
+            rc = run_sim_main(args)
+            self.assertEqual(rc, 0)
+            with open(json_out, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.assertIn("sharpe", data)
+            self.assertIn("max_drawdown", data)
 
 
 if __name__ == "__main__":

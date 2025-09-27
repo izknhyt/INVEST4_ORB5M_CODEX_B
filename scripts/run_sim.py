@@ -354,6 +354,8 @@ def main(argv=None):
             "trades": out.get("trades"),
             "wins": out.get("wins"),
             "total_pips": out.get("total_pips"),
+            "sharpe": out.get("sharpe"),
+            "max_drawdown": out.get("max_drawdown"),
             "win_rate": (out.get("wins",0)/out.get("trades",1)) if out.get("trades",0) else 0.0,
             "pnl_per_trade": (out.get("total_pips",0.0)/out.get("trades",1)) if out.get("trades",0) else 0.0,
             "gate_block": out.get("debug",{}).get("gate_block"),
@@ -369,7 +371,7 @@ def main(argv=None):
         cols = [
             "run_id","run_dir","timestamp","symbol","mode","equity",
             "k_tp","k_sl","k_tr","threshold_lcb","min_or_atr","rv_cuts","allow_low_rv","allowed_sessions","warmup",
-            "trades","wins","total_pips","win_rate","pnl_per_trade","state_path",
+            "trades","wins","total_pips","sharpe","max_drawdown","win_rate","pnl_per_trade","state_path",
             "gate_block","ev_reject","ev_bypass","dump_rows",
             "state_loaded","state_archive_path","ev_profile_path",
         ]

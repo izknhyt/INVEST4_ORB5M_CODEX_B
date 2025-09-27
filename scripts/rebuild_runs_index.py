@@ -27,6 +27,8 @@ DEFAULT_COLUMNS = [
     "trades",
     "wins",
     "total_pips",
+    "sharpe",
+    "max_drawdown",
     "win_rate",
     "pnl_per_trade",
     "state_path",
@@ -103,6 +105,8 @@ def gather_rows(runs_dir: Path) -> List[Dict[str, Any]]:
         row["trades"] = metrics.get("trades")
         row["wins"] = metrics.get("wins")
         row["total_pips"] = metrics.get("total_pips")
+        row["sharpe"] = metrics.get("sharpe")
+        row["max_drawdown"] = metrics.get("max_drawdown")
         trades_f = _as_float(metrics.get("trades"))
         wins_f = _as_float(metrics.get("wins"))
         total_pips_f = _as_float(metrics.get("total_pips"))
