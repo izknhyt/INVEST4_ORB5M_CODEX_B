@@ -129,7 +129,7 @@ def test_main_executes_runs_and_updates_outputs(monkeypatch: pytest.MonkeyPatch,
     metrics_iter: Iterator[dict] = iter([baseline_metrics, *rolling_metrics])
     calls: List[List[str]] = []
 
-    def _run(cmd: List[str], check: bool = False):  # noqa: FBT002
+    def _run(cmd: List[str], check: bool = False, **_kwargs):  # noqa: FBT002
         del check
         calls.append(cmd)
         script_name = Path(cmd[1]).name
@@ -213,7 +213,7 @@ def test_main_propagates_run_failure(monkeypatch: pytest.MonkeyPatch, capsys, be
 
     calls: List[List[str]] = []
 
-    def _run(cmd: List[str], check: bool = False):  # noqa: FBT002
+    def _run(cmd: List[str], check: bool = False, **_kwargs):  # noqa: FBT002
         del check
         calls.append(cmd)
         script_name = Path(cmd[1]).name
@@ -254,3 +254,85 @@ def test_main_propagates_run_failure(monkeypatch: pytest.MonkeyPatch, capsys, be
     )
     assert not benchmark_env["snapshot_path"].exists()
     assert len(calls) == 1
+
+
+def test_main_rebuild_index_failure(monkeypatch: pytest.MonkeyPatch, capsys, benchmark_env: dict) -> None:
+    class DummyProc:
+        def __init__(
+            self,
+            returncode: int = 0,
+            stdout: str = "",
+            stderr: str = "",
+        ) -> None:
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    baseline_metrics = {
+        "trades": 150,
+        "wins": 90,
+        "total_pips": 320.0,
+        "sharpe": 1.3,
+        "max_drawdown": -55.0,
+    }
+    rolling_metrics = {"trades": 40, "wins": 28, "total_pips": 85.0, "sharpe": 1.1, "max_drawdown": -25.0}
+    metrics_iter: Iterator[dict] = iter([baseline_metrics, rolling_metrics])
+    failure_code = 7
+    calls: List[List[str]] = []
+
+    def _run(cmd: List[str], check: bool = False, **_kwargs):  # noqa: FBT002
+        del check
+        calls.append(cmd)
+        script_name = Path(cmd[1]).name
+        if script_name == "run_sim.py":
+            metrics = next(metrics_iter)
+            json_out = Path(cmd[cmd.index("--json-out") + 1])
+            json_out.parent.mkdir(parents=True, exist_ok=True)
+            json_out.write_text(json.dumps(metrics, ensure_ascii=False), encoding="utf-8")
+            return DummyProc(0)
+        if script_name == "rebuild_runs_index.py":
+            return DummyProc(failure_code, stdout="index building started\n", stderr="boom\n")
+        raise AssertionError(f"unexpected command: {cmd}")
+
+    monkeypatch.setattr(rb.subprocess, "run", _run)
+
+    args = [
+        "--bars",
+        str(benchmark_env["csv_path"]),
+        "--symbol",
+        benchmark_env["symbol"],
+        "--mode",
+        benchmark_env["mode"],
+        "--equity",
+        "100000",
+        "--windows",
+        "5",
+        "--reports-dir",
+        str(benchmark_env["reports_dir"]),
+        "--snapshot",
+        str(benchmark_env["snapshot_path"]),
+        "--runs-dir",
+        str(benchmark_env["runs_dir"]),
+    ]
+
+    rc = rb.main(args)
+
+    captured = capsys.readouterr()
+    assert rc == failure_code
+    result = json.loads(captured.out)
+    assert result["runs_index_rc"] == failure_code
+    assert result["error"]["message"] == "rebuild_runs_index_failed"
+    assert result["error"]["returncode"] == failure_code
+    assert result["error"]["stdout"] == "index building started"
+    assert result["error"]["stderr"] == "boom"
+    assert result["baseline_metrics"]["trades"] == baseline_metrics["trades"]
+    assert result["rolling"][0]["window"] == 5
+    assert Path(result["rolling"][0]["path"]).exists()
+
+    assert benchmark_env["baseline_path"].read_text(encoding="utf-8") == json.dumps(
+        baseline_metrics, ensure_ascii=False
+    )
+    assert not benchmark_env["snapshot_path"].exists()
+    assert f"[rebuild_runs_index.py stdout]" in captured.err
+    assert f"[rebuild_runs_index.py stderr]" in captured.err
+    assert any(Path(cmd[1]).name == "rebuild_runs_index.py" for cmd in calls)
