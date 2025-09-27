@@ -13,10 +13,10 @@ import argparse
 import csv
 import json
 import subprocess
-import yaml
+
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import os
 import sys
@@ -26,9 +26,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
+from core.utils import yaml_compat as yaml
 from core.runner import BacktestRunner
 from scripts.config_utils import build_runner_config
-from scripts.ev_vs_actual_pnl import store_run_summary
 
 
 def _strategy_state_key(strategy_cls) -> str:
@@ -44,6 +44,16 @@ def _latest_state_file(path: Path) -> Optional[Path]:
         return None
     candidates = sorted(p for p in path.glob("*.json") if p.is_file())
     return candidates[-1] if candidates else None
+
+
+def _maybe_load_store_run_summary() -> Optional[Callable[..., Dict[str, Any]]]:
+    try:
+        from scripts.ev_vs_actual_pnl import store_run_summary
+    except ModuleNotFoundError as exc:  # pragma: no cover - optional pandas dependency
+        if getattr(exc, "name", "") == "pandas":
+            return None
+        raise
+    return store_run_summary
 
 
 def load_bars_csv(path: str) -> List[Dict[str, Any]]:
@@ -380,24 +390,31 @@ def main(argv=None):
 
         ev_summary_status: Optional[Dict[str, Any]] = None
         if args.ev_summary_dir:
-            try:
-                summary_output = store_run_summary(
-                    runs_dir=Path(args.out_dir),
-                    run_id=id_str,
-                    store_dir=Path(args.ev_summary_dir),
-                    store_daily=args.ev_summary_store_daily,
-                    top_n=max(1, args.ev_summary_top_n),
-                )
-                ev_summary_status = {
-                    "store_dir": str(Path(args.ev_summary_dir).expanduser().resolve()),
-                    "summary": summary_output.get("summary"),
-                    "top_days": summary_output.get("top_days", {}),
-                }
-            except Exception as exc:
+            store_summary = _maybe_load_store_run_summary()
+            if store_summary is None:
                 ev_summary_status = {
                     "store_dir": args.ev_summary_dir,
-                    "error": str(exc),
+                    "error": "pandas_not_available",
                 }
+            else:
+                try:
+                    summary_output = store_summary(
+                        runs_dir=Path(args.out_dir),
+                        run_id=id_str,
+                        store_dir=Path(args.ev_summary_dir),
+                        store_daily=args.ev_summary_store_daily,
+                        top_n=max(1, args.ev_summary_top_n),
+                    )
+                    ev_summary_status = {
+                        "store_dir": str(Path(args.ev_summary_dir).expanduser().resolve()),
+                        "summary": summary_output.get("summary"),
+                        "top_days": summary_output.get("top_days", {}),
+                    }
+                except Exception as exc:
+                    ev_summary_status = {
+                        "store_dir": args.ev_summary_dir,
+                        "error": str(exc),
+                    }
         if ev_summary_status:
             out["ev_summary"] = ev_summary_status
     else:

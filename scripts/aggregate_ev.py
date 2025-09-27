@@ -11,10 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
-try:
-    import yaml
-except ImportError as exc:  # pragma: no cover - yaml is part of project deps
-    raise SystemExit("PyYAML is required: pip install pyyaml") from exc
+from core.utils import yaml_compat as yaml
 
 
 @dataclass

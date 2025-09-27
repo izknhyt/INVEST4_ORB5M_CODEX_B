@@ -16,6 +16,8 @@ import sys
 
 import pandas as pd
 
+from core.utils import yaml_compat as yaml
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
@@ -196,10 +198,6 @@ def main() -> None:
         out_json.write_text(summary_json, encoding="utf-8")
 
     if args.output_yaml:
-        try:
-            import yaml
-        except ImportError as exc:  # pragma: no cover
-            raise SystemExit("PyYAML is required to write YAML output") from exc
         out_yaml = Path(args.output_yaml)
         out_yaml.parent.mkdir(parents=True, exist_ok=True)
         with out_yaml.open("w", encoding="utf-8") as f:

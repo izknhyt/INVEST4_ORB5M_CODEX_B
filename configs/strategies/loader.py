@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
-import yaml
+from core.utils import yaml_compat as yaml
 
 __all__ = [
     "CATEGORY_CHOICES",
