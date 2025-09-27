@@ -11,7 +11,7 @@
    - `reports/rolling/<window>/<symbol>_<mode>.json`: ウィンドウごとの run 指標
    - `runs/index.csv`: `runs/` 以下の run ディレクトリからサマリを再構築
    - `ops/runtime_snapshot.json` の `benchmarks` セクション（最新バー時刻）
-3. 直近結果と前回結果の差分を `total_pips`・`win_rate`（必要に応じて `sharpe`・`max_drawdown`）で比較し、既定の閾値（`--alert-pips`, `--alert-winrate`）を超えた場合は Webhook 通知を送信する。
+3. 直近結果と前回結果の差分を `total_pips`・`win_rate`（必要に応じて `sharpe`・`max_drawdown`）で比較し、既定の閾値（`--alert-pips`, `--alert-winrate`）を超えた場合は Webhook 通知を送信する。`reports/benchmark_summary.json` 生成後は `--min-sharpe`・`--max-drawdown` で設定した健全性閾値も自動チェックされ、`warnings` に出力される。
 
 ## 推奨 CLI
 ```bash
@@ -21,6 +21,7 @@ python3 scripts/run_benchmark_runs.py \
   --windows 365,180,90 \
   --runs-dir runs --reports-dir reports \
   --alert-pips 80 --alert-winrate 0.08 \
+  --min-sharpe 0.5 --max-drawdown 200 \
   --webhook https://hooks.slack.com/services/XXX/YYY/ZZZ
 ```
 
@@ -30,6 +31,7 @@ python3 scripts/run_benchmark_runs.py \
 - `baseline_metrics.total_pips`: 通期 run の総損益（pips）。大幅悪化時は戦略見直し候補。
 - `baseline_metrics.sharpe`: 取引ベースのシャープ比。安定性が低下していないかをウォッチ。
 - `baseline_metrics.max_drawdown`: 取引累積損益の最大ドローダウン（pips）。過去ピークからの下落幅を把握する。
+- `warnings`: `baseline` と `rolling` について、総損益・Sharpe・最大DDが閾値 (`--alert-*`, `--min-sharpe`, `--max-drawdown`) を超えた場合にメッセージが追加される。閾値は pips 単位で設定し、実際のドローダウン値は符号付きで表示される。
 - `baseline_metrics.win_rate` / `baseline_metrics.trades`: サンプル不足や勝率低下を早期に発見。
 - `alert.triggered`: 通知が送信された場合は `alert.payload` と `alert.deliveries` に詳細が残る。
 - `rolling[].path`: それぞれの JSON は `scripts/report_benchmark_summary.py` が集約して `reports/benchmark_summary.json` を生成する想定。
@@ -42,3 +44,4 @@ python3 scripts/run_benchmark_runs.py \
 ## TODO / 拡張
 - `reports/benchmark_summary.json` を Notion/BI に自動掲載する。
 - 直近ウィンドウの差分をグラフ化する Notebook (`analysis/rolling_dashboard.ipynb`) を整備する。
+- ~~Sharpe と最大DDの閾値チェックを `report_benchmark_summary.py` へ組み込み、Runbook に反映する。~~ (2024-06-04 完了)

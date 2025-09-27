@@ -8,3 +8,5 @@ tests/runs_*/
 *.csv
 *.parquet
 *.feather
+!tests/data/
+!tests/data/*.csv

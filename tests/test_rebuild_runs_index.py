@@ -32,7 +32,7 @@ def sample_run_dir(tmp_path: Path) -> Path:
         "wins": 3,
         "total_pips": 25.0,
         "sharpe": 1.25,
-        "max_drawdown": 12.0,
+        "max_drawdown": -12.0,
         "debug": {
             "gate_block": 2,
             "ev_reject": 1,
@@ -58,7 +58,7 @@ def test_rebuild_runs_index_preserves_columns(sample_run_dir: Path, tmp_path: Pa
     assert row["win_rate"] == pytest.approx(0.6)
     assert row["pnl_per_trade"] == pytest.approx(5.0)
     assert row["sharpe"] == pytest.approx(1.25)
-    assert row["max_drawdown"] == pytest.approx(12.0)
+    assert row["max_drawdown"] == pytest.approx(-12.0)
     assert row["gate_block"] == 2
     assert row["ev_reject"] == 1
     assert row["ev_bypass"] == 4
