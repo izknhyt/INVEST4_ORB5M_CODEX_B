@@ -6,6 +6,7 @@
 - ~~**state 更新ワーカー**~~ (完了): `scripts/update_state.py` に部分実行ワークフローを実装し、`BacktestRunner.run_partial` と状態スナップショット/EVアーカイブ連携を整備。`ops/state_archive/<strategy>/<symbol>/<mode>/` へ最新5件を保持し、更新後は `scripts/aggregate_ev.py` を自動起動するようにした。
 - ~~**runs/index 再構築スクリプト整備**~~ (完了): `scripts/rebuild_runs_index.py` が `scripts/run_sim.py` の出力列 (k_tr, gate/EV debug など) と派生指標 (win_rate, pnl_per_trade) を欠損なく復元し、`tests/test_rebuild_runs_index.py` で fixtures 検証を追加。
 - **ベースライン/ローリング run 起動ジョブ**: ORB コア設定の通し run と直近ローリング run を起動時にまとめて再計算し、`runs/index.csv`・`reports/baseline/*.json`・`reports/rolling/<window>/` を更新。前回結果との乖離が閾値超過したら Webhook 通知。
+  - 2024-06-05: `tests/test_run_benchmark_runs.py` を追加し、`--dry-run`/通常実行の双方で JSON 出力・アラート生成・スナップショット更新が期待通りであることを検証。
 
 ## P1: ローリング検証 + 健全性モニタリング
 - **ローリング検証パイプライン**: 直近365D/180D/90Dのシミュレーションを起動バッチで更新。`scripts/run_benchmark_runs.py` と `scripts/report_benchmark_summary.py` で `reports/rolling/<window>/*.json`・`reports/benchmark_summary.json` を生成し、勝率/Sharpe/DD のトレンドを可視化する仕込みを進める。→ `run_sim.py` 出力に Sharpe / max drawdown を追加済み（2024-06-03）。
