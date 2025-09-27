@@ -24,6 +24,13 @@ DEFAULT_COLUMNS = [
     "allow_low_rv",
     "allowed_sessions",
     "warmup",
+    "prior_alpha",
+    "prior_beta",
+    "include_expected_slip",
+    "rv_quantile",
+    "calibrate_days",
+    "ev_mode",
+    "size_floor",
     "trades",
     "wins",
     "total_pips",
@@ -102,6 +109,13 @@ def gather_rows(runs_dir: Path) -> List[Dict[str, Any]]:
         row["allow_low_rv"] = params.get("allow_low_rv")
         row["allowed_sessions"] = params.get("allowed_sessions")
         row["warmup"] = params.get("warmup")
+        row["prior_alpha"] = params.get("prior_alpha")
+        row["prior_beta"] = params.get("prior_beta")
+        row["include_expected_slip"] = params.get("include_expected_slip")
+        row["rv_quantile"] = params.get("rv_quantile")
+        row["calibrate_days"] = params.get("calibrate_days")
+        row["ev_mode"] = params.get("ev_mode")
+        row["size_floor"] = params.get("size_floor")
         row["trades"] = metrics.get("trades")
         row["wins"] = metrics.get("wins")
         row["total_pips"] = metrics.get("total_pips")
