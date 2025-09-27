@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime, timedelta, timezone
 
-from core.runner import BacktestRunner
+from core.runner import BacktestRunner, Metrics
 
 
 def make_bar(ts, symbol, o, h, l, c, spread):
@@ -65,6 +65,17 @@ class TestRunner(unittest.TestCase):
         self.assertIn("runtime", state)
         self.assertIn("warmup_left", state["runtime"])
         self.assertIn("last_timestamp", state.get("meta", {}))
+
+    def test_metrics_compute_sharpe_and_drawdown(self):
+        metrics = Metrics()
+        returns = [10.0, -5.0, 20.0, -15.0]
+        metrics.trade_returns.extend(returns)
+        metrics.total_pips = sum(returns)
+        result = metrics.as_dict()
+        self.assertIn("sharpe", result)
+        self.assertIn("max_drawdown", result)
+        self.assertAlmostEqual(result["sharpe"], 0.3713906763541037, places=6)
+        self.assertAlmostEqual(result["max_drawdown"], 15.0, places=6)
 
 
 if __name__ == "__main__":

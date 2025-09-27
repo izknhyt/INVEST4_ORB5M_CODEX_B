@@ -60,10 +60,14 @@ def _extract_metrics(summary: Dict[str, object]) -> Dict[str, Optional[float]]:
     trades_val = summary.get("trades")
     wins_val = summary.get("wins")
     total_pips_val = summary.get("total_pips")
+    sharpe_val = summary.get("sharpe")
+    max_dd_val = summary.get("max_drawdown")
 
     trades = float(trades_val) if isinstance(trades_val, (int, float)) else None
     wins = float(wins_val) if isinstance(wins_val, (int, float)) else None
     total_pips = float(total_pips_val) if isinstance(total_pips_val, (int, float)) else None
+    sharpe = float(sharpe_val) if isinstance(sharpe_val, (int, float)) else None
+    max_drawdown = float(max_dd_val) if isinstance(max_dd_val, (int, float)) else None
 
     win_rate: Optional[float] = None
     if trades and wins is not None:
@@ -77,6 +81,8 @@ def _extract_metrics(summary: Dict[str, object]) -> Dict[str, Optional[float]]:
         "wins": wins,
         "win_rate": win_rate,
         "total_pips": total_pips,
+        "sharpe": sharpe,
+        "max_drawdown": max_drawdown,
     }
 
 

@@ -18,12 +18,16 @@ def compute_summary(metrics: Dict) -> Dict[str, float]:
     trades = metrics.get("trades", 0)
     wins = metrics.get("wins", 0)
     total_pips = metrics.get("total_pips", 0.0)
+    sharpe = metrics.get("sharpe", 0.0)
+    max_drawdown = metrics.get("max_drawdown", 0.0)
     win_rate = (wins / trades) if trades else 0.0
     return {
         "trades": trades,
         "wins": wins,
         "win_rate": win_rate,
         "total_pips": total_pips,
+        "sharpe": sharpe if isinstance(sharpe, (int, float)) else 0.0,
+        "max_drawdown": max_drawdown if isinstance(max_drawdown, (int, float)) else 0.0,
     }
 
 
