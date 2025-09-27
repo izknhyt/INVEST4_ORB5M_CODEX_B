@@ -36,6 +36,7 @@ def test_benchmark_summary_threshold_arguments(monkeypatch):
         "--benchmark-summary",
         "--min-sharpe", "1.5",
         "--max-drawdown", "250.5",
+        "--benchmark-windows", "400,200",
     ])
 
     assert exit_code == 0
@@ -46,6 +47,8 @@ def test_benchmark_summary_threshold_arguments(monkeypatch):
     assert cmd[cmd.index("--min-sharpe") + 1] == "1.5"
     assert "--max-drawdown" in cmd
     assert cmd[cmd.index("--max-drawdown") + 1] == "250.5"
+    assert "--windows" in cmd
+    assert cmd[cmd.index("--windows") + 1] == "400,200"
 
 
 def test_benchmark_summary_without_thresholds(monkeypatch):
@@ -58,6 +61,34 @@ def test_benchmark_summary_without_thresholds(monkeypatch):
     cmd = captured[0]
     assert "--min-sharpe" not in cmd
     assert "--max-drawdown" not in cmd
+    assert cmd[cmd.index("--windows") + 1] == "365,180,90"
+
+
+def test_benchmarks_pipeline_arguments(monkeypatch):
+    captured = _capture_run_cmd(monkeypatch)
+
+    exit_code = run_daily_workflow.main([
+        "--benchmarks",
+        "--symbol", "GBPJPY",
+        "--mode", "bridge",
+        "--equity", "250000",
+        "--min-sharpe", "1.0",
+        "--max-drawdown", "150",
+        "--webhook", "https://example.com/hook",
+        "--benchmark-windows", "200,60",
+    ])
+
+    assert exit_code == 0
+    cmd = captured[0]
+    assert cmd[0] == sys.executable
+    assert "run_benchmark_pipeline.py" in cmd[1]
+    assert cmd[cmd.index("--symbol") + 1] == "GBPJPY"
+    assert cmd[cmd.index("--mode") + 1] == "bridge"
+    assert cmd[cmd.index("--equity") + 1] == "250000"
+    assert float(cmd[cmd.index("--min-sharpe") + 1]) == pytest.approx(1.0)
+    assert float(cmd[cmd.index("--max-drawdown") + 1]) == pytest.approx(150.0)
+    assert cmd[cmd.index("--webhook") + 1] == "https://example.com/hook"
+    assert cmd[cmd.index("--windows") + 1] == "200,60"
 
 
 def test_main_returns_first_failure(failing_run_cmd):

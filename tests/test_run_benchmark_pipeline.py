@@ -1,0 +1,157 @@
+"""Tests for scripts.run_benchmark_pipeline orchestration."""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Iterator, List
+
+import pytest
+
+from scripts import run_benchmark_pipeline as rbp
+
+
+class DummyCompletedProcess:
+    def __init__(self, cmd: List[str], *, returncode: int, stdout: str = "", stderr: str = "") -> None:
+        self.args = cmd
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+    benchmark_payload = {
+        "baseline": "reports/baseline/USDJPY_conservative.json",
+        "baseline_metrics": {"trades": 100, "wins": 60, "total_pips": 250.0},
+        "rolling": [{"window": 365, "path": "reports/rolling/365/USDJPY_conservative.json"}],
+        "latest_ts": "2024-06-10T00:00:00",
+    }
+    summary_payload = {
+        "generated_at": "2024-06-10T01:00:00Z",
+        "symbol": "USDJPY",
+        "mode": "conservative",
+        "baseline": {"trades": 100, "wins": 60, "total_pips": 250.0},
+        "rolling": [],
+        "warnings": ["baseline total_pips negative: -10.0"],
+        "webhook": {"deliveries": [{"url": "https://example.com/hook", "ok": True, "detail": "status=200"}]},
+    }
+
+    commands: List[List[str]] = []
+    results: Iterator[DummyCompletedProcess] = iter([
+        DummyCompletedProcess([], returncode=0, stdout=json.dumps(benchmark_payload)),
+        DummyCompletedProcess([], returncode=0, stdout=json.dumps(summary_payload)),
+    ])
+
+    def fake_run(cmd: List[str], /) -> DummyCompletedProcess:
+        commands.append(cmd)
+        try:
+            result = next(results)
+        except StopIteration:  # pragma: no cover - guard
+            raise AssertionError("unexpected extra subprocess invocation")
+        result.args = cmd
+        return result
+
+    monkeypatch.setattr(rbp, "_run_subprocess", fake_run)
+
+    snapshot_path = tmp_path / "ops" / "runtime_snapshot.json"
+    args = [
+        "--bars",
+        str(tmp_path / "bars.csv"),
+        "--symbol",
+        "USDJPY",
+        "--mode",
+        "conservative",
+        "--equity",
+        "100000",
+        "--runs-dir",
+        str(tmp_path / "runs"),
+        "--reports-dir",
+        str(tmp_path / "reports"),
+        "--snapshot",
+        str(snapshot_path),
+        "--summary-json",
+        str(tmp_path / "reports" / "benchmark_summary.json"),
+        "--summary-plot",
+        str(tmp_path / "reports" / "benchmark_summary.png"),
+        "--windows",
+        "365,180,90",
+        "--min-sharpe",
+        "1.1",
+        "--max-drawdown",
+        "80",
+        "--webhook",
+        "https://example.com/hook",
+    ]
+
+    rc = rbp.main(args)
+    assert rc == 0
+
+    stdout = capsys.readouterr().out
+    combined = json.loads(stdout)
+    assert combined["benchmark_runs"]["latest_ts"] == benchmark_payload["latest_ts"]
+    assert combined["summary"]["warnings"] == summary_payload["warnings"]
+
+    # Ensure ordering and parameter propagation
+    first_cmd, second_cmd = commands
+    assert "run_benchmark_runs.py" in first_cmd[1]
+    assert first_cmd[first_cmd.index("--windows") + 1] == "365,180,90"
+    assert first_cmd[first_cmd.index("--webhook") + 1] == "https://example.com/hook"
+    assert "run_benchmark_summary.py" not in first_cmd[1]
+    assert "report_benchmark_summary.py" in second_cmd[1]
+    assert float(second_cmd[second_cmd.index("--min-sharpe") + 1]) == pytest.approx(1.1)
+    assert float(second_cmd[second_cmd.index("--max-drawdown") + 1]) == pytest.approx(80.0)
+    assert second_cmd[second_cmd.index("--webhook") + 1] == "https://example.com/hook"
+
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    key = "USDJPY_conservative"
+    assert snapshot["benchmarks"][key] == benchmark_payload["latest_ts"]
+    pipeline_info = snapshot["benchmark_pipeline"][key]
+    assert pipeline_info["warnings"] == summary_payload["warnings"]
+    assert pipeline_info["summary_generated_at"] == summary_payload["generated_at"]
+
+
+def test_pipeline_handles_benchmark_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+    def fake_run(cmd: List[str], /) -> DummyCompletedProcess:
+        return DummyCompletedProcess(cmd, returncode=5, stdout="", stderr="boom")
+
+    monkeypatch.setattr(rbp, "_run_subprocess", fake_run)
+
+    rc = rbp.main([
+        "--bars",
+        str(tmp_path / "bars.csv"),
+        "--snapshot",
+        str(tmp_path / "ops" / "runtime_snapshot.json"),
+    ])
+
+    assert rc == 5
+    out = capsys.readouterr().out
+    assert out == ""
+
+
+def test_pipeline_handles_summary_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+    results: Iterator[DummyCompletedProcess] = iter([
+        DummyCompletedProcess([], returncode=0, stdout=json.dumps({"latest_ts": "2024-06-10T00:00:00"})),
+        DummyCompletedProcess([], returncode=3, stdout="", stderr="bad"),
+    ])
+
+    def fake_run(cmd: List[str], /) -> DummyCompletedProcess:
+        try:
+            result = next(results)
+        except StopIteration:  # pragma: no cover
+            raise AssertionError("unexpected subprocess call")
+        result.args = cmd
+        return result
+
+    monkeypatch.setattr(rbp, "_run_subprocess", fake_run)
+
+    snapshot_path = tmp_path / "ops" / "runtime_snapshot.json"
+    rc = rbp.main([
+        "--bars",
+        str(tmp_path / "bars.csv"),
+        "--snapshot",
+        str(snapshot_path),
+    ])
+
+    assert rc == 3
+    assert not snapshot_path.exists()
+    out = capsys.readouterr().out
+    assert out == ""

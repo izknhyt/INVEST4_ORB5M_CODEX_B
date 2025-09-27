@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import urllib.error
+import urllib.request
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 
 def load_json(path: Path) -> Dict:
@@ -21,6 +23,31 @@ def _as_float(value: object) -> Optional[float]:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _parse_webhook_urls(value: Optional[str]) -> List[str]:
+    if not value:
+        return []
+    urls: List[str] = []
+    for part in value.split(","):
+        part = part.strip()
+        if part:
+            urls.append(part)
+    return urls
+
+
+def _post_webhook(url: str, payload: Dict[str, object], timeout: float = 5.0) -> Tuple[bool, str]:
+    data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return True, f"status={resp.status}"
+    except urllib.error.HTTPError as exc:
+        return False, f"http_error={exc.code}"
+    except urllib.error.URLError as exc:
+        return False, f"url_error={exc.reason}"
+    except Exception as exc:  # pragma: no cover
+        return False, f"unexpected_error={type(exc).__name__}:{exc}"
 
 
 def compute_summary(metrics: Dict) -> Dict[str, Optional[float]]:
@@ -50,6 +77,7 @@ def parse_args(argv=None):
     parser.add_argument("--plot-out", default=None, help="Optional path to save summary plot (PNG)")
     parser.add_argument("--min-sharpe", type=float, default=None, help="Warn when Sharpe ratio falls below this value")
     parser.add_argument("--max-drawdown", type=float, default=None, help="Warn when |max_drawdown| exceeds this value (pips)")
+    parser.add_argument("--webhook", default=None, help="Webhook URL(s) for summary warnings (comma separated)")
     return parser.parse_args(argv)
 
 
@@ -99,7 +127,7 @@ def main(argv=None) -> int:
         warnings.append(f"baseline total_pips negative: {baseline_summary['total_pips']:.2f}")
     _apply_threshold_checks("baseline", baseline_summary)
 
-    payload = {
+    payload: Dict[str, object] = {
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "symbol": args.symbol,
         "mode": args.mode,
@@ -107,6 +135,21 @@ def main(argv=None) -> int:
         "rolling": sorted(rolling_results, key=lambda x: x["window"]),
         "warnings": warnings,
     }
+
+    webhook_urls = _parse_webhook_urls(args.webhook)
+    deliveries: List[Dict[str, object]] = []
+    if webhook_urls and warnings:
+        webhook_payload = {
+            "event": "benchmark_summary_warnings",
+            "symbol": args.symbol,
+            "mode": args.mode,
+            "warnings": warnings,
+            "generated_at": payload["generated_at"],
+        }
+        for url in webhook_urls:
+            ok, detail = _post_webhook(url, webhook_payload)
+            deliveries.append({"url": url, "ok": ok, "detail": detail})
+        payload["webhook"] = {"targets": webhook_urls, "deliveries": deliveries}
 
     json_out = Path(args.json_out)
     json_out.parent.mkdir(parents=True, exist_ok=True)
