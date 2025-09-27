@@ -26,6 +26,13 @@ def sample_run_dir(tmp_path: Path) -> Path:
         "allow_low_rv": True,
         "allowed_sessions": "LDN,NY",
         "warmup": 15,
+        "prior_alpha": 2.0,
+        "prior_beta": 3.0,
+        "include_expected_slip": True,
+        "rv_quantile": True,
+        "calibrate_days": 7,
+        "ev_mode": "mean",
+        "size_floor": 0.05,
     }
     metrics = {
         "trades": 5,
@@ -64,6 +71,13 @@ def test_rebuild_runs_index_preserves_columns(sample_run_dir: Path, tmp_path: Pa
     assert row["ev_bypass"] == 4
     assert row["k_tr"] == 0.5
     assert row["dump_rows"] == 50
+    assert row["prior_alpha"] == 2.0
+    assert row["prior_beta"] == 3.0
+    assert row["include_expected_slip"] is True
+    assert row["rv_quantile"] is True
+    assert row["calibrate_days"] == 7
+    assert row["ev_mode"] == "mean"
+    assert row["size_floor"] == 0.05
     assert str(row["state_path"]).endswith("state.json")
 
     out_path = tmp_path / "index.csv"
