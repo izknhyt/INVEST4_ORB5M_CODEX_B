@@ -13,6 +13,7 @@
     - 主要ランブック: [docs/benchmark_runbook.md#スケジュールとアラート管理](docs/benchmark_runbook.md#スケジュールとアラート管理)
   - Pending Questions:
     - [ ] なし（cadence/アラート閾値整理済み）
+  - 2025-10-02: `run_benchmark_pipeline.py` で 365/180/90D ローリング JSON の存在/Sharpe・最大DD を検証し、`run_daily_workflow.py --benchmarks` から必須ウィンドウを確実に流すよう正規化。ランブックへ Cron 後の確認手順と再実行 CLI を追記。
   - 2025-09-30: `manage_task_cycle.py` の `start-task` で runbook/pending 指定を許可し、`sync_task_docs.py` のテンプレ統合処理をリファクタリング。テンプレ適用後に state/docs 双方へ同じチェックリストが維持されることを手動確認。
 
 ### 運用メモ
@@ -53,3 +54,4 @@
 - [P1-01] 2025-09-29: Refined drawdown threshold normalization via helper, captured warning logs for negative CLI input in regression tests, and reran targeted pytest & CLI verification.
 - [P1-01] 2025-09-30: Propagated `--alert-pips` / `--alert-winrate` through benchmark pipeline + daily workflow CLIs, refreshed pytest coverage, and synced runbook CLI examples.
 - [P1-01] 2025-10-01: 固定パス参照の `aggregate_ev.py` をリファクタし、リポジトリルートを `sys.path` と I/O 基準に統一する REPO_ROOT を導入。CLI 回帰テストを追加し、`python3 -m pytest tests/test_aggregate_ev_script.py` とベンチマーク実行を再確認。
+- [P1-01] 2025-10-02: `run_benchmark_pipeline.py` がローリング JSON の必須メトリクスを検証し、`reports/benchmark_summary.json` の書き込みを確認する安全策を追加。`tests/test_run_benchmark_pipeline.py` で Sharpe/DD の存在を回帰確認し、`docs/benchmark_runbook.md` に Cron モニタリングと再実行手順を追記。`python3 -m pytest` 完走で挙動を再検証。
