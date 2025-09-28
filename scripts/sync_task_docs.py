@@ -57,6 +57,7 @@ STATE_PATH = REPO_ROOT / "state.md"
 DOCS_PATH = REPO_ROOT / "docs" / "todo_next.md"
 CHECKLIST_TEMPLATE = "docs/templates/dod_checklist.md"
 CHECKLIST_DIR = "docs/checklists"
+NEXT_TASK_TEMPLATE = "docs/templates/next_task_entry.md"
 
 
 class SyncError(RuntimeError):
@@ -89,27 +90,67 @@ def section_bounds(lines: List[str], heading: str, level: int) -> Tuple[int, int
     return start, len(lines)
 
 
-def remove_state_entry(lines: List[str], anchor: str) -> Tuple[List[str], str]:
+def remove_state_entry(lines: List[str], anchor: str) -> Tuple[List[str], List[str]]:
     start, end = section_bounds(lines, "Next Task", 2)
-    removed = None
     for idx in range(start, end):
-        if anchor in lines[idx]:
-            removed = lines[idx]
-            del lines[idx]
+        if anchor not in lines[idx]:
+            continue
+        block_start = idx
+        block_end = idx + 1
+        while block_end < end:
+            line = lines[block_end]
+            if not line.strip():
+                block_end += 1
+                break
+            if line.startswith("  "):
+                block_end += 1
+                continue
             break
-    if removed is None:
-        raise SyncError(f"Task anchor '{anchor}' not present in state Next Task")
-    return lines, removed
+        # include trailing blank line if present for clean removal
+        if block_end < len(lines) and not lines[block_end].strip():
+            block_end += 1
+        block = lines[block_start:block_end]
+        del lines[block_start:block_end]
+
+        # collapse multiple consecutive blank lines inside the section
+        while (
+            block_start < len(lines) - 1
+            and block_start >= start
+            and not lines[block_start].strip()
+            and not lines[block_start + 1].strip()
+        ):
+            del lines[block_start]
+        if (
+            block_start > start
+            and block_start <= len(lines) - 1
+            and not lines[block_start - 1].strip()
+            and (block_start == len(lines) or not lines[block_start].strip())
+        ):
+            del lines[block_start - 1]
+        return lines, block
+    raise SyncError(f"Task anchor '{anchor}' not present in state Next Task")
 
 
-def append_state_next(lines: List[str], entry: str) -> List[str]:
+def insert_state_block(lines: List[str], block: List[str]) -> List[str]:
+    if not block:
+        return lines
     start, end = section_bounds(lines, "Next Task", 2)
-    insert_at = end
-    if insert_at > start and lines[insert_at - 1].strip():
-        lines.insert(insert_at, "")
-        insert_at += 1
-    lines.insert(insert_at, entry)
+    insertion = end
+    if insertion > start and lines[insertion - 1].strip():
+        lines.insert(insertion, "")
+        insertion += 1
+    block_to_insert = block[:]
+    while block_to_insert and not block_to_insert[-1].strip():
+        block_to_insert.pop()
+    if block_to_insert and block_to_insert[-1].strip():
+        block_to_insert.append("")
+    lines[insertion:insertion] = block_to_insert
     return lines
+
+
+def append_state_next(lines: List[str], entry: str | List[str]) -> List[str]:
+    block = [entry] if isinstance(entry, str) else list(entry)
+    return insert_state_block(lines, block)
 
 
 def append_state_log(lines: List[str], entry: str) -> List[str]:
@@ -120,6 +161,88 @@ def append_state_log(lines: List[str], entry: str) -> List[str]:
         insert_at += 1
     lines.insert(insert_at, entry)
     return lines
+
+
+def _strip_trailing_blank_lines(block: List[str]) -> List[str]:
+    result = list(block)
+    while result and not result[-1].strip():
+        result.pop()
+    return result
+
+
+def _replace_section(
+    block: List[str], header: str, new_lines: List[str], *, limit: int | None = None
+) -> bool:
+    if not new_lines:
+        return False
+    for idx, line in enumerate(block):
+        if limit is not None and idx >= limit:
+            break
+        if line.strip().startswith(header):
+            base_indent = len(line) - len(line.lstrip(" "))
+            end = idx + 1
+            while end < len(block):
+                next_line = block[end]
+                if not next_line.strip():
+                    break
+                indent = len(next_line) - len(next_line.lstrip(" "))
+                if indent <= base_indent:
+                    break
+                end += 1
+            block[idx:end] = new_lines
+            return True
+    return False
+
+
+def _template_sections(template_lines: List[str]) -> List[tuple[str | None, List[str]]]:
+    sections: List[tuple[str | None, List[str]]] = []
+    idx = 0
+    while idx < len(template_lines):
+        line = template_lines[idx]
+        if line.startswith("  - "):
+            header = line.strip()
+            label = header.split(":", 1)[0] + ":" if ":" in header else header
+            j = idx + 1
+            while j < len(template_lines) and template_lines[j].startswith("    "):
+                j += 1
+            sections.append((label, template_lines[idx:j]))
+            idx = j
+        else:
+            sections.append((None, [line]))
+            idx += 1
+    return sections
+
+
+def _merge_state_template(block: List[str], template_lines: List[str]) -> List[str]:
+    merged = _strip_trailing_blank_lines(block)
+    sections = _template_sections(template_lines)
+    updated = False
+    for header, lines in sections:
+        if header is None:
+            continue
+        if _replace_section(merged, header, lines):
+            updated = True
+        else:
+            merged.extend(lines)
+            updated = True
+    if not updated and template_lines:
+        merged.extend(template_lines)
+    return merged
+
+
+def _merge_doc_template(block: List[str], template_lines: List[str]) -> List[str]:
+    merged = _strip_trailing_blank_lines(block)
+    try:
+        dod_index = next(
+            idx for idx, line in enumerate(merged) if "DoD チェックリスト" in line
+        )
+    except StopIteration:
+        dod_index = len(merged)
+    prefix = merged[:dod_index]
+    suffix = merged[dod_index:]
+    prefix = _merge_state_template(prefix, template_lines)
+    result = prefix + suffix
+    return result
 
 
 def normalize_anchor(anchor: str) -> str:
@@ -293,11 +416,15 @@ def cmd_promote(ctx: CommandContext) -> None:
     state_lines = read_lines(STATE_PATH)
     # If already present, do not duplicate
     try:
-        state_lines, _ = remove_state_entry(state_lines, ctx.anchor)
+        state_lines, block = remove_state_entry(state_lines, ctx.anchor)
     except SyncError:
-        pass
+        block = []
     entry = build_state_line(ctx.task_id, ctx.title, ctx.date, ctx.anchor, ctx.note)
-    state_lines = append_state_next(state_lines, entry)
+    if block:
+        block[0] = entry
+    else:
+        block = [entry]
+    state_lines = insert_state_block(state_lines, block)
     write_lines(STATE_PATH, state_lines)
 
     docs_lines = read_lines(DOCS_PATH)
@@ -346,6 +473,65 @@ def cmd_complete(ctx: CommandContext) -> None:
         )
     block = strike_archive_block(block, ctx.anchor, ctx.date)
     docs_lines = insert_doc_block(docs_lines, "Archive（達成済み）", block)
+    write_lines(DOCS_PATH, docs_lines)
+
+
+def _render_template(template_lines: List[str], context: dict[str, str]) -> List[str]:
+    rendered: List[str] = []
+    for line in template_lines:
+        text = line
+        for key, value in context.items():
+            text = text.replace(f"{{{{{key}}}}}", value)
+        rendered.append(text)
+    return rendered
+
+
+def apply_next_task_template(
+    anchor: str,
+    *,
+    title: str,
+    task_id: str,
+    template_path: Path | None = None,
+    runbook_links: str | None = None,
+    pending_questions: str | None = None,
+) -> None:
+    template_file = template_path or (REPO_ROOT / NEXT_TASK_TEMPLATE)
+    if not template_file.exists():
+        raise SyncError(f"Template file '{template_file}' not found")
+    template_lines = template_file.read_text(encoding="utf-8").splitlines()
+    context = {
+        "TITLE": title,
+        "TASK_ID": task_id,
+        "BACKLOG_ANCHOR": anchor,
+        "RUNBOOK_LINKS": runbook_links
+        or "[docs/state_runbook.md](docs/state_runbook.md)",
+        "PENDING_QUESTIONS": pending_questions
+        or "Clarify gating metrics, data dependencies, or open questions.",
+    }
+    state_template = _render_template(template_lines, context)
+    docs_template = _render_template(template_lines, context)
+
+    state_lines = read_lines(STATE_PATH)
+    state_lines, state_block = remove_state_entry(state_lines, anchor)
+    state_block = _merge_state_template(state_block, state_template)
+    state_lines = insert_state_block(state_lines, state_block)
+    write_lines(STATE_PATH, state_lines)
+
+    docs_lines = read_lines(DOCS_PATH)
+    for heading in ("In Progress", "Ready", "Pending Review"):
+        try:
+            docs_lines, doc_block = remove_doc_block(docs_lines, heading, anchor)
+            current_heading = heading
+            break
+        except SyncError:
+            continue
+    else:
+        raise SyncError(
+            f"Task anchor '{anchor}' not found in docs/todo_next.md for template insertion"
+        )
+    doc_block = ensure_checklist_note(doc_block, task_id)
+    doc_block = _merge_doc_template(doc_block, docs_template)
+    docs_lines = insert_doc_block(docs_lines, current_heading, doc_block)
     write_lines(DOCS_PATH, docs_lines)
 
 

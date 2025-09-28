@@ -22,6 +22,7 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
 - **ヘルスチェック:** `scripts/check_state_health.py` を日次（`run_daily_workflow.py --state-health`）で実行し、結果を `ops/health/state_checks.json` に追記する。勝率 LCB・バケット別サンプル・滑り係数を監視し、警告が出た場合は `--webhook` で Slack 等へ通知。`--fail-on-warning` を CI/バッチに組み込むと異常時にジョブを停止できる。
 - **履歴保持:** 標準では直近 90 レコードを保持する。上限を変更する場合は `--history-limit` を調整する。履歴の可視化は Notebook or BI で `checked_at` を横軸に `ev_win_lcb` やワーニング件数をプロットする。
 - **タスク同期:** `state.md` と `docs/todo_next.md` の整合を保つ際は `scripts/manage_task_cycle.py` を優先利用する。`start-task` で Ready 登録→In Progress 昇格を一括実行し、既存アンカー検知で重複記録を抑止する。完了時は `finish-task` でまとめてログとアーカイブへ送る。いずれも `--dry-run` でコマンド内容を確認してから本実行する。
+- **テンプレ適用:** `state.md` の `## Next Task` へ手動で項目を追加する場合は、必ず [docs/templates/next_task_entry.md](templates/next_task_entry.md) を貼り付けてアンカー・参照リンク・疑問点スロットを埋める。`scripts/manage_task_cycle.py start-task` を使うとテンプレが自動挿入されるため、手動調整より優先する。
 - **DoD チェックリスト:** Ready へ昇格する際は [docs/templates/dod_checklist.md](templates/dod_checklist.md) をコピーし、`docs/checklists/<task-slug>.md` として保存する。テンプレート内の Ready チェック項目は昇格時点で状態を更新し、バックログ固有の DoD 箇条書きをチェックボックスへ転記する。進行中は該当タスクの `docs/todo_next.md` エントリからリンクし、完了後も `docs/checklists/` に履歴として保管する。
 
 ## 実装メモ
