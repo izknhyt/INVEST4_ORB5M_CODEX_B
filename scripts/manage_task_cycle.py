@@ -285,6 +285,12 @@ def main(argv: Sequence[str] | None = None) -> None:
             params = _collect_start_params(args)
             commands = _build_start_commands(params)
             _run_commands(commands, dry_run=args.dry_run)
+            if not args.dry_run:
+                sync.apply_next_task_template(
+                    params.anchor,
+                    title=params.title,
+                    task_id=params.task_id,
+                )
         elif args.command == "finish-task":
             params = _collect_finish_params(args)
             commands = _build_finish_commands(params)
@@ -292,6 +298,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         else:  # pragma: no cover - argparse prevents this
             parser.error(f"Unsupported command {args.command}")
     except InputError as exc:
+        parser.error(str(exc))
+    except sync.SyncError as exc:
         parser.error(str(exc))
 
 
