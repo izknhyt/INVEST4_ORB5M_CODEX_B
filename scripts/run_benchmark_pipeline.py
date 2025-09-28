@@ -233,6 +233,7 @@ def _update_snapshot(snapshot_path: Path, key: str, benchmark_payload: Dict[str,
         "latest_ts": latest_ts,
         "summary_generated_at": summary_payload.get("generated_at"),
         "warnings": summary_payload.get("warnings", []),
+        "threshold_alerts": summary_payload.get("threshold_alerts", []),
     }
     _save_snapshot_atomic(snapshot_path, snapshot)
 
