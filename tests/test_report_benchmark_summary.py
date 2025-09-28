@@ -79,6 +79,29 @@ class TestReportBenchmarkSummary(unittest.TestCase):
             self.assertIn("baseline sharpe", joined)
             self.assertIn("rolling window 30 max_drawdown", joined)
 
+            args_with_negative_threshold = [
+                "--symbol",
+                "USDJPY",
+                "--mode",
+                "conservative",
+                "--reports-dir",
+                str(reports_dir),
+                "--windows",
+                "30",
+                "--json-out",
+                str(output_path),
+                "--min-sharpe",
+                "0.8",
+                "--max-drawdown",
+                "-200",
+            ]
+
+            rc = rbs.main(args_with_negative_threshold)
+            self.assertEqual(rc, 0)
+            payload = json.loads(output_path.read_text())
+            joined = " ".join(payload["warnings"])
+            self.assertNotIn("max_drawdown", joined)
+
     def test_main_sends_webhook_when_warnings_present(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             base_dir = Path(tmpdir)

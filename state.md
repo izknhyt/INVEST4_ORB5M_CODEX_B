@@ -41,3 +41,4 @@
 - [P1-04] 2025-09-28: Ready/DoD チェックリスト テンプレートと `sync_task_docs.py` の自動リンク挿入を整備し、`docs/todo_next.md` / `docs/state_runbook.md` に運用手順を追記。DoD: [docs/task_backlog.md#ワークフロー統合ガイド](docs/task_backlog.md#ワークフロー統合ガイド).
 - [P1-04] 2025-09-28: `docs/templates/next_task_entry.md` を新設し、`manage_task_cycle.py start-task` がテンプレを自動適用するよう拡張。DoD: [docs/task_backlog.md#ワークフロー統合ガイド](docs/task_backlog.md#ワークフロー統合ガイド).
 - [P1-04] 2025-09-29: Published `docs/codex_workflow.md` to outline Codex session operations and clarified references to `docs/state_runbook.md` and the shared templates. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
+- [P1-01] 2025-09-28: Normalized benchmark summary max drawdown thresholds to accept negative CLI inputs, added regression coverage, and revalidated with targeted pytest.

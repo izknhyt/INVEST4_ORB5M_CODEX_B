@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import urllib.error
 import urllib.request
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 def load_json(path: Path) -> Dict:
@@ -96,6 +100,16 @@ def main(argv=None) -> int:
     rolling_results: List[Dict] = []
     warnings: List[str] = []
 
+    max_drawdown_threshold: Optional[float] = None
+    if args.max_drawdown is not None:
+        max_drawdown_threshold = abs(args.max_drawdown)
+        if args.max_drawdown < 0:
+            LOGGER.warning(
+                "Received negative --max-drawdown value %s; using absolute value %s",
+                args.max_drawdown,
+                max_drawdown_threshold,
+            )
+
     def _apply_threshold_checks(label: str, summary: Dict[str, Optional[float]]) -> None:
         sharpe_val = summary.get("sharpe")
         if args.min_sharpe is not None and sharpe_val is not None and sharpe_val < args.min_sharpe:
@@ -103,11 +117,11 @@ def main(argv=None) -> int:
                 f"{label} sharpe {sharpe_val:.2f} below min_sharpe {args.min_sharpe:.2f}"
             )
         drawdown_val = summary.get("max_drawdown")
-        if args.max_drawdown is not None and drawdown_val is not None:
+        if max_drawdown_threshold is not None and drawdown_val is not None:
             magnitude = abs(drawdown_val)
-            if magnitude > args.max_drawdown:
+            if magnitude > max_drawdown_threshold:
                 warnings.append(
-                    f"{label} max_drawdown {drawdown_val:.2f} exceeds threshold {args.max_drawdown:.2f}"
+                    f"{label} max_drawdown {drawdown_val:.2f} exceeds threshold {max_drawdown_threshold:.2f}"
                 )
 
     for w in windows:
