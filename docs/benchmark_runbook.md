@@ -35,9 +35,10 @@
 1. Cron 実行後は `ops/runtime_snapshot.json` の `benchmarks.<symbol>_<mode>` および `benchmark_pipeline.<symbol>_<mode>` に最新タイムスタンプが追記されているか確認する。
 2. `reports/rolling/{365,180,90}/<symbol>_<mode>.json` が全て更新され、各 JSON に `sharpe`・`max_drawdown` が存在することをチェックする。欠損があれば `scripts/run_benchmark_pipeline.py` の実行ログと照合する。
 3. `reports/baseline/<symbol>_<mode>.json` とローリング各 JSON の `aggregate_ev.returncode` が 0、`aggregate_ev.error` が空であることを確認する。パイプラインが `baseline aggregate_ev failed ...` や `rolling window XXX aggregate_ev failed ...` で停止した場合は、該当 JSON の `aggregate_ev.error` を読み取り、モジュール解決ミスや権限不足など原因を特定する。修正後は `python3 scripts/aggregate_ev.py --strategy <戦略クラス> --symbol USDJPY --mode conservative --archive ops/state_archive --recent 5 --out-csv analysis/ev_profile_summary.csv` を単独で実行して成功（exit code 0）を確認し、続けて `python3 scripts/run_benchmark_pipeline.py --symbol USDJPY --mode conservative --equity 100000 --windows 365,180,90` を再実行する。
-4. `reports/benchmark_summary.json` の `generated_at` が Cron 実行時刻以降であることを確認し、`warnings` が出力された場合は Slack の `benchmark_summary_warnings` 通知と突き合わせて対応を判断する。
-5. 失敗時は `python3 scripts/run_daily_workflow.py --benchmarks --symbol USDJPY --mode conservative --equity 100000` を手動で再実行し、並行して `/var/log/cron.log`（またはスケジューラのジョブログ）で直前ジョブの exit code を確認する。パラメータ確認だけ行いたい場合は `python3 scripts/run_benchmark_pipeline.py --dry-run --symbol USDJPY --mode conservative --equity 100000 --windows 365,180,90 --runs-dir runs --reports-dir reports` を使う。
-6. ローリング JSON が欠損したままの場合は `reports/rolling/<window>/` を手動点検し、必要に応じて `python3 scripts/run_benchmark_pipeline.py --windows 365,180,90` を単体で実行して再生成する。復旧後は `ops/runtime_snapshot.json` の `benchmark_pipeline` セクションに反映されているか再確認する。
+4. `scripts/run_benchmark_pipeline.py` の標準出力に含まれる `benchmark_runs.alert` をレビューし、`thresholds`・`metrics_prev`・`metrics_new`・`deltas` が Sharpe や最大DDの変化を捉えているかチェックする。ローカル実行では Slack Webhook に到達できないため `deliveries[].ok=false` と `detail=url_error=Tunnel connection failed: 403 Forbidden` が残るが、これは本番 Slack 未接続による想定挙動である。メトリクスが DoD を満たしていれば記録用途としてログ化し、必要に応じて `docs/todo_next.md` / `state.md` にメモを残す。
+5. `reports/benchmark_summary.json` の `generated_at` が Cron 実行時刻以降であることを確認し、`warnings` が出力された場合は Slack の `benchmark_summary_warnings` 通知と突き合わせて対応を判断する。
+6. 失敗時は `python3 scripts/run_daily_workflow.py --benchmarks --symbol USDJPY --mode conservative --equity 100000` を手動で再実行し、並行して `/var/log/cron.log`（またはスケジューラのジョブログ）で直前ジョブの exit code を確認する。パラメータ確認だけ行いたい場合は `python3 scripts/run_benchmark_pipeline.py --dry-run --symbol USDJPY --mode conservative --equity 100000 --windows 365,180,90 --runs-dir runs --reports-dir reports` を使う。
+7. ローリング JSON が欠損したままの場合は `reports/rolling/<window>/` を手動点検し、必要に応じて `python3 scripts/run_benchmark_pipeline.py --windows 365,180,90` を単体で実行して再生成する。復旧後は `ops/runtime_snapshot.json` の `benchmark_pipeline` セクションに反映されているか再確認する。
 
 ### スケジュール変更時の整合
 
@@ -75,6 +76,7 @@ python3 scripts/run_benchmark_pipeline.py \
 - **runs/index.csv が更新されない**: `--runs-dir` に書き込み権限が無いケース。`rebuild_runs_index.py` の return code を `runs_index_rc` でチェック。
 - **Sharpe / 最大DD が閾値を外れる**: `reports/benchmark_summary.json` の `warnings` と `threshold_alerts` を確認し、どのウィンドウ・指標が `lt`（下回り）/`gt_abs`（絶対値超過）で検知されたか把握する。同時に Cron ログか `python3 scripts/report_benchmark_summary.py ... --min-sharpe <値> --max-drawdown <値>` 実行時の標準出力で WARN ログが出ているか確認し、Slack の `benchmark_summary_warnings` 通知と照合する。再評価のためには `python3 scripts/run_daily_workflow.py --benchmarks --windows 365,180,90 --alert-pips 60 --alert-winrate 0.04 --alert-sharpe 0.2 --alert-max-drawdown 40 --min-sharpe <値> --max-drawdown <値>` を手動実行し、復旧後に `ops/runtime_snapshot.json` の `benchmark_pipeline.<symbol>_<mode>.threshold_alerts` がクリアされたことをチェックする。
 - **Matplotlib が無い / PNG が更新されない**: CLI を `--summary-plot` 付きで実行すると、`matplotlib` / `pandas` が無い環境では `summary plot skipped: missing dependency <module>` という警告が `warnings` 配列と `ops/runtime_snapshot.json` に残る。PNG は生成されないため、グラフが必要ならローカルに `pip install matplotlib pandas` を行ってから再実行するか、PNG なしでレビューする。
+- **Sandbox で Slack Webhook が 403 になる**: ローカルや CI サンドボックスでは `https://hooks.slack.com/...` へ到達できず、`benchmark_runs.alert.deliveries[].detail` に `url_error=Tunnel connection failed: 403 Forbidden` が残る。閾値判定そのものは `alert.triggered` と `deltas` で確認できるため、ネットワーク制限下では警告を記録したうえでオペレーションログへ追記し、実運用環境での再試行時に通知が成功することを確認する。
 
 ## TODO / 拡張
 - `reports/benchmark_summary.json` を Notion/BI に自動掲載する。

@@ -11,7 +11,7 @@
   "benchmark_pipeline": {
     "USDJPY_conservative": {
       "latest_ts": "2024-12-31T21:55:00",
-      "summary_generated_at": "2025-09-28T21:32:15.053480Z",
+      "summary_generated_at": "2025-09-28T23:35:53.913466Z",
       "warnings": [
         "summary plot skipped: missing dependency matplotlib"
       ],
