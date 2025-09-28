@@ -21,6 +21,7 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
 - **EVプロファイル:** `scripts/aggregate_ev.py --strategy ... --symbol ... --mode ...` を使うと、アーカイブ済み state から長期/直近期の期待値統計を集約し、`configs/ev_profiles/` に YAML プロファイルを生成できます。`run_sim.py` は該当プロファイルを自動ロードして EV バケットをシードします（`--no-ev-profile` で無効化可能）。
 - **ヘルスチェック:** `scripts/check_state_health.py` を日次（`run_daily_workflow.py --state-health`）で実行し、結果を `ops/health/state_checks.json` に追記する。勝率 LCB・バケット別サンプル・滑り係数を監視し、警告が出た場合は `--webhook` で Slack 等へ通知。`--fail-on-warning` を CI/バッチに組み込むと異常時にジョブを停止できる。
 - **履歴保持:** 標準では直近 90 レコードを保持する。上限を変更する場合は `--history-limit` を調整する。履歴の可視化は Notebook or BI で `checked_at` を横軸に `ev_win_lcb` やワーニング件数をプロットする。
+- **タスク同期:** `state.md` と `docs/todo_next.md` の整合を保つ際は `scripts/manage_task_cycle.py` を優先利用する。`start-task` で Ready 登録→In Progress 昇格を一括実行し、既存アンカー検知で重複記録を抑止する。完了時は `finish-task` でまとめてログとアーカイブへ送る。いずれも `--dry-run` でコマンド内容を確認してから本実行する。
 
 ## 実装メモ
 - `core/runner.py` の `_config_fingerprint` は state と RunnerConfig が一致しているか確認するためのハッシュ。必要に応じて起動時に照合を追加する余地あり。

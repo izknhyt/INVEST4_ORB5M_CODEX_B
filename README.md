@@ -39,7 +39,31 @@ print(metrics.as_dict())
   - 入力CSVはヘッダ行必須: `timestamp,symbol,tf,o,h,l,c,v,spread`
 
 ## タスク同期スクリプト
-`state.md` と `docs/todo_next.md` を同時に更新する場合は、`scripts/sync_task_docs.py` を利用すると手戻りを防げます（DoDアンカーで対象タスクを特定します）。
+`state.md` と `docs/todo_next.md` を同時に更新する場合は、`scripts/sync_task_docs.py` を利用すると手戻りを防げます（DoDアンカーで対象タスクを特定します）。日次運用では対話プロンプト付きの `scripts/manage_task_cycle.py` を使うと入力漏れを避けやすく、`--dry-run` で事前確認も可能です。
+
+### 運用ヘルパー: `scripts/manage_task_cycle.py`
+
+```bash
+# Ready から In Progress への着手時
+python3 scripts/manage_task_cycle.py --dry-run start-task \
+    --anchor docs/task_backlog.md#p1-01-ローリング検証パイプライン \
+    --record-date 2024-06-22 \
+    --promote-date 2024-06-22 \
+    --task-id P1-01 \
+    --title "ローリング検証パイプライン" \
+    --state-note "Sharpe/DD 指標のローテーション検証を開始" \
+    --doc-note "チェックリスト整備とローリングrunの引数洗い出し" \
+    --doc-section Ready
+
+# 完了処理（In Progress → Archive）
+python3 scripts/manage_task_cycle.py --dry-run finish-task \
+    --anchor docs/task_backlog.md#p1-01-ローリング検証パイプライン \
+    --date 2024-06-24 \
+    --note "ローリング365D/180D/90Dのrunを自動化し、state/log/docsを同期" \
+    --task-id P1-01
+```
+
+`start-task` は `sync_task_docs.py record` → `promote` を順番に呼び出し、既存アンカーを検出した場合は重複登録を避けます。`finish-task` は `complete` をラップし、完了ログとアーカイブ更新を一括実行します。`--dry-run` を外すと実際に `state.md` / `docs/todo_next.md` が更新され、コマンドは実行前にエコーされるので内容を確認してから Enter できます。
 
 1. **新規タスクの登録**
    ```bash
