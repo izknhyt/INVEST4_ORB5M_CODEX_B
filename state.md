@@ -52,3 +52,4 @@
 - [P1-01] 2025-10-06: Sharpe / 最大DD 差分アラートを `run_benchmark_runs.py`・パイプライン・日次ワークフローに伝播し、`docs/benchmark_runbook.md` を新閾値とレビュー観点で更新。DoD: `python3 -m pytest tests/test_run_benchmark_pipeline.py tests/test_run_daily_workflow.py` パスで新デルタ通知を確認。
 - [P1-01] 2025-10-07: `report_benchmark_summary.py` に Matplotlib 未導入環境でのフォールバックを追加し、`summary plot skipped: missing dependency ...` 警告をスナップショットへ保存。USDJPY conservative を実行し直して `ops/runtime_snapshot.json` / `reports/benchmark_summary.json` を更新、`python3 -m pytest tests/test_run_benchmark_pipeline.py tests/test_report_benchmark_summary.py` で回帰確認。
 - [P1-05] 2025-10-08: BacktestRunner debug visibility refresh — helper-based `strategy_gate`/`ev_threshold` dispatch, normalized debug counters/records, and new investigation guide. Executed `python3 -m pytest` before wrap-up.
+- [DOC-06] 2025-10-08: Documented Day ORB parameter dependency matrix, noted transfer checklist, and linked the update from the simulation plan Phase1 task.
