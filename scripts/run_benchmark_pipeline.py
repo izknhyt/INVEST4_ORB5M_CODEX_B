@@ -212,6 +212,18 @@ def parse_args(argv=None) -> argparse.Namespace:
         default=0.05,
         help="Abs diff in win_rate to trigger alert",
     )
+    parser.add_argument(
+        "--alert-sharpe",
+        type=float,
+        default=0.15,
+        help="Abs diff in Sharpe ratio to trigger alert",
+    )
+    parser.add_argument(
+        "--alert-max-drawdown",
+        type=float,
+        default=40.0,
+        help="Abs diff in max_drawdown (pips) to trigger alert",
+    )
     parser.add_argument("--webhook", default=None, help="Webhook URL(s) for alerts (comma separated)")
     parser.add_argument("--dry-run", action="store_true", help="Skip writes and subprocess execution")
     return parser.parse_args(argv)
@@ -244,6 +256,10 @@ def _build_benchmark_cmd(args: argparse.Namespace, snapshot_path: Path) -> List[
         cmd += ["--alert-pips", str(args.alert_pips)]
     if args.alert_winrate is not None:
         cmd += ["--alert-winrate", str(args.alert_winrate)]
+    if args.alert_sharpe is not None:
+        cmd += ["--alert-sharpe", str(args.alert_sharpe)]
+    if args.alert_max_drawdown is not None:
+        cmd += ["--alert-max-drawdown", str(args.alert_max_drawdown)]
     if args.webhook:
         cmd += ["--webhook", args.webhook]
     return cmd

@@ -46,6 +46,30 @@ def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_
             {"window": 90, "path": str(tmp_path / "reports" / "rolling" / "90" / "USDJPY_conservative.json")},
         ],
         "latest_ts": "2024-06-10T00:00:00",
+        "alert": {
+            "triggered": True,
+            "payload": {
+                "event": "benchmark_shift",
+                "symbol": "USDJPY",
+                "mode": "conservative",
+                "timestamp": "2024-06-10T00:10:00Z",
+                "thresholds": {
+                    "total_pips": 75.0,
+                    "win_rate": 0.12,
+                    "sharpe": 0.22,
+                    "max_drawdown": 55.0,
+                },
+                "metrics_prev": {"sharpe": 1.4, "max_drawdown": -40.0},
+                "metrics_new": {"sharpe": 1.0, "max_drawdown": -90.0},
+                "deltas": {
+                    "delta_total_pips": -120.0,
+                    "delta_win_rate": -0.08,
+                    "delta_sharpe": -0.4,
+                    "delta_max_drawdown": -50.0,
+                },
+                "report_path": str(baseline_path),
+            },
+        },
     }
     summary_payload = {
         "generated_at": "2024-06-10T01:00:00Z",
@@ -116,6 +140,10 @@ def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_
         "75",
         "--alert-winrate",
         "0.12",
+        "--alert-sharpe",
+        "0.22",
+        "--alert-max-drawdown",
+        "55",
         "--min-sharpe",
         "1.1",
         "--max-drawdown",
@@ -138,6 +166,8 @@ def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_
     assert first_cmd[first_cmd.index("--windows") + 1] == "365,180,90"
     assert float(first_cmd[first_cmd.index("--alert-pips") + 1]) == pytest.approx(75.0)
     assert float(first_cmd[first_cmd.index("--alert-winrate") + 1]) == pytest.approx(0.12)
+    assert float(first_cmd[first_cmd.index("--alert-sharpe") + 1]) == pytest.approx(0.22)
+    assert float(first_cmd[first_cmd.index("--alert-max-drawdown") + 1]) == pytest.approx(55.0)
     assert first_cmd[first_cmd.index("--webhook") + 1] == "https://example.com/hook"
     assert "run_benchmark_summary.py" not in first_cmd[1]
     assert "report_benchmark_summary.py" in second_cmd[1]
@@ -151,6 +181,9 @@ def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_
     pipeline_info = snapshot["benchmark_pipeline"][key]
     assert pipeline_info["warnings"] == summary_payload["warnings"]
     assert pipeline_info["summary_generated_at"] == summary_payload["generated_at"]
+    alert_payload = combined["benchmark_runs"]["alert"]["payload"]
+    assert alert_payload["deltas"]["delta_sharpe"] == pytest.approx(-0.4)
+    assert alert_payload["deltas"]["delta_max_drawdown"] == pytest.approx(-50.0)
 
 
 def test_pipeline_errors_when_rolling_metrics_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
