@@ -1,4 +1,34 @@
-"""Mean-reversion strategy stub for testing shared gating infrastructure."""
+"""Mean-reversion strategy stub for testing shared gating infrastructure.
+
+Expected inputs
+----------------
+* **Bars** supplied by the runner must expose the same OHLC keys as Day ORB
+  plus a floating-point ``zscore`` field describing how far the latest close
+  deviates from the recent mean.  The stub uses ``bar["c"]`` for the entry
+  price and the ``zscore`` value to decide whether to stage a BUY or SELL.
+* **Context** dictionaries provided to ``strategy_gate`` / ``ev_threshold``
+  should include an ``rv_band`` label (``"low"``, ``"mid"`, or ``"high"``)
+  emitted by the volatility band loader.  The optional config flag
+  ``allow_high_rv`` overrides the default behaviour that blocks trades in the
+  ``"high"`` regime.
+* **Config** parameters are passed from ``scripts/run_sim.py`` and mirror the
+  Day ORB CLI flags: ``zscore_threshold`` controls when to queue a trade, while
+  risk settings (``k_tp``/``k_sl``/``k_tr``) continue to be handled by the
+  shared runner.
+
+Switching via ``run_sim``
+-------------------------
+Run the stub from the command line with ``--strategy`` pointing to the fully
+qualified class name under ``strategies``.  For example::
+
+    python3 scripts/run_sim.py --csv data/sample_orb.csv --symbol USDJPY \
+        --strategy reversion_stub.MeanReversionStrategy --dump-csv out/reversion_records.csv \
+        --dump-daily out/reversion_daily.csv --debug
+
+The default Day ORB implementation remains ``day_orb_5m.DayORB5m``; passing the
+flag above switches the simulation to this stub while keeping every other CLI
+argument identical.
+"""
 from __future__ import annotations
 from typing import Dict, Any, Iterable, Optional, List
 
