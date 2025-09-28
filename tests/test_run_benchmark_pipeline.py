@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Iterator, List
+from typing import Dict, Iterator, List
 
 import pytest
 
@@ -18,9 +18,27 @@ class DummyCompletedProcess:
         self.stderr = stderr
 
 
+AGGREGATE_SUCCESS: Dict[str, object] = {"returncode": 0, "error": ""}
+
+
+def _write_metrics(path: Path, payload: Dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
 def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+    baseline_path = tmp_path / "reports" / "baseline" / "USDJPY_conservative.json"
+    _write_metrics(
+        baseline_path,
+        {
+            "sharpe": 1.0,
+            "max_drawdown": -70.0,
+            "aggregate_ev": AGGREGATE_SUCCESS,
+        },
+    )
+
     benchmark_payload = {
-        "baseline": "reports/baseline/USDJPY_conservative.json",
+        "baseline": str(baseline_path),
         "baseline_metrics": {"trades": 100, "wins": 60, "total_pips": 250.0},
         "rolling": [
             {"window": 365, "path": str(tmp_path / "reports" / "rolling" / "365" / "USDJPY_conservative.json")},
@@ -42,10 +60,13 @@ def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_
     # Prepare rolling output files with required metrics
     for entry in benchmark_payload["rolling"]:
         rolling_path = Path(entry["path"])
-        rolling_path.parent.mkdir(parents=True, exist_ok=True)
-        rolling_path.write_text(
-            json.dumps({"sharpe": 1.2, "max_drawdown": -55.0}, ensure_ascii=False),
-            encoding="utf-8",
+        _write_metrics(
+            rolling_path,
+            {
+                "sharpe": 1.2,
+                "max_drawdown": -55.0,
+                "aggregate_ev": AGGREGATE_SUCCESS,
+            },
         )
 
     commands: List[List[str]] = []
@@ -133,19 +154,28 @@ def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_
 
 
 def test_pipeline_errors_when_rolling_metrics_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+    baseline_path = tmp_path / "reports" / "baseline" / "USDJPY_conservative.json"
+    _write_metrics(
+        baseline_path,
+        {
+            "sharpe": 1.0,
+            "max_drawdown": -60.0,
+            "aggregate_ev": AGGREGATE_SUCCESS,
+        },
+    )
+
     rolling_entries = []
     for window, payload in (
-        (365, {"sharpe": 1.0}),
-        (180, {"sharpe": 1.1, "max_drawdown": -30.0}),
-        (90, {"sharpe": 1.2, "max_drawdown": -20.0}),
+        (365, {"sharpe": 1.0, "aggregate_ev": AGGREGATE_SUCCESS}),
+        (180, {"sharpe": 1.1, "max_drawdown": -30.0, "aggregate_ev": AGGREGATE_SUCCESS}),
+        (90, {"sharpe": 1.2, "max_drawdown": -20.0, "aggregate_ev": AGGREGATE_SUCCESS}),
     ):
         rolling_path = tmp_path / "reports" / "rolling" / str(window) / "USDJPY_conservative.json"
-        rolling_path.parent.mkdir(parents=True, exist_ok=True)
-        rolling_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        _write_metrics(rolling_path, payload)
         rolling_entries.append({"window": window, "path": str(rolling_path)})
 
     benchmark_payload = {
-        "baseline": "reports/baseline/USDJPY_conservative.json",
+        "baseline": str(baseline_path),
         "baseline_metrics": {},
         "rolling": rolling_entries,
         "latest_ts": "2024-06-10T00:00:00",
@@ -173,6 +203,59 @@ def test_pipeline_errors_when_rolling_metrics_missing(monkeypatch: pytest.Monkey
     assert captured.out == ""
 
 
+def test_pipeline_errors_when_aggregate_ev_fails(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+    baseline_path = tmp_path / "reports" / "baseline" / "USDJPY_conservative.json"
+    _write_metrics(
+        baseline_path,
+        {
+            "sharpe": 0.9,
+            "max_drawdown": -80.0,
+            "aggregate_ev": {"returncode": 1, "error": "boom"},
+        },
+    )
+
+    rolling_entries = []
+    for window in (365, 180, 90):
+        path = tmp_path / "reports" / "rolling" / str(window) / "USDJPY_conservative.json"
+        _write_metrics(
+            path,
+            {
+                "sharpe": 1.1,
+                "max_drawdown": -40.0,
+                "aggregate_ev": AGGREGATE_SUCCESS,
+            },
+        )
+        rolling_entries.append({"window": window, "path": str(path)})
+
+    benchmark_payload = {
+        "baseline": str(baseline_path),
+        "baseline_metrics": {},
+        "rolling": rolling_entries,
+        "latest_ts": "2024-06-10T00:00:00",
+    }
+
+    def fake_run(cmd: List[str], /) -> DummyCompletedProcess:
+        if "run_benchmark_runs.py" in Path(cmd[1]).name:
+            return DummyCompletedProcess(cmd, returncode=0, stdout=json.dumps(benchmark_payload))
+        raise AssertionError("summary script should not be invoked when aggregate_ev fails")
+
+    monkeypatch.setattr(rbp, "_run_subprocess", fake_run)
+
+    rc = rbp.main([
+        "--bars",
+        str(tmp_path / "bars.csv"),
+        "--snapshot",
+        str(tmp_path / "ops" / "runtime_snapshot.json"),
+        "--summary-json",
+        str(tmp_path / "reports" / "benchmark_summary.json"),
+    ])
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "baseline aggregate_ev failed" in captured.err
+    assert captured.out == ""
+
+
 def test_pipeline_handles_benchmark_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
     def fake_run(cmd: List[str], /) -> DummyCompletedProcess:
         return DummyCompletedProcess(cmd, returncode=5, stdout="", stderr="boom")
@@ -192,13 +275,26 @@ def test_pipeline_handles_benchmark_failure(monkeypatch: pytest.MonkeyPatch, tmp
 
 
 def test_pipeline_handles_summary_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+    baseline_path = tmp_path / "reports" / "baseline" / "USDJPY_conservative.json"
+    _write_metrics(
+        baseline_path,
+        {
+            "sharpe": 1.0,
+            "max_drawdown": -70.0,
+            "aggregate_ev": AGGREGATE_SUCCESS,
+        },
+    )
+
     rolling_entries = []
     for window in (365, 180, 90):
         path = tmp_path / "reports" / "rolling" / str(window) / "USDJPY_conservative.json"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps({"sharpe": 1.0, "max_drawdown": -50.0}, ensure_ascii=False),
-            encoding="utf-8",
+        _write_metrics(
+            path,
+            {
+                "sharpe": 1.0,
+                "max_drawdown": -50.0,
+                "aggregate_ev": AGGREGATE_SUCCESS,
+            },
         )
         rolling_entries.append({"window": window, "path": str(path)})
 
@@ -206,7 +302,13 @@ def test_pipeline_handles_summary_failure(monkeypatch: pytest.MonkeyPatch, tmp_p
         DummyCompletedProcess(
             [],
             returncode=0,
-            stdout=json.dumps({"latest_ts": "2024-06-10T00:00:00", "rolling": rolling_entries}),
+            stdout=json.dumps(
+                {
+                    "baseline": str(baseline_path),
+                    "latest_ts": "2024-06-10T00:00:00",
+                    "rolling": rolling_entries,
+                }
+            ),
         ),
         DummyCompletedProcess([], returncode=3, stdout="", stderr="bad"),
     ])

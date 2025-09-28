@@ -34,9 +34,10 @@
 
 1. Cron 実行後は `ops/runtime_snapshot.json` の `benchmarks.<symbol>_<mode>` および `benchmark_pipeline.<symbol>_<mode>` に最新タイムスタンプが追記されているか確認する。
 2. `reports/rolling/{365,180,90}/<symbol>_<mode>.json` が全て更新され、各 JSON に `sharpe`・`max_drawdown` が存在することをチェックする。欠損があれば `scripts/run_benchmark_pipeline.py` の実行ログと照合する。
-3. `reports/benchmark_summary.json` の `generated_at` が Cron 実行時刻以降であることを確認し、`warnings` が出力された場合は Slack の `benchmark_summary_warnings` 通知と突き合わせて対応を判断する。
-4. 失敗時は `python3 scripts/run_daily_workflow.py --benchmarks --symbol USDJPY --mode conservative --equity 100000` を手動で再実行し、並行して `/var/log/cron.log`（またはスケジューラのジョブログ）で直前ジョブの exit code を確認する。パラメータ確認だけ行いたい場合は `python3 scripts/run_benchmark_pipeline.py --dry-run ...` を使う。
-5. ローリング JSON が欠損したままの場合は `reports/rolling/<window>/` を手動点検し、必要に応じて `python3 scripts/run_benchmark_pipeline.py --windows 365,180,90` を単体で実行して再生成する。復旧後は `ops/runtime_snapshot.json` の `benchmark_pipeline` セクションに反映されているか再確認する。
+3. `reports/baseline/<symbol>_<mode>.json` とローリング各 JSON の `aggregate_ev.returncode` が 0、`aggregate_ev.error` が空であることを確認する。パイプラインが `baseline aggregate_ev failed ...` や `rolling window XXX aggregate_ev failed ...` で停止した場合は、該当 JSON の `aggregate_ev.error` を読み取り、モジュール解決ミスや権限不足など原因を特定する。修正後は `python3 scripts/aggregate_ev.py --strategy <戦略クラス> --symbol USDJPY --mode conservative --archive ops/state_archive --recent 5 --out-csv analysis/ev_profile_summary.csv` を単独で実行して成功（exit code 0）を確認し、続けて `python3 scripts/run_benchmark_pipeline.py --symbol USDJPY --mode conservative --equity 100000 --windows 365,180,90` を再実行する。
+4. `reports/benchmark_summary.json` の `generated_at` が Cron 実行時刻以降であることを確認し、`warnings` が出力された場合は Slack の `benchmark_summary_warnings` 通知と突き合わせて対応を判断する。
+5. 失敗時は `python3 scripts/run_daily_workflow.py --benchmarks --symbol USDJPY --mode conservative --equity 100000` を手動で再実行し、並行して `/var/log/cron.log`（またはスケジューラのジョブログ）で直前ジョブの exit code を確認する。パラメータ確認だけ行いたい場合は `python3 scripts/run_benchmark_pipeline.py --dry-run --symbol USDJPY --mode conservative --equity 100000 --windows 365,180,90 --runs-dir runs --reports-dir reports` を使う。
+6. ローリング JSON が欠損したままの場合は `reports/rolling/<window>/` を手動点検し、必要に応じて `python3 scripts/run_benchmark_pipeline.py --windows 365,180,90` を単体で実行して再生成する。復旧後は `ops/runtime_snapshot.json` の `benchmark_pipeline` セクションに反映されているか再確認する。
 
 ### スケジュール変更時の整合
 

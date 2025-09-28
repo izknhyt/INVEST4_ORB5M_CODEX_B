@@ -89,6 +89,58 @@ def _normalize_windows_arg(raw: str) -> str:
     return ",".join(str(value) for value in normalized)
 
 
+def _load_metrics_json(path: Path, context: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    if not path.exists():
+        return None, f"{context} output not found: {path}"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:  # pragma: no cover - defensive
+        return None, f"failed to read {context} output {path}: {exc}"
+    if not isinstance(payload, dict):
+        return None, f"{context} output {path} did not contain JSON object"
+    return payload, None
+
+
+def _validate_aggregate_ev(data: Dict[str, Any], context: str) -> Optional[str]:
+    aggregate = data.get("aggregate_ev")
+    if not isinstance(aggregate, dict):
+        return f"{context} aggregate_ev metadata missing"
+
+    returncode = aggregate.get("returncode")
+    if not isinstance(returncode, int):
+        return f"{context} aggregate_ev missing returncode"
+    if returncode != 0:
+        detail = aggregate.get("error")
+        suffix = f": {detail}" if detail else ""
+        return f"{context} aggregate_ev failed with returncode {returncode}{suffix}"
+
+    error_text = aggregate.get("error")
+    if isinstance(error_text, str) and error_text.strip():
+        return f"{context} aggregate_ev reported error: {error_text.strip()}"
+    if error_text not in (None, "") and not isinstance(error_text, str):
+        return f"{context} aggregate_ev reported error: {error_text}"
+
+    return None
+
+
+def _validate_baseline_output(baseline: Any) -> Optional[str]:
+    if baseline is None:
+        return "benchmark payload missing baseline output path"
+    if not isinstance(baseline, str):
+        return "benchmark payload baseline must be a string path"
+
+    path = Path(baseline)
+    data, error = _load_metrics_json(path, "baseline")
+    if error:
+        return error
+
+    aggregate_error = _validate_aggregate_ev(data, "baseline")
+    if aggregate_error:
+        return aggregate_error
+
+    return None
+
+
 def _validate_rolling_outputs(rolling: List[Dict[str, Any]]) -> Optional[str]:
     if not rolling:
         return "benchmark payload did not include rolling metrics"
@@ -107,12 +159,14 @@ def _validate_rolling_outputs(rolling: List[Dict[str, Any]]) -> Optional[str]:
         if not isinstance(path_value, str):
             return f"rolling window {window} missing path"
         path = Path(path_value)
-        if not path.exists():
-            return f"rolling window {window} output not found: {path}"
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except Exception as exc:  # pragma: no cover - defensive
-            return f"failed to read rolling window {window} output {path}: {exc}"
+        data, load_error = _load_metrics_json(path, f"rolling window {window}")
+        if load_error:
+            return load_error
+
+        aggregate_error = _validate_aggregate_ev(data, f"rolling window {window}")
+        if aggregate_error:
+            return aggregate_error
+
         for key in ("sharpe", "max_drawdown"):
             if data.get(key) is None:
                 return f"rolling window {window} missing {key}"
@@ -267,6 +321,11 @@ def main(argv=None) -> int:
         benchmark_payload, error = _parse_json_output("run_benchmark_runs", benchmark_proc.stdout)
         if error:
             print(error, file=sys.stderr)
+            return 1
+
+        baseline_error = _validate_baseline_output(benchmark_payload.get("baseline"))
+        if baseline_error:
+            print(baseline_error, file=sys.stderr)
             return 1
 
         validation_error = _validate_rolling_outputs(benchmark_payload.get("rolling", []))
