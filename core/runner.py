@@ -8,7 +8,7 @@ Backtest/Replay Runner (skeleton)
 NOTE: Placeholder thresholds and simplified assumptions to keep dependencies minimal.
 """
 from __future__ import annotations
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Callable
 from collections import deque
 import json
 import hashlib
@@ -186,6 +186,27 @@ class RunnerConfig:
 
 
 class BacktestRunner:
+    DEBUG_COUNT_KEYS: Tuple[str, ...] = (
+        "no_breakout",
+        "gate_block",
+        "ev_reject",
+        "ev_bypass",
+        "zero_qty",
+        "strategy_gate_error",
+        "ev_threshold_error",
+    )
+    DEBUG_RECORD_FIELDS: Dict[str, Tuple[str, ...]] = {
+        "no_breakout": ("ts",),
+        "strategy_gate": ("ts", "side", "reason_stage", "or_atr_ratio", "min_or_atr_ratio", "rv_band", "allow_low_rv"),
+        "strategy_gate_error": ("ts", "side", "error"),
+        "gate_block": ("ts", "side", "rv_band", "spread_band", "or_atr_ratio", "reason"),
+        "slip_cap": ("ts", "side", "expected_slip_pip", "slip_cap_pip"),
+        "ev_reject": ("ts", "side", "ev_lcb", "threshold_lcb", "cost_pips", "tp_pips", "sl_pips"),
+        "ev_threshold_error": ("ts", "side", "base_threshold", "error"),
+        "trade": ("ts", "side", "tp_pips", "sl_pips", "cost_pips", "slip_est", "slip_real", "exit", "pnl_pips"),
+        "trade_exit": ("ts", "side", "cost_pips", "slip_est", "slip_real", "exit", "pnl_pips"),
+    }
+
     def __init__(self, equity: float, symbol: str, runner_cfg: Optional[RunnerConfig] = None,
                  debug: bool = False, debug_sample_limit: int = 0,
                  strategy_cls: Optional[type[Strategy]] = None,
@@ -218,6 +239,8 @@ class BacktestRunner:
         # strategy
         self.stg = self.strategy_cls()
         self.stg.on_start({"or_n": self.rcfg.or_n, "k_tp": self.rcfg.k_tp, "k_sl": self.rcfg.k_sl, "k_tr": self.rcfg.k_tr}, [symbol], {})
+        self._strategy_gate_hook = self._resolve_strategy_hook("strategy_gate")
+        self._ev_threshold_hook = self._resolve_strategy_hook("ev_threshold")
         self._apply_ev_profile()
 
     def _reset_runtime_state(self) -> None:
@@ -225,7 +248,7 @@ class BacktestRunner:
         self.records: List[Dict[str, Any]] = []
         self.window: List[Dict[str, Any]] = []
         self.session_bars: List[Dict[str, Any]] = []
-        self.debug_counts: Dict[str, int] = {"no_breakout": 0, "gate_block": 0, "ev_reject": 0, "zero_qty": 0}
+        self.debug_counts: Dict[str, int] = {key: 0 for key in self.DEBUG_COUNT_KEYS}
         self.debug_records: List[Dict[str, Any]] = []
         self.daily: Dict[str, Dict[str, Any]] = {}
         self.rv_hist: Dict[str, Any] = {
@@ -242,6 +265,97 @@ class BacktestRunner:
         self._current_date: Optional[str] = None
         self._day_count: int = 0
         self._last_timestamp: Optional[str] = None
+
+    def _resolve_strategy_hook(self, attr_name: str) -> Optional[Callable[..., Any]]:
+        hook = getattr(self.stg, attr_name, None)
+        if callable(hook):
+            return hook
+        return None
+
+    def _append_debug_record(self, stage: str, **fields: Any) -> None:
+        if not self.debug or not self.debug_sample_limit:
+            return
+        if len(self.debug_records) >= self.debug_sample_limit:
+            return
+        record: Dict[str, Any] = {"stage": stage}
+        ts = fields.get("ts")
+        if ts is not None:
+            record["ts"] = ts
+        allowed = self.DEBUG_RECORD_FIELDS.get(stage)
+        if allowed:
+            for key in allowed:
+                if key == "ts":
+                    continue
+                value = fields.get(key)
+                if value is not None:
+                    record[key] = value
+        else:
+            for key, value in fields.items():
+                if key == "ts" or value is None:
+                    continue
+                record[key] = value
+        self.debug_records.append(record)
+
+    def _call_strategy_gate(
+        self,
+        ctx_dbg: Dict[str, Any],
+        pending: Dict[str, Any],
+        *,
+        ts: Optional[str],
+        side: Optional[str],
+    ) -> Tuple[bool, Optional[Dict[str, Any]]]:
+        if self._strategy_gate_hook is None:
+            return True, None
+        try:
+            allowed = bool(self._strategy_gate_hook(ctx_dbg, pending))
+        except Exception as exc:  # pragma: no cover - defensive diagnostics
+            self.debug_counts["strategy_gate_error"] += 1
+            self._append_debug_record(
+                "strategy_gate_error",
+                ts=ts,
+                side=side,
+                error=str(exc),
+            )
+            return True, None
+        reason = getattr(self.stg, "_last_gate_reason", None)
+        if isinstance(reason, dict):
+            return allowed, reason
+        return allowed, None
+
+    def _call_ev_threshold(
+        self,
+        ctx_dbg: Dict[str, Any],
+        pending: Dict[str, Any],
+        base_threshold: float,
+        *,
+        ts: Optional[str],
+        side: Optional[str],
+    ) -> float:
+        if self._ev_threshold_hook is None:
+            return base_threshold
+        try:
+            threshold = float(self._ev_threshold_hook(ctx_dbg, pending, base_threshold))
+        except Exception as exc:  # pragma: no cover - defensive diagnostics
+            self.debug_counts["ev_threshold_error"] += 1
+            self._append_debug_record(
+                "ev_threshold_error",
+                ts=ts,
+                side=side,
+                base_threshold=base_threshold,
+                error=str(exc),
+            )
+            return base_threshold
+        if not math.isfinite(threshold):
+            self.debug_counts["ev_threshold_error"] += 1
+            self._append_debug_record(
+                "ev_threshold_error",
+                ts=ts,
+                side=side,
+                base_threshold=base_threshold,
+                error="non_finite",
+            )
+            return base_threshold
+        return threshold
 
     def _log_trade_record(
         self,
@@ -782,14 +896,16 @@ class BacktestRunner:
                         pnl_pips=pnl_pips,
                         ctx_snapshot=self.pos.get("ctx_snapshot"),
                     )
-                    if self.debug and self.debug_sample_limit and len(self.debug_records) < self.debug_sample_limit:
-                        self.debug_records.append({
-                            "ts": bar.get("timestamp"), "stage": "trade_exit", "side": side,
-                            "cost_pips": cost,
-                            "slip_est": est_slip_used,
-                            "slip_real": self.pos.get("entry_slip_pip", 0.0),
-                            "exit": exit_reason, "pnl_pips": pnl_pips
-                        })
+                    self._append_debug_record(
+                        "trade_exit",
+                        ts=self._last_timestamp,
+                        side=side,
+                        cost_pips=cost,
+                        slip_est=est_slip_used,
+                        slip_real=self.pos.get("entry_slip_pip", 0.0),
+                        exit=exit_reason,
+                        pnl_pips=pnl_pips,
+                    )
                     self.pos = None
                 # Skip new entries while a position is open (or just exited this bar)
                 continue
@@ -825,50 +941,69 @@ class BacktestRunner:
             pending = getattr(self.stg, "_pending_signal", None)
             if pending is None:
                 self.debug_counts["no_breakout"] += 1
-                if self.debug and self.debug_sample_limit and len(self.debug_records) < self.debug_sample_limit:
-                    self.debug_records.append({"ts": bar.get("timestamp"), "stage": "no_breakout"})
+                self._append_debug_record("no_breakout", ts=self._last_timestamp)
                 continue
             if self._current_date:
                 self.daily[self._current_date]["breakouts"] += 1
 
             # Recompute gating/EV/sizing locally for transparent diagnostics
             ctx_dbg = self._build_ctx(bar, bar_input["atr14"], adx14, or_h if or_h==or_h else None, or_l if or_l==or_l else None)
-            strategy_gate_fn = getattr(self.stg, "strategy_gate", None)
-            if callable(strategy_gate_fn):
-                if not strategy_gate_fn(ctx_dbg, pending):
-                    self.debug_counts["gate_block"] += 1
-                    if self._current_date:
-                        self.daily[self._current_date]["gate_block"] += 1
-                    if self.debug and self.debug_sample_limit and len(self.debug_records) < self.debug_sample_limit:
-                        reason = getattr(self.stg, "_last_gate_reason", {}) or {}
-                        rec = {"ts": bar.get("timestamp"), "stage": reason.get("stage", "strategy_gate"),
-                               "side": pending.get("side")}
-                        rec.update({k: v for k, v in reason.items() if k not in ("stage",)})
-                        self.debug_records.append(rec)
-                    continue
+            gate_allowed, gate_reason = self._call_strategy_gate(
+                ctx_dbg,
+                pending,
+                ts=self._last_timestamp,
+                side=pending.get("side") if isinstance(pending, dict) else None,
+            )
+            if not gate_allowed:
+                self.debug_counts["gate_block"] += 1
+                if self._current_date:
+                    self.daily[self._current_date]["gate_block"] += 1
+                reason_stage = None
+                or_ratio = None
+                min_or_ratio = None
+                rv_band = None
+                if gate_reason:
+                    reason_stage = gate_reason.get("stage")
+                    or_ratio = gate_reason.get("or_atr_ratio")
+                    min_or_ratio = gate_reason.get("min_or_atr_ratio")
+                    rv_band = gate_reason.get("rv_band")
+                self._append_debug_record(
+                    "strategy_gate",
+                    ts=self._last_timestamp,
+                    side=pending.get("side") if isinstance(pending, dict) else None,
+                    reason_stage=reason_stage,
+                    or_atr_ratio=or_ratio,
+                    min_or_atr_ratio=min_or_ratio,
+                    rv_band=rv_band,
+                    allow_low_rv=ctx_dbg.get("allow_low_rv"),
+                )
+                continue
             if not pass_gates(ctx_dbg):
                 self.debug_counts["gate_block"] += 1
                 if self._current_date:
                     self.daily[self._current_date]["gate_block"] += 1
-                if self.debug and self.debug_sample_limit and len(self.debug_records) < self.debug_sample_limit:
-                    self.debug_records.append({
-                        "ts": bar.get("timestamp"), "stage": "gate_block",
-                        "side": pending.get("side"),
-                        "rv_band": ctx_dbg.get("rv_band"), "spread_band": ctx_dbg.get("spread_band"),
-                        "or_atr_ratio": ctx_dbg.get("or_atr_ratio")
-                    })
+                self._append_debug_record(
+                    "gate_block",
+                    ts=self._last_timestamp,
+                    side=pending.get("side") if isinstance(pending, dict) else None,
+                    rv_band=ctx_dbg.get("rv_band"),
+                    spread_band=ctx_dbg.get("spread_band"),
+                    or_atr_ratio=ctx_dbg.get("or_atr_ratio"),
+                    reason="router_gate",
+                )
                 continue
             if self._current_date:
                 self.daily[self._current_date]["gate_pass"] += 1
 
             ev_mgr_dbg = self._get_ev_manager(ctx_dbg.get("ev_key", (ctx_dbg["session"], ctx_dbg["spread_band"], ctx_dbg["rv_band"])))
             threshold_lcb = self.rcfg.threshold_lcb_pip
-            ev_threshold_fn = getattr(self.stg, "ev_threshold", None)
-            if callable(ev_threshold_fn):
-                try:
-                    threshold_lcb = float(ev_threshold_fn(ctx_dbg, pending, threshold_lcb))
-                except Exception:
-                    threshold_lcb = self.rcfg.threshold_lcb_pip
+            threshold_lcb = self._call_ev_threshold(
+                ctx_dbg,
+                pending,
+                threshold_lcb,
+                ts=self._last_timestamp,
+                side=pending.get("side") if isinstance(pending, dict) else None,
+            )
             ctx_dbg["threshold_lcb_pip"] = threshold_lcb
             calibrating = (self.rcfg.calibrate_days > 0 and self._day_count <= self.rcfg.calibrate_days)
             ev_lcb = ev_mgr_dbg.ev_lcb_oco(pending["tp_pips"], pending["sl_pips"], ctx_dbg["cost_pips"]) if (pending and not calibrating) else 1e9
@@ -877,18 +1012,21 @@ class BacktestRunner:
                 if self._warmup_left > 0:
                     # Bypass EV during warmup to bootstrap stats; do not size-debug
                     ev_bypass = True
-                    self.debug_counts["ev_bypass"] = self.debug_counts.get("ev_bypass", 0) + 1
+                    self.debug_counts["ev_bypass"] += 1
                 else:
                     self.debug_counts["ev_reject"] += 1
                     if self._current_date:
                         self.daily[self._current_date]["ev_reject"] += 1
-                    if self.debug and self.debug_sample_limit and len(self.debug_records) < self.debug_sample_limit:
-                        self.debug_records.append({
-                            "ts": bar.get("timestamp"), "stage": "ev_reject",
-                            "side": pending.get("side"),
-                            "ev_lcb": ev_lcb, "cost_pips": ctx_dbg.get("cost_pips"),
-                            "tp_pips": pending.get("tp_pips"), "sl_pips": pending.get("sl_pips")
-                        })
+                    self._append_debug_record(
+                        "ev_reject",
+                        ts=self._last_timestamp,
+                        side=pending.get("side") if isinstance(pending, dict) else None,
+                        ev_lcb=ev_lcb,
+                        threshold_lcb=threshold_lcb,
+                        cost_pips=ctx_dbg.get("cost_pips"),
+                        tp_pips=pending.get("tp_pips") if isinstance(pending, dict) else None,
+                        sl_pips=pending.get("sl_pips") if isinstance(pending, dict) else None,
+                    )
                     continue
             else:
                 if self._current_date:
@@ -903,14 +1041,13 @@ class BacktestRunner:
                 self.debug_counts["gate_block"] += 1
                 if self._current_date:
                     self.daily[self._current_date]["gate_block"] += 1
-                if self.debug and self.debug_sample_limit and len(self.debug_records) < self.debug_sample_limit:
-                    self.debug_records.append({
-                        "ts": bar.get("timestamp"),
-                        "stage": "slip_cap",
-                        "side": pending.get("side"),
-                        "expected_slip_pip": ctx_dbg.get("expected_slip_pip"),
-                        "slip_cap_pip": slip_cap,
-                    })
+                self._append_debug_record(
+                    "slip_cap",
+                    ts=self._last_timestamp,
+                    side=pending.get("side") if isinstance(pending, dict) else None,
+                    expected_slip_pip=ctx_dbg.get("expected_slip_pip"),
+                    slip_cap_pip=slip_cap,
+                )
                 continue
 
             # Sizing (skip debug size check during EV bypass; strategy will warmup-size)
@@ -999,15 +1136,18 @@ class BacktestRunner:
                     self.daily[self._current_date]["pnl_pips"] += pnl_pips
                     self.daily[self._current_date]["slip_est"] += est_slip_used
                     self.daily[self._current_date]["slip_real"] += slip_actual
-                if self.debug and self.debug_sample_limit and len(self.debug_records) < self.debug_sample_limit:
-                    self.debug_records.append({
-                        "ts": bar.get("timestamp"), "stage": "trade", "side": it.side,
-                        "tp_pips": spec.tp_pips, "sl_pips": spec.sl_pips,
-                        "cost_pips": cost,
-                        "slip_est": est_slip_used,
-                        "slip_real": slip_actual,
-                        "exit": result.get("exit_reason"), "pnl_pips": pnl_pips
-                    })
+                self._append_debug_record(
+                    "trade",
+                    ts=self._last_timestamp,
+                    side=it.side,
+                    tp_pips=spec.tp_pips,
+                    sl_pips=spec.sl_pips,
+                    cost_pips=cost,
+                    slip_est=est_slip_used,
+                    slip_real=slip_actual,
+                    exit=result.get("exit_reason"),
+                    pnl_pips=pnl_pips,
+                )
                 self._log_trade_record(
                     exit_ts=bar.get("timestamp"),
                     entry_ts=bar.get("timestamp"),
