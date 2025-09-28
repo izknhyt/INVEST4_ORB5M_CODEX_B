@@ -6,7 +6,7 @@
 - **state.json 管理体制**: `docs/state_runbook.md` に沿って初期ベースライン state を決め、以後の最適化で同一基準を使う。
 
 ## フェーズ1: 戦略とゲートの強化
-- **戦略別ゲート整備**: DayORB をテンプレートに、他戦略でも `strategy_gate` / `ev_threshold` を実装できるよう共通インターフェースを整理。必要に応じて `StrategyConfig` の拡張項目を定義。
+- **戦略別ゲート整備**: DayORB をテンプレートに、他戦略でも `strategy_gate` / `ev_threshold` を実装できるよう共通インターフェースを整理。必要に応じて `StrategyConfig` の拡張項目を定義し、`docs/logic_overview.md#day-orb-パラメータ依存マトリクス` を参照しながら依存関係を反映する。
 - **EVチューニング**: decay・prior・ウォームアップの推奨値を実測で比較し、`docs/ev_tuning.md` にケーススタディを追加。閾値自動調整の挙動をヒートマップで可視化。
 - **Fillモデル検証**: `docs/broker_oco_matrix.md` の調査完了後、Bridge/Conservativeの差分を `analysis/broker_fills.ipynb` で比較し、必要に応じて `core/fill_engine.py` を拡張。
 
