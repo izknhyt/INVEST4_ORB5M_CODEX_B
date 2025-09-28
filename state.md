@@ -6,6 +6,14 @@
 
 ## Next Task
 - [P1-01] 2024-06-20 ローリング検証パイプライン — DoD: [docs/task_backlog.md#p1-01-ローリング検証パイプライン](docs/task_backlog.md#p1-01-ローリング検証パイプライン)
+  - Backlog Anchor: [ローリング検証パイプライン (P1-01)](docs/task_backlog.md#p1-01-ローリング検証パイプライン)
+  - Vision / Runbook References:
+    - [docs/logic_overview.md](docs/logic_overview.md)
+    - [docs/simulation_plan.md](docs/simulation_plan.md)
+    - 主要ランブック: [docs/benchmark_runbook.md](docs/benchmark_runbook.md)
+  - Pending Questions:
+    - [ ] ローリング365/180/90Dレポートの更新頻度とアラート閾値をどう連動させるか整理する。
+  - 2025-09-30: `manage_task_cycle.py` の `start-task` で runbook/pending 指定を許可し、`sync_task_docs.py` のテンプレ統合処理をリファクタリング。テンプレ適用後に state/docs 双方へ同じチェックリストが維持されることを手動確認。
 
 ### 運用メモ
 - バックログから着手するタスクは先にこのリストへ追加し、ID・着手予定日・DoD リンクを明示する。

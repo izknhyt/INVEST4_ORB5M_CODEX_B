@@ -53,7 +53,9 @@ python3 scripts/manage_task_cycle.py --dry-run start-task \
     --title "ローリング検証パイプライン" \
     --state-note "Sharpe/DD 指標のローテーション検証を開始" \
     --doc-note "チェックリスト整備とローリングrunの引数洗い出し" \
-    --doc-section Ready
+    --doc-section Ready \
+    --runbook-links "[docs/benchmark_runbook.md](docs/benchmark_runbook.md)" \
+    --pending-questions "Rollingサマリーの更新タイミングを決める"
 
 # 完了処理（In Progress → Archive）
 python3 scripts/manage_task_cycle.py --dry-run finish-task \

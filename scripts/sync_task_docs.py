@@ -486,6 +486,45 @@ def _render_template(template_lines: List[str], context: dict[str, str]) -> List
     return rendered
 
 
+def _resolve_template_path(template_path: Path | None) -> Path:
+    template_file = template_path or (REPO_ROOT / NEXT_TASK_TEMPLATE)
+    if not template_file.exists():
+        raise SyncError(f"Template file '{template_file}' not found")
+    return template_file
+
+
+def _build_template_context(
+    anchor: str,
+    title: str,
+    task_id: str,
+    runbook_links: str | None,
+    pending_questions: str | None,
+) -> dict[str, str]:
+    return {
+        "TITLE": title,
+        "TASK_ID": task_id,
+        "BACKLOG_ANCHOR": anchor,
+        "RUNBOOK_LINKS": runbook_links
+        or "[docs/state_runbook.md](docs/state_runbook.md)",
+        "PENDING_QUESTIONS": pending_questions
+        or "Clarify gating metrics, data dependencies, or open questions.",
+    }
+
+
+def _pop_doc_block(
+    lines: List[str], anchor: str
+) -> tuple[List[str], List[str], str]:
+    for heading in ("In Progress", "Ready", "Pending Review"):
+        try:
+            updated, block = remove_doc_block(lines, heading, anchor)
+            return updated, block, heading
+        except SyncError:
+            continue
+    raise SyncError(
+        f"Task anchor '{anchor}' not found in docs/todo_next.md for template insertion"
+    )
+
+
 def apply_next_task_template(
     anchor: str,
     *,
@@ -495,21 +534,18 @@ def apply_next_task_template(
     runbook_links: str | None = None,
     pending_questions: str | None = None,
 ) -> None:
-    template_file = template_path or (REPO_ROOT / NEXT_TASK_TEMPLATE)
-    if not template_file.exists():
-        raise SyncError(f"Template file '{template_file}' not found")
+    template_file = _resolve_template_path(template_path)
     template_lines = template_file.read_text(encoding="utf-8").splitlines()
-    context = {
-        "TITLE": title,
-        "TASK_ID": task_id,
-        "BACKLOG_ANCHOR": anchor,
-        "RUNBOOK_LINKS": runbook_links
-        or "[docs/state_runbook.md](docs/state_runbook.md)",
-        "PENDING_QUESTIONS": pending_questions
-        or "Clarify gating metrics, data dependencies, or open questions.",
-    }
-    state_template = _render_template(template_lines, context)
-    docs_template = _render_template(template_lines, context)
+    context = _build_template_context(
+        anchor,
+        title,
+        task_id,
+        runbook_links,
+        pending_questions,
+    )
+    rendered_template = _render_template(template_lines, context)
+    state_template = list(rendered_template)
+    docs_template = list(rendered_template)
 
     state_lines = read_lines(STATE_PATH)
     state_lines, state_block = remove_state_entry(state_lines, anchor)
@@ -518,17 +554,7 @@ def apply_next_task_template(
     write_lines(STATE_PATH, state_lines)
 
     docs_lines = read_lines(DOCS_PATH)
-    for heading in ("In Progress", "Ready", "Pending Review"):
-        try:
-            docs_lines, doc_block = remove_doc_block(docs_lines, heading, anchor)
-            current_heading = heading
-            break
-        except SyncError:
-            continue
-    else:
-        raise SyncError(
-            f"Task anchor '{anchor}' not found in docs/todo_next.md for template insertion"
-        )
+    docs_lines, doc_block, current_heading = _pop_doc_block(docs_lines, anchor)
     doc_block = ensure_checklist_note(doc_block, task_id)
     doc_block = _merge_doc_template(doc_block, docs_template)
     docs_lines = insert_doc_block(docs_lines, current_heading, doc_block)

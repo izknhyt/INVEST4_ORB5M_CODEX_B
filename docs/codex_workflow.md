@@ -27,9 +27,13 @@ This guide summarizes the routine Codex agents should follow to keep tasks movin
        --title "<Task Title>" \
        --state-note "<State entry memo>" \
        --doc-note "<docs/todo_next.md memo>" \
-       --doc-section <Ready|In Progress>
+       --doc-section <Ready|In Progress> \
+       [--runbook-links "<Markdown links for runbooks>"] \
+       [--pending-questions "<Key questions to track>"]
    ```
    After confirming the preview, rerun the command without `--dry-run` to populate `state.md` and `docs/todo_next.md` with the appropriate template blocks.
+   - Use `--runbook-links` to override the default `[docs/state_runbook.md](docs/state_runbook.md)` reference when another runbook is more relevant.
+   - Provide `--pending-questions` to seed the checklist item that appears under "Pending Questions" in the template so the next session inherits the right context.
 
 ## Task Execution Loop
 ### 1. At task start
