@@ -28,7 +28,7 @@
     - 主要ランブック: [docs/benchmark_runbook.md#スケジュールとアラート管理](docs/benchmark_runbook.md#スケジュールとアラート管理)
   - Pending Questions:
     - [ ] なし（cadence/アラート閾値整理済み）
-  - DoD チェックリスト: [docs/templates/dod_checklist.md](docs/templates/dod_checklist.md) を [docs/checklists/p1-01.md](docs/checklists/p1-01.md) にコピーし、進捗リンクを更新する。
+  - DoD チェックリスト: [docs/checklists/p1-01.md](docs/checklists/p1-01.md) を参照し、進捗更新時は本チェックリストへ記録する。
 
 ### Ready
 

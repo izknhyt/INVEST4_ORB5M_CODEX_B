@@ -15,6 +15,7 @@
     - [ ] なし（cadence/アラート閾値整理済み）
   - 2025-10-02: `run_benchmark_pipeline.py` で 365/180/90D ローリング JSON の存在/Sharpe・最大DD を検証し、`run_daily_workflow.py --benchmarks` から必須ウィンドウを確実に流すよう正規化。ランブックへ Cron 後の確認手順と再実行 CLI を追記。
   - 2025-09-30: `manage_task_cycle.py` の `start-task` で runbook/pending 指定を許可し、`sync_task_docs.py` のテンプレ統合処理をリファクタリング。テンプレ適用後に state/docs 双方へ同じチェックリストが維持されることを手動確認。
+  - 2025-10-05: `docs/checklists/p1-01.md` にローリング検証パイプライン専用の DoD チェックリストを整備し、`docs/todo_next.md` から参照できるよう更新。
 
 ### 運用メモ
 - バックログから着手するタスクは先にこのリストへ追加し、ID・着手予定日・DoD リンクを明示する。
