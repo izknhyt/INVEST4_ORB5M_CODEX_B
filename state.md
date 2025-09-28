@@ -22,6 +22,7 @@
   - Pending Questions:
     - [ ] なし
   - Docs note: 参照: [docs/logic_overview.md](docs/logic_overview.md) / [docs/simulation_plan.md](docs/simulation_plan.md) / [docs/benchmark_runbook.md#スケジュールとアラート管理](docs/benchmark_runbook.md#スケジュールとアラート管理)
+  - 2025-09-28: 手動でローリング 365/180/90D を再生成し、Sharpe・最大DD・勝率が揃って出力されていることと `benchmark_runs.alert` の delta_sharpe トリガーを確認。Slack Webhook が 403 で失敗したため、ランブックへサンドボックス時の扱いを追記する。
 
 ## Log
 - [P0-01] 2024-06-01: Initialized state tracking log and documented the review/update workflow rule.
@@ -53,6 +54,7 @@
 - [P1-04] 2025-09-29: Published `docs/codex_workflow.md` to outline Codex session operations and clarified references to `docs/state_runbook.md` and the shared templates. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
 - [P1-01] 2025-10-04: Updated the benchmark runbook schedule to surface the shared `--alert-pips 60` / `--alert-winrate 0.04` thresholds for each window and aligned the 07:30 JST workflow with DoD references.
 - [P1-01] 2025-09-28: Normalized benchmark summary max drawdown thresholds to accept negative CLI inputs, added regression coverage, and revalidated with targeted pytest.
+- [P1-01] 2025-09-28: `scripts/run_benchmark_pipeline.py --windows 365,180,90` を手動実行し、`reports/rolling/{365,180,90}/USDJPY_conservative.json` と `reports/benchmark_summary.json` に Sharpe / 最大DD / 勝率が揃って出力されたことを確認。`benchmark_runs.alert` の delta_sharpe > 0.15 による通知トリガーと Slack 403 (tunnel) を記録し、ランブック / todo_next を同期。
 - [P1-01] 2025-09-29: Refined drawdown threshold normalization via helper, captured warning logs for negative CLI input in regression tests, and reran targeted pytest & CLI verification.
 - [P1-01] 2025-09-30: Propagated `--alert-pips` / `--alert-winrate` through benchmark pipeline + daily workflow CLIs, refreshed pytest coverage, and synced runbook CLI examples.
 - [P1-01] 2025-10-01: 固定パス参照の `aggregate_ev.py` をリファクタし、リポジトリルートを `sys.path` と I/O 基準に統一する REPO_ROOT を導入。CLI 回帰テストを追加し、`python3 -m pytest tests/test_aggregate_ev_script.py` とベンチマーク実行を再確認。

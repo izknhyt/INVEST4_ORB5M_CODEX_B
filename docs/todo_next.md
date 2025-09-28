@@ -20,6 +20,7 @@
   - `scripts/run_benchmark_pipeline.py` の整備と `run_daily_workflow.py` 連携、期間指定リプレイ (`--start-ts` / `--end-ts`) の確認を継続中。
   - 次ステップ: ベンチマークランのローリング更新自動化と Sharpe / 最大 DD 指標の回帰監視強化。
   - 2025-09-30: `manage_task_cycle.py start-task` に runbook/pending 資料の上書きオプションを追加し、`sync_task_docs.py` のテンプレ適用を共通ヘルパーへ整理。`docs/codex_workflow.md` と README の手順を更新済み。
+  - 2025-09-28: 手動で `run_benchmark_pipeline.py --windows 365,180,90` を再実行し、ローリング JSON / `benchmark_summary.json` に Sharpe・最大DD・勝率が揃って出力されることを確認。ローカル環境では Slack Webhook が 403 になるため、`benchmark_runs.alert.deliveries[].detail` をランブックへ追記し、`state.md` と併せてメモ化する。
   - Backlog Anchor: [ローリング検証パイプライン (P1-01)](docs/task_backlog.md#p1-01-ローリング検証パイプライン)
   - Vision / Runbook References:
     - [docs/logic_overview.md](docs/logic_overview.md)
