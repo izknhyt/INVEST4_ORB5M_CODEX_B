@@ -109,6 +109,8 @@ def main(argv=None) -> int:
             cmd += ["--min-sharpe", str(args.min_sharpe)]
         if args.max_drawdown is not None:
             cmd += ["--max-drawdown", str(args.max_drawdown)]
+        if args.webhook:
+            cmd += ["--webhook", args.webhook]
         exit_code = run_cmd(cmd)
         if exit_code:
             return exit_code
