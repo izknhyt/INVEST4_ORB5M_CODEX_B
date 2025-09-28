@@ -52,6 +52,18 @@ def main(argv=None) -> int:
         default=0.05,
         help="Abs diff in win_rate to trigger alert",
     )
+    parser.add_argument(
+        "--alert-sharpe",
+        type=float,
+        default=0.15,
+        help="Abs diff in Sharpe ratio to trigger alert",
+    )
+    parser.add_argument(
+        "--alert-max-drawdown",
+        type=float,
+        default=40.0,
+        help="Abs diff in max_drawdown (pips) to trigger alert",
+    )
     parser.add_argument("--optimize", action="store_true", help="Run parameter optimization")
     parser.add_argument("--analyze-latency", action="store_true", help="Analyze signal latency")
     parser.add_argument("--archive-state", action="store_true", help="Archive state.json files")
@@ -100,6 +112,10 @@ def main(argv=None) -> int:
             cmd += ["--alert-pips", str(args.alert_pips)]
         if args.alert_winrate is not None:
             cmd += ["--alert-winrate", str(args.alert_winrate)]
+        if args.alert_sharpe is not None:
+            cmd += ["--alert-sharpe", str(args.alert_sharpe)]
+        if args.alert_max_drawdown is not None:
+            cmd += ["--alert-max-drawdown", str(args.alert_max_drawdown)]
         if args.min_sharpe is not None:
             cmd += ["--min-sharpe", str(args.min_sharpe)]
         if args.max_drawdown is not None:

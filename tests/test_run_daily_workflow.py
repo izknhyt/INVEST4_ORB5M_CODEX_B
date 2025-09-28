@@ -99,6 +99,8 @@ def test_benchmarks_pipeline_arguments(monkeypatch):
         "--equity", "250000",
         "--alert-pips", "110",
         "--alert-winrate", "0.2",
+        "--alert-sharpe", "0.3",
+        "--alert-max-drawdown", "65",
         "--min-sharpe", "1.0",
         "--max-drawdown", "150",
         "--webhook", "https://example.com/hook",
@@ -114,6 +116,8 @@ def test_benchmarks_pipeline_arguments(monkeypatch):
     assert cmd[cmd.index("--equity") + 1] == "250000"
     assert float(cmd[cmd.index("--alert-pips") + 1]) == pytest.approx(110.0)
     assert float(cmd[cmd.index("--alert-winrate") + 1]) == pytest.approx(0.2)
+    assert float(cmd[cmd.index("--alert-sharpe") + 1]) == pytest.approx(0.3)
+    assert float(cmd[cmd.index("--alert-max-drawdown") + 1]) == pytest.approx(65.0)
     assert float(cmd[cmd.index("--min-sharpe") + 1]) == pytest.approx(1.0)
     assert float(cmd[cmd.index("--max-drawdown") + 1]) == pytest.approx(150.0)
     assert cmd[cmd.index("--webhook") + 1] == "https://example.com/hook"

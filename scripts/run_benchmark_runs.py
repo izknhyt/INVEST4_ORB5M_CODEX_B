@@ -86,26 +86,41 @@ def _extract_metrics(summary: Dict[str, object]) -> Dict[str, Optional[float]]:
     }
 
 
-def _diff_metrics(prev: Dict[str, Optional[float]], new: Dict[str, Optional[float]], *,
-                  pips_threshold: float, winrate_threshold: float) -> Tuple[bool, Dict[str, float]]:
+def _diff_metrics(
+    prev: Dict[str, Optional[float]],
+    new: Dict[str, Optional[float]],
+    *,
+    pips_threshold: float,
+    winrate_threshold: float,
+    sharpe_threshold: float,
+    max_drawdown_threshold: float,
+) -> Tuple[bool, Dict[str, float]]:
     triggered = False
     details: Dict[str, float] = {}
 
-    prev_pips = prev.get("total_pips")
-    new_pips = new.get("total_pips")
-    if prev_pips is not None and new_pips is not None:
-        delta_pips = new_pips - prev_pips
-        if abs(delta_pips) >= pips_threshold:
+    def _check_threshold(
+        prev_value: Optional[float],
+        new_value: Optional[float],
+        threshold: Optional[float],
+        key: str,
+    ) -> None:
+        nonlocal triggered
+        if prev_value is None or new_value is None or threshold is None:
+            return
+        delta = new_value - prev_value
+        if abs(delta) >= threshold:
             triggered = True
-            details["delta_total_pips"] = delta_pips
+            details[key] = delta
 
-    prev_wr = prev.get("win_rate")
-    new_wr = new.get("win_rate")
-    if prev_wr is not None and new_wr is not None:
-        delta_wr = new_wr - prev_wr
-        if abs(delta_wr) >= winrate_threshold:
-            triggered = True
-            details["delta_win_rate"] = delta_wr
+    _check_threshold(prev.get("total_pips"), new.get("total_pips"), pips_threshold, "delta_total_pips")
+    _check_threshold(prev.get("win_rate"), new.get("win_rate"), winrate_threshold, "delta_win_rate")
+    _check_threshold(prev.get("sharpe"), new.get("sharpe"), sharpe_threshold, "delta_sharpe")
+    _check_threshold(
+        prev.get("max_drawdown"),
+        new.get("max_drawdown"),
+        max_drawdown_threshold,
+        "delta_max_drawdown",
+    )
 
     return triggered, details
 
@@ -232,6 +247,18 @@ def parse_args(argv=None):
     parser.add_argument("--webhook", default=None, help="Webhook URL(s) for alert (comma separated)")
     parser.add_argument("--alert-pips", type=float, default=50.0, help="Abs diff in total_pips to trigger alert")
     parser.add_argument("--alert-winrate", type=float, default=0.05, help="Abs diff in win_rate to trigger alert")
+    parser.add_argument(
+        "--alert-sharpe",
+        type=float,
+        default=0.15,
+        help="Abs diff in Sharpe ratio to trigger alert",
+    )
+    parser.add_argument(
+        "--alert-max-drawdown",
+        type=float,
+        default=40.0,
+        help="Abs diff in max_drawdown (pips) to trigger alert",
+    )
     parser.add_argument("--threshold-lcb", type=float, default=None)
     parser.add_argument("--min-or-atr", type=float, default=None)
     parser.add_argument("--rv-cuts", default=None)
@@ -290,9 +317,14 @@ def main(argv=None) -> int:
 
     alert_info: Dict[str, object] = {"triggered": False}
     if not args.dry_run and prev_metrics:
-        triggered, deltas = _diff_metrics(prev_metrics, baseline_metrics,
-                                          pips_threshold=args.alert_pips,
-                                          winrate_threshold=args.alert_winrate)
+        triggered, deltas = _diff_metrics(
+            prev_metrics,
+            baseline_metrics,
+            pips_threshold=args.alert_pips,
+            winrate_threshold=args.alert_winrate,
+            sharpe_threshold=args.alert_sharpe,
+            max_drawdown_threshold=args.alert_max_drawdown,
+        )
         if triggered:
             payload = {
                 "event": "benchmark_shift",
@@ -302,6 +334,8 @@ def main(argv=None) -> int:
                 "thresholds": {
                     "total_pips": args.alert_pips,
                     "win_rate": args.alert_winrate,
+                    "sharpe": args.alert_sharpe,
+                    "max_drawdown": args.alert_max_drawdown,
                 },
                 "metrics_prev": prev_metrics,
                 "metrics_new": baseline_metrics,
