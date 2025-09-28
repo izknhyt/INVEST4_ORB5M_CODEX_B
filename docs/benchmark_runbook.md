@@ -30,6 +30,14 @@
 - `scripts/report_benchmark_summary.py` は同じ Cron で `--webhook https://hooks.slack.com/.../ops-benchmark-review` を指定し、Sharpe/最大DD 閾値 (`--min-sharpe`, `--max-drawdown`) 違反や欠損があると `benchmark_summary_warnings` を `#ops-benchmark-review` に送信する。
 - 閾値の議論が発生した場合は、本セクションの数値と Cron 定義の両方を同時に更新し、理由を `state.md` / `docs/todo_next.md` の該当タスクへ記録する。
 
+### 成功確認と再実行手順
+
+1. Cron 実行後は `ops/runtime_snapshot.json` の `benchmarks.<symbol>_<mode>` および `benchmark_pipeline.<symbol>_<mode>` に最新タイムスタンプが追記されているか確認する。
+2. `reports/rolling/{365,180,90}/<symbol>_<mode>.json` が全て更新され、各 JSON に `sharpe`・`max_drawdown` が存在することをチェックする。欠損があれば `scripts/run_benchmark_pipeline.py` の実行ログと照合する。
+3. `reports/benchmark_summary.json` の `generated_at` が Cron 実行時刻以降であることを確認し、`warnings` が出力された場合は Slack の `benchmark_summary_warnings` 通知と突き合わせて対応を判断する。
+4. 失敗時は `python3 scripts/run_daily_workflow.py --benchmarks --symbol USDJPY --mode conservative --equity 100000` を手動で再実行し、並行して `/var/log/cron.log`（またはスケジューラのジョブログ）で直前ジョブの exit code を確認する。パラメータ確認だけ行いたい場合は `python3 scripts/run_benchmark_pipeline.py --dry-run ...` を使う。
+5. ローリング JSON が欠損したままの場合は `reports/rolling/<window>/` を手動点検し、必要に応じて `python3 scripts/run_benchmark_pipeline.py --windows 365,180,90` を単体で実行して再生成する。復旧後は `ops/runtime_snapshot.json` の `benchmark_pipeline` セクションに反映されているか再確認する。
+
 ### スケジュール変更時の整合
 
 - 365/180/90D の実行頻度やアラート閾値を変更したら、`python3 scripts/manage_task_cycle.py start-task --anchor docs/task_backlog.md#p1-01-ローリング検証パイプライン --task-id P1-01 --title "ローリング検証パイプライン"` などで Next Task テンプレートを再適用し、`state.md`・`docs/todo_next.md` のメモと本ランブックを同期する。

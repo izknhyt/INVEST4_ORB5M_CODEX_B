@@ -22,7 +22,11 @@ def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_
     benchmark_payload = {
         "baseline": "reports/baseline/USDJPY_conservative.json",
         "baseline_metrics": {"trades": 100, "wins": 60, "total_pips": 250.0},
-        "rolling": [{"window": 365, "path": "reports/rolling/365/USDJPY_conservative.json"}],
+        "rolling": [
+            {"window": 365, "path": str(tmp_path / "reports" / "rolling" / "365" / "USDJPY_conservative.json")},
+            {"window": 180, "path": str(tmp_path / "reports" / "rolling" / "180" / "USDJPY_conservative.json")},
+            {"window": 90, "path": str(tmp_path / "reports" / "rolling" / "90" / "USDJPY_conservative.json")},
+        ],
         "latest_ts": "2024-06-10T00:00:00",
     }
     summary_payload = {
@@ -34,6 +38,15 @@ def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_
         "warnings": ["baseline total_pips negative: -10.0"],
         "webhook": {"deliveries": [{"url": "https://example.com/hook", "ok": True, "detail": "status=200"}]},
     }
+
+    # Prepare rolling output files with required metrics
+    for entry in benchmark_payload["rolling"]:
+        rolling_path = Path(entry["path"])
+        rolling_path.parent.mkdir(parents=True, exist_ok=True)
+        rolling_path.write_text(
+            json.dumps({"sharpe": 1.2, "max_drawdown": -55.0}, ensure_ascii=False),
+            encoding="utf-8",
+        )
 
     commands: List[List[str]] = []
     results: Iterator[DummyCompletedProcess] = iter([
@@ -48,6 +61,10 @@ def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_
         except StopIteration:  # pragma: no cover - guard
             raise AssertionError("unexpected extra subprocess invocation")
         result.args = cmd
+        if "report_benchmark_summary.py" in Path(cmd[1]).name:
+            json_out = Path(cmd[cmd.index("--json-out") + 1])
+            json_out.parent.mkdir(parents=True, exist_ok=True)
+            json_out.write_text(json.dumps(summary_payload, ensure_ascii=False), encoding="utf-8")
         return result
 
     monkeypatch.setattr(rbp, "_run_subprocess", fake_run)
@@ -115,6 +132,47 @@ def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_
     assert pipeline_info["summary_generated_at"] == summary_payload["generated_at"]
 
 
+def test_pipeline_errors_when_rolling_metrics_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+    rolling_entries = []
+    for window, payload in (
+        (365, {"sharpe": 1.0}),
+        (180, {"sharpe": 1.1, "max_drawdown": -30.0}),
+        (90, {"sharpe": 1.2, "max_drawdown": -20.0}),
+    ):
+        rolling_path = tmp_path / "reports" / "rolling" / str(window) / "USDJPY_conservative.json"
+        rolling_path.parent.mkdir(parents=True, exist_ok=True)
+        rolling_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        rolling_entries.append({"window": window, "path": str(rolling_path)})
+
+    benchmark_payload = {
+        "baseline": "reports/baseline/USDJPY_conservative.json",
+        "baseline_metrics": {},
+        "rolling": rolling_entries,
+        "latest_ts": "2024-06-10T00:00:00",
+    }
+
+    def fake_run(cmd: List[str], /) -> DummyCompletedProcess:
+        if "run_benchmark_runs.py" in Path(cmd[1]).name:
+            return DummyCompletedProcess(cmd, returncode=0, stdout=json.dumps(benchmark_payload))
+        raise AssertionError("summary script should not be invoked when rolling metrics are invalid")
+
+    monkeypatch.setattr(rbp, "_run_subprocess", fake_run)
+
+    rc = rbp.main([
+        "--bars",
+        str(tmp_path / "bars.csv"),
+        "--snapshot",
+        str(tmp_path / "ops" / "runtime_snapshot.json"),
+        "--summary-json",
+        str(tmp_path / "reports" / "benchmark_summary.json"),
+    ])
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "missing max_drawdown" in captured.err
+    assert captured.out == ""
+
+
 def test_pipeline_handles_benchmark_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
     def fake_run(cmd: List[str], /) -> DummyCompletedProcess:
         return DummyCompletedProcess(cmd, returncode=5, stdout="", stderr="boom")
@@ -134,8 +192,22 @@ def test_pipeline_handles_benchmark_failure(monkeypatch: pytest.MonkeyPatch, tmp
 
 
 def test_pipeline_handles_summary_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+    rolling_entries = []
+    for window in (365, 180, 90):
+        path = tmp_path / "reports" / "rolling" / str(window) / "USDJPY_conservative.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"sharpe": 1.0, "max_drawdown": -50.0}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        rolling_entries.append({"window": window, "path": str(path)})
+
     results: Iterator[DummyCompletedProcess] = iter([
-        DummyCompletedProcess([], returncode=0, stdout=json.dumps({"latest_ts": "2024-06-10T00:00:00"})),
+        DummyCompletedProcess(
+            [],
+            returncode=0,
+            stdout=json.dumps({"latest_ts": "2024-06-10T00:00:00", "rolling": rolling_entries}),
+        ),
         DummyCompletedProcess([], returncode=3, stdout="", stderr="bad"),
     ])
 

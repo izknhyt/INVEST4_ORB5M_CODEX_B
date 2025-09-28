@@ -9,11 +9,12 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT_PATH = ROOT / "ops" / "runtime_snapshot.json"
+MANDATORY_WINDOWS = (365, 180, 90)
 
 
 def _load_snapshot(path: Path) -> Dict[str, Any]:
@@ -55,6 +56,82 @@ def _parse_json_output(name: str, output: str) -> Tuple[Optional[Dict[str, Any]]
     return payload, None
 
 
+def _ensure_mandatory_windows(windows: Iterable[int]) -> Optional[str]:
+    window_set: set[int] = set()
+    for value in windows:
+        try:
+            window_set.add(int(value))
+        except (TypeError, ValueError):
+            continue
+    missing = [w for w in MANDATORY_WINDOWS if w not in window_set]
+    if missing:
+        return f"missing mandatory rolling windows: {','.join(str(w) for w in missing)}"
+    return None
+
+
+def _normalize_windows_arg(raw: str) -> str:
+    parsed: List[int] = []
+    for chunk in raw.split(","):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        try:
+            value = int(chunk)
+        except ValueError:
+            continue
+        if value not in parsed:
+            parsed.append(value)
+
+    normalized: List[int] = list(MANDATORY_WINDOWS)
+    for value in parsed:
+        if value not in normalized:
+            normalized.append(value)
+    return ",".join(str(value) for value in normalized)
+
+
+def _validate_rolling_outputs(rolling: List[Dict[str, Any]]) -> Optional[str]:
+    if not rolling:
+        return "benchmark payload did not include rolling metrics"
+
+    error = _ensure_mandatory_windows(entry.get("window") for entry in rolling if "window" in entry)
+    if error:
+        return error
+
+    for entry in rolling:
+        window = entry.get("window")
+        if not isinstance(window, int):
+            return "rolling entry missing integer window"
+        if entry.get("skipped"):
+            return f"rolling window {window} was skipped"
+        path_value = entry.get("path")
+        if not isinstance(path_value, str):
+            return f"rolling window {window} missing path"
+        path = Path(path_value)
+        if not path.exists():
+            return f"rolling window {window} output not found: {path}"
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:  # pragma: no cover - defensive
+            return f"failed to read rolling window {window} output {path}: {exc}"
+        for key in ("sharpe", "max_drawdown"):
+            if data.get(key) is None:
+                return f"rolling window {window} missing {key}"
+        parent = path.parent
+        if parent.name != str(window) or parent.parent.name != "rolling":
+            return f"rolling window {window} output stored outside reports/rolling/{window}"
+    return None
+
+
+def _ensure_summary_written(summary_path: Path) -> Optional[str]:
+    if not summary_path.exists():
+        return f"benchmark summary was not written to {summary_path}"
+    try:
+        json.loads(summary_path.read_text(encoding="utf-8"))
+    except Exception as exc:  # pragma: no cover - defensive
+        return f"benchmark summary at {summary_path} is not valid JSON: {exc}"
+    return None
+
+
 def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run benchmark pipeline (baseline + rolling + summary)")
     parser.add_argument("--bars", default=None, help="CSV path (default: validated/<symbol>/5m.csv)")
@@ -88,6 +165,7 @@ def parse_args(argv=None) -> argparse.Namespace:
 
 def _build_benchmark_cmd(args: argparse.Namespace, snapshot_path: Path) -> List[str]:
     bars_path = args.bars or str(ROOT / f"validated/{args.symbol}/5m.csv")
+    windows_arg = _normalize_windows_arg(args.windows)
     cmd = [
         sys.executable,
         str(ROOT / "scripts/run_benchmark_runs.py"),
@@ -100,7 +178,7 @@ def _build_benchmark_cmd(args: argparse.Namespace, snapshot_path: Path) -> List[
         "--equity",
         str(args.equity),
         "--windows",
-        args.windows,
+        windows_arg,
         "--reports-dir",
         str(args.reports_dir),
         "--runs-dir",
@@ -118,6 +196,7 @@ def _build_benchmark_cmd(args: argparse.Namespace, snapshot_path: Path) -> List[
 
 
 def _build_summary_cmd(args: argparse.Namespace) -> List[str]:
+    windows_arg = _normalize_windows_arg(args.windows)
     cmd = [
         sys.executable,
         str(ROOT / "scripts/report_benchmark_summary.py"),
@@ -128,7 +207,7 @@ def _build_summary_cmd(args: argparse.Namespace) -> List[str]:
         "--reports-dir",
         str(args.reports_dir),
         "--windows",
-        args.windows,
+        windows_arg,
         "--json-out",
         str(args.summary_json),
     ]
@@ -189,6 +268,11 @@ def main(argv=None) -> int:
             print(error, file=sys.stderr)
             return 1
 
+        validation_error = _validate_rolling_outputs(benchmark_payload.get("rolling", []))
+        if validation_error:
+            print(validation_error, file=sys.stderr)
+            return 1
+
         summary_cmd = _build_summary_cmd(args)
         summary_proc = _run_subprocess(summary_cmd)
         if summary_proc.stderr:
@@ -199,6 +283,12 @@ def main(argv=None) -> int:
         summary_payload, error = _parse_json_output("report_benchmark_summary", summary_proc.stdout)
         if error:
             print(error, file=sys.stderr)
+            return 1
+
+        summary_path = Path(args.summary_json)
+        summary_error = _ensure_summary_written(summary_path)
+        if summary_error:
+            print(summary_error, file=sys.stderr)
             return 1
 
         snapshot_path = Path(args.snapshot)
