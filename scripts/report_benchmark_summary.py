@@ -226,44 +226,50 @@ def main(argv=None) -> int:
             deliveries.append({"url": url, "ok": ok, "detail": detail})
         payload["webhook"] = {"targets": webhook_urls, "deliveries": deliveries}
 
+    if args.plot_out:
+        try:
+            # Lazy import to avoid matplotlib requirement unless必要
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+            import pandas as pd
+        except ModuleNotFoundError as exc:
+            missing = getattr(exc, "name", str(exc)) or "dependency"
+            message = f"summary plot skipped: missing dependency {missing}"
+            LOGGER.warning(message)
+            warnings.append(message)
+        else:
+            rolling_df = pd.DataFrame(payload["rolling"])
+            fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+
+            if not rolling_df.empty:
+                axes[0].plot(rolling_df["window"], rolling_df["win_rate"] * 100, marker='o', label='rolling')
+                axes[1].plot(rolling_df["window"], rolling_df["total_pips"], marker='o', label='rolling')
+
+            baseline_wr = payload["baseline"]["win_rate"] * 100
+            axes[0].axhline(baseline_wr, color='gray', linestyle='--', label='baseline')
+            axes[0].set_title('Win Rate (%)')
+            axes[0].set_xlabel('Window (days)')
+            axes[0].set_ylabel('%')
+            axes[0].legend()
+
+            baseline_pips = payload["baseline"]["total_pips"]
+            axes[1].axhline(baseline_pips, color='gray', linestyle='--', label='baseline')
+            axes[1].set_title('Total Pips')
+            axes[1].set_xlabel('Window (days)')
+            axes[1].set_ylabel('pips')
+            axes[1].legend()
+
+            plt.tight_layout()
+            plot_path = Path(args.plot_out)
+            plot_path.parent.mkdir(parents=True, exist_ok=True)
+            fig.savefig(plot_path)
+            plt.close(fig)
+
     json_out = Path(args.json_out)
     json_out.parent.mkdir(parents=True, exist_ok=True)
     with json_out.open("w") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
-
-    if args.plot_out:
-        # Lazy import to avoid matplotlib requirement unless必要
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-        import pandas as pd
-
-        rolling_df = pd.DataFrame(payload["rolling"])
-        fig, axes = plt.subplots(1, 2, figsize=(10, 4))
-
-        if not rolling_df.empty:
-            axes[0].plot(rolling_df["window"], rolling_df["win_rate"] * 100, marker='o', label='rolling')
-            axes[1].plot(rolling_df["window"], rolling_df["total_pips"], marker='o', label='rolling')
-
-        baseline_wr = payload["baseline"]["win_rate"] * 100
-        axes[0].axhline(baseline_wr, color='gray', linestyle='--', label='baseline')
-        axes[0].set_title('Win Rate (%)')
-        axes[0].set_xlabel('Window (days)')
-        axes[0].set_ylabel('%')
-        axes[0].legend()
-
-        baseline_pips = payload["baseline"]["total_pips"]
-        axes[1].axhline(baseline_pips, color='gray', linestyle='--', label='baseline')
-        axes[1].set_title('Total Pips')
-        axes[1].set_xlabel('Window (days)')
-        axes[1].set_ylabel('pips')
-        axes[1].legend()
-
-        plt.tight_layout()
-        plot_path = Path(args.plot_out)
-        plot_path.parent.mkdir(parents=True, exist_ok=True)
-        fig.savefig(plot_path)
-        plt.close(fig)
 
     print(json.dumps(payload, ensure_ascii=False))
     return 0

@@ -1,50 +1,46 @@
 {
-  "generated_at": "2025-09-27T21:35:33.375813Z",
+  "generated_at": "2025-09-28T21:32:15.053480Z",
   "symbol": "USDJPY",
   "mode": "conservative",
   "baseline": {
-    "trades": 129,
-    "wins": 87,
-    "win_rate": 0.6744186046511628,
-    "total_pips": -117.80857142857042,
-    "sharpe": -1.4511885663655324,
-    "max_drawdown": -166.10571428571416
+    "trades": 300,
+    "wins": 192,
+    "win_rate": 0.64,
+    "total_pips": 149.954285714459,
+    "sharpe": 0.921468050447914,
+    "max_drawdown": -130.5085714285459
   },
   "rolling": [
     {
-      "trades": 84,
-      "wins": 57,
-      "win_rate": 0.6785714285714286,
-      "total_pips": 89.80285714294371,
-      "sharpe": 1.120936869200396,
-      "max_drawdown": -181.74857142854182,
+      "trades": 86,
+      "wins": 58,
+      "win_rate": 0.6744186046511628,
+      "total_pips": 88.8557142858026,
+      "sharpe": 1.0835829928861849,
+      "max_drawdown": -182.69571428568293,
       "window": 90
     },
     {
-      "trades": 99,
-      "wins": 63,
-      "win_rate": 0.6363636363636364,
-      "total_pips": 94.58714285726205,
-      "sharpe": 0.6606889458947477,
-      "max_drawdown": -139.23571428568948,
+      "trades": 117,
+      "wins": 74,
+      "win_rate": 0.6324786324786325,
+      "total_pips": 95.80714285729152,
+      "sharpe": 0.6480160452541471,
+      "max_drawdown": -135.159999999972,
       "window": 180
     },
     {
-      "trades": 132,
-      "wins": 85,
-      "win_rate": 0.6439393939393939,
-      "total_pips": 172.97714285728853,
-      "sharpe": 1.5699372940065703,
-      "max_drawdown": -129.3528571427987,
+      "trades": 161,
+      "wins": 105,
+      "win_rate": 0.6521739130434783,
+      "total_pips": 216.41428571446465,
+      "sharpe": 1.6206261130325528,
+      "max_drawdown": -141.9199999999936,
       "window": 365
     }
   ],
   "warnings": [
-    "rolling window 365 max_drawdown -129.35 exceeds threshold -200.00",
-    "rolling window 180 max_drawdown -139.24 exceeds threshold -200.00",
-    "rolling window 90 max_drawdown -181.75 exceeds threshold -200.00",
-    "baseline total_pips negative: -117.81",
-    "baseline sharpe -1.45 below min_sharpe 0.50",
-    "baseline max_drawdown -166.11 exceeds threshold -200.00"
-  ]
+    "summary plot skipped: missing dependency matplotlib"
+  ],
+  "threshold_alerts": []
 }
