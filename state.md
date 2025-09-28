@@ -5,14 +5,14 @@
 - Update this file after completing work to record outcomes, blockers, and next steps.
 
 ## Next Task
-- [P1-01] 2024-06-20 ローリング検証パイプライン — DoD: [docs/task_backlog.md#p1-01-ローリング検証パイプライン](docs/task_backlog.md#p1-01-ローリング検証パイプライン)
+- [P1-01] 2024-06-20 ローリング検証パイプライン — DoD: [docs/task_backlog.md#p1-01-ローリング検証パイプライン](docs/task_backlog.md#p1-01-ローリング検証パイプライン) — 07:30JST 日次ベンチマーク実行と Slack アラート閾値（pips60 / winrate0.04）をランブック表へ確定。
   - Backlog Anchor: [ローリング検証パイプライン (P1-01)](docs/task_backlog.md#p1-01-ローリング検証パイプライン)
   - Vision / Runbook References:
     - [docs/logic_overview.md](docs/logic_overview.md)
     - [docs/simulation_plan.md](docs/simulation_plan.md)
-    - 主要ランブック: [docs/benchmark_runbook.md](docs/benchmark_runbook.md)
+    - 主要ランブック: [docs/benchmark_runbook.md#スケジュールとアラート管理](docs/benchmark_runbook.md#スケジュールとアラート管理)
   - Pending Questions:
-    - [ ] ローリング365/180/90Dレポートの更新頻度とアラート閾値をどう連動させるか整理する。
+    - [ ] なし（cadence/アラート閾値整理済み）
   - 2025-09-30: `manage_task_cycle.py` の `start-task` で runbook/pending 指定を許可し、`sync_task_docs.py` のテンプレ統合処理をリファクタリング。テンプレ適用後に state/docs 双方へ同じチェックリストが維持されることを手動確認。
 
 ### 運用メモ
