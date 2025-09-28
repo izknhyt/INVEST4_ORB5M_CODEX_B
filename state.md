@@ -52,3 +52,4 @@
 - [P1-01] 2025-09-28: Normalized benchmark summary max drawdown thresholds to accept negative CLI inputs, added regression coverage, and revalidated with targeted pytest.
 - [P1-01] 2025-09-29: Refined drawdown threshold normalization via helper, captured warning logs for negative CLI input in regression tests, and reran targeted pytest & CLI verification.
 - [P1-01] 2025-09-30: Propagated `--alert-pips` / `--alert-winrate` through benchmark pipeline + daily workflow CLIs, refreshed pytest coverage, and synced runbook CLI examples.
+- [P1-01] 2025-10-01: 固定パス参照の `aggregate_ev.py` をリファクタし、リポジトリルートを `sys.path` と I/O 基準に統一する REPO_ROOT を導入。CLI 回帰テストを追加し、`python3 -m pytest tests/test_aggregate_ev_script.py` とベンチマーク実行を再確認。

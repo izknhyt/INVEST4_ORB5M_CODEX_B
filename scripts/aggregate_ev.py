@@ -5,11 +5,23 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+
+def resolve_repo_path(path: Path) -> Path:
+    """Return an absolute path anchored at the repository root."""
+
+    return path if path.is_absolute() else REPO_ROOT / path
 
 from core.utils import yaml_compat as yaml
 
@@ -190,7 +202,8 @@ def main() -> int:
         strategy_module = args.strategy.lower()
     strategy_key = f"{strategy_module}.{strategy_class}" if strategy_class else strategy_module
 
-    archive_dir = Path(args.archive) / strategy_key / args.symbol / args.mode
+    archive_base = resolve_repo_path(Path(args.archive))
+    archive_dir = archive_base / strategy_key / args.symbol / args.mode
     if not archive_dir.exists() or not archive_dir.is_dir():
         raise SystemExit(f"archive directory not found: {archive_dir}")
 
@@ -221,7 +234,8 @@ def main() -> int:
         beta_prior=args.beta_prior,
     )
 
-    out_yaml = Path(args.out_yaml) if args.out_yaml else Path("configs/ev_profiles") / f"{strategy_module}.yaml"
+    out_yaml_base = Path(args.out_yaml) if args.out_yaml else Path("configs/ev_profiles") / f"{strategy_module}.yaml"
+    out_yaml = resolve_repo_path(out_yaml_base)
     out_yaml.parent.mkdir(parents=True, exist_ok=True)
     with out_yaml.open("w") as f:
         yaml.safe_dump(profile, f, sort_keys=False)
@@ -232,7 +246,7 @@ def main() -> int:
             "all": {k: v for k, v in ((bk, data) for bk, data in all_agg["buckets"].items())},
             "recent": {k: v for k, v in ((bk, data) for bk, data in recent_agg["buckets"].items())},
         }
-        write_csv(Path(args.out_csv), summary)
+        write_csv(resolve_repo_path(Path(args.out_csv)), summary)
 
     return 0
 
