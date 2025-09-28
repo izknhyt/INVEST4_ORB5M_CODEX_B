@@ -38,6 +38,42 @@ print(metrics.as_dict())
   - `scripts/run_sim.py`
   - 入力CSVはヘッダ行必須: `timestamp,symbol,tf,o,h,l,c,v,spread`
 
+## タスク同期スクリプト
+`state.md` と `docs/todo_next.md` を同時に更新する場合は、`scripts/sync_task_docs.py` を利用すると手戻りを防げます（DoDアンカーで対象タスクを特定します）。
+
+1. **新規タスクの登録**
+   ```bash
+   python3 scripts/sync_task_docs.py record \
+       --task-id P1-10 \
+       --title "ローリング検証パイプライン" \
+       --date 2024-06-21 \
+       --anchor docs/task_backlog.md#p1-10-ローリング検証パイプライン \
+       --doc-section Ready \
+       --doc-note "ローリング窓の自動起動シーケンスを草案化"
+   ```
+   - `state.md` の `## Next Task` に行が追加され、`docs/todo_next.md` の指定セクションへ同じアンカー付きブロックが作成されます。
+
+2. **次のタスクへ昇格（Ready → In Progress）**
+   ```bash
+   python3 scripts/sync_task_docs.py promote \
+       --task-id P1-10 \
+       --title "ローリング検証パイプライン" \
+       --date 2024-06-22 \
+       --anchor docs/task_backlog.md#p1-10-ローリング検証パイプライン
+   ```
+   - `state.md` の `## Next Task` を更新し、`docs/todo_next.md` の該当ブロックが `### In Progress` へ移動します。
+
+3. **完了処理（In Progress/Ready/Pending Review → Archive）**
+   ```bash
+   python3 scripts/sync_task_docs.py complete \
+       --date 2024-06-23 \
+       --anchor docs/task_backlog.md#p1-10-ローリング検証パイプライン \
+       --note "Sharpe/最大DD の監視とローリングrunの自動起動を整備"
+   ```
+   - `state.md` から当該タスクを削除し `## Log` に完了メモを追記、`docs/todo_next.md` は `## Archive` セクションへストライク付きで移動し日付/✅が補完されます。
+
+> 補足: すべてのコマンドで `--date` は ISO 形式 (YYYY-MM-DD) を要求し、アンカーは `docs/task_backlog.md#...` で指定してください。
+
 実行例:
 
 ```
