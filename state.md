@@ -5,8 +5,8 @@
 - Update this file after completing work to record outcomes, blockers, and next steps.
 
 ## Next Task
-- [P1-01] 2024-06-20 ローリング検証パイプライン — DoD: [docs/task_backlog.md#p1-ローリング検証--健全性モニタリング](docs/task_backlog.md#p1-ローリング検証--健全性モニタリング)
-- [P1-02] 2024-06-20 インシデントリプレイテンプレート — DoD: [docs/task_backlog.md#p1-ローリング検証--健全性モニタリング](docs/task_backlog.md#p1-ローリング検証--健全性モニタリング)
+- [P1-01] 2024-06-20 ローリング検証パイプライン — DoD: [docs/task_backlog.md#p1-01-ローリング検証パイプライン](docs/task_backlog.md#p1-01-ローリング検証パイプライン)
+- [P1-02] 2024-06-20 インシデントリプレイテンプレート — DoD: [docs/task_backlog.md#p1-02-インシデントリプレイテンプレート](docs/task_backlog.md#p1-02-インシデントリプレイテンプレート)
 
 ### 運用メモ
 - バックログから着手するタスクは先にこのリストへ追加し、ID・着手予定日・DoD リンクを明示する。
