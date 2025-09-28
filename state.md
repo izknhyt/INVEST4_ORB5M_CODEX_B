@@ -5,16 +5,7 @@
 - Update this file after completing work to record outcomes, blockers, and next steps.
 
 ## Next Task
-- [P1-01] 2024-06-20 ローリング検証パイプライン — DoD: [docs/task_backlog.md#p1-01-ローリング検証パイプライン](docs/task_backlog.md#p1-01-ローリング検証パイプライン) — 07:30JST 日次ベンチマーク実行と Slack アラート閾値（pips60 / winrate0.04）をランブック表へ確定。
-  - Backlog Anchor: [ローリング検証パイプライン (P1-01)](docs/task_backlog.md#p1-01-ローリング検証パイプライン)
-  - Vision / Runbook References:
-    - [docs/logic_overview.md](docs/logic_overview.md)
-    - [docs/simulation_plan.md](docs/simulation_plan.md)
-    - 主要ランブック: [docs/benchmark_runbook.md#スケジュールとアラート管理](docs/benchmark_runbook.md#スケジュールとアラート管理)
-  - Pending Questions:
-    - [ ] なし（cadence/アラート閾値整理済み）
-  - 2025-10-02: `run_benchmark_pipeline.py` で 365/180/90D ローリング JSON の存在/Sharpe・最大DD を検証し、`run_daily_workflow.py --benchmarks` から必須ウィンドウを確実に流すよう正規化。ランブックへ Cron 後の確認手順と再実行 CLI を追記。
-  - 2025-09-30: `manage_task_cycle.py` の `start-task` で runbook/pending 指定を許可し、`sync_task_docs.py` のテンプレ統合処理をリファクタリング。テンプレ適用後に state/docs 双方へ同じチェックリストが維持されることを手動確認。
+- 未設定（次の優先タスク選定待ち）
 
 ### 運用メモ
 - バックログから着手するタスクは先にこのリストへ追加し、ID・着手予定日・DoD リンクを明示する。
@@ -50,6 +41,7 @@
 - [P1-04] 2025-09-28: Ready/DoD チェックリスト テンプレートと `sync_task_docs.py` の自動リンク挿入を整備し、`docs/todo_next.md` / `docs/state_runbook.md` に運用手順を追記。DoD: [docs/task_backlog.md#ワークフロー統合ガイド](docs/task_backlog.md#ワークフロー統合ガイド).
 - [P1-04] 2025-09-28: `docs/templates/next_task_entry.md` を新設し、`manage_task_cycle.py start-task` がテンプレを自動適用するよう拡張。DoD: [docs/task_backlog.md#ワークフロー統合ガイド](docs/task_backlog.md#ワークフロー統合ガイド).
 - [P1-04] 2025-09-29: Published `docs/codex_workflow.md` to outline Codex session operations and clarified references to `docs/state_runbook.md` and the shared templates. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
+- [P1-01] 2025-10-04: Updated the benchmark runbook schedule to surface the shared `--alert-pips 60` / `--alert-winrate 0.04` thresholds for each window and aligned the 07:30 JST workflow with DoD references.
 - [P1-01] 2025-09-28: Normalized benchmark summary max drawdown thresholds to accept negative CLI inputs, added regression coverage, and revalidated with targeted pytest.
 - [P1-01] 2025-09-29: Refined drawdown threshold normalization via helper, captured warning logs for negative CLI input in regression tests, and reran targeted pytest & CLI verification.
 - [P1-01] 2025-09-30: Propagated `--alert-pips` / `--alert-winrate` through benchmark pipeline + daily workflow CLIs, refreshed pytest coverage, and synced runbook CLI examples.
