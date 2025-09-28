@@ -74,6 +74,10 @@ def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_
         str(tmp_path / "reports" / "benchmark_summary.png"),
         "--windows",
         "365,180,90",
+        "--alert-pips",
+        "75",
+        "--alert-winrate",
+        "0.12",
         "--min-sharpe",
         "1.1",
         "--max-drawdown",
@@ -94,6 +98,8 @@ def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_
     first_cmd, second_cmd = commands
     assert "run_benchmark_runs.py" in first_cmd[1]
     assert first_cmd[first_cmd.index("--windows") + 1] == "365,180,90"
+    assert float(first_cmd[first_cmd.index("--alert-pips") + 1]) == pytest.approx(75.0)
+    assert float(first_cmd[first_cmd.index("--alert-winrate") + 1]) == pytest.approx(0.12)
     assert first_cmd[first_cmd.index("--webhook") + 1] == "https://example.com/hook"
     assert "run_benchmark_summary.py" not in first_cmd[1]
     assert "report_benchmark_summary.py" in second_cmd[1]

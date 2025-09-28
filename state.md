@@ -51,3 +51,4 @@
 - [P1-04] 2025-09-29: Published `docs/codex_workflow.md` to outline Codex session operations and clarified references to `docs/state_runbook.md` and the shared templates. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
 - [P1-01] 2025-09-28: Normalized benchmark summary max drawdown thresholds to accept negative CLI inputs, added regression coverage, and revalidated with targeted pytest.
 - [P1-01] 2025-09-29: Refined drawdown threshold normalization via helper, captured warning logs for negative CLI input in regression tests, and reran targeted pytest & CLI verification.
+- [P1-01] 2025-09-30: Propagated `--alert-pips` / `--alert-winrate` through benchmark pipeline + daily workflow CLIs, refreshed pytest coverage, and synced runbook CLI examples.

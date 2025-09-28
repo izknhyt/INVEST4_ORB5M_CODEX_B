@@ -40,6 +40,18 @@ def main(argv=None) -> int:
         default=None,
         help="Warn when |max_drawdown| exceeds this value (pips)",
     )
+    parser.add_argument(
+        "--alert-pips",
+        type=float,
+        default=50.0,
+        help="Abs diff in total_pips to trigger alert",
+    )
+    parser.add_argument(
+        "--alert-winrate",
+        type=float,
+        default=0.05,
+        help="Abs diff in win_rate to trigger alert",
+    )
     parser.add_argument("--optimize", action="store_true", help="Run parameter optimization")
     parser.add_argument("--analyze-latency", action="store_true", help="Analyze signal latency")
     parser.add_argument("--archive-state", action="store_true", help="Archive state.json files")
@@ -84,6 +96,10 @@ def main(argv=None) -> int:
             "--windows",
             args.benchmark_windows,
         ]
+        if args.alert_pips is not None:
+            cmd += ["--alert-pips", str(args.alert_pips)]
+        if args.alert_winrate is not None:
+            cmd += ["--alert-winrate", str(args.alert_winrate)]
         if args.min_sharpe is not None:
             cmd += ["--min-sharpe", str(args.min_sharpe)]
         if args.max_drawdown is not None:
