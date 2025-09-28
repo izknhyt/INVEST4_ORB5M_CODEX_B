@@ -1,0 +1,73 @@
+# Base template for strategy manifests.
+# Copy this file and replace placeholder values before loading via configs/strategies/loader.py.
+# Comments highlight how each field maps to RunnerConfig properties or CLI flags.
+
+meta:
+  id: your_strategy_id  # Stable slug consumed by the loader; keep unique per strategy release.
+  name: Your Strategy Name  # Human-readable label for reports and dashboards.
+  version: "1.0"  # Increment when behaviour/parameters change.
+  category: day  # One of: scalping, day, swing.
+  tags: [sample, breakout]  # Discovery tags for router filtering.
+  description: |
+    Short summary of the playbook, targets, and any deployment notes.
+    Use multiple lines as needed; YAML folds them into a block string.
+
+strategy:
+  class_path: strategies.your_module.YourStrategy  # Python import path (module.Class) used by the loader.
+  instruments:
+    - symbol: USDJPY  # Uppercase instrument symbol routed into BacktestRunner.
+      timeframe: 5m  # E.g. 5m, 15m, 1h; aligns with data loader cadence.
+      mode: conservative  # Optional: matches BacktestRunner mode / CLI --mode.
+  parameters:
+    or_n: 6  # Mirrors RunnerConfig.or_n property (derived from RunnerConfig.strategy.or_n) and CLI --or-n.
+    k_tp: 1.0  # RunnerConfig.k_tp / CLI --k-tp.
+    k_sl: 0.8  # RunnerConfig.k_sl / CLI --k-sl.
+    k_tr: 0.0  # RunnerConfig.k_tr / CLI --k-tr (trail multiple, 0 disables trailing).
+    require_close_breakout: false  # Example boolean toggle consumed by the strategy implementation.
+    min_or_atr_ratio: 0.6  # Keep in sync with RunnerConfig.min_or_atr_ratio and CLI --min-or-atr.
+
+router:
+  allowed_sessions: [LDN, NY]  # Router gate; aligns with RunnerConfig.allowed_sessions / CLI --allowed-sessions.
+  allow_spread_bands: [narrow, normal]  # Permitted spread regimes.
+  allow_rv_bands: [mid, high]  # Permitted realised-volatility bands.
+  max_latency_ms: 80  # Execution latency cap for routing decisions.
+  category_cap_pct: 40  # Portfolio budget cap for this category.
+  tags: [breakout, usd, jpy]  # Router hints for orchestration.
+
+risk:
+  risk_per_trade_pct: 0.25  # Fractional Kelly / sizing budget per position.
+  max_daily_dd_pct: 5.0  # Stop trading if daily drawdown exceeds this percentage.
+  notional_cap: 2000000  # Absolute notional limit enforced by the runner/router.
+  max_concurrent_positions: 1  # Hard cap on parallel trades for this manifest.
+  warmup_trades: 50  # Warmup count mirrored by RunnerConfig.warmup_trades / CLI --warmup.
+
+features:
+  required:
+    - atr14  # Enumerate inputs that must be present in feature pipelines.
+    - adx14
+    - spread_band
+    - session
+  optional:
+    - regime_flag  # Optional features improve sizing/gating when available.
+
+runner:
+  runner_config:
+    threshold_lcb_pip: 0.5  # RunnerConfig.threshold_lcb_pip → CLI --threshold-lcb (pips).
+    min_or_atr_ratio: 0.6  # RunnerConfig.min_or_atr_ratio → CLI --min-or-atr.
+    allowed_sessions: [LDN, NY]  # RunnerConfig.allowed_sessions → CLI --allowed-sessions.
+    warmup_trades: 50  # RunnerConfig.warmup_trades → CLI --warmup.
+    include_expected_slip: true  # RunnerConfig.include_expected_slip → CLI --include-expected-slip.
+  cli_args:
+    equity: 100000  # scripts/run_sim.py --equity
+    threshold_lcb: 0.5  # scripts/run_sim.py --threshold-lcb
+    min_or_atr: 0.6  # scripts/run_sim.py --min-or-atr
+    allowed_sessions: LDN,NY  # scripts/run_sim.py --allowed-sessions
+    mode: conservative  # scripts/run_sim.py --mode (matches instruments[].mode when set)
+
+state:
+  archive_namespace: strategies.your_module.YourStrategy/USDJPY/conservative  # Root passed to BacktestRunner state archiver.
+  ev_profile: configs/ev_profiles/your_strategy.yaml  # Seed profile path loaded unless CLI --no-ev-profile is set.
+
+notes:
+  - Document operational caveats, disabling conditions, or validation steps here.
+  - Reference related runbooks or dashboards for quick navigation.

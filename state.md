@@ -54,3 +54,4 @@
 - [P1-05] 2025-10-08: BacktestRunner debug visibility refresh — helper-based `strategy_gate`/`ev_threshold` dispatch, normalized debug counters/records, and new investigation guide. Executed `python3 -m pytest` before wrap-up.
 - [DOC-06] 2025-10-08: Documented Day ORB parameter dependency matrix, noted transfer checklist, and linked the update from the simulation plan Phase1 task.
 - [DOC-07] 2025-10-09: Mean Reversion スタブの入力想定を整理し、Day ORB との比較チェックリストを公開。`docs/checklists/multi_strategy_validation.md` を追加し、backlog へマルチ戦略レビュータスクを追記。
+- [DOC-08] 2025-10-09: 戦略マニフェストの必須/任意ブロックを README に整理し、Day ORB を基にしたテンプレート (`configs/strategies/templates/base_strategy.yaml`) と runner ガイドを追加。DoD: `python3 -m pytest tests/test_strategy_manifest.py` 通過・バックログへ整備済みノート追記。
