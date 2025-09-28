@@ -37,6 +37,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 
 **進捗メモ**
 - 2024-06-04: `core/runner` でエクイティカーブを蓄積し Sharpe / 最大DD を算出、`run_sim.py`・`store_run_summary`・`report_benchmark_summary.py` に伝搬。ベンチマークサマリーでは `--min-sharpe` / `--max-drawdown` 閾値をチェックし `warnings` に追加するよう更新。
+- 2025-09-29: `report_benchmark_summary.py` の重複引数定義（`--min-sharpe`/`--max-drawdown`/`--webhook`）を解消し、`run_daily_workflow.py` から `run_benchmark_pipeline.py` を呼び出すように整合。ワークフローからベンチマークサマリーにしきい値・WebHook を正しく伝搬するよう修正。
 
 ### P1-02 インシデントリプレイテンプレート
 本番での負けトレードを `ops/incidents/` に保存し、同期間のリプレイを `scripts/run_sim.py --start-ts/--end-ts` で再実行する Notebook (`analysis/incident_review.ipynb`) にメモを残す。

@@ -93,12 +93,24 @@ def parse_args(argv=None):
     parser.add_argument("--windows", default="365,180,90", help="Comma separated rolling windows")
     parser.add_argument("--json-out", default="reports/benchmark_summary.json")
     parser.add_argument("--plot-out", default=None, help="Optional path to save summary plot (PNG)")
-    parser.add_argument("--min-sharpe", type=float, default=None, help="Optional threshold (not computed; reserved)")
-    parser.add_argument("--max-drawdown", type=float, default=None, help="Optional threshold (not computed; reserved)")
-    parser.add_argument("--webhook", default=None, help="Optional webhook URL(s); not used in this CLI")
-    parser.add_argument("--min-sharpe", type=float, default=None, help="Warn when Sharpe ratio falls below this value")
-    parser.add_argument("--max-drawdown", type=float, default=None, help="Warn when |max_drawdown| exceeds this value (pips)")
-    parser.add_argument("--webhook", default=None, help="Webhook URL(s) for summary warnings (comma separated)")
+    # Thresholds and optional webhook for alerts
+    parser.add_argument(
+        "--min-sharpe",
+        type=float,
+        default=None,
+        help="Warn when Sharpe ratio falls below this value",
+    )
+    parser.add_argument(
+        "--max-drawdown",
+        type=float,
+        default=None,
+        help="Warn when |max_drawdown| exceeds this value (pips)",
+    )
+    parser.add_argument(
+        "--webhook",
+        default=None,
+        help="Webhook URL(s) for summary warnings (comma separated)",
+    )
     return parser.parse_args(argv)
 
 

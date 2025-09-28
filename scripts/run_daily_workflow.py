@@ -69,12 +69,27 @@ def main(argv=None) -> int:
             return exit_code
 
     if args.benchmarks:
-        cmd = [sys.executable, str(ROOT / "scripts/run_benchmark_runs.py"),
-               "--bars", bars_csv,
-               "--symbol", args.symbol,
-               "--mode", args.mode,
-               "--equity", args.equity,
-               "--windows", args.benchmark_windows]
+        # Use the pipeline script which orchestrates runs and summary
+        cmd = [
+            sys.executable,
+            str(ROOT / "scripts/run_benchmark_pipeline.py"),
+            "--bars",
+            bars_csv,
+            "--symbol",
+            args.symbol,
+            "--mode",
+            args.mode,
+            "--equity",
+            str(args.equity),
+            "--windows",
+            args.benchmark_windows,
+        ]
+        if args.min_sharpe is not None:
+            cmd += ["--min-sharpe", str(args.min_sharpe)]
+        if args.max_drawdown is not None:
+            cmd += ["--max-drawdown", str(args.max_drawdown)]
+        if args.webhook:
+            cmd += ["--webhook", args.webhook]
         exit_code = run_cmd(cmd)
         if exit_code:
             return exit_code
@@ -88,13 +103,28 @@ def main(argv=None) -> int:
             return exit_code
 
     if args.benchmark_summary:
-        cmd = [sys.executable, str(ROOT / "scripts/report_benchmark_summary.py"),
-               "--symbol", args.symbol,
-               "--mode", args.mode,
-               "--reports-dir", str(ROOT / "reports"),
-               "--json-out", str(ROOT / "reports/benchmark_summary.json"),
-               "--plot-out", str(ROOT / "reports/benchmark_summary.png"),
-               "--windows", args.benchmark_windows]
+        cmd = [
+            sys.executable,
+            str(ROOT / "scripts/report_benchmark_summary.py"),
+            "--symbol",
+            args.symbol,
+            "--mode",
+            args.mode,
+            "--reports-dir",
+            str(ROOT / "reports"),
+            "--json-out",
+            str(ROOT / "reports/benchmark_summary.json"),
+            "--plot-out",
+            str(ROOT / "reports/benchmark_summary.png"),
+            "--windows",
+            args.benchmark_windows,
+        ]
+        if args.min_sharpe is not None:
+            cmd += ["--min-sharpe", str(args.min_sharpe)]
+        if args.max_drawdown is not None:
+            cmd += ["--max-drawdown", str(args.max_drawdown)]
+        if args.webhook:
+            cmd += ["--webhook", args.webhook]
         exit_code = run_cmd(cmd)
         if exit_code:
             return exit_code

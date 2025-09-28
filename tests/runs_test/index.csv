@@ -1,3 +1,4 @@
 run_id,run_dir,timestamp,symbol,mode,equity,k_tp,k_sl,k_tr,threshold_lcb,min_or_atr,rv_cuts,allow_low_rv,warmup,trades_cons,wins_cons,total_pips_cons,trades_bridge,wins_bridge,total_pips_bridge,diff_total_pips
 compare_USDJPY_20250913_223411,/Users/izumimotohayato/development/invest3_orb5m_codex/tests/runs_test/compare_USDJPY_20250913_223411,20250913_223411,USDJPY,compare,100000.0,,,,,,,False,,0,0,0.0,0,0,0.0,0.0
 compare_USDJPY_20250913_224311,/Users/izumimotohayato/development/invest3_orb5m_codex/tests/runs_test/compare_USDJPY_20250913_224311,20250913_224311,USDJPY,compare,100000.0,,,,,,,False,,0,0,0.0,0,0,0.0,0.0
+compare_USDJPY_20250928_201227,/Users/izumimotohayato/development/invest3_orb5m_codex/tests/runs_test/compare_USDJPY_20250928_201227,20250928_201227,USDJPY,compare,100000.0,,,,,,,False,,0,0,0.0,0,0,0.0,0.0
