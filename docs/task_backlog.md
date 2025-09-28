@@ -36,6 +36,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - ジョブ実行フローとアラート閾値を README もしくは runbook に追記し、再実行手順が明文化されていること。
 
 **進捗メモ**
+- 2025-10-08: Added helper-based dispatch and logging reference. See [docs/backtest_runner_logging.md](docs/backtest_runner_logging.md) for counter/record definitions and EV investigation flow.
 - 2024-06-04: `core/runner` でエクイティカーブを蓄積し Sharpe / 最大DD を算出、`run_sim.py`・`store_run_summary`・`report_benchmark_summary.py` に伝搬。ベンチマークサマリーでは `--min-sharpe` / `--max-drawdown` 閾値をチェックし `warnings` に追加するよう更新。
 - 2025-09-29: `report_benchmark_summary.py` の重複引数定義（`--min-sharpe`/`--max-drawdown`/`--webhook`）を解消し、`run_daily_workflow.py` から `run_benchmark_pipeline.py` を呼び出すように整合。ワークフローからベンチマークサマリーにしきい値・WebHook を正しく伝搬するよう修正。
 
@@ -60,6 +61,17 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 
 **進捗メモ**
 - 2024-06-11: `check_state_health` の警告・履歴ローテーション・Webhook 送信を pytest で回帰テスト化し、デフォルト閾値 (勝率LCB/サンプル数/滑り上限) の期待挙動を明記。
+
+### P1-05 バックテストランナーのデバッグ可視化強化
+`core/runner.py` のデバッグ計測とログドキュメントを整理し、EV ゲート診断の調査手順を標準化する。
+
+**DoD**
+- BacktestRunner の戦略フック呼び出しをヘルパー経由で統一し、エラー時のカウントと記録が揃っていること。
+- `debug_counts` / `debug_records` のフィールド構成が列挙され、ドキュメントにも一覧が掲載されていること。
+- `strategy_gate` → `ev_threshold` → EV 判定 → サイズ判定の観察手順が docs に追記され、CSV/Daily 出力例と併せた調査フローが示されていること。
+
+**進捗メモ**
+- 2025-10-08: Added helper-based dispatch and logging reference. See [docs/backtest_runner_logging.md](docs/backtest_runner_logging.md) for counter/record definitions and EV investigation flow.
 
 ## P2: マルチ戦略ポートフォリオ化
 - **戦略マニフェスト整備**: スキャル/デイ/スイングの候補戦略ごとに、依存特徴量・セッション・リスク上限を YAML で定義し、ルーターが参照できるようにする (`configs/strategies/*.yaml`)。
