@@ -8,6 +8,17 @@
 
 - 例: `[P1-02] 2024-06-18 state.md ログ / docs/progress/phase1.md`
 
+### Codex Session Operations Guide
+Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_next.md`, and `docs/task_backlog.md` synchronized across sessions, including how to use the supporting scripts and templates.
+
+**DoD**
+- `docs/codex_workflow.md` explains pre-session checks, the execution loop, wrap-up steps, and how to apply the shared templates.
+- The guide covers dry-run and live usage of `scripts/manage_task_cycle.py` for keeping state/doc updates in lockstep.
+- Links to related runbooks and templates are included so future sessions can reproduce the same procedure.
+
+**Progress Notes**
+- 2025-09-29: Added `docs/codex_workflow.md` to consolidate operational guidance for Codex agents and clarified the relationship with `docs/state_runbook.md` and the template directory.
+
 ## P0: 即着手（オンデマンドインジェスト + 基盤整備）
 - ~~**state 更新ワーカー**~~ (完了): `scripts/update_state.py` に部分実行ワークフローを実装し、`BacktestRunner.run_partial` と状態スナップショット/EVアーカイブ連携を整備。`ops/state_archive/<strategy>/<symbol>/<mode>/` へ最新5件を保持し、更新後は `scripts/aggregate_ev.py` を自動起動するようにした。
 - ~~**runs/index 再構築スクリプト整備**~~ (完了): `scripts/rebuild_runs_index.py` が `scripts/run_sim.py` の出力列 (k_tr, gate/EV debug など) と派生指標 (win_rate, pnl_per_trade) を欠損なく復元し、`tests/test_rebuild_runs_index.py` で fixtures 検証を追加。
