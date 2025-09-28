@@ -22,8 +22,8 @@
 ### Ready
 
 ### Pending Review
-- **ワークフロー統合ガイド**（バックログ: `docs/task_backlog.md` → 「ワークフロー統合」セクション） — `state.md` 2024-06-18 <!-- anchor: docs/task_backlog.md#ワークフロー統合ガイド -->
-  - `docs/todo_next.md` と `state.md` の同期ルール追記を実施済み。レビューで運用フローへの適用可否を確認し、承認後に Archive へ移動する。
+- **Workflow Integration Guide** (Backlog: `docs/task_backlog.md` → "ワークフロー統合" section) — `state.md` 2024-06-18, 2025-09-29 <!-- anchor: docs/task_backlog.md#codex-session-operations-guide -->
+  - Updated the synchronization rules between `docs/todo_next.md` and `state.md`. Added `docs/codex_workflow.md` to capture Codex session procedures. Confirm readiness for adoption before moving to Archive.
 
 ## Archive（達成済み）
 - ~~**目標指数の定義**~~ ✅ — `state.md` 2024-06-01 <!-- anchor: docs/task_backlog.md#目標指数の定義 -->

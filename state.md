@@ -40,3 +40,4 @@
 - [P1-04] 2024-06-22: `scripts/manage_task_cycle.py` を追加し、`sync_task_docs.py` の record/promote/complete をラップする `start-task` / `finish-task` を整備。README / state_runbook を更新し、pytest でドライラン出力を検証。
 - [P1-04] 2025-09-28: Ready/DoD チェックリスト テンプレートと `sync_task_docs.py` の自動リンク挿入を整備し、`docs/todo_next.md` / `docs/state_runbook.md` に運用手順を追記。DoD: [docs/task_backlog.md#ワークフロー統合ガイド](docs/task_backlog.md#ワークフロー統合ガイド).
 - [P1-04] 2025-09-28: `docs/templates/next_task_entry.md` を新設し、`manage_task_cycle.py start-task` がテンプレを自動適用するよう拡張。DoD: [docs/task_backlog.md#ワークフロー統合ガイド](docs/task_backlog.md#ワークフロー統合ガイド).
+- [P1-04] 2025-09-29: Published `docs/codex_workflow.md` to outline Codex session operations and clarified references to `docs/state_runbook.md` and the shared templates. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
