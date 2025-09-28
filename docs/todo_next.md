@@ -13,32 +13,34 @@
 ## Current Pipeline
 
 ### In Progress
-- **ローリング検証パイプライン**（バックログ: `docs/task_backlog.md` → P1「ローリング検証 + 健全性モニタリング」） — `state.md` 2024-06-12, 2024-06-13, 2024-06-14, 2024-06-15, 2024-06-16
+- **ローリング検証パイプライン**（バックログ: `docs/task_backlog.md` → P1「ローリング検証 + 健全性モニタリング」） — `state.md` 2024-06-12, 2024-06-13, 2024-06-14, 2024-06-15, 2024-06-16 <!-- anchor: docs/task_backlog.md#p1-01-ローリング検証パイプライン -->
   - `scripts/run_benchmark_pipeline.py` の整備と `run_daily_workflow.py` 連携、期間指定リプレイ (`--start-ts` / `--end-ts`) の確認を継続中。
   - 次ステップ: ベンチマークランのローリング更新自動化と Sharpe / 最大 DD 指標の回帰監視強化。
 
 ### Ready
-- **インシデントリプレイテンプレート**（バックログ: `docs/task_backlog.md` → P1「インシデントリプレイテンプレート」） — `state.md` 2024-06-14, 2024-06-15
-  - 期間指定リプレイ CLI の拡張は完了。Notebook (`analysis/incident_review.ipynb`) と `ops/incidents/` へのテンプレ整備を次イテレーションで着手可能。
 
 ### Pending Review
-- **ワークフロー統合ガイド**（バックログ: `docs/task_backlog.md` → 「ワークフロー統合」セクション） — `state.md` 2024-06-18
+- **ワークフロー統合ガイド**（バックログ: `docs/task_backlog.md` → 「ワークフロー統合」セクション） — `state.md` 2024-06-18 <!-- anchor: docs/task_backlog.md#ワークフロー統合ガイド -->
   - `docs/todo_next.md` と `state.md` の同期ルール追記を実施済み。レビューで運用フローへの適用可否を確認し、承認後に Archive へ移動する。
 
 ## Archive（達成済み）
-- ~~**目標指数の定義**~~ ✅ — `state.md` 2024-06-01
+- ~~**目標指数の定義**~~ ✅ — `state.md` 2024-06-01 <!-- anchor: docs/task_backlog.md#目標指数の定義 -->
   - `configs/targets.json` と `scripts/evaluate_targets.py` を整備済み。
-- ~~**ウォークフォワード検証**~~ ✅ — `state.md` 2024-06-02, 2024-06-03
+- ~~**ウォークフォワード検証**~~ ✅ — `state.md` 2024-06-02, 2024-06-03 <!-- anchor: docs/task_backlog.md#ウォークフォワード検証 -->
   - `scripts/run_walk_forward.py` を追加し、`analysis/wf_log.json` に窓別ログを出力。
-- ~~**自動探索の高度化**~~ ✅ — `state.md` 2024-06-04
+- ~~**自動探索の高度化**~~ ✅ — `state.md` 2024-06-04 <!-- anchor: docs/task_backlog.md#自動探索の高度化 -->
   - `scripts/run_optuna_search.py` で多指標目的の探索骨子を構築。
-- ~~**運用ループへの組み込み**~~ ✅ — `state.md` 2024-06-05
+- ~~**運用ループへの組み込み**~~ ✅ — `state.md` 2024-06-05 <!-- anchor: docs/task_backlog.md#運用ループへの組み込み -->
   - `scripts/run_target_loop.py` による Optuna → run_sim → 指標計算 → 判定のループを実装。
-- ~~**state ヘルスチェック**~~ ✅ — `state.md` 2024-06-11
+- ~~**state ヘルスチェック**~~ ✅ — `state.md` 2024-06-11 <!-- anchor: docs/task_backlog.md#state-ヘルスチェック -->
   - `scripts/check_state_health.py` の警告生成・履歴ローテーション・Webhook テストを追加。
-- ~~**ベースライン/ローリング run 起動ジョブ**~~ ✅ — `state.md` 2024-06-12
+- ~~**ベースライン/ローリング run 起動ジョブ**~~ ✅ — `state.md` 2024-06-12 <!-- anchor: docs/task_backlog.md#ベースラインローリング-run-起動ジョブ -->
   - `scripts/run_benchmark_pipeline.py` と `tests/test_run_benchmark_pipeline.py` を整備し、runbook を更新。
-- ~~**ベンチマークサマリー閾値伝播**~~ ✅ — `state.md` 2024-06-13
+- ~~**ベンチマークサマリー閾値伝播**~~ ✅ — `state.md` 2024-06-13 <!-- anchor: docs/task_backlog.md#ベンチマークサマリー閾値伝播 -->
   - `run_daily_workflow.py` からの Webhook/閾値伝播と README 更新を完了。
-- ~~**絶対パス整備と CLI テスト強化**~~ ✅ — `state.md` 2024-06-14
+- ~~**絶対パス整備と CLI テスト強化**~~ ✅ — `state.md` 2024-06-14 <!-- anchor: docs/task_backlog.md#絶対パス整備と-cli-テスト強化 -->
   - `run_daily_workflow.py` 最適化/状態アーカイブコマンドで絶対パスを使用するよう更新し、pytest で検証。
+
+- ~~**インシデントリプレイテンプレート**~~（バックログ: `docs/task_backlog.md` → P1「インシデントリプレイテンプレート」） — `state.md` 2024-06-14, 2024-06-15, 2024-06-21 ✅ <!-- anchor: docs/task_backlog.md#p1-02-インシデントリプレイテンプレート -->
+  - 期間指定リプレイ CLI の拡張は完了。Notebook (`analysis/incident_review.ipynb`) と `ops/incidents/` へのテンプレ整備を次イテレーションで着手可能。
+

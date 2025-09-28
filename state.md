@@ -6,7 +6,6 @@
 
 ## Next Task
 - [P1-01] 2024-06-20 ローリング検証パイプライン — DoD: [docs/task_backlog.md#p1-01-ローリング検証パイプライン](docs/task_backlog.md#p1-01-ローリング検証パイプライン)
-- [P1-02] 2024-06-20 インシデントリプレイテンプレート — DoD: [docs/task_backlog.md#p1-02-インシデントリプレイテンプレート](docs/task_backlog.md#p1-02-インシデントリプレイテンプレート)
 
 ### 運用メモ
 - バックログから着手するタスクは先にこのリストへ追加し、ID・着手予定日・DoD リンクを明示する。
@@ -36,3 +35,5 @@
 - [P1-04] 2024-06-18: docs/task_backlog.md 冒頭にワークフロー統合指針を追記し、state.md / docs/todo_next.md 間の同期ルールと参照例を整備。
 - [P1-04] 2024-06-19: `docs/todo_next.md` を In Progress / Ready / Pending Review / Archive セクション構成へ刷新し、`state.md` のログ日付とバックログ連携を明示。DoD: ガイドライン/チェックリストの追記と過去成果のアーカイブ保持。
 - [P1-04] 2024-06-20: Ready 昇格チェックリストにビジョンガイド再読を追加し、`Next Task` 登録時の参照先として `docs/logic_overview.md` / `docs/simulation_plan.md` を明記。
+
+- [P1-02] 2024-06-21: incident ノートテンプレを整備し、ops/incidents/ へ雛形を配置. DoD: [docs/task_backlog.md#p1-02-インシデントリプレイテンプレート](docs/task_backlog.md#p1-02-インシデントリプレイテンプレート).
