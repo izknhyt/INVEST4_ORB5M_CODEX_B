@@ -15,12 +15,39 @@
   - 2024-06-05: `tests/test_run_benchmark_runs.py` を追加し、`--dry-run`/通常実行の双方で JSON 出力・アラート生成・スナップショット更新が期待通りであることを検証。
 
 ## P1: ローリング検証 + 健全性モニタリング
-- **ローリング検証パイプライン**: 直近365D/180D/90Dのシミュレーションを起動バッチで更新。`scripts/run_benchmark_runs.py` と `scripts/report_benchmark_summary.py` で `reports/rolling/<window>/*.json`・`reports/benchmark_summary.json` を生成し、勝率/Sharpe/DD のトレンドを可視化する仕込みを進める。→ `run_sim.py` 出力に Sharpe / max drawdown を追加済み（2024-06-03）。
-  - 2024-06-04: `core/runner` でエクイティカーブを蓄積し Sharpe / 最大DD を算出、`run_sim.py`・`store_run_summary`・`report_benchmark_summary.py` に伝搬。ベンチマークサマリーでは `--min-sharpe` / `--max-drawdown` 閾値をチェックし `warnings` に追加するよう更新。
-- **state ヘルスチェック**: 最新 state から EV 下限、勝率 LCB、滑り推定値を抽出する `scripts/check_state_health.py` を活用し、結果を `ops/health/state_checks.json` に追記。逸脱時の通知/Runbook 追記を行う。
-  - 2024-06-11: `check_state_health` の警告・履歴ローテーション・Webhook 送信を pytest で回帰テスト化し、デフォルト閾値 (勝率LCB/サンプル数/滑り上限) の期待挙動を明記。
-- **インシデントリプレイテンプレート**: 本番での負けトレードを `ops/incidents/` に保存し、同期間のリプレイを `scripts/run_sim.py --start-ts/--end-ts` で再実行する Notebook (`analysis/incident_review.ipynb`) にメモを残す。
-  - 2024-06-14: `scripts/run_sim.py` に `--start-ts` / `--end-ts` を追加し、README と pytest を更新。部分期間リプレイの準備が整った。
+
+### P1-01 ローリング検証パイプライン
+直近365D/180D/90Dのシミュレーションを起動バッチで更新し、Rolling 指標を継続監視できるよう整備する。`scripts/run_benchmark_runs.py` と `scripts/report_benchmark_summary.py` を組み合わせて `reports/rolling/<window>/*.json`・`reports/benchmark_summary.json` を生成し、勝率/Sharpe/DD のトレンドを可視化する仕込みを進める。→ `run_sim.py` 出力に Sharpe / max drawdown を追加済み（2024-06-03）。
+
+**DoD**
+- `scripts/run_benchmark_runs.py` / `scripts/report_benchmark_summary.py` による365D・180D・90Dローリング run が定期更新されること。
+- `reports/rolling/<window>/*.json` と `reports/benchmark_summary.json` に勝率・Sharpe・最大DDが揃って出力されていること。
+- ジョブ実行フローとアラート閾値を README もしくは runbook に追記し、再実行手順が明文化されていること。
+
+**進捗メモ**
+- 2024-06-04: `core/runner` でエクイティカーブを蓄積し Sharpe / 最大DD を算出、`run_sim.py`・`store_run_summary`・`report_benchmark_summary.py` に伝搬。ベンチマークサマリーでは `--min-sharpe` / `--max-drawdown` 閾値をチェックし `warnings` に追加するよう更新。
+
+### P1-02 インシデントリプレイテンプレート
+本番での負けトレードを `ops/incidents/` に保存し、同期間のリプレイを `scripts/run_sim.py --start-ts/--end-ts` で再実行する Notebook (`analysis/incident_review.ipynb`) にメモを残す。
+
+**DoD**
+- インシデントケースが `ops/incidents/<incident_id>/` に保存され、期間・戦略・トレード ID などのメタデータが揃っていること。
+- `scripts/run_sim.py --start-ts/--end-ts` を利用したリプレイ手順が Notebook にテンプレート化され、検証ログを残せること。
+- リプレイ結果と対策メモを共有する記録先（README や ops runbook）が更新され、再発防止の参照場所が明示されていること。
+
+**進捗メモ**
+- 2024-06-14: `scripts/run_sim.py` に `--start-ts` / `--end-ts` を追加し、README と pytest を更新。部分期間リプレイの準備が整った。
+
+### P1-03 state ヘルスチェック
+最新 state から EV 下限、勝率 LCB、滑り推定値を抽出する `scripts/check_state_health.py` を活用し、結果を `ops/health/state_checks.json` に追記。逸脱時の通知/Runbook 追記を行う。
+
+**DoD**
+- `scripts/check_state_health.py` が定期実行され、`ops/health/state_checks.json` に履歴が追記されること。
+- 勝率 LCB・滑り・EV 閾値逸脱時に Webhook 通知もしくは運用チャネルへの警告が送出されること。
+- デフォルト閾値と対応手順が runbook へ記載され、pytest で警告生成と履歴ローテーションが検証されていること。
+
+**進捗メモ**
+- 2024-06-11: `check_state_health` の警告・履歴ローテーション・Webhook 送信を pytest で回帰テスト化し、デフォルト閾値 (勝率LCB/サンプル数/滑り上限) の期待挙動を明記。
 
 ## P2: マルチ戦略ポートフォリオ化
 - **戦略マニフェスト整備**: スキャル/デイ/スイングの候補戦略ごとに、依存特徴量・セッション・リスク上限を YAML で定義し、ルーターが参照できるようにする (`configs/strategies/*.yaml`)。
