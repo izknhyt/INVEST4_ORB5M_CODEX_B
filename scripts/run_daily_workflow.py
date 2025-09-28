@@ -116,19 +116,37 @@ def main(argv=None) -> int:
             return exit_code
 
     if args.optimize:
-        cmd = [sys.executable, str(ROOT / "scripts/auto_optimize.py"),
-               "--opt-args", "--top-k", "5", "--min-trades", "300", "--rebuild-index",
-               "--csv", "data/usdjpy_5m_2018-2024_utc.csv",
-               "--symbol", "USDJPY",
-               "--mode", "conservative",
-               "--or-n", "4,6",
-               "--k-tp", "0.8,1.0",
-               "--k-sl", "0.4,0.6",
-               "--threshold-lcb", "0.3",
-               "--allowed-sessions", "LDN,NY",
-               "--warmup", "10",
-               "--include-expected-slip",
-               "--report", "reports/auto_optimize.json"]
+        cmd = [
+            sys.executable,
+            str(ROOT / "scripts/auto_optimize.py"),
+            "--opt-args",
+            "--top-k",
+            "5",
+            "--min-trades",
+            "300",
+            "--rebuild-index",
+            "--csv",
+            str(ROOT / "data/usdjpy_5m_2018-2024_utc.csv"),
+            "--symbol",
+            "USDJPY",
+            "--mode",
+            "conservative",
+            "--or-n",
+            "4,6",
+            "--k-tp",
+            "0.8,1.0",
+            "--k-sl",
+            "0.4,0.6",
+            "--threshold-lcb",
+            "0.3",
+            "--allowed-sessions",
+            "LDN,NY",
+            "--warmup",
+            "10",
+            "--include-expected-slip",
+            "--report",
+            str(ROOT / "reports/auto_optimize.json"),
+        ]
         if args.webhook:
             cmd += ["--webhook", args.webhook]
         exit_code = run_cmd(cmd)
@@ -136,18 +154,29 @@ def main(argv=None) -> int:
             return exit_code
 
     if args.analyze_latency:
-        cmd = [sys.executable, str(ROOT / "scripts/analyze_signal_latency.py"),
-               "--input", "ops/signal_latency.csv",
-               "--slo-threshold", "5",
-               "--json-out", "reports/signal_latency.json"]
+        cmd = [
+            sys.executable,
+            str(ROOT / "scripts/analyze_signal_latency.py"),
+            "--input",
+            str(ROOT / "ops/signal_latency.csv"),
+            "--slo-threshold",
+            "5",
+            "--json-out",
+            str(ROOT / "reports/signal_latency.json"),
+        ]
         exit_code = run_cmd(cmd)
         if exit_code:
             return exit_code
 
     if args.archive_state:
-        cmd = [sys.executable, str(ROOT / "scripts/archive_state.py"),
-               "--runs-dir", "runs",
-               "--output", "ops/state_archive"]
+        cmd = [
+            sys.executable,
+            str(ROOT / "scripts/archive_state.py"),
+            "--runs-dir",
+            str(ROOT / "runs"),
+            "--output",
+            str(ROOT / "ops/state_archive"),
+        ]
         exit_code = run_cmd(cmd)
         if exit_code:
             return exit_code

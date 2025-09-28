@@ -1,4 +1,5 @@
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -14,6 +15,11 @@ def _capture_run_cmd(monkeypatch):
 
     monkeypatch.setattr(run_daily_workflow, "run_cmd", fake_run_cmd)
     return captured
+
+
+def _assert_path_arg(cmd, flag, expected_path):
+    value = cmd[cmd.index(flag) + 1]
+    assert Path(value) == Path(expected_path)
 
 
 @pytest.fixture
@@ -108,6 +114,45 @@ def test_benchmarks_pipeline_arguments(monkeypatch):
     assert float(cmd[cmd.index("--max-drawdown") + 1]) == pytest.approx(150.0)
     assert cmd[cmd.index("--webhook") + 1] == "https://example.com/hook"
     assert cmd[cmd.index("--windows") + 1] == "200,60"
+
+
+def test_optimize_uses_absolute_paths(monkeypatch):
+    captured = _capture_run_cmd(monkeypatch)
+
+    exit_code = run_daily_workflow.main(["--optimize"])
+
+    assert exit_code == 0
+    assert captured, "run_cmd should be invoked"
+    cmd = captured[0]
+    root = run_daily_workflow.ROOT
+    _assert_path_arg(cmd, "--csv", root / "data/usdjpy_5m_2018-2024_utc.csv")
+    _assert_path_arg(cmd, "--report", root / "reports/auto_optimize.json")
+
+
+def test_analyze_latency_uses_absolute_paths(monkeypatch):
+    captured = _capture_run_cmd(monkeypatch)
+
+    exit_code = run_daily_workflow.main(["--analyze-latency"])
+
+    assert exit_code == 0
+    assert captured, "run_cmd should be invoked"
+    cmd = captured[0]
+    root = run_daily_workflow.ROOT
+    _assert_path_arg(cmd, "--input", root / "ops/signal_latency.csv")
+    _assert_path_arg(cmd, "--json-out", root / "reports/signal_latency.json")
+
+
+def test_archive_state_uses_absolute_paths(monkeypatch):
+    captured = _capture_run_cmd(monkeypatch)
+
+    exit_code = run_daily_workflow.main(["--archive-state"])
+
+    assert exit_code == 0
+    assert captured, "run_cmd should be invoked"
+    cmd = captured[0]
+    root = run_daily_workflow.ROOT
+    _assert_path_arg(cmd, "--runs-dir", root / "runs")
+    _assert_path_arg(cmd, "--output", root / "ops/state_archive")
 
 
 def test_main_returns_first_failure(failing_run_cmd):
