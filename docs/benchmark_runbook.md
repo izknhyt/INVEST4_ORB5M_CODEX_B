@@ -72,6 +72,7 @@ python3 scripts/run_benchmark_pipeline.py \
 - **CSV が大きすぎて時間内に終わらない**: `--windows` を縮めてテスト→本番は夜間バッチで実行。`--dry-run` で I/O だけ確認。
 - **Webhook 失敗**: `alert.deliveries` に HTTP ステータスが記録される。ネットワーク不通時は `ok=false` で残るため、手動復旧後に再実行。
 - **runs/index.csv が更新されない**: `--runs-dir` に書き込み権限が無いケース。`rebuild_runs_index.py` の return code を `runs_index_rc` でチェック。
+- **Sharpe / 最大DD が閾値を外れる**: `reports/benchmark_summary.json` の `warnings` と `threshold_alerts` を確認し、どのウィンドウ・指標が `lt`（下回り）/`gt_abs`（絶対値超過）で検知されたか把握する。同時に Cron ログか `python3 scripts/report_benchmark_summary.py ... --min-sharpe <値> --max-drawdown <値>` 実行時の標準出力で WARN ログが出ているか確認し、Slack の `benchmark_summary_warnings` 通知と照合する。再評価のためには `python3 scripts/run_daily_workflow.py --benchmarks --windows 365,180,90 --alert-pips 60 --alert-winrate 0.04 --min-sharpe <値> --max-drawdown <値>` を手動実行し、復旧後に `ops/runtime_snapshot.json` の `benchmark_pipeline.<symbol>_<mode>.threshold_alerts` がクリアされたことをチェックする。
 
 ## TODO / 拡張
 - `reports/benchmark_summary.json` を Notion/BI に自動掲載する。

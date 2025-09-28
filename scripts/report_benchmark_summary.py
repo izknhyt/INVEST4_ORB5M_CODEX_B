@@ -128,21 +128,59 @@ def main(argv=None) -> int:
     windows = [w.strip() for w in args.windows.split(',') if w.strip()]
     rolling_results: List[Dict] = []
     warnings: List[str] = []
+    threshold_alerts: List[Dict[str, object]] = []
 
     max_drawdown_threshold = _normalize_drawdown_threshold(args.max_drawdown)
+
+    def _record_threshold(
+        *,
+        label: str,
+        metric: str,
+        value: Optional[float],
+        threshold: Optional[float],
+        comparison: str,
+        message: str,
+    ) -> None:
+        if value is None or threshold is None:
+            return
+        LOGGER.warning("%s", message)
+        warnings.append(message)
+        threshold_alerts.append(
+            {
+                "label": label,
+                "metric": metric,
+                "value": value,
+                "threshold": threshold,
+                "comparison": comparison,
+            }
+        )
 
     def _apply_threshold_checks(label: str, summary: Dict[str, Optional[float]]) -> None:
         sharpe_val = summary.get("sharpe")
         if args.min_sharpe is not None and sharpe_val is not None and sharpe_val < args.min_sharpe:
-            warnings.append(
-                f"{label} sharpe {sharpe_val:.2f} below min_sharpe {args.min_sharpe:.2f}"
+            _record_threshold(
+                label=label,
+                metric="sharpe",
+                value=sharpe_val,
+                threshold=args.min_sharpe,
+                comparison="lt",
+                message=(
+                    f"{label} sharpe {sharpe_val:.2f} below min_sharpe {args.min_sharpe:.2f}"
+                ),
             )
         drawdown_val = summary.get("max_drawdown")
         if max_drawdown_threshold is not None and drawdown_val is not None:
             magnitude = abs(drawdown_val)
             if magnitude > max_drawdown_threshold:
-                warnings.append(
-                    f"{label} max_drawdown {drawdown_val:.2f} exceeds threshold {max_drawdown_threshold:.2f}"
+                _record_threshold(
+                    label=label,
+                    metric="max_drawdown",
+                    value=drawdown_val,
+                    threshold=max_drawdown_threshold,
+                    comparison="gt_abs",
+                    message=(
+                        f"{label} max_drawdown {drawdown_val:.2f} exceeds threshold {max_drawdown_threshold:.2f}"
+                    ),
                 )
 
     for w in windows:
@@ -169,6 +207,7 @@ def main(argv=None) -> int:
         "baseline": baseline_summary,
         "rolling": sorted(rolling_results, key=lambda x: x["window"]),
         "warnings": warnings,
+        "threshold_alerts": threshold_alerts,
     }
 
     webhook_urls = _parse_webhook_urls(args.webhook)
@@ -180,6 +219,7 @@ def main(argv=None) -> int:
             "mode": args.mode,
             "warnings": warnings,
             "generated_at": payload["generated_at"],
+            "threshold_alerts": threshold_alerts,
         }
         for url in webhook_urls:
             ok, detail = _post_webhook(url, webhook_payload)

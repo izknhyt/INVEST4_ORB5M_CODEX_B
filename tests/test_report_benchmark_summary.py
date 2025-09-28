@@ -78,6 +78,14 @@ class TestReportBenchmarkSummary(unittest.TestCase):
             joined = " ".join(payload["warnings"])
             self.assertIn("baseline sharpe", joined)
             self.assertIn("rolling window 30 max_drawdown", joined)
+            alerts = payload.get("threshold_alerts", [])
+            self.assertGreaterEqual(len(alerts), 2)
+            sharpe_alerts = [a for a in alerts if a["metric"] == "sharpe"]
+            drawdown_alerts = [a for a in alerts if a["metric"] == "max_drawdown"]
+            self.assertTrue(sharpe_alerts, msg=f"Expected sharpe alert, got {alerts}")
+            self.assertTrue(drawdown_alerts, msg=f"Expected drawdown alert, got {alerts}")
+            self.assertEqual(sharpe_alerts[0]["comparison"], "lt")
+            self.assertEqual(drawdown_alerts[0]["comparison"], "gt_abs")
 
             args_with_negative_threshold = [
                 "--symbol",
@@ -102,6 +110,12 @@ class TestReportBenchmarkSummary(unittest.TestCase):
             payload = json.loads(output_path.read_text())
             joined = " ".join(payload["warnings"])
             self.assertNotIn("max_drawdown", joined)
+            alerts_after_normalization = payload.get("threshold_alerts", [])
+            self.assertTrue(alerts_after_normalization)
+            self.assertFalse(
+                [a for a in alerts_after_normalization if a["metric"] == "max_drawdown"],
+                msg=f"Drawdown alerts should be cleared when threshold is large: {alerts_after_normalization}",
+            )
             self.assertTrue(
                 any("negative --max-drawdown" in message for message in log_ctx.output),
                 msg=f"Expected normalization warning in logs, got {log_ctx.output}",

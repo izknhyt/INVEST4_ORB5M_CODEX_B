@@ -55,3 +55,4 @@
 - [P1-01] 2025-09-30: Propagated `--alert-pips` / `--alert-winrate` through benchmark pipeline + daily workflow CLIs, refreshed pytest coverage, and synced runbook CLI examples.
 - [P1-01] 2025-10-01: 固定パス参照の `aggregate_ev.py` をリファクタし、リポジトリルートを `sys.path` と I/O 基準に統一する REPO_ROOT を導入。CLI 回帰テストを追加し、`python3 -m pytest tests/test_aggregate_ev_script.py` とベンチマーク実行を再確認。
 - [P1-01] 2025-10-02: `run_benchmark_pipeline.py` がローリング JSON の必須メトリクスを検証し、`reports/benchmark_summary.json` の書き込みを確認する安全策を追加。`tests/test_run_benchmark_pipeline.py` で Sharpe/DD の存在を回帰確認し、`docs/benchmark_runbook.md` に Cron モニタリングと再実行手順を追記。`python3 -m pytest` 完走で挙動を再検証。
+- [P1-01] 2025-10-03: `report_benchmark_summary.py` に Sharpe/最大DD 閾値逸脱の構造化アラートを追加し、`threshold_alerts` を Webhook・`run_benchmark_pipeline.py` のスナップショットにも伝播。負の閾値正規化の回帰テストと runbook のトラブルシュート項目を更新し、`python3 -m pytest tests/test_report_benchmark_summary.py` を実行して確認。
