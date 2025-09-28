@@ -14,6 +14,7 @@
 - **state ヘルスチェック**: 最新 state から EV 下限、勝率 LCB、滑り推定値を抽出する `scripts/check_state_health.py` を活用し、結果を `ops/health/state_checks.json` に追記。逸脱時の通知/Runbook 追記を行う。
   - 2024-06-11: `check_state_health` の警告・履歴ローテーション・Webhook 送信を pytest で回帰テスト化し、デフォルト閾値 (勝率LCB/サンプル数/滑り上限) の期待挙動を明記。
 - **インシデントリプレイテンプレート**: 本番での負けトレードを `ops/incidents/` に保存し、同期間のリプレイを `scripts/run_sim.py --start-ts/--end-ts` で再実行する Notebook (`analysis/incident_review.ipynb`) にメモを残す。
+  - 2024-06-14: `scripts/run_sim.py` に `--start-ts` / `--end-ts` を追加し、README と pytest を更新。部分期間リプレイの準備が整った。
 
 ## P2: マルチ戦略ポートフォリオ化
 - **戦略マニフェスト整備**: スキャル/デイ/スイングの候補戦略ごとに、依存特徴量・セッション・リスク上限を YAML で定義し、ルーターが参照できるようにする (`configs/strategies/*.yaml`)。

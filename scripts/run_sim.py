@@ -14,7 +14,7 @@ import csv
 import json
 import subprocess
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -79,6 +79,26 @@ def load_bars_csv(path: str) -> List[Dict[str, Any]]:
     return bars
 
 
+def _parse_iso8601(value: str) -> datetime:
+    value = value.strip()
+    if value.endswith("Z"):
+        value = value[:-1] + "+00:00"
+    return datetime.fromisoformat(value)
+
+
+def _normalize_datetime(value: datetime) -> datetime:
+    if value.tzinfo is not None:
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+    return value
+
+
+def _iso8601_arg(value: str) -> datetime:
+    try:
+        return _parse_iso8601(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"Invalid ISO8601 timestamp: {value}") from exc
+
+
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description="Run minimal ORB 5m simulation over CSV")
     p.add_argument("--csv", required=False, default=None, help="Path to OHLC5m CSV (with header)")
@@ -108,6 +128,8 @@ def parse_args(argv=None):
     p.add_argument("--dump-max", type=int, default=200, help="Max number of sample records to dump")
     p.add_argument("--dump-daily", default=None, help="Write daily funnel CSV (path)")
     p.add_argument("--out-dir", default=None, help="Base directory to store a run folder with params + metrics + dumps (e.g., runs/)")
+    p.add_argument("--start-ts", type=_iso8601_arg, default=None, help="Start timestamp (ISO8601) to filter input bars")
+    p.add_argument("--end-ts", type=_iso8601_arg, default=None, help="End timestamp (ISO8601) to filter input bars")
     p.add_argument("--strategy", default="day_orb_5m.DayORB5m",
                    help="Strategy class to load (module.Class) default=day_orb_5m.DayORB5m")
     p.add_argument("--state-archive", default="ops/state_archive",
@@ -149,6 +171,24 @@ def main(argv=None):
     bars = load_bars_csv(args.csv)
     if args.symbol:
         bars = [b for b in bars if b.get("symbol") == args.symbol]
+    start_ts = _normalize_datetime(args.start_ts) if getattr(args, "start_ts", None) else None
+    end_ts = _normalize_datetime(args.end_ts) if getattr(args, "end_ts", None) else None
+    if start_ts or end_ts:
+        filtered: List[Dict[str, Any]] = []
+        for bar in bars:
+            ts_value = bar.get("timestamp")
+            if not ts_value:
+                continue
+            try:
+                bar_dt = _normalize_datetime(_parse_iso8601(str(ts_value)))
+            except ValueError:
+                continue
+            if start_ts and bar_dt < start_ts:
+                continue
+            if end_ts and bar_dt > end_ts:
+                continue
+            filtered.append(bar)
+        bars = filtered
     if not bars:
         print(json.dumps({"error": "no bars"}))
         return 1
