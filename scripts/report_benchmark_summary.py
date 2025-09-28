@@ -40,6 +40,20 @@ def _parse_webhook_urls(value: Optional[str]) -> List[str]:
     return urls
 
 
+def _normalize_drawdown_threshold(raw: Optional[float]) -> Optional[float]:
+    if raw is None:
+        return None
+    if raw < 0:
+        normalized = abs(raw)
+        LOGGER.warning(
+            "Received negative --max-drawdown value %s; using absolute value %s",
+            raw,
+            normalized,
+        )
+        return normalized
+    return raw
+
+
 def _post_webhook(url: str, payload: Dict[str, object], timeout: float = 5.0) -> Tuple[bool, str]:
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
@@ -100,15 +114,7 @@ def main(argv=None) -> int:
     rolling_results: List[Dict] = []
     warnings: List[str] = []
 
-    max_drawdown_threshold: Optional[float] = None
-    if args.max_drawdown is not None:
-        max_drawdown_threshold = abs(args.max_drawdown)
-        if args.max_drawdown < 0:
-            LOGGER.warning(
-                "Received negative --max-drawdown value %s; using absolute value %s",
-                args.max_drawdown,
-                max_drawdown_threshold,
-            )
+    max_drawdown_threshold = _normalize_drawdown_threshold(args.max_drawdown)
 
     def _apply_threshold_checks(label: str, summary: Dict[str, Optional[float]]) -> None:
         sharpe_val = summary.get("sharpe")

@@ -96,11 +96,16 @@ class TestReportBenchmarkSummary(unittest.TestCase):
                 "-200",
             ]
 
-            rc = rbs.main(args_with_negative_threshold)
+            with self.assertLogs(rbs.LOGGER, level="WARNING") as log_ctx:
+                rc = rbs.main(args_with_negative_threshold)
             self.assertEqual(rc, 0)
             payload = json.loads(output_path.read_text())
             joined = " ".join(payload["warnings"])
             self.assertNotIn("max_drawdown", joined)
+            self.assertTrue(
+                any("negative --max-drawdown" in message for message in log_ctx.output),
+                msg=f"Expected normalization warning in logs, got {log_ctx.output}",
+            )
 
     def test_main_sends_webhook_when_warnings_present(self):
         with tempfile.TemporaryDirectory() as tmpdir:
