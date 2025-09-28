@@ -1,5 +1,16 @@
 # Work State Log
 
+## Next Task
+- Backlog Item: [P1: state ヘルスチェック](docs/task_backlog.md#p1-ローリング検証--健全性モニタリング)
+- Docs to Review: docs/task_backlog.md / docs/state_runbook.md
+- Definition of Done: Webhook/履歴ローテーション警告を含む state ヘルスチェックの回帰テストがグリーン。
+- Target Date: 2024-06-18
+
+### Checklist
+1. Update this block before starting work.
+2. Log results under `## Log` after completion.
+3. Refresh this block with the next backlog link.
+
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
 - Update this file after completing work to record outcomes, blockers, and next steps.
