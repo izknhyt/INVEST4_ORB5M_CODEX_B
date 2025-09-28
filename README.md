@@ -205,19 +205,31 @@ python3 scripts/optimize_params.py \
 - サイレント実行は `--quiet` を付与
 
 ### 日次ワークフロー実行
-- `scripts/run_daily_workflow.py` でインジェスト、state 更新、ベンチマーク実行、レポート集約を順番に呼び出せる。
-- `--benchmarks` フラグは `scripts/run_benchmark_pipeline.py` を起動し、ベースライン/ローリング run → サマリー生成 → `ops/runtime_snapshot.json` の更新まで一括で実行する。`--min-sharpe`・`--max-drawdown`・`--benchmark-windows`・`--webhook` を指定すると、パイプライン全体へ同じ値が伝播する。`--benchmark-summary` 単体で実行した場合も、同じ引数が `scripts/report_benchmark_summary.py` へ伝搬し、Webhook が指定されていればまとめて通知される。
-- いずれかの工程が非ゼロ終了コードを返した場合はその時点で終了し、返り値として失敗コードをそのまま伝播する（例: `--benchmarks` で失敗した場合は `--benchmark-summary` へ進まずに同じコードで停止する）。
+- `scripts/run_daily_workflow.py` でインジェスト、state 更新、ベンチマーク（ベースライン＋ローリング）、ヘルスチェック、サマリ生成を順番に呼び出せます。
 
-ベンチマーク専用で実行したい場合は以下のように呼び出せる。
+起動時にまとめて実行する例:
 
 ```bash
 python3 scripts/run_daily_workflow.py \
-  --benchmarks \
-  --symbol USDJPY --mode conservative --equity 100000 \
-  --benchmark-windows 365,180,90 \
-  --min-sharpe 0.5 --max-drawdown 200 \
-  --webhook https://hooks.slack.com/services/XXX/YYY/ZZZ
+  --ingest --update-state --benchmarks --state-health --benchmark-summary \
+  --symbol USDJPY --mode conservative --equity 100000
+```
+
+個別実行の例（必要なものだけ）:
+
+```bash
+# 値動き取り込み（未処理ぶんのみ追記）
+python3 scripts/pull_prices.py --source data/usdjpy_5m_2018-2024_utc.csv --symbol USDJPY
+
+# state 更新（チャンク処理）
+python3 scripts/update_state.py --bars validated/USDJPY/5m.csv --symbol USDJPY --mode conservative --chunk-size 20000
+
+# ベンチマーク（ベースライン + 365/180/90 日ローリング）
+python3 scripts/run_benchmark_runs.py --bars validated/USDJPY/5m.csv --symbol USDJPY --mode conservative --equity 100000 --windows 365,180,90
+
+# サマリ JSON/PNG 出力（pandas/matplotlib が必要）
+python3 scripts/report_benchmark_summary.py --symbol USDJPY --mode conservative --reports-dir reports \
+  --json-out reports/benchmark_summary.json --plot-out reports/benchmark_summary.png --windows 365,180,90
 ```
 
 開発時は、実行側で以下のような`ctx`辞書を戦略へ提供してください（例）:
@@ -240,6 +252,13 @@ ctx = {
 - EV ゲートの調整方法は `docs/ev_tuning.md` にメモをまとめています。
 - 通知運用とレイテンシ監視については `docs/signal_ops.md` を参照してください。
 - Paper 移行前のチェックリストは `docs/go_nogo_checklist.md` を参照してください。
+
+### 補足（追加依存について）
+- ベンチマークサマリー画像の生成や Notebook 可視化では `pandas` と `matplotlib` を利用します。未導入の環境では以下を実行してください。
+
+```
+pip install pandas matplotlib
+```
 
 ### テスト
 - 依存が未導入の場合は `pip install pytest` を実行。

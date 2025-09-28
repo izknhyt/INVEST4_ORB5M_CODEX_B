@@ -14,11 +14,25 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
 - 自動ロードを避けたい場合は `--no-auto-state` を指定する。
 - コードから: `runner.load_state_file(path)` または `runner.load_state(state_dict)` を利用。
 
+## オンデマンド起動フロー（ノートPC向け）
+- PC 起動/ログイン時に以下の順で CLI を実行すると、停止中の期間を自動補完して通常運用へ復帰できます。
+
+```
+python3 scripts/run_daily_workflow.py --ingest --update-state --benchmarks --state-health --benchmark-summary
+```
+
+- 個別の実行例
+  - 取り込み: `python3 scripts/pull_prices.py --source data/usdjpy_5m_2018-2024_utc.csv`
+  - state更新: `python3 scripts/update_state.py --bars validated/USDJPY/5m.csv --chunk-size 20000`
+  - 検証・集計: `python3 scripts/run_benchmark_runs.py --bars validated/USDJPY/5m.csv --windows 365,180,90` → `python3 scripts/report_benchmark_summary.py --plot-out reports/benchmark_summary.png`
+  - ヘルスチェック: `python3 scripts/check_state_health.py`
+
 ## 推奨運用
 - **バックアップ:** 自動アーカイブされた最新ファイル（例: `ops/state_archive/.../<timestamp>_runid.json`）を基準に、必要に応じて別途バックアップを取得する。
 - **互換性:** RunnerConfig（特にゲート設定・戦略パラメータ）を大幅に変更した際は、古い state がバイアスになる場合がある。必要に応じてリセット（初期化）を検討する。
 - **監査ログ:** `ops/state_archive/` など保存先を決め、保存日時・使った戦略パラメータと一緒にメタ情報を付与する。
 - **EVプロファイル:** `scripts/aggregate_ev.py --strategy ... --symbol ... --mode ...` を使うと、アーカイブ済み state から長期/直近期の期待値統計を集約し、`configs/ev_profiles/` に YAML プロファイルを生成できます。`run_sim.py` は該当プロファイルを自動ロードして EV バケットをシードします（`--no-ev-profile` で無効化可能）。
+- **アーカイブの整理（任意）:** `ops/state_archive/` は運用で増えていきます。最新 N 件のみ残す場合は `scripts/prune_state_archive.py --base ops/state_archive --keep 5` を実行してください。`--dry-run` で削除予定を確認できます。
 - **ヘルスチェック:** `scripts/check_state_health.py` を日次（`run_daily_workflow.py --state-health`）で実行し、結果を `ops/health/state_checks.json` に追記する。勝率 LCB・バケット別サンプル・滑り係数を監視し、警告が出た場合は `--webhook` で Slack 等へ通知。`--fail-on-warning` を CI/バッチに組み込むと異常時にジョブを停止できる。
 - **履歴保持:** 標準では直近 90 レコードを保持する。上限を変更する場合は `--history-limit` を調整する。履歴の可視化は Notebook or BI で `checked_at` を横軸に `ev_win_lcb` やワーニング件数をプロットする。
 - **タスク同期:** `state.md` と `docs/todo_next.md` の整合を保つ際は `scripts/manage_task_cycle.py` を優先利用する。`start-task` で Ready 登録→In Progress 昇格を一括実行し、既存アンカー検知で重複記録を抑止する。完了時は `finish-task` でまとめてログとアーカイブへ送る。いずれも `--dry-run` でコマンド内容を確認してから本実行する。Codex セッションにおける具体的な開始前チェックや終了処理は [docs/codex_workflow.md](codex_workflow.md) を参照する。

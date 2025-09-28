@@ -346,7 +346,24 @@ class BacktestRunner:
         try:
             meta = state.get("meta", {})
             # Optionally check fingerprint compatibility
-            # fp = meta.get("config_fingerprint")
+            try:
+                fp_state = meta.get("config_fingerprint")
+                fp_now = self._config_fingerprint()
+                if fp_state and fp_state != fp_now:
+                    msg = f"state config_fingerprint mismatch (state={fp_state}, current={fp_now})"
+                    # record to debug metrics for downstream visibility
+                    try:
+                        self.metrics.debug.setdefault("warnings", []).append(msg)
+                    except Exception:
+                        pass
+                    # also print a lightweight warning to stderr for operators
+                    try:
+                        import sys as _sys
+                        print(f"[runner] WARNING: {msg}", file=_sys.stderr)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
             if meta.get("last_timestamp"):
                 self._last_timestamp = meta.get("last_timestamp")
             evg = state.get("ev_global", {})

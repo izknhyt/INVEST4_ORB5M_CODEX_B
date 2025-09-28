@@ -69,22 +69,12 @@ def main(argv=None) -> int:
             return exit_code
 
     if args.benchmarks:
-        cmd = [sys.executable, str(ROOT / "scripts/run_benchmark_pipeline.py"),
+        cmd = [sys.executable, str(ROOT / "scripts/run_benchmark_runs.py"),
                "--bars", bars_csv,
                "--symbol", args.symbol,
                "--mode", args.mode,
                "--equity", args.equity,
-               "--runs-dir", str(ROOT / "runs"),
-               "--reports-dir", str(ROOT / "reports"),
-               "--summary-json", str(ROOT / "reports/benchmark_summary.json"),
-               "--summary-plot", str(ROOT / "reports/benchmark_summary.png"),
                "--windows", args.benchmark_windows]
-        if args.min_sharpe is not None:
-            cmd += ["--min-sharpe", str(args.min_sharpe)]
-        if args.max_drawdown is not None:
-            cmd += ["--max-drawdown", str(args.max_drawdown)]
-        if args.webhook:
-            cmd += ["--webhook", args.webhook]
         exit_code = run_cmd(cmd)
         if exit_code:
             return exit_code
@@ -105,12 +95,6 @@ def main(argv=None) -> int:
                "--json-out", str(ROOT / "reports/benchmark_summary.json"),
                "--plot-out", str(ROOT / "reports/benchmark_summary.png"),
                "--windows", args.benchmark_windows]
-        if args.min_sharpe is not None:
-            cmd += ["--min-sharpe", str(args.min_sharpe)]
-        if args.max_drawdown is not None:
-            cmd += ["--max-drawdown", str(args.max_drawdown)]
-        if args.webhook:
-            cmd += ["--webhook", args.webhook]
         exit_code = run_cmd(cmd)
         if exit_code:
             return exit_code
