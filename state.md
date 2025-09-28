@@ -4,6 +4,15 @@
 - Review this file before starting any task to confirm the latest context and checklist.
 - Update this file after completing work to record outcomes, blockers, and next steps.
 
+## Next Task
+- [P1-01] 2024-06-20 ローリング検証パイプライン — DoD: [docs/task_backlog.md#p1-ローリング検証--健全性モニタリング](docs/task_backlog.md#p1-ローリング検証--健全性モニタリング)
+- [P1-02] 2024-06-20 インシデントリプレイテンプレート — DoD: [docs/task_backlog.md#p1-ローリング検証--健全性モニタリング](docs/task_backlog.md#p1-ローリング検証--健全性モニタリング)
+
+### 運用メモ
+- バックログから着手するタスクは先にこのリストへ追加し、ID・着手予定日・DoD リンクを明示する。
+- DoD を満たして完了したタスクは `## Log` に成果サマリを移し、`docs/todo_next.md` と整合するよう更新する。
+- 継続中に要調整点が出た場合はエントリ内に追記し、完了時にログへ移した後も追跡できるよう関連ドキュメントへリンクを残す。
+
 ## Log
 - 2024-06-01: Initialized state tracking log and documented the review/update workflow rule.
 - 2024-06-02: Targeting P0 reliability by ensuring strategy manifests and CLI runners work without optional dependencies. DoD: pytest passes and run_sim/loader can parse manifests/EV profiles after removing the external PyYAML requirement.
