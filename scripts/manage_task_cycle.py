@@ -44,6 +44,8 @@ class StartParams:
     doc_note: str | None
     doc_section: str
     skip_record: bool
+    runbook_links: str | None
+    pending_questions: str | None
 
 
 @dataclass
@@ -174,6 +176,8 @@ def _collect_start_params(args: argparse.Namespace) -> StartParams:
         raise InputError("Docs section must be one of Ready, In Progress, Pending Review")
 
     skip_record = bool(args.skip_record)
+    runbook_links = args.runbook_links
+    pending_questions = args.pending_questions
     return StartParams(
         anchor=anchor,
         record_date=_parse_date(record_date),
@@ -184,6 +188,8 @@ def _collect_start_params(args: argparse.Namespace) -> StartParams:
         doc_note=doc_note,
         doc_section=doc_section,
         skip_record=skip_record,
+        runbook_links=runbook_links,
+        pending_questions=pending_questions,
     )
 
 
@@ -266,6 +272,18 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--doc-note", help="Optional docs bullet appended under the task block")
     start.add_argument("--doc-section", choices=["Ready", "In Progress", "Pending Review"], help="Docs section used when recording")
     start.add_argument("--skip-record", action="store_true", help="Skip the record step even if the anchor is missing")
+    start.add_argument(
+        "--runbook-links",
+        help=(
+            "Optional Markdown list overriding the default runbook references in the next-task template"
+        ),
+    )
+    start.add_argument(
+        "--pending-questions",
+        help=(
+            "Optional text used for the pending-questions checklist in the next-task template"
+        ),
+    )
 
     finish = subparsers.add_parser("finish-task", help="Mark a task as completed")
     finish.add_argument("--anchor", help="Task DoD anchor (docs/task_backlog.md#...)")
@@ -290,6 +308,8 @@ def main(argv: Sequence[str] | None = None) -> None:
                     params.anchor,
                     title=params.title,
                     task_id=params.task_id,
+                    runbook_links=params.runbook_links,
+                    pending_questions=params.pending_questions,
                 )
         elif args.command == "finish-task":
             params = _collect_finish_params(args)
