@@ -184,6 +184,66 @@ class TestReportBenchmarkSummary(unittest.TestCase):
             self.assertEqual(len(deliveries), 1)
             self.assertTrue(deliveries[0]["ok"])
 
+    def test_main_skips_plot_when_matplotlib_missing(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base_dir = Path(tmpdir)
+            reports_dir = base_dir
+            baseline_dir = reports_dir / "baseline"
+            rolling_dir = reports_dir / "rolling"
+            baseline_dir.mkdir(parents=True)
+            (rolling_dir / "30").mkdir(parents=True)
+
+            baseline_metrics = {
+                "trades": 20,
+                "wins": 10,
+                "total_pips": 5.0,
+                "sharpe": 0.4,
+                "max_drawdown": -10.0,
+            }
+            rolling_metrics = {
+                "trades": 15,
+                "wins": 8,
+                "total_pips": 3.0,
+                "sharpe": 0.3,
+                "max_drawdown": -8.0,
+            }
+
+            (baseline_dir / "USDJPY_conservative.json").write_text(json.dumps(baseline_metrics))
+            (rolling_dir / "30" / "USDJPY_conservative.json").write_text(json.dumps(rolling_metrics))
+
+            output_path = reports_dir / "benchmark_summary.json"
+            plot_path = reports_dir / "benchmark_summary.png"
+
+            original_import = __import__
+
+            def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+                if name.startswith("matplotlib") or name == "pandas":
+                    raise ModuleNotFoundError(name)
+                return original_import(name, globals, locals, fromlist, level)
+
+            args = [
+                "--symbol",
+                "USDJPY",
+                "--mode",
+                "conservative",
+                "--reports-dir",
+                str(reports_dir),
+                "--windows",
+                "30",
+                "--json-out",
+                str(output_path),
+                "--plot-out",
+                str(plot_path),
+            ]
+
+            with mock.patch("builtins.__import__", side_effect=fake_import):
+                rc = rbs.main(args)
+
+            self.assertEqual(rc, 0)
+            payload = json.loads(output_path.read_text())
+            self.assertIn("summary plot skipped", " ".join(payload["warnings"]))
+            self.assertFalse(plot_path.exists(), msg="plot should not be created when dependencies missing")
+
 
 if __name__ == "__main__":
     unittest.main()
