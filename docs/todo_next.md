@@ -15,10 +15,20 @@
 ## Current Pipeline
 
 ### In Progress
-- **ローリング検証パイプライン**（バックログ: `docs/task_backlog.md` → P1「ローリング検証 + 健全性モニタリング」） — `state.md` 2024-06-12, 2024-06-13, 2024-06-14, 2024-06-15, 2024-06-16 <!-- anchor: docs/task_backlog.md#p1-01-ローリング検証パイプライン -->
+
+
+- **ローリング検証パイプライン**（バックログ: `docs/task_backlog.md` → P1「ローリング検証 + 健全性モニタリング」） — `state.md` 2024-06-20, 2024-06-13, 2024-06-14, 2024-06-15, 2024-06-16 <!-- anchor: docs/task_backlog.md#p1-01-ローリング検証パイプライン -->
   - `scripts/run_benchmark_pipeline.py` の整備と `run_daily_workflow.py` 連携、期間指定リプレイ (`--start-ts` / `--end-ts`) の確認を継続中。
   - 次ステップ: ベンチマークランのローリング更新自動化と Sharpe / 最大 DD 指標の回帰監視強化。
   - 2025-09-30: `manage_task_cycle.py start-task` に runbook/pending 資料の上書きオプションを追加し、`sync_task_docs.py` のテンプレ適用を共通ヘルパーへ整理。`docs/codex_workflow.md` と README の手順を更新済み。
+  - Backlog Anchor: [ローリング検証パイプライン (P1-01)](docs/task_backlog.md#p1-01-ローリング検証パイプライン)
+  - Vision / Runbook References:
+    - [docs/logic_overview.md](docs/logic_overview.md)
+    - [docs/simulation_plan.md](docs/simulation_plan.md)
+    - 主要ランブック: [docs/benchmark_runbook.md#スケジュールとアラート管理](docs/benchmark_runbook.md#スケジュールとアラート管理)
+  - Pending Questions:
+    - [ ] なし（cadence/アラート閾値整理済み）
+  - DoD チェックリスト: [docs/templates/dod_checklist.md](docs/templates/dod_checklist.md) を [docs/checklists/p1-01.md](docs/checklists/p1-01.md) にコピーし、進捗リンクを更新する。
 
 ### Ready
 

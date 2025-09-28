@@ -10,7 +10,30 @@
    - `scripts/run_benchmark_runs.py`: 通期 run とローリング run を起動し、`reports/baseline/*.json` / `reports/rolling/<window>/*.json` を更新。前回との乖離が大きい場合は Webhook 通知（`benchmark_shift`）。
    - `scripts/report_benchmark_summary.py`: `--windows`・`--min-sharpe`・`--max-drawdown` を受け取り、`reports/benchmark_summary.json` を再生成。閾値違反や欠損があれば `warnings` に追記し、Webhook 通知（`benchmark_summary_warnings`）。
    - `ops/runtime_snapshot.json`: `benchmarks.<symbol>_<mode>` に最新バー時刻を、`benchmark_pipeline.<symbol>_<mode>` に生成時刻と警告一覧を記録。
+
 3. 直近結果と前回結果の差分を `total_pips`・`win_rate`（必要に応じて `sharpe`・`max_drawdown`）で比較し、既定の閾値（`--alert-pips`, `--alert-winrate`）を超えた場合は Webhook 通知を送信する。`report_benchmark_summary.py` は `--min-sharpe`・`--max-drawdown` で設定した健全性閾値を用いて `warnings` を生成し、`benchmark_summary_warnings` Webhook と JSON に書き出す。
+
+## スケジュールとアラート管理
+
+- 運用 Cron は UTC 22:30（JST 07:30）に `python3 scripts/run_daily_workflow.py --benchmarks` を起動し、`--windows 365,180,90` をまとめて更新する。ジョブ定義の引数（`ops` 側のジョブ設定ファイル/インフラ管理リポジトリ）に以下のパラメータを記録し、この表と整合させる。
+- それぞれのウィンドウは同一コマンドで更新されるが、レビュー頻度と責任者は下表の通りに運用する。レビュー結果や例外対応は `docs/todo_next.md` または `state.md` に追記する。
+
+| ウィンドウ | 更新頻度 / 想定タイミング | 主コマンド / 担当 | レビュー観点 |
+| --- | --- | --- | --- |
+| 365D | 毎日 07:30 JST（Cron `30 22 * * *`）で実行し、毎週月曜 Ops 定例で結果レビュー | `run_daily_workflow.py --benchmarks --windows 365,180,90` （担当: Ops） | 長期EVの崩れ、週次での Sharpe・DD トレンド、アラート履歴の確認 |
+| 180D | 毎日 07:30 JST 実行、火曜/木曜に Ops チェック | 同上 | 直近半年の勝率ブレと総pips差分、`benchmark_shift` 通知有無 |
+| 90D | 毎営業日 07:30 JST 実行、日次モニタリング | 同上（レビュー: 日次担当） | 日次での勝率急落や負け越しトレンド、`benchmark_summary_warnings` の確認 |
+
+### アラート閾値と通知チャネル
+
+- `scripts/run_benchmark_runs.py` の `--alert-pips` / `--alert-winrate` は、Ops Slack の `#ops-benchmark-critical` Webhook を指定して実行する。現在の本番値は `--alert-pips 60`、`--alert-winrate 0.04`。どちらかを超えた場合は `benchmark_shift` イベントが `#ops-benchmark-critical` に送信される。
+- `scripts/report_benchmark_summary.py` は同じ Cron で `--webhook https://hooks.slack.com/.../ops-benchmark-review` を指定し、Sharpe/最大DD 閾値 (`--min-sharpe`, `--max-drawdown`) 違反や欠損があると `benchmark_summary_warnings` を `#ops-benchmark-review` に送信する。
+- 閾値の議論が発生した場合は、本セクションの数値と Cron 定義の両方を同時に更新し、理由を `state.md` / `docs/todo_next.md` の該当タスクへ記録する。
+
+### スケジュール変更時の整合
+
+- 365/180/90D の実行頻度やアラート閾値を変更したら、`python3 scripts/manage_task_cycle.py start-task --anchor docs/task_backlog.md#p1-01-ローリング検証パイプライン --task-id P1-01 --title "ローリング検証パイプライン"` などで Next Task テンプレートを再適用し、`state.md`・`docs/todo_next.md` のメモと本ランブックを同期する。
+- 変更のサマリは `state.md` の `## Log` に追記し、関連する Slack 通知設定ファイルやインフラ設定の更新手順もこのセクションからリンクする。
 
 ## 推奨 CLI
 ```bash
@@ -19,7 +42,7 @@ python3 scripts/run_benchmark_pipeline.py \
   --bars validated/USDJPY/5m.csv \
   --windows 365,180,90 \
   --runs-dir runs --reports-dir reports \
-  --alert-pips 50 --alert-winrate 0.05 \
+  --alert-pips 60 --alert-winrate 0.04 \
   --summary-json reports/benchmark_summary.json \
   --summary-plot reports/benchmark_summary.png \
   --min-sharpe 0.5 --max-drawdown 200 \
