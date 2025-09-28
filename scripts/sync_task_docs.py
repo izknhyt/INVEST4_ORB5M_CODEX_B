@@ -55,6 +55,8 @@ from typing import Iterable, List, Tuple
 REPO_ROOT = Path(__file__).resolve().parents[1]
 STATE_PATH = REPO_ROOT / "state.md"
 DOCS_PATH = REPO_ROOT / "docs" / "todo_next.md"
+CHECKLIST_TEMPLATE = "docs/templates/dod_checklist.md"
+CHECKLIST_DIR = "docs/checklists"
 
 
 class SyncError(RuntimeError):
@@ -186,6 +188,27 @@ def insert_doc_block(lines: List[str], heading: str, block: List[str]) -> List[s
     return lines
 
 
+def slugify_task_id(task_id: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", task_id.lower()).strip("-")
+    return slug or "task"
+
+
+def ensure_checklist_note(block: List[str], task_id: str | None) -> List[str]:
+    if not task_id:
+        return block
+    slug = slugify_task_id(task_id)
+    target_path = f"{CHECKLIST_DIR}/{slug}.md"
+    note = (
+        f"  - DoD チェックリスト: [{CHECKLIST_TEMPLATE}]({CHECKLIST_TEMPLATE}) を"
+        f" [{target_path}]({target_path}) にコピーし、進捗リンクを更新する。"
+    )
+    for line in block:
+        if "DoD チェックリスト" in line:
+            return block
+    block.append(note)
+    return block
+
+
 def strike_archive_block(block: List[str], anchor: str, date: str) -> List[str]:
     if not block:
         return block
@@ -259,6 +282,7 @@ def cmd_record(ctx: CommandContext) -> None:
     ]
     if ctx.doc_note:
         doc_entry.append(f"  - {ctx.doc_note}")
+    doc_entry = ensure_checklist_note(doc_entry, ctx.task_id)
     docs_lines = insert_doc_block(docs_lines, ctx.doc_section, doc_entry)
     write_lines(DOCS_PATH, docs_lines)
 
@@ -284,6 +308,7 @@ def cmd_promote(ctx: CommandContext) -> None:
         rf"\g<1>{ctx.date}",
         block[0],
     )
+    block = ensure_checklist_note(block, ctx.task_id)
     docs_lines = insert_doc_block(docs_lines, "In Progress", block)
     write_lines(DOCS_PATH, docs_lines)
 
