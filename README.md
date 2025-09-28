@@ -44,6 +44,13 @@ print(metrics.as_dict())
 python3 scripts/run_sim.py --csv data/ohlc5m.csv --symbol USDJPY --mode conservative --equity 100000
 ```
 
+特定期間のみを対象にする場合は ISO8601 形式の `--start-ts` / `--end-ts` を指定します。
+
+```
+python3 scripts/run_sim.py --csv data/usdjpy_5m_2018-2024_utc.csv --symbol USDJPY --mode conservative \
+  --start-ts 2024-01-01T00:00:00Z --end-ts 2024-03-01T00:00:00Z
+```
+
 例: EV 閾値やセッション制限を調整した実行
 
 ```
