@@ -69,6 +69,18 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--summary-plot", default="reports/benchmark_summary.png")
     parser.add_argument("--min-sharpe", type=float, default=None)
     parser.add_argument("--max-drawdown", type=float, default=None)
+    parser.add_argument(
+        "--alert-pips",
+        type=float,
+        default=50.0,
+        help="Abs diff in total_pips to trigger alert",
+    )
+    parser.add_argument(
+        "--alert-winrate",
+        type=float,
+        default=0.05,
+        help="Abs diff in win_rate to trigger alert",
+    )
     parser.add_argument("--webhook", default=None, help="Webhook URL(s) for alerts (comma separated)")
     parser.add_argument("--dry-run", action="store_true", help="Skip writes and subprocess execution")
     return parser.parse_args(argv)
@@ -96,6 +108,10 @@ def _build_benchmark_cmd(args: argparse.Namespace, snapshot_path: Path) -> List[
         "--snapshot",
         str(snapshot_path),
     ]
+    if args.alert_pips is not None:
+        cmd += ["--alert-pips", str(args.alert_pips)]
+    if args.alert_winrate is not None:
+        cmd += ["--alert-winrate", str(args.alert_winrate)]
     if args.webhook:
         cmd += ["--webhook", args.webhook]
     return cmd

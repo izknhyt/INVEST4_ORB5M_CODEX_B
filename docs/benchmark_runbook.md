@@ -19,6 +19,7 @@ python3 scripts/run_benchmark_pipeline.py \
   --bars validated/USDJPY/5m.csv \
   --windows 365,180,90 \
   --runs-dir runs --reports-dir reports \
+  --alert-pips 50 --alert-winrate 0.05 \
   --summary-json reports/benchmark_summary.json \
   --summary-plot reports/benchmark_summary.png \
   --min-sharpe 0.5 --max-drawdown 200 \
