@@ -83,6 +83,7 @@ class TestRunner(unittest.TestCase):
         self.assertIn("max_drawdown", result)
         self.assertAlmostEqual(result["sharpe"], 0.3713906763541037, places=6)
         self.assertAlmostEqual(result["max_drawdown"], -15.0, places=6)
+        self.assertIsNone(result["win_rate"])
 
     def test_metrics_records_equity_curve_from_records_csv(self):
         metrics = Metrics()
@@ -105,6 +106,7 @@ class TestRunner(unittest.TestCase):
         )
         self.assertAlmostEqual(result["sharpe"], 0.27660638840895513)
         self.assertAlmostEqual(result["max_drawdown"], -10.0)
+        self.assertAlmostEqual(result["win_rate"], 0.5)
 
 
 if __name__ == "__main__":

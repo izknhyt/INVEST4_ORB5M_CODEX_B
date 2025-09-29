@@ -11,6 +11,11 @@
       "command": "python3 scripts/analyze_signal_latency.py --input ops/signal_latency.csv --slo-threshold 5 --json-out reports/signal_latency.json"
     },
     {
+      "name": "benchmark_pipeline_daily",
+      "schedule": "30 22 * * *",
+      "command": "python3 scripts/run_daily_workflow.py --symbol USDJPY --mode conservative --equity 100000 --benchmarks --check-benchmark-freshness --benchmark-freshness-max-age-hours 6 --benchmark-windows 365,180,90 --alert-pips 60 --alert-winrate 0.04 --alert-sharpe 0.2 --alert-max-drawdown 40 --min-win-rate 0.55 --min-sharpe 0.5 --max-drawdown 200 --webhook $BENCHMARK_WEBHOOK"
+    },
+    {
       "name": "state_archive",
       "schedule": "0 0 * * *",
       "command": "python3 scripts/archive_state.py --runs-dir runs --output ops/state_archive"

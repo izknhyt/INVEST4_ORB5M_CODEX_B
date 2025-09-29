@@ -64,9 +64,16 @@ class Metrics:
         self.equity_curve.append(last_equity + pnl_val)
 
     def as_dict(self):
+        win_rate: Optional[float]
+        if self.trades:
+            win_rate = self.wins / float(self.trades)
+        else:
+            win_rate = None
+
         return {
             "trades": self.trades,
             "wins": self.wins,
+            "win_rate": win_rate,
             "total_pips": self.total_pips,
             "sharpe": self._compute_sharpe(),
             "max_drawdown": self._compute_max_drawdown(),
