@@ -26,7 +26,7 @@ python3 scripts/run_daily_workflow.py --ingest --update-state --benchmarks --sta
 - 個別の実行例
   - 取り込み: `python3 scripts/pull_prices.py --source data/usdjpy_5m_2018-2024_utc.csv`
   - state更新: `python3 scripts/update_state.py --bars validated/USDJPY/5m.csv --chunk-size 20000`
-  - 検証・集計: `python3 scripts/run_benchmark_runs.py --bars validated/USDJPY/5m.csv --windows 365,180,90` → `python3 scripts/report_benchmark_summary.py --plot-out reports/benchmark_summary.png`
+  - 検証・集計: `python3 scripts/run_benchmark_pipeline.py --bars validated/USDJPY/5m.csv --symbol USDJPY --mode conservative --windows 365,180,90 --snapshot ops/runtime_snapshot.json` → `python3 scripts/report_benchmark_summary.py --reports-dir reports --windows 365,180,90 --plot-out reports/benchmark_summary.png`
   - ヘルスチェック: `python3 scripts/check_state_health.py`
 
 ## 推奨運用
