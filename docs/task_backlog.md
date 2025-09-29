@@ -36,10 +36,11 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - ジョブ実行フローとアラート閾値を README もしくは runbook に追記し、再実行手順が明文化されていること。
 
 **進捗メモ**
-- 2025-10-08: Added helper-based dispatch and logging reference. See [docs/backtest_runner_logging.md](docs/backtest_runner_logging.md) for counter/record definitions and EV investigation flow.
+- 2025-10-14: Introduced `scripts/check_benchmark_freshness.py` to validate `ops/runtime_snapshot.json` timestamps, integrated the CLI into `run_daily_workflow.py --check-benchmark-freshness`, documented usage/thresholds in the benchmark runbook, and added regression coverage.
 - 2025-10-10: Extended `scripts/generate_ev_case_study.py` to sweep decay/prior/warmup in addition to thresholds, added CSV export + notebook (`analysis/ev_param_sweep.ipynb`) for heatmap review, and documented the workflow in [docs/ev_tuning.md](docs/ev_tuning.md).
-- 2024-06-04: `core/runner` でエクイティカーブを蓄積し Sharpe / 最大DD を算出、`run_sim.py`・`store_run_summary`・`report_benchmark_summary.py` に伝搬。ベンチマークサマリーでは `--min-sharpe` / `--max-drawdown` 閾値をチェックし `warnings` に追加するよう更新。
+- 2025-10-08: Added helper-based dispatch and logging reference. See [docs/backtest_runner_logging.md](docs/backtest_runner_logging.md) for counter/record definitions and EV investigation flow.
 - 2025-09-29: `report_benchmark_summary.py` の重複引数定義（`--min-sharpe`/`--max-drawdown`/`--webhook`）を解消し、`run_daily_workflow.py` から `run_benchmark_pipeline.py` を呼び出すように整合。ワークフローからベンチマークサマリーにしきい値・WebHook を正しく伝搬するよう修正。
+- 2024-06-04: `core/runner` でエクイティカーブを蓄積し Sharpe / 最大DD を算出、`run_sim.py`・`store_run_summary`・`report_benchmark_summary.py` に伝搬。ベンチマークサマリーでは `--min-sharpe` / `--max-drawdown` 閾値をチェックし `warnings` に追加するよう更新。
 
 ### P1-02 インシデントリプレイテンプレート
 本番での負けトレードを `ops/incidents/` に保存し、同期間のリプレイを `scripts/run_sim.py --start-ts/--end-ts` で再実行する Notebook (`analysis/incident_review.ipynb`) にメモを残す。

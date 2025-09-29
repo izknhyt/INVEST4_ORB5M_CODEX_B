@@ -25,6 +25,7 @@
   - 2025-09-28: 手動でローリング 365/180/90D を再生成し、Sharpe・最大DD・勝率が揃って出力されていることと `benchmark_runs.alert` の delta_sharpe トリガーを確認。Slack Webhook が 403 で失敗したため、ランブックへサンドボックス時の扱いを追記する。
 
 ## Log
+- [P1-01] 2025-10-14: Added `scripts/check_benchmark_freshness.py` with regression tests, wired the CLI into `run_daily_workflow.py --check-benchmark-freshness`, and documented the 6h freshness threshold across the benchmark runbook / P1-01 checklist / backlog notes.
 - [P1-05] 2025-10-13: Added deterministic hook-failure regression for `run_sim` debug counters/records, updated
   `docs/backtest_runner_logging.md` with the coverage note, and synced `docs/task_backlog.md` progress.
 - [P1-01] 2025-10-13: `run_benchmark_pipeline.py` のスナップショット更新でアラートブロックを保存し、`tests/test_run_benchmark_pipeline.py` に delta 保存の回帰テストを追加。`docs/benchmark_runbook.md` にレビュー時の `benchmark_pipeline.<symbol>_<mode>.alert` チェック手順を追記し、`python3 -m pytest tests/test_run_benchmark_pipeline.py` を実行してグリーン確認。
