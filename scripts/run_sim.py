@@ -186,6 +186,7 @@ def parse_args(argv=None):
     p.add_argument("--warmup", type=int, default=None, help="Bypass EV gate for first N signals")
     p.add_argument("--prior-alpha", type=float, default=None, help="Beta prior alpha for EV gate")
     p.add_argument("--prior-beta", type=float, default=None, help="Beta prior beta for EV gate")
+    p.add_argument("--decay", type=float, default=None, help="EV decay factor (EWMA) for Beta-Binomial updates")
     p.add_argument("--include-expected-slip", action="store_true", help="Include expected slippage in realized cost")
     p.add_argument("--rv-quantile", action="store_true", help="Enable RV band session-quantile calibration")
     p.add_argument("--calibrate-days", type=int, default=None, help="Number of initial days to calibrate EV (no trading)")
@@ -332,6 +333,7 @@ def main(argv=None):
                 loaded_state_path = None
     metrics = runner.run(bars, mode=args.mode)
     out = metrics.as_dict()
+    out["decay"] = runner.ev_global.decay
     if getattr(metrics, 'debug', None):
         out["debug"] = metrics.debug
     if loaded_state_path:
@@ -392,6 +394,7 @@ def main(argv=None):
             "warmup": args.warmup,
             "prior_alpha": args.prior_alpha,
             "prior_beta": args.prior_beta,
+            "decay": getattr(args, "decay", None) if getattr(args, "decay", None) is not None else runner.ev_global.decay,
             "include_expected_slip": args.include_expected_slip,
             "rv_quantile": args.rv_quantile,
             "calibrate_days": args.calibrate_days,

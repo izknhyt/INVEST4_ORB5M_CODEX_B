@@ -37,7 +37,7 @@
 - ベースライン `state.json` は `runs/grid_USDJPY_bridge_or4_ktp1.2_ksl0.4_.../state.json` を採用し、`docs/state_runbook.md` にアーカイブ手順をまとめた。
 
 ## EV チューニング
-- `scripts/generate_ev_case_study.py` で複数の `threshold_lcb` を一括比較し、結果を `analysis/ev_case_study_*.json` に保存。
+- `scripts/generate_ev_case_study.py` で複数の `threshold_lcb` / `decay` / `prior` / `warmup` を一括比較し、結果を `analysis/ev_param_sweep.{json,csv}` に保存。
 - `docs/ev_tuning.md` に手順とケーススタディ（例: 閾値0.0/0.3/0.5）を記載。
 
 ## Fill モデル
