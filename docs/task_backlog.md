@@ -74,6 +74,18 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 **進捗メモ**
 - 2025-10-08: Added helper-based dispatch and logging reference. See [docs/backtest_runner_logging.md](docs/backtest_runner_logging.md) for counter/record definitions and EV investigation flow.
 
+### P1-06 Fill エンジン / ブローカー仕様アライン
+ブローカー各社（OANDA / IG / SBI など）の OCO 処理・トレール挙動を調査し、`core/fill_engine.py` の Conservative / Bridge モードが実仕様と乖離するケースを特定する。差分は Notebook/CLI で可視化し、代表ケースを pytest で固定化する。
+
+**DoD**
+- `docs/broker_oco_matrix.md` の未調査セルを埋め、同足 TP/SL 処理とトレール更新間隔を反映した比較表を公開する。
+- `analysis/broker_fills.ipynb` もしくは CLI が Conservative / Bridge と実仕様の差分を比較できる形で整備されている。
+- `core/fill_engine.py` と `tests/test_fill_engine.py`（新規）が代表ケースを再現し、`python3 -m pytest tests/test_fill_engine.py` が通過する。
+- 運用ドキュメント（`docs/progress_phase1.md` / `docs/benchmark_runbook.md`）に再実行手順と判断基準を追記する。
+
+**進捗メモ**
+- 2025-10-10: Broker OCO matrix updated (OANDA / IG / SBI)、`analysis/broker_fills_cli.py` で Conservative / Bridge 差分を出力、`core/fill_engine.py` に `SameBarPolicy` / トレール処理を追加、`tests/test_fill_engine.py` で Tick 優先 / 保護優先 / トレール更新を固定。`docs/progress_phase1.md` / `docs/benchmark_runbook.md` へ再実行フローを反映。
+
 ## P2: マルチ戦略ポートフォリオ化
 - **戦略マニフェスト整備**: スキャル/デイ/スイングの候補戦略ごとに、依存特徴量・セッション・リスク上限を YAML で定義し、ルーターが参照できるようにする (`configs/strategies/*.yaml`)。
   - 2025-10-09: `configs/strategies/templates/base_strategy.yaml` に共通テンプレートと記述ガイドを追加し、新規戦略のマニフェスト整備を着手しやすくした。

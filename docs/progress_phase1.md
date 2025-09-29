@@ -20,8 +20,10 @@
 - 同条件 (`threshold_lcb=0.3`) で Conservative / Bridge をラン。
   - Conservative: 1999 trades / -2396pips
   - Bridge:       2168 trades / -2724pips
-- 差分ログは `/tmp/daily_*`, `/tmp/records_*` に出力。今後 `analysis/broker_fills.ipynb` でさらに可視化予定。
+- 差分ログは `/tmp/daily_*`, `/tmp/records_*` に出力。
+- 2025-10-10: `analysis/broker_fills_cli.py` を追加し、OANDA / IG / SBI FXトレードの同足ヒット・トレール挙動を Conservative / Bridge と比較できる Markdown テーブルを生成。`python3 analysis/broker_fills_cli.py --format markdown` で期待順とモデル出力・ポリシー調整後の差分を一覧化。
+- 2025-10-10: `core/fill_engine.py` に `SameBarPolicy` / トレール即日更新ロジックを導入し、`tests/test_fill_engine.py` で代表ケース（Tick 優先 / 保護優先 / トレール更新）を固定。`python3 -m pytest tests/test_fill_engine.py` が通過することを確認。
 
 ## TODO（フェーズ1 継続）
-- Bridge/Conservative 差分を notebook 化し、ブローカー仕様に合わせた Fill 調整案を検討する。
+- ブローカー別の調査内容を notebook 化し、実ログとの突合（`runs/*`）を継続する。
 - Mean Reversion など他戦略の本格実装を進め、共通ゲートで動作確認を行う。

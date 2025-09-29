@@ -25,6 +25,7 @@
   - 2025-09-28: 手動でローリング 365/180/90D を再生成し、Sharpe・最大DD・勝率が揃って出力されていることと `benchmark_runs.alert` の delta_sharpe トリガーを確認。Slack Webhook が 403 で失敗したため、ランブックへサンドボックス時の扱いを追記する。
 
 ## Log
+- [P1-06] 2025-10-10: `docs/broker_oco_matrix.md` に OANDA / IG / SBI FXトレードの OCO 同足処理・トレール更新間隔を追記し、`analysis/broker_fills_cli.py` で Conservative / Bridge / 実仕様差分を Markdown テーブル化。`core/fill_engine.py` に `SameBarPolicy` とトレール更新ロジックを導入し、`tests/test_fill_engine.py` を新設して代表ケース（Tick 優先 / 保護優先 / トレール更新）を固定。`docs/progress_phase1.md` / `docs/benchmark_runbook.md` を再実行手順・検証フローで更新し、`python3 -m pytest` を完走。
 - [P2-MS] 2024-06-22: `scripts/run_sim.py --strategy-manifest` を実装し、`RunnerConfig` がマニフェスト経由の許容セッション/リスク上限と戦略パラメータを取り込むよう更新。`core/runner.py` の `StrategyConfig` を汎用辞書対応に拡張し、`tests/test_run_sim_cli.py::test_run_sim_manifest_mean_reversion` で `allow_high_rv` / `zscore_threshold` が `strategy_gate`・`ev_threshold` へ届くことを検証。関連ドキュメント: [docs/task_backlog.md](docs/task_backlog.md)、[docs/progress_phase1.md](docs/progress_phase1.md)。
 - [P0-01] 2024-06-01: Initialized state tracking log and documented the review/update workflow rule.
 - [P0-02] 2024-06-02: Targeting P0 reliability by ensuring strategy manifests and CLI runners work without optional dependencies. DoD: pytest passes and run_sim/loader can parse manifests/EV profiles after removing the external PyYAML requirement.
