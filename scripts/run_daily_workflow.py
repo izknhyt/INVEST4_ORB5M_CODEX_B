@@ -40,6 +40,12 @@ def main(argv=None) -> int:
         help="Warn when Sharpe ratio falls below this value",
     )
     parser.add_argument(
+        "--min-win-rate",
+        type=float,
+        default=None,
+        help="Warn when win_rate falls below this value",
+    )
+    parser.add_argument(
         "--max-drawdown",
         type=float,
         default=None,
@@ -134,6 +140,8 @@ def main(argv=None) -> int:
             cmd += ["--alert-max-drawdown", str(args.alert_max_drawdown)]
         if args.min_sharpe is not None:
             cmd += ["--min-sharpe", str(args.min_sharpe)]
+        if args.min_win_rate is not None:
+            cmd += ["--min-win-rate", str(args.min_win_rate)]
         if args.max_drawdown is not None:
             cmd += ["--max-drawdown", str(args.max_drawdown)]
         if args.webhook:
@@ -169,6 +177,8 @@ def main(argv=None) -> int:
         ]
         if args.min_sharpe is not None:
             cmd += ["--min-sharpe", str(args.min_sharpe)]
+        if args.min_win_rate is not None:
+            cmd += ["--min-win-rate", str(args.min_win_rate)]
         if args.max_drawdown is not None:
             cmd += ["--max-drawdown", str(args.max_drawdown)]
         if args.webhook:

@@ -210,6 +210,10 @@ def _validate_summary_payload(summary_payload: Dict[str, Any]) -> Optional[str]:
         if metrics_error:
             return metrics_error
 
+    threshold_alerts = summary_payload.get("threshold_alerts")
+    if threshold_alerts is not None and not isinstance(threshold_alerts, list):
+        return "summary threshold_alerts must be a list"
+
     return None
 
 
@@ -236,6 +240,12 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--summary-json", default="reports/benchmark_summary.json")
     parser.add_argument("--summary-plot", default="reports/benchmark_summary.png")
     parser.add_argument("--min-sharpe", type=float, default=None)
+    parser.add_argument(
+        "--min-win-rate",
+        type=float,
+        default=None,
+        help="Warn when win_rate falls below this value",
+    )
     parser.add_argument("--max-drawdown", type=float, default=None)
     parser.add_argument(
         "--alert-pips",
@@ -322,6 +332,8 @@ def _build_summary_cmd(args: argparse.Namespace) -> List[str]:
         cmd += ["--plot-out", str(args.summary_plot)]
     if args.min_sharpe is not None:
         cmd += ["--min-sharpe", str(args.min_sharpe)]
+    if args.min_win_rate is not None:
+        cmd += ["--min-win-rate", str(args.min_win_rate)]
     if args.max_drawdown is not None:
         cmd += ["--max-drawdown", str(args.max_drawdown)]
     if args.webhook:
