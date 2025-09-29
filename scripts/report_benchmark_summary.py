@@ -101,6 +101,12 @@ def parse_args(argv=None):
         help="Warn when Sharpe ratio falls below this value",
     )
     parser.add_argument(
+        "--min-win-rate",
+        type=float,
+        default=None,
+        help="Warn when win_rate falls below this value",
+    )
+    parser.add_argument(
         "--max-drawdown",
         type=float,
         default=None,
@@ -156,6 +162,22 @@ def main(argv=None) -> int:
         )
 
     def _apply_threshold_checks(label: str, summary: Dict[str, Optional[float]]) -> None:
+        win_rate_val = summary.get("win_rate")
+        if (
+            args.min_win_rate is not None
+            and win_rate_val is not None
+            and win_rate_val < args.min_win_rate
+        ):
+            _record_threshold(
+                label=label,
+                metric="win_rate",
+                value=win_rate_val,
+                threshold=args.min_win_rate,
+                comparison="lt",
+                message=(
+                    f"{label} win_rate {win_rate_val:.3f} below min_win_rate {args.min_win_rate:.3f}"
+                ),
+            )
         sharpe_val = summary.get("sharpe")
         if args.min_sharpe is not None and sharpe_val is not None and sharpe_val < args.min_sharpe:
             _record_threshold(

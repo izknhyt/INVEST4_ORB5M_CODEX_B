@@ -37,6 +37,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 
 **進捗メモ**
 - 2025-10-14: Introduced `scripts/check_benchmark_freshness.py` to validate `ops/runtime_snapshot.json` timestamps, integrated the CLI into `run_daily_workflow.py --check-benchmark-freshness`, documented usage/thresholds in the benchmark runbook, and added regression coverage.
+- 2025-10-15: Added win rate health threshold support (`--min-win-rate`) to benchmark summary + pipeline + daily workflow CLIs, propagated structured alerts to snapshots, refreshed benchmark runbook/README/checklist guidance, and extended regression tests.
 - 2025-10-10: Extended `scripts/generate_ev_case_study.py` to sweep decay/prior/warmup in addition to thresholds, added CSV export + notebook (`analysis/ev_param_sweep.ipynb`) for heatmap review, and documented the workflow in [docs/ev_tuning.md](docs/ev_tuning.md).
 - 2025-10-08: Added helper-based dispatch and logging reference. See [docs/backtest_runner_logging.md](docs/backtest_runner_logging.md) for counter/record definitions and EV investigation flow.
 - 2025-09-29: `report_benchmark_summary.py` の重複引数定義（`--min-sharpe`/`--max-drawdown`/`--webhook`）を解消し、`run_daily_workflow.py` から `run_benchmark_pipeline.py` を呼び出すように整合。ワークフローからベンチマークサマリーにしきい値・WebHook を正しく伝搬するよう修正。

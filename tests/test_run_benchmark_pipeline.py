@@ -94,6 +94,15 @@ def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_
         "rolling": [],
         "warnings": ["baseline total_pips negative: -10.0"],
         "webhook": {"deliveries": [{"url": "https://example.com/hook", "ok": True, "detail": "status=200"}]},
+        "threshold_alerts": [
+            {
+                "label": "baseline",
+                "metric": "win_rate",
+                "value": 0.6,
+                "threshold": 0.65,
+                "comparison": "lt",
+            }
+        ],
     }
 
     # Prepare rolling output files with required metrics
@@ -162,6 +171,8 @@ def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_
         "55",
         "--min-sharpe",
         "1.1",
+        "--min-win-rate",
+        "0.65",
         "--max-drawdown",
         "80",
         "--webhook",
@@ -188,6 +199,7 @@ def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_
     assert "run_benchmark_summary.py" not in first_cmd[1]
     assert "report_benchmark_summary.py" in second_cmd[1]
     assert float(second_cmd[second_cmd.index("--min-sharpe") + 1]) == pytest.approx(1.1)
+    assert float(second_cmd[second_cmd.index("--min-win-rate") + 1]) == pytest.approx(0.65)
     assert float(second_cmd[second_cmd.index("--max-drawdown") + 1]) == pytest.approx(80.0)
     assert second_cmd[second_cmd.index("--webhook") + 1] == "https://example.com/hook"
 
@@ -197,6 +209,7 @@ def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_
     pipeline_info = snapshot["benchmark_pipeline"][key]
     assert pipeline_info["warnings"] == summary_payload["warnings"]
     assert pipeline_info["summary_generated_at"] == summary_payload["generated_at"]
+    assert pipeline_info["threshold_alerts"] == summary_payload["threshold_alerts"]
     pipeline_alert = pipeline_info["alert"]
     assert pipeline_alert["payload"]["deltas"]["delta_sharpe"] == pytest.approx(-0.4)
     assert pipeline_alert["payload"]["deltas"]["delta_max_drawdown"] == pytest.approx(-50.0)

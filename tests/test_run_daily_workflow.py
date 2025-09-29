@@ -41,6 +41,7 @@ def test_benchmark_summary_threshold_arguments(monkeypatch):
     exit_code = run_daily_workflow.main([
         "--benchmark-summary",
         "--min-sharpe", "1.5",
+        "--min-win-rate", "0.62",
         "--max-drawdown", "250.5",
         "--benchmark-windows", "400,200",
     ])
@@ -51,6 +52,8 @@ def test_benchmark_summary_threshold_arguments(monkeypatch):
     assert cmd[0] == sys.executable
     assert "--min-sharpe" in cmd
     assert cmd[cmd.index("--min-sharpe") + 1] == "1.5"
+    assert "--min-win-rate" in cmd
+    assert cmd[cmd.index("--min-win-rate") + 1] == "0.62"
     assert "--max-drawdown" in cmd
     assert cmd[cmd.index("--max-drawdown") + 1] == "250.5"
     assert "--windows" in cmd
@@ -66,6 +69,7 @@ def test_benchmark_summary_without_thresholds(monkeypatch):
     assert captured, "run_cmd should be invoked"
     cmd = captured[0]
     assert "--min-sharpe" not in cmd
+    assert "--min-win-rate" not in cmd
     assert "--max-drawdown" not in cmd
     assert cmd[cmd.index("--windows") + 1] == "365,180,90"
 
@@ -102,6 +106,7 @@ def test_benchmarks_pipeline_arguments(monkeypatch):
         "--alert-sharpe", "0.3",
         "--alert-max-drawdown", "65",
         "--min-sharpe", "1.0",
+        "--min-win-rate", "0.58",
         "--max-drawdown", "150",
         "--webhook", "https://example.com/hook",
         "--benchmark-windows", "200,60",
@@ -119,6 +124,7 @@ def test_benchmarks_pipeline_arguments(monkeypatch):
     assert float(cmd[cmd.index("--alert-sharpe") + 1]) == pytest.approx(0.3)
     assert float(cmd[cmd.index("--alert-max-drawdown") + 1]) == pytest.approx(65.0)
     assert float(cmd[cmd.index("--min-sharpe") + 1]) == pytest.approx(1.0)
+    assert float(cmd[cmd.index("--min-win-rate") + 1]) == pytest.approx(0.58)
     assert float(cmd[cmd.index("--max-drawdown") + 1]) == pytest.approx(150.0)
     assert cmd[cmd.index("--webhook") + 1] == "https://example.com/hook"
     assert cmd[cmd.index("--windows") + 1] == "200,60"

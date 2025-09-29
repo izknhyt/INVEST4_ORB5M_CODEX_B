@@ -231,7 +231,8 @@ python3 scripts/run_benchmark_runs.py --bars validated/USDJPY/5m.csv --symbol US
 
 # サマリ JSON/PNG 出力（pandas/matplotlib が必要）
 python3 scripts/report_benchmark_summary.py --symbol USDJPY --mode conservative --reports-dir reports \
-  --json-out reports/benchmark_summary.json --plot-out reports/benchmark_summary.png --windows 365,180,90
+  --json-out reports/benchmark_summary.json --plot-out reports/benchmark_summary.png --windows 365,180,90 \
+  --min-win-rate 0.55 --min-sharpe 0.5 --max-drawdown 200
 ```
 
 開発時は、実行側で以下のような`ctx`辞書を戦略へ提供してください（例）:

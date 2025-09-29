@@ -67,6 +67,8 @@ class TestReportBenchmarkSummary(unittest.TestCase):
                 str(output_path),
                 "--min-sharpe",
                 "0.8",
+                "--min-win-rate",
+                "0.55",
                 "--max-drawdown",
                 "40",
             ]
@@ -74,18 +76,23 @@ class TestReportBenchmarkSummary(unittest.TestCase):
             rc = rbs.main(args)
             self.assertEqual(rc, 0)
             payload = json.loads(output_path.read_text())
-            self.assertGreaterEqual(len(payload["warnings"]), 2)
+            self.assertGreaterEqual(len(payload["warnings"]), 3)
             joined = " ".join(payload["warnings"])
             self.assertIn("baseline sharpe", joined)
+            self.assertIn("baseline win_rate", joined)
+            self.assertIn("rolling window 30 win_rate", joined)
             self.assertIn("rolling window 30 max_drawdown", joined)
             alerts = payload.get("threshold_alerts", [])
-            self.assertGreaterEqual(len(alerts), 2)
+            self.assertGreaterEqual(len(alerts), 3)
             sharpe_alerts = [a for a in alerts if a["metric"] == "sharpe"]
             drawdown_alerts = [a for a in alerts if a["metric"] == "max_drawdown"]
+            win_rate_alerts = [a for a in alerts if a["metric"] == "win_rate"]
             self.assertTrue(sharpe_alerts, msg=f"Expected sharpe alert, got {alerts}")
             self.assertTrue(drawdown_alerts, msg=f"Expected drawdown alert, got {alerts}")
+            self.assertTrue(win_rate_alerts, msg=f"Expected win_rate alert, got {alerts}")
             self.assertEqual(sharpe_alerts[0]["comparison"], "lt")
             self.assertEqual(drawdown_alerts[0]["comparison"], "gt_abs")
+            self.assertEqual(win_rate_alerts[0]["comparison"], "lt")
 
             args_with_negative_threshold = [
                 "--symbol",
@@ -100,6 +107,8 @@ class TestReportBenchmarkSummary(unittest.TestCase):
                 str(output_path),
                 "--min-sharpe",
                 "0.8",
+                "--min-win-rate",
+                "0.55",
                 "--max-drawdown",
                 "-200",
             ]
@@ -110,6 +119,7 @@ class TestReportBenchmarkSummary(unittest.TestCase):
             payload = json.loads(output_path.read_text())
             joined = " ".join(payload["warnings"])
             self.assertNotIn("max_drawdown", joined)
+            self.assertIn("win_rate", joined)
             alerts_after_normalization = payload.get("threshold_alerts", [])
             self.assertTrue(alerts_after_normalization)
             self.assertFalse(
@@ -167,6 +177,8 @@ class TestReportBenchmarkSummary(unittest.TestCase):
                     str(output_path),
                     "--min-sharpe",
                     "0.8",
+                    "--min-win-rate",
+                    "0.55",
                     "--max-drawdown",
                     "40",
                     "--webhook",
@@ -183,6 +195,8 @@ class TestReportBenchmarkSummary(unittest.TestCase):
             deliveries = payload["webhook"]["deliveries"]
             self.assertEqual(len(deliveries), 1)
             self.assertTrue(deliveries[0]["ok"])
+            alerts = payload.get("threshold_alerts", [])
+            self.assertTrue(any(alert["metric"] == "win_rate" for alert in alerts))
 
     def test_main_skips_plot_when_matplotlib_missing(self):
         with tempfile.TemporaryDirectory() as tmpdir:
