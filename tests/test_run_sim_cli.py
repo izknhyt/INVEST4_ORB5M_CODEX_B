@@ -1,7 +1,10 @@
+import csv
 import json
 import os
+import sys
 import tempfile
 import textwrap
+import types
 import unittest
 from unittest import mock
 
@@ -194,6 +197,62 @@ class TestRunSimCLI(unittest.TestCase):
                 data = json.load(f)
             self.assertIn("sharpe", data)
             self.assertIn("max_drawdown", data)
+
+    def test_run_sim_debug_records_capture_hook_failures(self):
+        csv_fixture = os.path.join(os.path.dirname(__file__), "data", "hook_failure_fixture.csv")
+        self.assertTrue(os.path.exists(csv_fixture))
+
+        from tests.fixtures.strategies.forced_failure import DeterministicFailureStrategy
+
+        module_name = "strategies.tests.fixtures.strategies.forced_failure"
+        alias = types.ModuleType(module_name)
+        alias.DeterministicFailureStrategy = DeterministicFailureStrategy
+        sys.modules[module_name] = alias
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                json_out = os.path.join(tmpdir, "metrics.json")
+                dump_csv = os.path.join(tmpdir, "records.csv")
+                args = [
+                    "--csv", csv_fixture,
+                    "--symbol", "USDJPY",
+                    "--mode", "conservative",
+                    "--equity", "100000",
+                    "--json-out", json_out,
+                    "--debug",
+                    "--dump-max", "5",
+                    "--dump-csv", dump_csv,
+                    "--no-auto-state",
+                    "--no-ev-profile",
+                    "--no-aggregate-ev",
+                    "--strategy", "tests.fixtures.strategies.forced_failure.DeterministicFailureStrategy",
+                ]
+                rc = run_sim_main(args)
+                self.assertEqual(rc, 0)
+
+                with open(json_out, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                debug = data.get("debug")
+                self.assertIsNotNone(debug)
+                self.assertGreaterEqual(debug.get("strategy_gate_error", 0), 1)
+                self.assertGreaterEqual(debug.get("ev_threshold_error", 0), 1)
+                self.assertEqual(data.get("dump_csv"), dump_csv)
+                self.assertGreaterEqual(int(data.get("dump_rows", 0)), 2)
+
+                with open(dump_csv, "r", encoding="utf-8") as f:
+                    rows = list(csv.DictReader(f))
+
+                self.assertTrue(any(row.get("stage") == "strategy_gate_error" for row in rows))
+                self.assertTrue(any(row.get("stage") == "ev_threshold_error" for row in rows))
+
+                gate_row = next(row for row in rows if row.get("stage") == "strategy_gate_error")
+                gate_keys = {k for k, v in gate_row.items() if v not in (None, "")}
+                self.assertEqual(gate_keys, {"stage", "ts", "side", "error"})
+
+                threshold_row = next(row for row in rows if row.get("stage") == "ev_threshold_error")
+                threshold_keys = {k for k, v in threshold_row.items() if v not in (None, "")}
+                self.assertEqual(threshold_keys, {"stage", "ts", "side", "base_threshold", "error"})
+        finally:
+            sys.modules.pop(module_name, None)
 
 
 if __name__ == "__main__":

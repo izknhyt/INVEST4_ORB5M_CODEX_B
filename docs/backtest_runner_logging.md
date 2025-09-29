@@ -24,6 +24,10 @@ This note documents how `BacktestRunner` evaluates signals and how to interpret 
 | `strategy_gate_error` | Exception raised by the strategy gate hook; runner continued with a permissive fallback. |
 | `ev_threshold_error` | Exception or non-finite value returned by the EV threshold hook; fell back to the CLI threshold. |
 
+Regression coverage: `tests/test_run_sim_cli.py::test_run_sim_debug_records_capture_hook_failures` boots the CLI with a
+deterministic failure strategy to ensure both counters stay wired into the JSON summary and debug sample records when
+`--debug` and `--dump-max` are set.
+
 ## Debug record stages and fields
 
 The CSV produced by `--dump-csv` appends `debug_records` after executed trades. Each stage only emits the fields listed below.

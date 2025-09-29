@@ -25,6 +25,8 @@
   - 2025-09-28: 手動でローリング 365/180/90D を再生成し、Sharpe・最大DD・勝率が揃って出力されていることと `benchmark_runs.alert` の delta_sharpe トリガーを確認。Slack Webhook が 403 で失敗したため、ランブックへサンドボックス時の扱いを追記する。
 
 ## Log
+- [P1-05] 2025-10-13: Added deterministic hook-failure regression for `run_sim` debug counters/records, updated
+  `docs/backtest_runner_logging.md` with the coverage note, and synced `docs/task_backlog.md` progress.
 - [P1-01] 2025-10-13: `run_benchmark_pipeline.py` のスナップショット更新でアラートブロックを保存し、`tests/test_run_benchmark_pipeline.py` に delta 保存の回帰テストを追加。`docs/benchmark_runbook.md` にレビュー時の `benchmark_pipeline.<symbol>_<mode>.alert` チェック手順を追記し、`python3 -m pytest tests/test_run_benchmark_pipeline.py` を実行してグリーン確認。
 - [P1-01] 2025-10-12: Baseline metrics validation を `_validate_baseline_output` に追加し、win_rate / Sharpe / 最大DD の欠損を捕捉。`tests/test_run_benchmark_pipeline.py` へベースライン欠損時の回帰テストと成功パスの指標整備を行い、`python3 -m pytest tests/test_run_benchmark_pipeline.py` を実行して全件パス。
 - [P1-01] 2025-10-11: 強制バリデーションへ勝率を追加し、`run_benchmark_pipeline.py` がローリング/サマリー双方で win_rate・Sharpe・最大DD の欠損を検知するよう更新。`tests/test_run_benchmark_pipeline.py` に成功ケースの勝率出力と勝率欠損エラーの回帰テストを追加し、`docs/checklists/p1-01.md` の DoD に勝率検証ステップを追記。`python3 -m pytest tests/test_run_benchmark_pipeline.py` を実行し全件パス。
