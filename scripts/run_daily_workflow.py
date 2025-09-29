@@ -27,6 +27,11 @@ def main(argv=None) -> int:
     parser.add_argument("--benchmarks", action="store_true", help="Run baseline + rolling benchmarks")
     parser.add_argument("--state-health", action="store_true", help="Run state health checker")
     parser.add_argument("--benchmark-summary", action="store_true", help="Aggregate benchmark reports")
+    parser.add_argument(
+        "--check-benchmark-freshness",
+        action="store_true",
+        help="Validate benchmark timestamps recorded in runtime snapshot",
+    )
     parser.add_argument("--benchmark-windows", default="365,180,90", help="Rolling windows in days for benchmarks")
     parser.add_argument(
         "--min-sharpe",
@@ -69,6 +74,17 @@ def main(argv=None) -> int:
     parser.add_argument("--archive-state", action="store_true", help="Archive state.json files")
     parser.add_argument("--bars", default=None, help="Override bars CSV path (default: validated/<symbol>/5m.csv)")
     parser.add_argument("--webhook", default=None)
+    parser.add_argument(
+        "--benchmark-freshness-max-age-hours",
+        type=float,
+        default=None,
+        help="Override max age threshold (hours) for benchmark freshness checks",
+    )
+    parser.add_argument(
+        "--benchmark-freshness-targets",
+        default=None,
+        help="Comma-separated symbol:mode targets for freshness checks",
+    )
     args = parser.parse_args(argv)
 
     bars_csv = args.bars or str(ROOT / f"validated/{args.symbol}/5m.csv")
@@ -157,6 +173,30 @@ def main(argv=None) -> int:
             cmd += ["--max-drawdown", str(args.max_drawdown)]
         if args.webhook:
             cmd += ["--webhook", args.webhook]
+        exit_code = run_cmd(cmd)
+        if exit_code:
+            return exit_code
+
+    if args.check_benchmark_freshness:
+        cmd = [
+            sys.executable,
+            str(ROOT / "scripts/check_benchmark_freshness.py"),
+            "--snapshot",
+            str(ROOT / "ops/runtime_snapshot.json"),
+            "--max-age-hours",
+            str(
+                args.benchmark_freshness_max_age_hours
+                if args.benchmark_freshness_max_age_hours is not None
+                else 6.0
+            ),
+        ]
+        if args.benchmark_freshness_targets:
+            for raw_target in args.benchmark_freshness_targets.split(","):
+                target = raw_target.strip()
+                if target:
+                    cmd += ["--target", target]
+        else:
+            cmd += ["--target", f"{args.symbol}:{args.mode}"]
         exit_code = run_cmd(cmd)
         if exit_code:
             return exit_code
