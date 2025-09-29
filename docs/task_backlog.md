@@ -36,6 +36,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - ジョブ実行フローとアラート閾値を README もしくは runbook に追記し、再実行手順が明文化されていること。
 
 **進捗メモ**
+- 2025-09-29: Cron サンプルへ `benchmark_pipeline_daily`（UTC 22:30）の CLI を追加し、ランブック記載の `--alert-*` / `--min-*` 閾値・`--benchmark-windows 365,180,90` を反映。`python3 scripts/run_daily_workflow.py --benchmarks` ドライランで `ops/runtime_snapshot.json` の `benchmark_pipeline` / `threshold_alerts` を更新（Sandbox では Slack Webhook 失敗・鮮度チェックエラーが期待挙動）。`docs/logic_overview.md` の Cron 運用セクションと TODO/TODO-next を同期。
 - 2025-10-14: Introduced `scripts/check_benchmark_freshness.py` to validate `ops/runtime_snapshot.json` timestamps, integrated the CLI into `run_daily_workflow.py --check-benchmark-freshness`, documented usage/thresholds in the benchmark runbook, and added regression coverage.
 - 2025-10-15: Added win rate health threshold support (`--min-win-rate`) to benchmark summary + pipeline + daily workflow CLIs, propagated structured alerts to snapshots, refreshed benchmark runbook/README/checklist guidance, and extended regression tests.
 - 2025-10-10: Extended `scripts/generate_ev_case_study.py` to sweep decay/prior/warmup in addition to thresholds, added CSV export + notebook (`analysis/ev_param_sweep.ipynb`) for heatmap review, and documented the workflow in [docs/ev_tuning.md](docs/ev_tuning.md).

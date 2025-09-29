@@ -19,6 +19,7 @@
 - **ローリング検証パイプライン**（バックログ: `docs/task_backlog.md` → P1「ローリング検証 + 健全性モニタリング」） — `state.md` 2025-09-28, 2024-06-13, 2024-06-14, 2024-06-15, 2024-06-16 <!-- anchor: docs/task_backlog.md#p1-01-ローリング検証パイプライン -->
   - `scripts/run_benchmark_pipeline.py` の整備と `run_daily_workflow.py` 連携、期間指定リプレイ (`--start-ts` / `--end-ts`) の確認を継続中。
   - 次ステップ: ベンチマークランのローリング更新自動化と Sharpe / 最大 DD 指標の回帰監視強化。
+  - 2025-09-29: Cron サンプルに `benchmark_pipeline_daily`（UTC 22:30）を追加し、ランブック閾値 (`--alert-*`/`--min-*`/`--benchmark-windows 365,180,90`/`--benchmark-freshness-max-age-hours 6`) を CLI へ反映。`python3 scripts/run_daily_workflow.py --benchmarks` ドライランで `ops/runtime_snapshot.json` の `benchmark_pipeline` 更新と `threshold_alerts` 保存を確認（Sandbox では Webhook 403 と鮮度アラートは既知）。
   - 2025-09-30: `manage_task_cycle.py start-task` に runbook/pending 資料の上書きオプションを追加し、`sync_task_docs.py` のテンプレ適用を共通ヘルパーへ整理。`docs/codex_workflow.md` と README の手順を更新済み。
   - 2025-09-28: 手動で `run_benchmark_pipeline.py --windows 365,180,90` を再実行し、ローリング JSON / `benchmark_summary.json` に Sharpe・最大DD・勝率が揃って出力されることを確認。ローカル環境では Slack Webhook が 403 になるため、`benchmark_runs.alert.deliveries[].detail` をランブックへ追記し、`state.md` と併せてメモ化する。
   - Backlog Anchor: [ローリング検証パイプライン (P1-01)](docs/task_backlog.md#p1-01-ローリング検証パイプライン)

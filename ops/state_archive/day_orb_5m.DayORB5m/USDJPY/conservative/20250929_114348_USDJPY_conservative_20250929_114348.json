@@ -1,0 +1,86 @@
+{
+  "meta": {
+    "symbol": "USDJPY",
+    "config_fingerprint": "401fffc2e5ebfc6c",
+    "last_timestamp": "2024-12-31T21:55:00"
+  },
+  "ev_global": {
+    "alpha": 27.184160150381807,
+    "beta": 22.815839849618154,
+    "prior_alpha": 0.0,
+    "prior_beta": 0.0,
+    "decay": 0.02,
+    "conf": 0.95
+  },
+  "ev_buckets": {
+    "LDN:narrow:high": {
+      "alpha": 27.33708718528785,
+      "beta": 22.66291281449358
+    },
+    "LDN:narrow:low": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "LDN:narrow:mid": {
+      "alpha": 24.756510157497825,
+      "beta": 19.898616706827383
+    },
+    "NY:narrow:high": {
+      "alpha": 11.500414729528632,
+      "beta": 16.981842941582133
+    },
+    "NY:narrow:low": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "NY:narrow:mid": {
+      "alpha": 27.268760360379833,
+      "beta": 22.73123888824036
+    },
+    "TOK:narrow:high": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "TOK:narrow:low": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "TOK:narrow:mid": {
+      "alpha": 1.0,
+      "beta": 1.0
+    }
+  },
+  "slip": {
+    "a": {
+      "narrow": 0.02,
+      "normal": 0.05,
+      "wide": 0.1
+    },
+    "curve": {
+      "narrow": {
+        "a": 0.02,
+        "b": 0.0
+      },
+      "normal": {
+        "a": 0.05,
+        "b": 0.0
+      },
+      "wide": {
+        "a": 0.1,
+        "b": 0.0
+      }
+    },
+    "ewma_alpha": 0.1
+  },
+  "rv_thresh": {
+    "TOK": null,
+    "LDN": null,
+    "NY": null
+  },
+  "runtime": {
+    "warmup_left": 0,
+    "day_count": 2190,
+    "current_date": "2024-12-31",
+    "last_session": "NY"
+  }
+}

@@ -59,6 +59,7 @@
 - 通知: `notifications/emit_signal.py`（フォールバックログ、複数Webhook）、`scripts/analyze_signal_latency.py`（SLOチェック）。
 - state: `docs/state_runbook.md` と `scripts/archive_state.py` により、`ops/state_archive/` へ日次保存。
 - オーケストレーション: `scripts/run_daily_workflow.py` と `scripts/cron_schedule_example.json` で最適化・通知・アーカイブを一括実行可能。
+  - Cron 例には 22:30 UTC（JST 07:30）の `benchmark_pipeline_daily` ジョブを追記し、`docs/benchmark_runbook.md#スケジュールとアラート管理` で定義された `--alert-*` / `--min-*` 閾値・`--benchmark-windows 365,180,90`・`--benchmark-freshness-max-age-hours 6` をそのまま CLI に反映した。
 - Paper移行前チェック: `docs/go_nogo_checklist.md` に要件をまとめ。
 
 ## 長期バックテスト・検証
