@@ -18,6 +18,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 
 **Progress Notes**
 - 2025-09-29: Added `docs/codex_workflow.md` to consolidate operational guidance for Codex agents and clarified the relationship with `docs/state_runbook.md` and the template directory.
+- 2025-10-16: Supplemented cloud-run guardrails in `docs/codex_cloud_notes.md` and linked them from the workflow guide to improve sandbox handoffs.
 
 ## P0: 即着手（オンデマンドインジェスト + 基盤整備）
 - ~~**state 更新ワーカー**~~ (完了): `scripts/update_state.py` に部分実行ワークフローを実装し、`BacktestRunner.run_partial` と状態スナップショット/EVアーカイブ連携を整備。`ops/state_archive/<strategy>/<symbol>/<mode>/` へ最新5件を保持し、更新後は `scripts/aggregate_ev.py` を自動起動するようにした。
@@ -65,6 +66,19 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 
 **進捗メモ**
 - 2024-06-11: `check_state_health` の警告・履歴ローテーション・Webhook 送信を pytest で回帰テスト化し、デフォルト閾値 (勝率LCB/サンプル数/滑り上限) の期待挙動を明記。
+
+### P1-04 価格インジェストAPI基盤整備
+REST/Streaming API と `scripts/pull_prices.py` を連携させ、手動CSV投入に頼らず 5m バーの継続取得・保存・特徴量更新を自動化する。`run_daily_workflow.py --ingest` 実行時に最新バーが `raw/`→`validated/`→`features/` へ冪等に反映され、鮮度チェックが 6 時間以内を維持できる状態を整える。
+
+**DoD**
+- `scripts/fetch_prices_api.py`（仮称）で API から指定期間の5mバーを取得し、認証情報は `configs/api_keys.yml` などで安全にロードできること。
+- `scripts/pull_prices.py` が API 取得結果を直接受け取れるように拡張され、`raw/`・`validated/`・`features/` が冪等更新されること。
+- `python3 scripts/run_daily_workflow.py --ingest --benchmarks` 実行時に新APIフローが呼ばれ、`ops/runtime_snapshot.json.ingest` が更新されること。
+- `python3 scripts/check_benchmark_freshness.py --target <symbol>:<mode> --max-age-hours 6` が成功し、鮮度アラートが解消されること。
+- APIモックを用いた単体テスト / 統合テストが追加され、失敗時のリトライ・アノマリーログ出力が検証されていること。
+
+**進捗メモ**
+- 2025-10-16: API インジェスト設計を起案し、`docs/todo_next.md` / `state.md` にタスク登録。設計ドキュメント (`docs/api_ingest_plan.md`) とチェックリスト (`docs/checklists/p1-04_api_ingest.md`) を整備し、ワークフロー統合を次ステップとする。
 
 ### P1-05 バックテストランナーのデバッグ可視化強化
 `core/runner.py` のデバッグ計測とログドキュメントを整理し、EV ゲート診断の調査手順を標準化する。

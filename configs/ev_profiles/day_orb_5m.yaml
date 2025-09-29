@@ -3,24 +3,24 @@
     "strategy_key": "day_orb_5m.DayORB5m",
     "symbol": "USDJPY",
     "mode": "conservative",
-    "generated_at": "2025-09-29T11:49:22Z",
-    "files_total": 41,
+    "generated_at": "2025-09-29T13:51:00Z",
+    "files_total": 49,
     "recent_count": 5,
-    "latest_state_ts": "2025-09-29T11:49:07Z",
+    "latest_state_ts": "2025-09-29T13:50:56Z",
     "alpha_prior": 1.0,
     "beta_prior": 1.0
   },
   "global": {
     "long_term": {
-      "alpha_avg": 27.2977313351697,
-      "beta_avg": 22.55882472267752,
-      "p_mean": 0.5475254107703885,
-      "observations": 41
+      "alpha_avg": 27.34702887243611,
+      "beta_avg": 22.5329466045381,
+      "p_mean": 0.5482566623365753,
+      "observations": 49
     },
     "recent": {
-      "alpha_avg": 27.265531361278356,
-      "beta_avg": 22.734468638721605,
-      "p_mean": 0.5453106272255676,
+      "alpha_avg": 27.263720336064416,
+      "beta_avg": 22.73627966393554,
+      "p_mean": 0.5452744067212888,
       "observations": 5
     }
   },
@@ -32,15 +32,15 @@
         "rv_band": "high"
       },
       "long_term": {
-        "alpha_avg": 27.30633459817252,
-        "beta_avg": 22.51607101576144,
-        "p_mean": 0.5480733870974646,
-        "observations": 41
+        "alpha_avg": 27.31375168396084,
+        "beta_avg": 22.537648931775543,
+        "p_mean": 0.5479033958243257,
+        "observations": 49
       },
       "recent": {
-        "alpha_avg": 26.714087630935403,
-        "beta_avg": 23.285912369020064,
-        "p_mean": 0.534281752619184,
+        "alpha_avg": 27.052036034360846,
+        "beta_avg": 22.94796396559304,
+        "p_mean": 0.5410407206877159,
         "observations": 5
       }
     },
@@ -54,7 +54,7 @@
         "alpha_avg": 1.0,
         "beta_avg": 1.0,
         "p_mean": 0.5,
-        "observations": 41
+        "observations": 49
       },
       "recent": {
         "alpha_avg": 1.0,
@@ -70,15 +70,15 @@
         "rv_band": "mid"
       },
       "long_term": {
-        "alpha_avg": 23.609480457654332,
-        "beta_avg": 17.84821564554795,
-        "p_mean": 0.5694836586886622,
-        "observations": 41
+        "alpha_avg": 24.35692585739816,
+        "beta_avg": 18.351586764618993,
+        "p_mean": 0.5703061137474884,
+        "observations": 49
       },
       "recent": {
-        "alpha_avg": 27.242861982631773,
-        "beta_avg": 21.49067488710831,
-        "p_mean": 0.5590167209790098,
+        "alpha_avg": 26.840786969614975,
+        "beta_avg": 21.359536480888796,
+        "p_mean": 0.556859063345859,
         "observations": 5
       }
     },
@@ -89,15 +89,15 @@
         "rv_band": "high"
       },
       "long_term": {
-        "alpha_avg": 10.73349153187732,
-        "beta_avg": 15.216165325075934,
-        "p_mean": 0.4136274938449239,
-        "observations": 41
+        "alpha_avg": 10.871938503401907,
+        "beta_avg": 15.818246522416906,
+        "p_mean": 0.407338446432084,
+        "observations": 49
       },
       "recent": {
-        "alpha_avg": 11.560732970596899,
-        "beta_avg": 18.412011021967782,
-        "p_mean": 0.38570819453383254,
+        "alpha_avg": 11.564270518539093,
+        "beta_avg": 18.49588760822359,
+        "p_mean": 0.3847042477212844,
         "observations": 5
       }
     },
@@ -111,7 +111,7 @@
         "alpha_avg": 1.0,
         "beta_avg": 1.0,
         "p_mean": 0.5,
-        "observations": 41
+        "observations": 49
       },
       "recent": {
         "alpha_avg": 1.0,
@@ -127,15 +127,15 @@
         "rv_band": "mid"
       },
       "long_term": {
-        "alpha_avg": 26.08495171391062,
-        "beta_avg": 20.947448683708906,
-        "p_mean": 0.5546166364757957,
-        "observations": 41
+        "alpha_avg": 26.38381666748798,
+        "beta_avg": 21.133089763064802,
+        "p_mean": 0.5552511442648025,
+        "observations": 49
       },
       "recent": {
-        "alpha_avg": 27.3269551376286,
-        "beta_avg": 22.673044681671335,
-        "p_mean": 0.546539104727765,
+        "alpha_avg": 27.314916618506004,
+        "beta_avg": 22.685083121529704,
+        "p_mean": 0.5462983352104813,
         "observations": 5
       }
     },
@@ -149,7 +149,7 @@
         "alpha_avg": 1.0,
         "beta_avg": 1.0,
         "p_mean": 0.5,
-        "observations": 41
+        "observations": 49
       },
       "recent": {
         "alpha_avg": 1.0,
@@ -168,7 +168,7 @@
         "alpha_avg": 1.0,
         "beta_avg": 1.0,
         "p_mean": 0.5,
-        "observations": 41
+        "observations": 49
       },
       "recent": {
         "alpha_avg": 1.0,
@@ -187,7 +187,7 @@
         "alpha_avg": 1.0,
         "beta_avg": 1.0,
         "p_mean": 0.5,
-        "observations": 41
+        "observations": 49
       },
       "recent": {
         "alpha_avg": 1.0,

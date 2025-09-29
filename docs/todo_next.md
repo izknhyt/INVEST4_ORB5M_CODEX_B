@@ -19,6 +19,7 @@
 - **ローリング検証パイプライン**（バックログ: `docs/task_backlog.md` → P1「ローリング検証 + 健全性モニタリング」） — `state.md` 2025-09-28, 2024-06-13, 2024-06-14, 2024-06-15, 2024-06-16 <!-- anchor: docs/task_backlog.md#p1-01-ローリング検証パイプライン -->
   - `scripts/run_benchmark_pipeline.py` の整備と `run_daily_workflow.py` 連携、期間指定リプレイ (`--start-ts` / `--end-ts`) の確認を継続中。
   - 次ステップ: ベンチマークランのローリング更新自動化と Sharpe / 最大 DD 指標の回帰監視強化。
+  - 2025-10-16: 鮮度チェックが API インジェスト待ちで停止しているため、P1-04 を優先タスクとして切り出し。P1-04 完了後に再検証を予定。
   - 2025-09-29: Cron サンプルに `benchmark_pipeline_daily`（UTC 22:30）を追加し、ランブック閾値 (`--alert-*`/`--min-*`/`--benchmark-windows 365,180,90`/`--benchmark-freshness-max-age-hours 6`) を CLI へ反映。`python3 scripts/run_daily_workflow.py --benchmarks` ドライランで `ops/runtime_snapshot.json` の `benchmark_pipeline` 更新と `threshold_alerts` 保存を確認（Sandbox では Webhook 403 と鮮度アラートは既知）。
   - 2025-09-30: `manage_task_cycle.py start-task` に runbook/pending 資料の上書きオプションを追加し、`sync_task_docs.py` のテンプレ適用を共通ヘルパーへ整理。`docs/codex_workflow.md` と README の手順を更新済み。
   - 2025-09-28: 手動で `run_benchmark_pipeline.py --windows 365,180,90` を再実行し、ローリング JSON / `benchmark_summary.json` に Sharpe・最大DD・勝率が揃って出力されることを確認。ローカル環境では Slack Webhook が 403 になるため、`benchmark_runs.alert.deliveries[].detail` をランブックへ追記し、`state.md` と併せてメモ化する。
@@ -31,6 +32,21 @@
     - [ ] なし
   - Docs note: 参照: [docs/logic_overview.md](docs/logic_overview.md) / [docs/simulation_plan.md](docs/simulation_plan.md) / [docs/benchmark_runbook.md#スケジュールとアラート管理](docs/benchmark_runbook.md#スケジュールとアラート管理)
   - DoD チェックリスト: [docs/checklists/p1-01.md](docs/checklists/p1-01.md) を更新して進捗を管理する。
+
+- **価格インジェストAPI基盤整備**（バックログ: `docs/task_backlog.md` → P1「ローリング検証 + 健全性モニタリング」） — `state.md` 2025-10-16 <!-- anchor: docs/task_backlog.md#p1-04-価格インジェストapi基盤整備 -->
+  - Scope: REST/Streaming API クライアント設計 → `pull_prices.py` 連携 → workflow 統合。
+  - Deliverables (EN): API ingestion design doc (`docs/api_ingest_plan.md`), CLI integration plan, retry/test matrix.
+  - Next step: Document API provider assumptions・認証管理・リトライポリシーをまとめ、運用ランブック更新案を起草。
+  - Backlog Anchor: [価格インジェストAPI基盤整備 (P1-04)](docs/task_backlog.md#p1-04-価格インジェストapi基盤整備)
+  - Vision / Runbook References:
+    - [readme/設計方針（投資_3_）v_1.md](readme/設計方針（投資_3_）v_1.md)
+    - [docs/state_runbook.md](docs/state_runbook.md)
+    - [README.md#オンデマンドインジェスト-cli](README.md#オンデマンドインジェスト-cli)
+  - Pending Questions:
+    - [ ] API ソース (ベンダー/レート制限/ヒストリカル期間) の決定
+    - [ ] 認証情報の保管先とローテーション手順
+  - Docs note: Draft plan in `docs/api_ingest_plan.md` and update runbook/checklist once design is reviewed.
+  - DoD チェックリスト: [docs/checklists/p1-04_api_ingest.md](docs/checklists/p1-04_api_ingest.md) を利用して進捗を管理する。
 
 ### Ready
 
@@ -61,4 +77,3 @@
 
 - ~~**インシデントリプレイテンプレート**~~（バックログ: `docs/task_backlog.md` → P1「インシデントリプレイテンプレート」） — `state.md` 2024-06-14, 2024-06-15, 2024-06-21 ✅ <!-- anchor: docs/task_backlog.md#p1-02-インシデントリプレイテンプレート -->
   - 期間指定リプレイ CLI の拡張は完了。Notebook (`analysis/incident_review.ipynb`) と `ops/incidents/` へのテンプレ整備を次イテレーションで着手可能。
-

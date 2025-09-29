@@ -8,6 +8,7 @@ This guide summarizes the routine Codex agents should follow to keep tasks movin
 - **docs/todo_next.md** — Organizes practical next actions across In Progress, Ready, Pending Review, and Archive.
 - **docs/templates/** — Home of reusable templates such as `next_task_entry.md` and `dod_checklist.md` that Codex applies automatically.
 - **docs/state_runbook.md** — Baseline operational runbook for state synchronization and archive handling.
+- **docs/codex_cloud_notes.md** — Additional guardrails when running in read-only or network-restricted cloud sandboxes.
 
 ## Pre-session Routine
 1. **Review the current situation**  

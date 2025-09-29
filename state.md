@@ -5,7 +5,16 @@
 - Update this file after completing work to record outcomes, blockers, and next steps.
 
 ## Next Task
-- 未設定（次の優先タスク選定待ち）
+- [P1-04] 2025-10-16 価格インジェストAPI基盤整備 — DoD: [docs/task_backlog.md#p1-04-価格インジェストapi基盤整備](docs/task_backlog.md#p1-04-価格インジェストapi基盤整備) — REST/API 連携による自動インジェスト設計をまとめ、ローリング検証の鮮度維持を可能にする。
+  - Backlog Anchor: [価格インジェストAPI基盤整備 (P1-04)](docs/task_backlog.md#p1-04-価格インジェストapi基盤整備)
+  - Vision / Runbook References:
+    - [readme/設計方針（投資_3_）v_1.md](readme/設計方針（投資_3_）v_1.md)
+    - [docs/state_runbook.md](docs/state_runbook.md)
+    - [README.md#オンデマンドインジェスト-cli](README.md#オンデマンドインジェスト-cli)
+  - Pending Questions:
+    - [ ] API プロバイダとレート制限の要件整理
+    - [ ] 認証情報保管/ローテーション方針の決定
+  - Docs note: Draft design in `docs/api_ingest_plan.md`（新規作成予定）。
 
 ### 運用メモ
 - バックログから着手するタスクは先にこのリストへ追加し、ID・着手予定日・DoD リンクを明示する。
@@ -24,6 +33,7 @@
   - Docs note: 参照: [docs/logic_overview.md](docs/logic_overview.md) / [docs/simulation_plan.md](docs/simulation_plan.md) / [docs/benchmark_runbook.md#スケジュールとアラート管理](docs/benchmark_runbook.md#スケジュールとアラート管理)
   - 2025-09-28: 手動でローリング 365/180/90D を再生成し、Sharpe・最大DD・勝率が揃って出力されていることと `benchmark_runs.alert` の delta_sharpe トリガーを確認。Slack Webhook が 403 で失敗したため、ランブックへサンドボックス時の扱いを追記する。
   - 2025-09-29: Cron サンプルへ `benchmark_pipeline_daily` を追加し、ランブック閾値 (`--alert-*` / `--min-*` / `--benchmark-windows 365,180,90` / `--benchmark-freshness-max-age-hours 6`) を CLI へ反映。`python3 scripts/run_daily_workflow.py --benchmarks` ドライランで `ops/runtime_snapshot.json` の `benchmark_pipeline` 更新・`threshold_alerts` 記録を確認（Sandbox では Webhook 403 と鮮度アラートは想定内）。
+  - 2025-10-16: 最新バーの供給が途絶しているため、P1-04 で API インジェスト基盤を設計・整備し、鮮度チェックのブロッカーを解消する計画。
 
 ## Log
 - [P1-01] 2025-10-15: Added `--min-win-rate` health threshold to benchmark summary / pipeline / daily workflow CLIs, ensured `threshold_alerts` propagation into runtime snapshots, refreshed README + benchmark runbook + checklist guidance, linked the backlog progress note, and ran `python3 -m pytest`.
