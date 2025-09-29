@@ -138,6 +138,10 @@ def _validate_baseline_output(baseline: Any) -> Optional[str]:
     if aggregate_error:
         return aggregate_error
 
+    for key in ("win_rate", "sharpe", "max_drawdown"):
+        if data.get(key) is None:
+            return f"baseline missing {key}"
+
     return None
 
 

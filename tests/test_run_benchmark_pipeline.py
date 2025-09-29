@@ -40,7 +40,14 @@ def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_
 
     benchmark_payload = {
         "baseline": str(baseline_path),
-        "baseline_metrics": {"trades": 100, "wins": 60, "total_pips": 250.0},
+        "baseline_metrics": {
+            "trades": 100,
+            "wins": 60,
+            "total_pips": 250.0,
+            "win_rate": 0.6,
+            "sharpe": 1.0,
+            "max_drawdown": -70.0,
+        },
         "rolling": [
             {"window": 365, "path": str(tmp_path / "reports" / "rolling" / "365" / "USDJPY_conservative.json")},
             {"window": 180, "path": str(tmp_path / "reports" / "rolling" / "180" / "USDJPY_conservative.json")},
@@ -202,6 +209,7 @@ def test_pipeline_errors_when_rolling_metrics_missing(monkeypatch: pytest.Monkey
         {
             "sharpe": 1.0,
             "max_drawdown": -60.0,
+            "win_rate": 0.54,
             "aggregate_ev": AGGREGATE_SUCCESS,
         },
     )
@@ -258,6 +266,60 @@ def test_pipeline_errors_when_rolling_metrics_missing(monkeypatch: pytest.Monkey
     assert rc == 1
     captured = capsys.readouterr()
     assert "missing max_drawdown" in captured.err
+    assert captured.out == ""
+
+
+def test_pipeline_errors_when_baseline_metrics_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+    baseline_path = tmp_path / "reports" / "baseline" / "USDJPY_conservative.json"
+    _write_metrics(
+        baseline_path,
+        {
+            "sharpe": 1.0,
+            "max_drawdown": -65.0,
+            "aggregate_ev": AGGREGATE_SUCCESS,
+        },
+    )
+
+    rolling_entries = []
+    for window in (365, 180, 90):
+        path = tmp_path / "reports" / "rolling" / str(window) / "USDJPY_conservative.json"
+        _write_metrics(
+            path,
+            {
+                "win_rate": 0.6,
+                "sharpe": 1.05,
+                "max_drawdown": -45.0,
+                "aggregate_ev": AGGREGATE_SUCCESS,
+            },
+        )
+        rolling_entries.append({"window": window, "path": str(path)})
+
+    benchmark_payload = {
+        "baseline": str(baseline_path),
+        "baseline_metrics": {},
+        "rolling": rolling_entries,
+        "latest_ts": "2024-06-10T00:00:00",
+    }
+
+    def fake_run(cmd: List[str], /) -> DummyCompletedProcess:
+        if "run_benchmark_runs.py" in Path(cmd[1]).name:
+            return DummyCompletedProcess(cmd, returncode=0, stdout=json.dumps(benchmark_payload))
+        raise AssertionError("summary script should not be invoked when baseline metrics are invalid")
+
+    monkeypatch.setattr(rbp, "_run_subprocess", fake_run)
+
+    rc = rbp.main([
+        "--bars",
+        str(tmp_path / "bars.csv"),
+        "--snapshot",
+        str(tmp_path / "ops" / "runtime_snapshot.json"),
+        "--summary-json",
+        str(tmp_path / "reports" / "benchmark_summary.json"),
+    ])
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "baseline missing win_rate" in captured.err
     assert captured.out == ""
 
 
