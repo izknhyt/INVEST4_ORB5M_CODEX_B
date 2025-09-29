@@ -10,3 +10,4 @@ tests/runs_*/
 *.feather
 !tests/data/
 !tests/data/*.csv
+!data/sample_orb.csv
