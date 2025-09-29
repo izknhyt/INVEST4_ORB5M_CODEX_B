@@ -39,6 +39,8 @@ def build_runner_config(args, base: RunnerConfig | None = None) -> RunnerConfig:
         rcfg.prior_alpha = float(args.prior_alpha)
     if getattr(args, "prior_beta", None) is not None:
         rcfg.prior_beta = float(args.prior_beta)
+    if getattr(args, "decay", None) is not None:
+        rcfg.ev_decay = float(args.decay)
     if getattr(args, "include_expected_slip", False):
         rcfg.include_expected_slip = True
     if getattr(args, "rv_quantile", False):

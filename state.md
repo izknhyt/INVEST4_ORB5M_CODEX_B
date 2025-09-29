@@ -69,3 +69,4 @@
 - [DOC-06] 2025-10-08: Documented Day ORB parameter dependency matrix, noted transfer checklist, and linked the update from the simulation plan Phase1 task.
 - [DOC-07] 2025-10-09: Mean Reversion スタブの入力想定を整理し、Day ORB との比較チェックリストを公開。`docs/checklists/multi_strategy_validation.md` を追加し、backlog へマルチ戦略レビュータスクを追記。
 - [DOC-08] 2025-10-09: 戦略マニフェストの必須/任意ブロックを README に整理し、Day ORB を基にしたテンプレート (`configs/strategies/templates/base_strategy.yaml`) と runner ガイドを追加。DoD: `python3 -m pytest tests/test_strategy_manifest.py` 通過・バックログへ整備済みノート追記。
+- [P1-05] 2025-10-10: Expanded `scripts/generate_ev_case_study.py` to handle decay/prior/warmup sweeps with JSON/CSV exports, added `analysis/ev_param_sweep.ipynb` for heatmaps, updated `docs/ev_tuning.md`, and introduced pytest coverage (`tests/test_generate_ev_case_study.py`). DoD: `python3 -m pytest` オールパス。

@@ -168,6 +168,8 @@ class RunnerConfig:
     # EV prior (Beta-Binomial)
     prior_alpha: float = 0.0
     prior_beta: float = 0.0
+    # EV decay (EWMA smoothing for win-rate updates)
+    ev_decay: float = 0.02
     # Risk controls sourced from manifests
     risk_per_trade_pct: float = 0.0
     max_daily_dd_pct: Optional[float] = None
@@ -271,12 +273,12 @@ class BacktestRunner:
         self.debug_sample_limit = max(0, int(debug_sample_limit))
         self.strategy_cls = strategy_cls or DayORB5m
         self.ev_profile = ev_profile or {}
-        self.ev_global = BetaBinomialEV(conf_level=0.95, decay=0.02,
+        self.ev_global = BetaBinomialEV(conf_level=0.95, decay=self.rcfg.ev_decay,
                                         prior_alpha=self.rcfg.prior_alpha,
                                         prior_beta=self.rcfg.prior_beta)
         # bucket store for pooled EV
         self.ev_buckets: Dict[tuple, BetaBinomialEV] = {}
-        self.ev_var = TLowerEV(conf_level=0.95, decay=0.02)
+        self.ev_var = TLowerEV(conf_level=0.95, decay=self.rcfg.ev_decay)
         self.fill_engine_c = ConservativeFill()
         self.fill_engine_b = BridgeFill()
         self._reset_runtime_state()
