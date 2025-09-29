@@ -21,6 +21,8 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
 python3 scripts/run_daily_workflow.py --ingest --update-state --benchmarks --state-health --benchmark-summary
 ```
 
+`--ingest-source path/to.csv` を付与すると、手元の CSV を `pull_prices.py --source` にそのまま引き渡せます（既定は `data/usdjpy_5m_2018-2024_utc.csv`）。
+
 - 個別の実行例
   - 取り込み: `python3 scripts/pull_prices.py --source data/usdjpy_5m_2018-2024_utc.csv`
   - state更新: `python3 scripts/update_state.py --bars validated/USDJPY/5m.csv --chunk-size 20000`

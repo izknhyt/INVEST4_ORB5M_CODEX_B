@@ -130,6 +130,23 @@ def test_benchmarks_pipeline_arguments(monkeypatch):
     assert cmd[cmd.index("--windows") + 1] == "200,60"
 
 
+def test_ingest_with_custom_source(monkeypatch, tmp_path):
+    captured = _capture_run_cmd(monkeypatch)
+    custom_source = tmp_path / "custom.csv"
+
+    exit_code = run_daily_workflow.main([
+        "--ingest",
+        "--ingest-source",
+        str(custom_source),
+    ])
+
+    assert exit_code == 0
+    assert captured, "run_cmd should be invoked"
+    cmd = captured[0]
+    assert "--source" in cmd
+    assert Path(cmd[cmd.index("--source") + 1]) == custom_source
+
+
 def test_optimize_uses_absolute_paths(monkeypatch):
     captured = _capture_run_cmd(monkeypatch)
 

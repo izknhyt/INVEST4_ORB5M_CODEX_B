@@ -36,6 +36,7 @@
   - 2025-10-16: 最新バーの供給が途絶しているため、P1-04 で API インジェスト基盤を設計・整備し、鮮度チェックのブロッカーを解消する計画。
 
 ## Log
+- [P1-04] 2025-10-17: Added `--ingest-source` passthrough to `run_daily_workflow.py` ingest calls, documented usage in README/state runbook, and extended pytest coverage for the custom source path.
 - [P1-01] 2025-10-15: Added `--min-win-rate` health threshold to benchmark summary / pipeline / daily workflow CLIs, ensured `threshold_alerts` propagation into runtime snapshots, refreshed README + benchmark runbook + checklist guidance, linked the backlog progress note, and ran `python3 -m pytest`.
 - [P1-01] 2025-10-14: Added `scripts/check_benchmark_freshness.py` with regression tests, wired the CLI into `run_daily_workflow.py --check-benchmark-freshness`, and documented the 6h freshness threshold across the benchmark runbook / P1-01 checklist / backlog notes.
 - [P1-05] 2025-10-13: Added deterministic hook-failure regression for `run_sim` debug counters/records, updated

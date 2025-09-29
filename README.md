@@ -215,6 +215,8 @@ python3 scripts/run_daily_workflow.py \
   --symbol USDJPY --mode conservative --equity 100000
 ```
 
+`--ingest-source path/to.csv` を併用すると、日次ワークフロー経由でも `pull_prices.py --source` へ任意の CSV を渡せます（既定は `data/usdjpy_5m_2018-2024_utc.csv`）。
+
 ベンチマーク窓ごとの実行スケジュールとアラート閾値の管理方針は、[docs/benchmark_runbook.md#スケジュールとアラート管理](docs/benchmark_runbook.md#スケジュールとアラート管理) を参照してください。`scripts/manage_task_cycle.py start-task` を使って `state.md` / `docs/todo_next.md` と整合を取る手順も同セクションにまとめています。
 
 個別実行の例（必要なものだけ）:
