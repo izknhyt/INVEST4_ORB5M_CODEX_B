@@ -1,0 +1,63 @@
+meta:
+  id: mean_reversion_stub_v1
+  name: Mean Reversion Stub (USDJPY)
+  version: "1.0"
+  category: day
+  description: |
+    Mean reversion stub used for regression tests. Demonstrates how strategy
+    manifests supply custom parameters such as z-score thresholds and RV gate
+    toggles.
+
+strategy:
+  class_path: strategies.reversion_stub.MeanReversionStrategy
+  instruments:
+    - symbol: USDJPY
+      timeframe: 5m
+      mode: conservative
+  parameters:
+    or_n: 2
+    k_tp: 0.5
+    k_sl: 0.7
+    cooldown_bars: 1
+    zscore_threshold: 0.5
+    allow_high_rv: true
+
+router:
+  allowed_sessions: [LDN, NY, TOK]
+  allow_rv_bands: [low, mid, high]
+
+risk:
+  risk_per_trade_pct: 0.1
+  max_daily_dd_pct: 8.0
+  notional_cap: 500000
+  max_concurrent_positions: 1
+  warmup_trades: 0
+
+features:
+  required:
+    - zscore
+    - rv_band
+  optional:
+    - atr14
+    - adx14
+
+runner:
+  runner_config:
+    threshold_lcb_pip: 0.0
+    min_or_atr_ratio: 0.0
+    allowed_sessions: [LDN, NY, TOK]
+    allow_low_rv: true
+    spread_bands:
+      narrow: 3.0
+      normal: 5.0
+      wide: 99.0
+    warmup_trades: 0
+  cli_args:
+    equity: 100000
+    allowed_sessions: LDN,NY,TOK
+
+state:
+  archive_namespace: strategies.reversion_stub.MeanReversionStrategy/USDJPY/conservative
+
+notes:
+  - Example manifest for the mean reversion stub leveraged by CLI regression tests.

@@ -101,11 +101,56 @@ class Metrics:
 
 @dataclass
 class StrategyConfig:
+    """Container for strategy-specific parameters.
+
+    The default attributes mirror the Day ORB setup but the structure now
+    supports arbitrary key/value pairs so manifests can pass through new
+    knobs without requiring core changes.
+    """
+
     or_n: int = 6
     k_tp: float = 1.0
     k_sl: float = 0.8
     k_tr: float = 0.0
     cooldown_bars: int = 3
+    extra_params: Dict[str, Any] = field(default_factory=dict)
+
+    def merge(self, params: Dict[str, Any], *, replace: bool = False) -> None:
+        """Merge arbitrary parameters into the config.
+
+        Parameters that match the built-in attributes are coerced into the
+        appropriate type; everything else is stored in ``extra_params`` so it
+        can be forwarded verbatim to ``Strategy.on_start``.
+        """
+
+        if replace:
+            self.extra_params = {}
+        if not params:
+            return
+        for key, value in params.items():
+            if key == "or_n" and value is not None:
+                self.or_n = int(value)
+            elif key == "k_tp" and value is not None:
+                self.k_tp = float(value)
+            elif key == "k_sl" and value is not None:
+                self.k_sl = float(value)
+            elif key == "k_tr" and value is not None:
+                self.k_tr = float(value)
+            elif key == "cooldown_bars" and value is not None:
+                self.cooldown_bars = int(value)
+            else:
+                self.extra_params[key] = value
+
+    def as_dict(self) -> Dict[str, Any]:
+        params: Dict[str, Any] = {
+            "or_n": self.or_n,
+            "k_tp": self.k_tp,
+            "k_sl": self.k_sl,
+            "k_tr": self.k_tr,
+            "cooldown_bars": self.cooldown_bars,
+        }
+        params.update(self.extra_params)
+        return params
 
 
 @dataclass
@@ -123,6 +168,11 @@ class RunnerConfig:
     # EV prior (Beta-Binomial)
     prior_alpha: float = 0.0
     prior_beta: float = 0.0
+    # Risk controls sourced from manifests
+    risk_per_trade_pct: float = 0.0
+    max_daily_dd_pct: Optional[float] = None
+    notional_cap: Optional[float] = None
+    max_concurrent_positions: int = 1
     # Cost model: expected slippage option
     include_expected_slip: bool = False
     slip_curve: Dict[str, Dict[str, float]] = field(default_factory=lambda: {
@@ -184,6 +234,9 @@ class RunnerConfig:
     def cooldown_bars(self, value: int) -> None:
         self.strategy.cooldown_bars = int(value)
 
+    def merge_strategy_params(self, params: Dict[str, Any], *, replace: bool = False) -> None:
+        self.strategy.merge(params, replace=replace)
+
 
 class BacktestRunner:
     DEBUG_COUNT_KEYS: Tuple[str, ...] = (
@@ -238,7 +291,7 @@ class BacktestRunner:
 
         # strategy
         self.stg = self.strategy_cls()
-        self.stg.on_start({"or_n": self.rcfg.or_n, "k_tp": self.rcfg.k_tp, "k_sl": self.rcfg.k_sl, "k_tr": self.rcfg.k_tr}, [symbol], {})
+        self.stg.on_start(self.rcfg.strategy.as_dict(), [symbol], {})
         self._strategy_gate_hook = self._resolve_strategy_hook("strategy_gate")
         self._ev_threshold_hook = self._resolve_strategy_hook("ev_threshold")
         self._apply_ev_profile()

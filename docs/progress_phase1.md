@@ -4,6 +4,7 @@
 - `strategies/day_orb_5m.py` に `strategy_gate` / `ev_threshold` 実装済み。
 - サンプル戦略として `strategies/reversion_stub.py` を追加。低ボラ時の閾値緩和・高ボラ時のブロック動作を確認済み。`
 - CLI `run_sim.py --strategy <module.Class>` で任意戦略を注入可能。
+- `scripts/run_sim.py --strategy-manifest` が `configs/strategies/*.yaml` を読み込み、RunnerConfig の許容セッション/リスク上限を適用しつつ戦略パラメータ（例: `allow_high_rv` / `zscore_threshold`）を `Strategy.on_start` にそのまま渡すフローを整備。回帰テスト: `tests/test_run_sim_cli.py::test_run_sim_manifest_mean_reversion`。DoD: [docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化)。
 
 ## 2. EV 閾値ケーススタディ
 - ユーティリティ `scripts/generate_ev_case_study.py` を追加し、複数の `threshold_lcb` を一括比較可能。

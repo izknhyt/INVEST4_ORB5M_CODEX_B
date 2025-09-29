@@ -16,7 +16,7 @@ import subprocess
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import os
 import sys
@@ -27,8 +27,9 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from core.utils import yaml_compat as yaml
-from core.runner import BacktestRunner
+from core.runner import BacktestRunner, RunnerConfig
 from scripts.config_utils import build_runner_config
+from configs.strategies.loader import load_manifest, StrategyManifest
 
 
 def _strategy_state_key(strategy_cls) -> str:
@@ -54,6 +55,63 @@ def _maybe_load_store_run_summary() -> Optional[Callable[..., Dict[str, Any]]]:
             return None
         raise
     return store_run_summary
+
+
+def _coerce_allowed_sessions(value: Any) -> Tuple[str, ...]:
+    if isinstance(value, str):
+        parts = [p.strip().upper() for p in value.split(",") if p.strip()]
+        return tuple(parts)
+    if isinstance(value, (list, tuple)):
+        parts = [str(p).strip().upper() for p in value if str(p).strip()]
+        return tuple(parts)
+    return ()
+
+
+def _apply_runner_overrides(rcfg: RunnerConfig, overrides: Dict[str, Any]) -> None:
+    if not overrides:
+        return
+    for key, value in overrides.items():
+        if value is None:
+            continue
+        if key == "allowed_sessions":
+            sessions = _coerce_allowed_sessions(value)
+            if sessions:
+                rcfg.allowed_sessions = sessions
+            continue
+        if key == "rv_band_cuts" and isinstance(value, (list, tuple)):
+            rcfg.rv_band_cuts = [float(v) for v in value]
+            continue
+        if key == "spread_bands" and isinstance(value, dict):
+            rcfg.spread_bands = {str(k): float(v) for k, v in value.items()}
+            continue
+        if key == "slip_curve" and isinstance(value, dict):
+            curve_map: Dict[str, Dict[str, float]] = {}
+            for band, mapping in value.items():
+                if not isinstance(mapping, dict):
+                    continue
+                curve_map[str(band)] = {str(inner_k): float(inner_v) for inner_k, inner_v in mapping.items()}
+            if curve_map:
+                rcfg.slip_curve = curve_map
+            continue
+        try:
+            setattr(rcfg, key, value)
+        except AttributeError:
+            continue
+
+
+def _runner_config_from_manifest(manifest: StrategyManifest) -> RunnerConfig:
+    rcfg = RunnerConfig()
+    rcfg.merge_strategy_params(manifest.strategy.parameters, replace=True)
+    _apply_runner_overrides(rcfg, manifest.runner.runner_config)
+    router_sessions = _coerce_allowed_sessions(manifest.router.allowed_sessions)
+    if router_sessions:
+        rcfg.allowed_sessions = router_sessions
+    rcfg.warmup_trades = int(manifest.risk.warmup_trades)
+    rcfg.risk_per_trade_pct = float(manifest.risk.risk_per_trade_pct)
+    rcfg.max_daily_dd_pct = manifest.risk.max_daily_dd_pct
+    rcfg.notional_cap = manifest.risk.notional_cap
+    rcfg.max_concurrent_positions = int(manifest.risk.max_concurrent_positions)
+    return rcfg
 
 
 def load_bars_csv(path: str) -> List[Dict[str, Any]]:
@@ -120,7 +178,7 @@ def parse_args(argv=None):
     p.add_argument("--min-or-atr", type=float, default=None, help="Override min OR/ATR ratio gate (e.g., 0.4)")
     p.add_argument("--rv-cuts", default=None, help="Override RV band cuts as 'c1,c2' (e.g., 0.005,0.015)")
     p.add_argument("--allow-low-rv", action="store_true", help="Allow rv_band=low to pass router gate")
-    p.add_argument("--allowed-sessions", default="LDN,NY", help="Comma-separated session codes to allow (e.g., 'LDN,NY'; empty for all)")
+    p.add_argument("--allowed-sessions", default=argparse.SUPPRESS, help="Comma-separated session codes to allow (e.g., 'LDN,NY'; empty for all)")
     p.add_argument("--k-tp", type=float, default=None, help="Override k_tp (TP in ATR multiples)")
     p.add_argument("--k-sl", type=float, default=None, help="Override k_sl (SL in ATR multiples)")
     p.add_argument("--k-tr", type=float, default=None, help="Override k_tr (trail in ATR multiples)")
@@ -141,6 +199,8 @@ def parse_args(argv=None):
     p.add_argument("--end-ts", type=_iso8601_arg, default=None, help="End timestamp (ISO8601) to filter input bars")
     p.add_argument("--strategy", default="day_orb_5m.DayORB5m",
                    help="Strategy class to load (module.Class) default=day_orb_5m.DayORB5m")
+    p.add_argument("--strategy-manifest", default=None,
+                   help="Path to strategy manifest YAML; overrides strategy class and runner defaults when provided")
     p.add_argument("--state-archive", default="ops/state_archive",
                    help="Base directory to archive EV state per strategy/symbol/mode (default: ops/state_archive)")
     p.add_argument("--no-auto-state", action="store_true",
@@ -163,6 +223,22 @@ def parse_args(argv=None):
 
 def main(argv=None):
     args = parse_args(argv)
+    manifest: Optional[StrategyManifest] = None
+    rcfg_base: Optional[RunnerConfig] = None
+    manifest_state_namespace: Optional[str] = None
+    if getattr(args, "strategy_manifest", None):
+        manifest = load_manifest(args.strategy_manifest)
+        rcfg_base = _runner_config_from_manifest(manifest)
+        manifest_state_namespace = manifest.state.archive_namespace
+        args.strategy = manifest.strategy.class_path
+        if manifest.state.ev_profile and not getattr(args, "ev_profile", None):
+            args.ev_profile = manifest.state.ev_profile
+        if args.symbol is None and manifest.strategy.instruments:
+            args.symbol = manifest.strategy.instruments[0].symbol
+        if manifest.strategy.instruments:
+            inst_mode = manifest.strategy.instruments[0].mode
+            if inst_mode and getattr(args, "mode", None) == "conservative":
+                args.mode = inst_mode
     # Resolve CSV path (allow auto-detect from data/ if not provided)
     if not args.csv:
         import os as _os
@@ -202,7 +278,7 @@ def main(argv=None):
         print(json.dumps({"error": "no bars"}))
         return 1
     symbol = args.symbol or bars[0].get("symbol")
-    rcfg = build_runner_config(args)
+    rcfg = build_runner_config(args, base=rcfg_base)
     debug_for_dump = args.debug or bool(args.dump_csv) or bool(args.dump_daily) or bool(args.out_dir)
     from importlib import import_module
     strategy_cls = None
@@ -243,7 +319,10 @@ def main(argv=None):
     archive_dir: Optional[Path] = None
     archive_save_path: Optional[str] = None
     if not args.no_auto_state:
-        archive_dir = Path(args.state_archive) / _strategy_state_key(strategy_cls) / symbol / args.mode
+        if manifest_state_namespace:
+            archive_dir = Path(args.state_archive) / Path(manifest_state_namespace)
+        else:
+            archive_dir = Path(args.state_archive) / _strategy_state_key(strategy_cls) / symbol / args.mode
         latest_state = _latest_state_file(archive_dir)
         if latest_state is not None:
             try:
@@ -305,7 +384,7 @@ def main(argv=None):
             "min_or_atr": args.min_or_atr,
             "rv_cuts": args.rv_cuts,
             "allow_low_rv": args.allow_low_rv,
-            "allowed_sessions": args.allowed_sessions,
+            "allowed_sessions": getattr(args, "allowed_sessions", None) or ",".join(rcfg.allowed_sessions),
             "or_n": args.or_n,
             "k_tp": args.k_tp,
             "k_sl": args.k_sl,
@@ -319,6 +398,8 @@ def main(argv=None):
             "ev_mode": args.ev_mode,
             "size_floor": args.size_floor,
             "dump_max": args.dump_max,
+            "strategy": args.strategy,
+            "strategy_manifest": args.strategy_manifest,
         }
         # write params.json and params.csv
         with open(_os.path.join(run_dir, "params.json"), "w") as f:
@@ -406,7 +487,7 @@ def main(argv=None):
             "min_or_atr": args.min_or_atr,
             "rv_cuts": args.rv_cuts,
             "allow_low_rv": args.allow_low_rv,
-            "allowed_sessions": args.allowed_sessions,
+            "allowed_sessions": getattr(args, "allowed_sessions", None) or ",".join(rcfg.allowed_sessions),
             "warmup": args.warmup,
             "prior_alpha": args.prior_alpha,
             "prior_beta": args.prior_beta,

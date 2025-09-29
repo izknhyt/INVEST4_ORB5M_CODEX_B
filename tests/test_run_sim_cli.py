@@ -1,20 +1,22 @@
 import json
 import os
 import tempfile
+import textwrap
 import unittest
 from unittest import mock
 
 from scripts.run_sim import load_bars_csv, main as run_sim_main
+from strategies.reversion_stub import MeanReversionStrategy
 
 
-CSV_CONTENT = """timestamp,symbol,tf,o,h,l,c,v,spread
-2024-01-01T08:00:00Z,USDJPY,5m,150.00,150.10,149.90,150.02,0,0.02
-2024-01-01T08:05:00Z,USDJPY,5m,150.01,150.11,149.91,150.03,0,0.02
-2024-01-01T08:10:00Z,USDJPY,5m,150.02,150.12,149.92,150.04,0,0.02
-2024-01-01T08:15:00Z,USDJPY,5m,150.03,150.13,149.93,150.05,0,0.02
-2024-01-01T08:20:00Z,USDJPY,5m,150.04,150.14,149.94,150.06,0,0.02
-2024-01-01T08:25:00Z,USDJPY,5m,150.05,150.15,149.95,150.07,0,0.02
-2024-01-01T08:30:00Z,USDJPY,5m,150.06,150.30,149.95,150.10,0,0.02
+CSV_CONTENT = """timestamp,symbol,tf,o,h,l,c,v,spread,zscore
+2024-01-01T08:00:00Z,USDJPY,5m,150.00,150.10,149.90,150.02,0,0.02,0.0
+2024-01-01T08:05:00Z,USDJPY,5m,150.01,150.11,149.91,150.03,0,0.02,0.3
+2024-01-01T08:10:00Z,USDJPY,5m,150.02,150.12,149.92,150.04,0,0.02,0.8
+2024-01-01T08:15:00Z,USDJPY,5m,150.03,150.13,149.93,150.05,0,0.02,-0.7
+2024-01-01T08:20:00Z,USDJPY,5m,150.04,150.14,149.94,150.06,0,0.02,0.6
+2024-01-01T08:25:00Z,USDJPY,5m,150.05,150.15,149.95,150.07,0,0.02,-1.2
+2024-01-01T08:30:00Z,USDJPY,5m,150.06,150.30,149.95,150.10,0,0.02,0.4
 """
 
 
@@ -92,6 +94,102 @@ class TestRunSimCLI(unittest.TestCase):
             bars_arg = captured.get("bars")
             self.assertIsNotNone(bars_arg)
             self.assertEqual(len(bars_arg), 3)
+            with open(json_out, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.assertIn("sharpe", data)
+            self.assertIn("max_drawdown", data)
+
+    def test_run_sim_manifest_mean_reversion(self):
+        manifest_yaml = textwrap.dedent(
+            """
+            meta:
+              id: mean_reversion_stub_v1
+              name: Mean Reversion Stub
+              version: "1.0"
+              category: day
+            strategy:
+              class_path: strategies.reversion_stub.MeanReversionStrategy
+              instruments:
+                - symbol: USDJPY
+                  timeframe: 5m
+                  mode: conservative
+              parameters:
+                or_n: 2
+                k_tp: 0.5
+                k_sl: 0.7
+                cooldown_bars: 1
+                zscore_threshold: 0.5
+                allow_high_rv: true
+            router:
+              allowed_sessions: [LDN, NY]
+            risk:
+              risk_per_trade_pct: 0.1
+              max_daily_dd_pct: 8.0
+              notional_cap: 500000
+              max_concurrent_positions: 1
+              warmup_trades: 0
+            runner:
+              runner_config:
+                threshold_lcb_pip: 0.0
+                min_or_atr_ratio: 0.0
+                allowed_sessions: [LDN, NY]
+                allow_low_rv: true
+                spread_bands:
+                  narrow: 3.0
+                  normal: 5.0
+                  wide: 99.0
+                warmup_trades: 0
+            state:
+              archive_namespace: strategies.reversion_stub.MeanReversionStrategy/USDJPY/conservative
+            """
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path = os.path.join(tmpdir, "bars.csv")
+            with open(csv_path, "w", encoding="utf-8") as f:
+                f.write(CSV_CONTENT)
+            manifest_path = os.path.join(tmpdir, "manifest.yaml")
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                f.write(manifest_yaml)
+            json_out = os.path.join(tmpdir, "metrics.json")
+
+            gate_cfgs = []
+            threshold_cfgs = []
+            original_gate = MeanReversionStrategy.strategy_gate
+            original_threshold = MeanReversionStrategy.ev_threshold
+
+            def _gate_wrapper(self, ctx, pending):
+                gate_cfgs.append(dict(self.cfg))
+                return original_gate(self, ctx, pending)
+
+            def _threshold_wrapper(self, ctx, pending, base_threshold):
+                threshold_cfgs.append(dict(self.cfg))
+                return original_threshold(self, ctx, pending, base_threshold)
+
+            args = [
+                "--csv", csv_path,
+                "--equity", "100000",
+                "--json-out", json_out,
+                "--strategy-manifest", manifest_path,
+                "--dump-max", "0",
+                "--no-auto-state",
+                "--no-ev-profile",
+                "--no-aggregate-ev",
+            ]
+
+            with mock.patch.object(MeanReversionStrategy, "strategy_gate", autospec=True, side_effect=_gate_wrapper) as gate_mock:
+                with mock.patch.object(MeanReversionStrategy, "ev_threshold", autospec=True, side_effect=_threshold_wrapper) as threshold_mock:
+                    rc = run_sim_main(args)
+
+            self.assertEqual(rc, 0)
+            gate_mock.assert_called()
+            threshold_mock.assert_called()
+            self.assertTrue(gate_cfgs)
+            self.assertTrue(threshold_cfgs)
+            for cfg in gate_cfgs + threshold_cfgs:
+                self.assertIn("allow_high_rv", cfg)
+                self.assertTrue(cfg["allow_high_rv"])
+                self.assertIn("zscore_threshold", cfg)
+                self.assertAlmostEqual(float(cfg["zscore_threshold"]), 0.5)
             with open(json_out, "r", encoding="utf-8") as f:
                 data = json.load(f)
             self.assertIn("sharpe", data)
