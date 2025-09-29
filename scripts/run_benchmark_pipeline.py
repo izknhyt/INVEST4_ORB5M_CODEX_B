@@ -329,18 +329,27 @@ def _build_summary_cmd(args: argparse.Namespace) -> List[str]:
     return cmd
 
 
-def _update_snapshot(snapshot_path: Path, key: str, benchmark_payload: Dict[str, Any], summary_payload: Dict[str, Any]) -> None:
+def _update_snapshot(
+    snapshot_path: Path,
+    key: str,
+    benchmark_payload: Dict[str, Any],
+    summary_payload: Dict[str, Any],
+) -> None:
     snapshot = _load_snapshot(snapshot_path)
     benchmarks_section = snapshot.setdefault("benchmarks", {})
     latest_ts = benchmark_payload.get("latest_ts")
     if isinstance(latest_ts, str):
         benchmarks_section[key] = latest_ts
     pipeline_section = snapshot.setdefault("benchmark_pipeline", {})
+    alert_payload = benchmark_payload.get("alert")
+    if not isinstance(alert_payload, dict):
+        alert_payload = {}
     pipeline_section[key] = {
         "latest_ts": latest_ts,
         "summary_generated_at": summary_payload.get("generated_at"),
         "warnings": summary_payload.get("warnings", []),
         "threshold_alerts": summary_payload.get("threshold_alerts", []),
+        "alert": alert_payload,
     }
     _save_snapshot_atomic(snapshot_path, snapshot)
 

@@ -9,7 +9,7 @@
 2. パイプラインは以下を順番に実行し、成功時のみ `ops/runtime_snapshot.json` をアトミックに更新する:
    - `scripts/run_benchmark_runs.py`: 通期 run とローリング run を起動し、`reports/baseline/*.json` / `reports/rolling/<window>/*.json` を更新。前回との乖離が大きい場合は Webhook 通知（`benchmark_shift`）。
    - `scripts/report_benchmark_summary.py`: `--windows`・`--min-sharpe`・`--max-drawdown` を受け取り、`reports/benchmark_summary.json` を再生成。閾値違反や欠損があれば `warnings` に追記し、Webhook 通知（`benchmark_summary_warnings`）。
-   - `ops/runtime_snapshot.json`: `benchmarks.<symbol>_<mode>` に最新バー時刻を、`benchmark_pipeline.<symbol>_<mode>` に生成時刻と警告一覧を記録。
+   - `ops/runtime_snapshot.json`: `benchmarks.<symbol>_<mode>` に最新バー時刻を、`benchmark_pipeline.<symbol>_<mode>` に生成時刻・警告一覧・`threshold_alerts`・`alert`（トリガーフラグと delta/deliveries ブロック）を記録。
 
 3. 直近結果と前回結果の差分を `total_pips`・`win_rate`・`sharpe`・`max_drawdown` で比較し、既定の閾値（`--alert-pips`, `--alert-winrate`, `--alert-sharpe`, `--alert-max-drawdown`）を超えた場合は Webhook 通知を送信する。`report_benchmark_summary.py` は `--min-sharpe`・`--max-drawdown` で設定した健全性閾値を用いて `warnings` を生成し、`benchmark_summary_warnings` Webhook と JSON に書き出す。
 
@@ -32,10 +32,10 @@
 
 ### 成功確認と再実行手順
 
-1. Cron 実行後は `ops/runtime_snapshot.json` の `benchmarks.<symbol>_<mode>` および `benchmark_pipeline.<symbol>_<mode>` に最新タイムスタンプが追記されているか確認する。
+1. Cron 実行後は `ops/runtime_snapshot.json` の `benchmarks.<symbol>_<mode>` および `benchmark_pipeline.<symbol>_<mode>` に最新タイムスタンプが追記され、`alert.payload.deltas` が今回の差分を保持しているか確認する。
 2. `reports/rolling/{365,180,90}/<symbol>_<mode>.json` が全て更新され、各 JSON に `sharpe`・`max_drawdown` が存在することをチェックする。欠損があれば `scripts/run_benchmark_pipeline.py` の実行ログと照合する。
 3. `reports/baseline/<symbol>_<mode>.json` とローリング各 JSON の `aggregate_ev.returncode` が 0、`aggregate_ev.error` が空であることを確認する。パイプラインが `baseline aggregate_ev failed ...` や `rolling window XXX aggregate_ev failed ...` で停止した場合は、該当 JSON の `aggregate_ev.error` を読み取り、モジュール解決ミスや権限不足など原因を特定する。修正後は `python3 scripts/aggregate_ev.py --strategy <戦略クラス> --symbol USDJPY --mode conservative --archive ops/state_archive --recent 5 --out-csv analysis/ev_profile_summary.csv` を単独で実行して成功（exit code 0）を確認し、続けて `python3 scripts/run_benchmark_pipeline.py --symbol USDJPY --mode conservative --equity 100000 --windows 365,180,90` を再実行する。
-4. `scripts/run_benchmark_pipeline.py` の標準出力に含まれる `benchmark_runs.alert` をレビューし、`thresholds`・`metrics_prev`・`metrics_new`・`deltas` が Sharpe や最大DDの変化を捉えているかチェックする。ローカル実行では Slack Webhook に到達できないため `deliveries[].ok=false` と `detail=url_error=Tunnel connection failed: 403 Forbidden` が残るが、これは本番 Slack 未接続による想定挙動である。メトリクスが DoD を満たしていれば記録用途としてログ化し、必要に応じて `docs/todo_next.md` / `state.md` にメモを残す。
+4. `scripts/run_benchmark_pipeline.py` の標準出力に含まれる `benchmark_runs.alert` をレビューし、`thresholds`・`metrics_prev`・`metrics_new`・`deltas` が Sharpe や最大DDの変化を捉えているかチェックする。同時に `ops/runtime_snapshot.json` の `benchmark_pipeline.<symbol>_<mode>.alert.payload.deltas` と `alert.payload.deliveries` を追跡し、レビュー時に差分と通知成否を再確認する。ローカル実行では Slack Webhook に到達できないため `deliveries[].ok=false` と `detail=url_error=Tunnel connection failed: 403 Forbidden` が残るが、これは本番 Slack 未接続による想定挙動である。メトリクスが DoD を満たしていれば記録用途としてログ化し、必要に応じて `docs/todo_next.md` / `state.md` にメモを残す。
 5. `reports/benchmark_summary.json` の `generated_at` が Cron 実行時刻以降であることを確認し、`warnings` が出力された場合は Slack の `benchmark_summary_warnings` 通知と突き合わせて対応を判断する。
 6. Fill 挙動の異常が疑われる場合は `python3 analysis/broker_fills_cli.py --format markdown` を実行し、OANDA / IG / SBI FXトレードの同足ヒット・トレール挙動と `core/fill_engine.py` Conservative / Bridge 出力を比較する。`docs/broker_oco_matrix.md` のポリシーと乖離があれば、`SameBarPolicy` やトレール幅を更新して再度 `python3 -m pytest tests/test_fill_engine.py` を走らせる。
 7. 失敗時は `python3 scripts/run_daily_workflow.py --benchmarks --symbol USDJPY --mode conservative --equity 100000` を手動で再実行し、並行して `/var/log/cron.log`（またはスケジューラのジョブログ）で直前ジョブの exit code を確認する。パラメータ確認だけ行いたい場合は `python3 scripts/run_benchmark_pipeline.py --dry-run --symbol USDJPY --mode conservative --equity 100000 --windows 365,180,90 --runs-dir runs --reports-dir reports` を使う。
@@ -68,7 +68,7 @@ python3 scripts/run_benchmark_pipeline.py \
 - `baseline_metrics.max_drawdown`: 取引累積損益の最大ドローダウン（pips）。過去ピークからの下落幅を把握する。
 - `warnings`: `baseline` と `rolling` について、総損益・Sharpe・最大DDが閾値 (`--alert-*`, `--min-sharpe`, `--max-drawdown`) を超えた場合にメッセージが追加される。閾値は pips 単位で設定し、実際のドローダウン値は符号付きで表示される。パイプライン実行時は `benchmark_pipeline.<symbol>_<mode>.warnings` にも同じ配列が保存される。
 - `baseline_metrics.win_rate` / `baseline_metrics.trades`: サンプル不足や勝率低下を早期に発見。
-- `alert.triggered`: 通知が送信された場合は `alert.payload` と `alert.deliveries` に詳細が残る。`alert.payload.deltas.delta_sharpe` や `delta_max_drawdown` で Sharpe / 最大DD の変化量を把握し、Slack 通知と突き合わせてレビューする。
+- `alert.triggered`: 通知が送信された場合は `alert.payload` と `alert.deliveries` に詳細が残る。`alert.payload.deltas.delta_sharpe` や `delta_max_drawdown` で Sharpe / 最大DD の変化量を把握し、Slack 通知と突き合わせてレビューする。`ops/runtime_snapshot.json` の `benchmark_pipeline.<symbol>_<mode>.alert` にも同じブロックがコピーされるため、過去ログとして確認できる。
 - `rolling[].path`: それぞれの JSON は `scripts/report_benchmark_summary.py` が集約して `reports/benchmark_summary.json` を生成する想定。
 
 ## トラブルシュート
