@@ -197,6 +197,9 @@ def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_
     pipeline_info = snapshot["benchmark_pipeline"][key]
     assert pipeline_info["warnings"] == summary_payload["warnings"]
     assert pipeline_info["summary_generated_at"] == summary_payload["generated_at"]
+    pipeline_alert = pipeline_info["alert"]
+    assert pipeline_alert["payload"]["deltas"]["delta_sharpe"] == pytest.approx(-0.4)
+    assert pipeline_alert["payload"]["deltas"]["delta_max_drawdown"] == pytest.approx(-50.0)
     alert_payload = combined["benchmark_runs"]["alert"]["payload"]
     assert alert_payload["deltas"]["delta_sharpe"] == pytest.approx(-0.4)
     assert alert_payload["deltas"]["delta_max_drawdown"] == pytest.approx(-50.0)
