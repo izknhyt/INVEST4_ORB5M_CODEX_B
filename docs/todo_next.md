@@ -36,6 +36,9 @@
 ### Pending Review
 - **Workflow Integration Guide** (Backlog: `docs/task_backlog.md` → "ワークフロー統合" section) — `state.md` 2024-06-18, 2025-09-29 <!-- anchor: docs/task_backlog.md#codex-session-operations-guide -->
   - Updated the synchronization rules between `docs/todo_next.md` and `state.md`. Added `docs/codex_workflow.md` to capture Codex session procedures. Confirm readiness for adoption before moving to Archive.
+- **マルチ戦略比較バリデーション** (Backlog: `docs/task_backlog.md` → P2「マルチ戦略ポートフォリオ化」) — `state.md` 2025-09-29 <!-- anchor: docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化 -->
+  - Day ORB (63 trades, EV reject 1,544) と Mean Reversion (40 trades, gate_block 402, EV reject 0) を `data/sample_orb.csv` で比較し、`docs/checklists/multi_strategy_validation.md` の表を実測値で更新。
+  - Mean Reversion は `zscore` カラムの追加でトレード生成が確認でき、EV プロファイル有無で `ev_reject` 差分が無いことを再現。日次 CSV にゲート/EV カウントを保存済み。次は RV High ブロック条件とウォームアップ回数の調整案を検討。
 
 ## Archive（達成済み）
 - ~~**目標指数の定義**~~ ✅ — `state.md` 2024-06-01 <!-- anchor: docs/task_backlog.md#目標指数の定義 -->

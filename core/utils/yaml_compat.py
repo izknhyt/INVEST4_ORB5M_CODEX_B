@@ -247,8 +247,11 @@ def _ensure_text(stream: Union[str, bytes, Any]) -> str:
 def safe_load(stream: Union[str, bytes, Any]) -> Any:
     """Load YAML content using a very small subset parser."""
     text = _ensure_text(stream)
-    parser = _SimpleYAMLParser(text)
-    return parser.parse()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        parser = _SimpleYAMLParser(text)
+        return parser.parse()
 
 
 def load(stream: Union[str, bytes, Any], Loader: Any | None = None) -> Any:  # noqa: N802

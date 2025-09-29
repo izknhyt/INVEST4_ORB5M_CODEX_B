@@ -396,6 +396,7 @@ class BacktestRunner:
             "threshold_lcb",
             "ev_pass",
             "expected_slip_pip",
+            "zscore",
         ):
             value = ctx_snapshot.get(key)
             if value is not None:
@@ -781,6 +782,13 @@ class BacktestRunner:
                 "window": self.session_bars[: self.rcfg.or_n],
                 "new_session": new_session,
             }
+            if "zscore" in bar:
+                zscore_val = bar["zscore"]
+                try:
+                    zscore_val = float(zscore_val)
+                except (TypeError, ValueError):
+                    pass
+                bar_input["zscore"] = zscore_val
             ctx = self._build_ctx(bar, bar_input["atr14"], adx14, or_h if or_h==or_h else None, or_l if or_l==or_l else None)
             # inject ctx for strategy
             # calibration flag: bypass EV threshold inside strategy by lowering threshold
@@ -1094,6 +1102,8 @@ class BacktestRunner:
                 "expected_slip_pip": ctx.get("expected_slip_pip", 0.0),
                 "cost_base": ctx.get("base_cost_pips", ctx.get("cost_pips", 0.0)),
             }
+            if "zscore" in bar_input:
+                trade_ctx_snapshot["zscore"] = bar_input["zscore"]
 
             # If immediate TP/SL inside bar, record; else carry over
             if "exit_px" in result:

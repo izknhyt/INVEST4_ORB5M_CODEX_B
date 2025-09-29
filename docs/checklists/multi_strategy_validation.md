@@ -74,16 +74,21 @@ PY
 ## 評価指標テンプレート
 | 指標 | Day ORB | Mean Reversion | メモ |
 | --- | --- | --- | --- |
-| Trades |  |  | 主要エントリー数の差異 |
-| Gate Pass / Gate Block |  |  | RV バンドでの抑制状況 |
-| EV Pass / EV Reject |  |  | LCB 閾値でのフィルタリング |
-| Wins / Win Rate |  |  | `metrics.json` の `wins`・`win_rate` を利用 |
-| Total PnL (pips) |  |  | `metrics.json` の `total_pips` |
-| Debug Counters |  |  | `debug` セクションの `ev_reject_*` など |
+| Trades | 63 | 40 | 主要エントリー数の差異 |
+| Gate Pass / Gate Block | 1609 / 1840 | 40 / 402 | RV バンドでの抑制状況 |
+| EV Pass / EV Reject | 40 / 1544 | 0 / 0 | LCB 閾値でのフィルタリング |
+| Wins / Win Rate | 54 / 85.71% | 14 / 35.00% | `metrics.json` の `wins`・`win_rate` を利用 |
+| Total PnL (pips) | 13.84 | 85.20 | `metrics.json` の `total_pips` |
+| Debug Counters | no_breakout=1541, gate_block=1842, ev_reject=1544, ev_bypass=25 | no_breakout=3006, gate_block=402, ev_reject=0, ev_bypass=40 | `debug` セクションの `ev_reject_*` など |
 
 ## チェックリスト
-- [ ] Day ORB / Mean Reversion それぞれで `--dump-csv` / `--dump-daily` の出力が生成され、列構成が期待どおりか確認した。
-- [ ] `--strategy reversion_stub.MeanReversionStrategy` 指定で Day ORB のコマンドラインを流用できることを確認した。
-- [ ] `ev_profile_path` の有無を確認し、`--no-ev-profile` 実行結果との差分を記録した。
-- [ ] `debug` と `daily.csv` のゲート通過数 (`gate_pass`/`gate_block`) と EV リジェクト数 (`ev_reject`) を比較し、差異を説明できる。
-- [ ] 主要指標（Trades, Win Rate, Total PnL, Gate/Ev カウント）を表に転記し、レビュー用ドキュメントへ共有した。
+- [x] Day ORB / Mean Reversion それぞれで `--dump-csv` / `--dump-daily` の出力が生成され、列構成が期待どおりか確認した。
+- [x] `--strategy reversion_stub.MeanReversionStrategy` 指定で Day ORB のコマンドラインを流用できることを確認した。
+- [x] `ev_profile_path` の有無を確認し、`--no-ev-profile` 実行結果との差分を記録した。
+- [x] `debug` と `daily.csv` のゲート通過数 (`gate_pass`/`gate_block`) と EV リジェクト数 (`ev_reject`) を比較し、差異を説明できる。
+- [x] 主要指標（Trades, Win Rate, Total PnL, Gate/Ev カウント）を表に転記し、レビュー用ドキュメントへ共有した。
+
+## 実測サマリ
+- Mean Reversion は `zscore` ロジックで 40 トレードを生成し、RV High でのブロックにより `gate_block=402`、EV リジェクトは発生せず全件がウォームアップ回数で `ev_bypass=40` 扱いとなった。
+- Day ORB は 63 トレードのうち EV リジェクトが 1,544 件で、ゲート通過 1,609 件に対して RV/EV 条件でブロック 1,840 件が記録された。
+- `reversion_stub` の EV プロファイル適用時は `ev_profile_path=configs/ev_profiles/reversion_stub.yaml` が JSON に保存され、`--no-ev-profile` 実行でも EV リジェクト件数は変化せず。ゲート／EV カウントは `runs/multi_strategy/*_daily.csv` で追跡可能。

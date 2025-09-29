@@ -75,6 +75,15 @@ def load_bars_csv(path: str) -> List[Dict[str, Any]]:
                 }
             except (KeyError, ValueError):
                 continue
+            for key, value in row.items():
+                if key in {"timestamp", "symbol", "tf", "o", "h", "l", "c", "v", "spread"}:
+                    continue
+                if value in (None, ""):
+                    continue
+                try:
+                    bar[key] = float(value)
+                except ValueError:
+                    bar[key] = value
             bars.append(bar)
     return bars
 
