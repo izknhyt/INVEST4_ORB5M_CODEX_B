@@ -33,6 +33,7 @@ def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_
         {
             "sharpe": 1.0,
             "max_drawdown": -70.0,
+            "win_rate": 0.6,
             "aggregate_ev": AGGREGATE_SUCCESS,
         },
     )
@@ -75,7 +76,14 @@ def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_
         "generated_at": "2024-06-10T01:00:00Z",
         "symbol": "USDJPY",
         "mode": "conservative",
-        "baseline": {"trades": 100, "wins": 60, "total_pips": 250.0},
+        "baseline": {
+            "trades": 100,
+            "wins": 60,
+            "win_rate": 0.6,
+            "total_pips": 250.0,
+            "sharpe": 1.1,
+            "max_drawdown": -70.0,
+        },
         "rolling": [],
         "warnings": ["baseline total_pips negative: -10.0"],
         "webhook": {"deliveries": [{"url": "https://example.com/hook", "ok": True, "detail": "status=200"}]},
@@ -87,6 +95,7 @@ def test_pipeline_success_updates_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_
         _write_metrics(
             rolling_path,
             {
+                "win_rate": 0.58,
                 "sharpe": 1.2,
                 "max_drawdown": -55.0,
                 "aggregate_ev": AGGREGATE_SUCCESS,
@@ -199,9 +208,25 @@ def test_pipeline_errors_when_rolling_metrics_missing(monkeypatch: pytest.Monkey
 
     rolling_entries = []
     for window, payload in (
-        (365, {"sharpe": 1.0, "aggregate_ev": AGGREGATE_SUCCESS}),
-        (180, {"sharpe": 1.1, "max_drawdown": -30.0, "aggregate_ev": AGGREGATE_SUCCESS}),
-        (90, {"sharpe": 1.2, "max_drawdown": -20.0, "aggregate_ev": AGGREGATE_SUCCESS}),
+        (365, {"sharpe": 1.0, "win_rate": 0.55, "aggregate_ev": AGGREGATE_SUCCESS}),
+        (
+            180,
+            {
+                "sharpe": 1.1,
+                "win_rate": 0.57,
+                "max_drawdown": -30.0,
+                "aggregate_ev": AGGREGATE_SUCCESS,
+            },
+        ),
+        (
+            90,
+            {
+                "sharpe": 1.2,
+                "win_rate": 0.6,
+                "max_drawdown": -20.0,
+                "aggregate_ev": AGGREGATE_SUCCESS,
+            },
+        ),
     ):
         rolling_path = tmp_path / "reports" / "rolling" / str(window) / "USDJPY_conservative.json"
         _write_metrics(rolling_path, payload)
@@ -243,6 +268,7 @@ def test_pipeline_errors_when_aggregate_ev_fails(monkeypatch: pytest.MonkeyPatch
         {
             "sharpe": 0.9,
             "max_drawdown": -80.0,
+            "win_rate": 0.52,
             "aggregate_ev": {"returncode": 1, "error": "boom"},
         },
     )
@@ -253,6 +279,7 @@ def test_pipeline_errors_when_aggregate_ev_fails(monkeypatch: pytest.MonkeyPatch
         _write_metrics(
             path,
             {
+                "win_rate": 0.6,
                 "sharpe": 1.1,
                 "max_drawdown": -40.0,
                 "aggregate_ev": AGGREGATE_SUCCESS,
@@ -314,6 +341,7 @@ def test_pipeline_handles_summary_failure(monkeypatch: pytest.MonkeyPatch, tmp_p
         {
             "sharpe": 1.0,
             "max_drawdown": -70.0,
+            "win_rate": 0.6,
             "aggregate_ev": AGGREGATE_SUCCESS,
         },
     )
@@ -324,6 +352,7 @@ def test_pipeline_handles_summary_failure(monkeypatch: pytest.MonkeyPatch, tmp_p
         _write_metrics(
             path,
             {
+                "win_rate": 0.58,
                 "sharpe": 1.0,
                 "max_drawdown": -50.0,
                 "aggregate_ev": AGGREGATE_SUCCESS,
@@ -368,3 +397,88 @@ def test_pipeline_handles_summary_failure(monkeypatch: pytest.MonkeyPatch, tmp_p
     assert not snapshot_path.exists()
     out = capsys.readouterr().out
     assert out == ""
+
+
+def test_pipeline_errors_when_summary_missing_win_rate(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    baseline_path = tmp_path / "reports" / "baseline" / "USDJPY_conservative.json"
+    _write_metrics(
+        baseline_path,
+        {
+            "sharpe": 1.1,
+            "max_drawdown": -65.0,
+            "win_rate": 0.61,
+            "aggregate_ev": AGGREGATE_SUCCESS,
+        },
+    )
+
+    rolling_entries = []
+    for window in (365, 180, 90):
+        path = tmp_path / "reports" / "rolling" / str(window) / "USDJPY_conservative.json"
+        _write_metrics(
+            path,
+            {
+                "sharpe": 1.0 + window / 1000.0,
+                "max_drawdown": -40.0,
+                "win_rate": 0.55,
+                "aggregate_ev": AGGREGATE_SUCCESS,
+            },
+        )
+        rolling_entries.append({"window": window, "path": str(path)})
+
+    benchmark_payload = {
+        "baseline": str(baseline_path),
+        "rolling": rolling_entries,
+        "latest_ts": "2024-06-10T00:00:00",
+    }
+
+    summary_payload = {
+        "generated_at": "2024-06-10T01:00:00Z",
+        "symbol": "USDJPY",
+        "mode": "conservative",
+        "baseline": {
+            "trades": 120,
+            "wins": 73,
+            "total_pips": 210.0,
+            "sharpe": 1.1,
+            "max_drawdown": -65.0,
+        },
+        "rolling": [
+            {
+                "window": 365,
+                "win_rate": 0.58,
+                "sharpe": 1.3,
+                "max_drawdown": -45.0,
+            }
+        ],
+    }
+
+    results: Iterator[DummyCompletedProcess] = iter(
+        [
+            DummyCompletedProcess([], returncode=0, stdout=json.dumps(benchmark_payload)),
+            DummyCompletedProcess([], returncode=0, stdout=json.dumps(summary_payload)),
+        ]
+    )
+
+    def fake_run(cmd: List[str], /) -> DummyCompletedProcess:
+        try:
+            result = next(results)
+        except StopIteration:  # pragma: no cover
+            raise AssertionError("unexpected subprocess call")
+        result.args = cmd
+        return result
+
+    monkeypatch.setattr(rbp, "_run_subprocess", fake_run)
+
+    rc = rbp.main([
+        "--bars",
+        str(tmp_path / "bars.csv"),
+        "--snapshot",
+        str(tmp_path / "ops" / "runtime_snapshot.json"),
+    ])
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "summary baseline missing win_rate" in captured.err
+    assert captured.out == ""

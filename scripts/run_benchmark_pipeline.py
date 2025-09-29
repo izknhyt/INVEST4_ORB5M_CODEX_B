@@ -167,12 +167,45 @@ def _validate_rolling_outputs(rolling: List[Dict[str, Any]]) -> Optional[str]:
         if aggregate_error:
             return aggregate_error
 
-        for key in ("sharpe", "max_drawdown"):
+        for key in ("win_rate", "sharpe", "max_drawdown"):
             if data.get(key) is None:
                 return f"rolling window {window} missing {key}"
         parent = path.parent
         if parent.name != str(window) or parent.parent.name != "rolling":
             return f"rolling window {window} output stored outside reports/rolling/{window}"
+    return None
+
+
+def _validate_summary_payload(summary_payload: Dict[str, Any]) -> Optional[str]:
+    def _validate_metrics_block(block: Any, context: str) -> Optional[str]:
+        if not isinstance(block, dict):
+            return f"{context} missing metrics payload"
+        for key in ("win_rate", "sharpe", "max_drawdown"):
+            if block.get(key) is None:
+                return f"{context} missing {key}"
+        return None
+
+    baseline_error = _validate_metrics_block(summary_payload.get("baseline"), "summary baseline")
+    if baseline_error:
+        return baseline_error
+
+    rolling_entries = summary_payload.get("rolling")
+    if rolling_entries is None:
+        return "summary missing rolling section"
+    if not isinstance(rolling_entries, list):
+        return "summary rolling section must be a list"
+
+    for entry in rolling_entries:
+        if not isinstance(entry, dict):
+            return "summary rolling entry missing metrics payload"
+        window = entry.get("window")
+        context = (
+            f"summary rolling window {window}" if isinstance(window, int) else "summary rolling entry"
+        )
+        metrics_error = _validate_metrics_block(entry, context)
+        if metrics_error:
+            return metrics_error
+
     return None
 
 
@@ -359,6 +392,11 @@ def main(argv=None) -> int:
         summary_payload, error = _parse_json_output("report_benchmark_summary", summary_proc.stdout)
         if error:
             print(error, file=sys.stderr)
+            return 1
+
+        summary_validation_error = _validate_summary_payload(summary_payload)
+        if summary_validation_error:
+            print(summary_validation_error, file=sys.stderr)
             return 1
 
         summary_path = Path(args.summary_json)
