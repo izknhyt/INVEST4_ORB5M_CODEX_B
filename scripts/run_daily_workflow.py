@@ -23,6 +23,11 @@ def main(argv=None) -> int:
     parser.add_argument("--mode", default="conservative", choices=["conservative", "bridge"])
     parser.add_argument("--equity", default="100000")
     parser.add_argument("--ingest", action="store_true", help="Run pull_prices to append latest bars")
+    parser.add_argument(
+        "--ingest-source",
+        default=None,
+        help="Override source CSV path passed to pull_prices.py",
+    )
     parser.add_argument("--update-state", action="store_true", help="Replay new bars and update state.json")
     parser.add_argument("--benchmarks", action="store_true", help="Run baseline + rolling benchmarks")
     parser.add_argument("--state-health", action="store_true", help="Run state health checker")
@@ -96,9 +101,15 @@ def main(argv=None) -> int:
     bars_csv = args.bars or str(ROOT / f"validated/{args.symbol}/5m.csv")
 
     if args.ingest:
-        cmd = [sys.executable, str(ROOT / "scripts/pull_prices.py"),
-               "--source", str(ROOT / "data/usdjpy_5m_2018-2024_utc.csv"),
-               "--symbol", args.symbol]
+        ingest_source = args.ingest_source or str(ROOT / "data/usdjpy_5m_2018-2024_utc.csv")
+        cmd = [
+            sys.executable,
+            str(ROOT / "scripts/pull_prices.py"),
+            "--source",
+            ingest_source,
+            "--symbol",
+            args.symbol,
+        ]
         exit_code = run_cmd(cmd)
         if exit_code:
             return exit_code
