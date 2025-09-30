@@ -8,13 +8,18 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Dict
 
+from scripts._ts_utils import _normalize_iso_string
+
 
 def parse_iso(ts: str) -> datetime:
+    text = ts.strip()
+    normalized = _normalize_iso_string(text)
     try:
-        return datetime.fromisoformat(ts)
+        return datetime.fromisoformat(normalized)
     except ValueError:
         # allow space separator
-        return datetime.fromisoformat(ts.replace(" ", "T"))
+        normalized = _normalize_iso_string(text.replace(" ", "T"))
+        return datetime.fromisoformat(normalized)
 
 
 def load_latencies(path: Path) -> List[Dict[str, object]]:

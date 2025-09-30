@@ -36,6 +36,7 @@
   - 2025-10-16: 最新バーの供給が途絶しているため、P1-04 で API インジェスト基盤を設計・整備し、鮮度チェックのブロッカーを解消する計画。
 
 ## Log
+- [P1-01] 2025-10-17: Updated `scripts/analyze_signal_latency.py` to reuse the shared ISO normalizer so Z-suffix timestamps stay parseable, added pytest coverage for `load_latencies` handling of UTC records, and re-ran `python3 -m pytest tests/test_analyze_signal_latency.py tests/test_run_daily_workflow.py` for the CLI regression check.
 - [P1-04] 2025-10-17: Hardened `pull_prices` ingestion tests to cover gap detection, mismatch anomaly retention, and dry-run output. Verified `python3 -m pytest tests/test_pull_prices.py` completes successfully.
 - [P1-01] 2025-10-17: Normalized on-demand workflow docs to reference `run_benchmark_pipeline.py` / `report_benchmark_summary.py`, clarified the `ops/runtime_snapshot.json` snapshot target, and aligned the state runbook linkages.
 - [P1-04] 2025-10-17: Added `--ingest-source` passthrough to `run_daily_workflow.py` ingest calls, documented usage in README/state runbook, and extended pytest coverage for the custom source path.
