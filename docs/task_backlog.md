@@ -83,6 +83,7 @@ REST/Streaming API と `scripts/pull_prices.py` を連携させ、手動CSV投�
 - 2025-10-21: Created `scripts/merge_dukascopy_monthly.py` and generated `data/usdjpy_5m_2025.csv` from the monthly exports to backfill storage before live refresh. Documented the merge step in phase3 progress notes.
 - 2025-10-21: Cloud deploy flagged "diff too large" during the backfill. Local merge + ingest cleared it, and we need to document how to temporarily relax/re-enable the cloud diff guard (TODO: define guard reset workflow in runbook).
 - 2025-10-22: Implemented REST ingestion via `scripts/fetch_prices_api.py`, introduced `scripts/_secrets.load_api_credentials` + `configs/api_ingest.yml`, added `--use-api` wiring to `scripts/run_daily_workflow.py`, and created pytest coverage (`tests/test_fetch_prices_api.py`) for success + retry logging. README / state runbook / progress_phase3 updated with API usage + credential guidance.
+- 2025-10-23: Added an integration test (`tests/test_run_daily_workflow.py::test_api_ingest_updates_snapshot`) that mocks the API provider and exercises `python3 scripts/run_daily_workflow.py --ingest --use-api`, confirming snapshot updates, CSV appends, and anomaly-free ingestion. Checklistを更新して DoD の CLI 項目をクローズ。
 
 ### P1-05 バックテストランナーのデバッグ可視化強化
 `core/runner.py` のデバッグ計測とログドキュメントを整理し、EV ゲート診断の調査手順を標準化する。

@@ -36,7 +36,7 @@
 - **価格インジェストAPI基盤整備**（バックログ: `docs/task_backlog.md` → P1「ローリング検証 + 健全性モニタリング」） — `state.md` 2025-10-16 <!-- anchor: docs/task_backlog.md#p1-04-価格インジェストapi基盤整備 -->
   - Scope: REST/Streaming API クライアント設計 → `pull_prices.py` 連携 → workflow 統合。
   - Deliverables (EN): API ingestion design doc (`docs/api_ingest_plan.md`), CLI integration plan, retry/test matrix.
-  - Next step: Dry-run `python3 scripts/run_daily_workflow.py --ingest --use-api --benchmarks` to confirm freshness clearance, then capture credential rotation SOP in `docs/checklists/p1-04_api_ingest.md`.
+  - Next step: Extend coverage to the `--ingest --use-api --benchmarks` flow (freshness check) and document the credential rotation SOP in `docs/checklists/p1-04_api_ingest.md` now that `tests/test_run_daily_workflow.py::test_api_ingest_updates_snapshot` verifies the standalone API ingest path.
   - Backlog Anchor: [価格インジェストAPI基盤整備 (P1-04)](docs/task_backlog.md#p1-04-価格インジェストapi基盤整備)
   - Vision / Runbook References:
     - [readme/設計方針（投資_3_）v_1.md](readme/設計方針（投資_3_）v_1.md)
