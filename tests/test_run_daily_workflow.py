@@ -1,9 +1,12 @@
+import json
 import sys
 from pathlib import Path
+from datetime import datetime
 
 import pytest
+from core.utils import yaml_compat
 
-from scripts import run_daily_workflow
+from scripts import fetch_prices_api, run_daily_workflow
 
 
 def _capture_run_cmd(monkeypatch):
@@ -176,3 +179,147 @@ def test_main_returns_first_failure(failing_run_cmd):
 
     assert exit_code == failure_code
     assert len(captured) == 1
+
+
+def test_api_ingest_updates_snapshot(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    (repo_root / "ops/logs").mkdir(parents=True)
+    (repo_root / "configs").mkdir()
+    (repo_root / "raw").mkdir()
+    (repo_root / "validated/USDJPY").mkdir(parents=True)
+    (repo_root / "features/USDJPY").mkdir(parents=True)
+
+    snapshot_path = repo_root / "ops/runtime_snapshot.json"
+    snapshot_path.write_text(
+        json.dumps({"ingest": {"USDJPY_5m": "2025-01-01T00:20:00"}}),
+        encoding="utf-8",
+    )
+
+    validated_csv = repo_root / "validated/USDJPY/5m.csv"
+    validated_csv.write_text(
+        "timestamp,symbol,tf,o,h,l,c,v,spread\n"
+        "2025-01-01T00:20:00,USDJPY,5m,150.0,150.1,149.9,150.05,120,0\n",
+        encoding="utf-8",
+    )
+
+    config_path = repo_root / "configs/api_ingest.yml"
+    credentials_path = repo_root / "configs/api_keys.yml"
+    config = {
+        "default_provider": "mock",
+        "lookback_minutes": 45,
+        "providers": {
+            "mock": {
+                "base_url": "http://example.test",
+                "method": "GET",
+                "query": {},
+                "credentials": ["api_key"],
+                "lookback_minutes": 15,
+            }
+        },
+    }
+    config_path.write_text(yaml_compat.safe_dump(config), encoding="utf-8")
+    credentials_path.write_text(
+        yaml_compat.safe_dump({"mock": {"api_key": "token"}}),
+        encoding="utf-8",
+    )
+
+    from scripts import pull_prices
+
+    anomaly_log_path = repo_root / "ops/logs/ingest_anomalies.jsonl"
+    monkeypatch.setattr(pull_prices, "ANOMALY_LOG", anomaly_log_path)
+    monkeypatch.setattr(run_daily_workflow, "ROOT", repo_root)
+
+    fixed_now = datetime(2025, 1, 1, 0, 30)
+
+    class _FixedDatetime(datetime):
+        @classmethod
+        def utcnow(cls):
+            return fixed_now
+
+    monkeypatch.setattr(run_daily_workflow, "datetime", _FixedDatetime)
+
+    fetch_calls = {}
+
+    def fake_fetch_prices(
+        symbol,
+        tf,
+        *,
+        start,
+        end,
+        provider=None,
+        config_path=None,
+        credentials_path=None,
+        anomaly_log_path=None,
+    ):
+        fetch_calls["symbol"] = symbol
+        fetch_calls["tf"] = tf
+        fetch_calls["start"] = start
+        fetch_calls["end"] = end
+        fetch_calls["provider"] = provider
+        fetch_calls["config_path"] = Path(config_path)
+        fetch_calls["credentials_path"] = Path(credentials_path)
+        fetch_calls["anomaly_log_path"] = anomaly_log_path
+        return [
+            {
+                "timestamp": "2025-01-01T00:25:00Z",
+                "symbol": symbol,
+                "tf": tf,
+                "o": 150.1,
+                "h": 150.2,
+                "l": 149.95,
+                "c": 150.15,
+                "v": 110.0,
+                "spread": 0.1,
+            },
+            {
+                "timestamp": "2025-01-01T00:30:00Z",
+                "symbol": symbol,
+                "tf": tf,
+                "o": 150.15,
+                "h": 150.3,
+                "l": 150.05,
+                "c": 150.25,
+                "v": 108.0,
+                "spread": 0.1,
+            },
+        ]
+
+    monkeypatch.setattr(fetch_prices_api, "fetch_prices", fake_fetch_prices)
+
+    exit_code = run_daily_workflow.main(
+        [
+            "--ingest",
+            "--use-api",
+            "--symbol",
+            "USDJPY",
+            "--mode",
+            "conservative",
+            "--api-provider",
+            "mock",
+            "--api-config",
+            str(config_path),
+            "--api-credentials",
+            str(credentials_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert fetch_calls["symbol"] == "USDJPY"
+    assert fetch_calls["tf"] == "5m"
+    assert fetch_calls["provider"] == "mock"
+    assert fetch_calls["start"] == datetime(2025, 1, 1, 0, 5)
+    assert fetch_calls["end"] == fixed_now
+    assert fetch_calls["config_path"] == config_path
+    assert fetch_calls["credentials_path"] == credentials_path
+    assert fetch_calls["anomaly_log_path"] is None
+
+    csv_lines = validated_csv.read_text(encoding="utf-8").splitlines()
+    assert len(csv_lines) == 4
+    assert csv_lines[-1].startswith("2025-01-01T00:30:00")
+
+    features_csv = repo_root / "features/USDJPY/5m.csv"
+    assert features_csv.exists()
+
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    assert snapshot["ingest"]["USDJPY_5m"] == "2025-01-01T00:30:00"
+    assert not anomaly_log_path.exists()

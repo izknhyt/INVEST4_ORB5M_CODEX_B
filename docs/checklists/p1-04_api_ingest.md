@@ -14,7 +14,7 @@
 ## バックログ固有の DoD
 - [x] `scripts/fetch_prices_api.py` が API から5mバーを取得し、リトライ/レート制限ハンドリングを備えている。
 - [x] `scripts/pull_prices.py` が `ingest_rows` 等のインタフェースを通じて API 取得結果を冪等に `raw/`・`validated/`・`features/` へ反映できる。
-- [ ] `python3 scripts/run_daily_workflow.py --ingest --use-api --symbol USDJPY --mode conservative` が成功し、`ops/runtime_snapshot.json.ingest` が更新される。
+- [x] `python3 scripts/run_daily_workflow.py --ingest --use-api --symbol USDJPY --mode conservative` が成功し、`ops/runtime_snapshot.json.ingest` が更新される。→ `tests/test_run_daily_workflow.py::test_api_ingest_updates_snapshot` で API 取得のモックを用いた統合テストを追加し、スナップショット更新と CSV 追記を検証。
 - [ ] `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6` が成功し、鮮度アラートが解消される。
 - [x] モックAPIを用いた単体/統合テストが `python3 -m pytest` で通過し、API失敗時のアノマリーログ出力が検証されている。
 

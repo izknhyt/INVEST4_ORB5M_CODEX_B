@@ -16,6 +16,7 @@
     - [ ] 認証情報保管/ローテーション方針の決定
   - Docs note: Draft design in `docs/api_ingest_plan.md`（新規作成予定）。
   - 2025-10-22: `scripts/fetch_prices_api.py` と `configs/api_ingest.yml` を整備し、`run_daily_workflow.py --ingest --use-api` で REST → `pull_prices.ingest_records` の直結を実装。`tests/test_fetch_prices_api.py` で成功/リトライの両ケースを固定し、README / state runbook / todo_next を更新。
+  - 2025-10-23: `tests/test_run_daily_workflow.py::test_api_ingest_updates_snapshot` を追加し、モックAPIで `--ingest --use-api` フローを通しながら snapshot 更新・CSV 追記・アノマリーログ無しを検証。チェックリストの CLI 項目をクローズし、次ステップを鮮度チェック/認証ローテーション整理へ集約。
 
 ### 運用メモ
 - バックログから着手するタスクは先にこのリストへ追加し、ID・着手予定日・DoD リンクを明示する。
