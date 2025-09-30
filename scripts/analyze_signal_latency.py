@@ -4,17 +4,27 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict
 
 
+try:
+    from scripts._ts_utils import _normalize_iso_string
+except ModuleNotFoundError:
+    current_dir = Path(__file__).resolve().parent
+    if str(current_dir) not in sys.path:
+        sys.path.append(str(current_dir))
+    from _ts_utils import _normalize_iso_string
+
+
 def parse_iso(ts: str) -> datetime:
     try:
-        return datetime.fromisoformat(ts)
+        return datetime.fromisoformat(_normalize_iso_string(ts))
     except ValueError:
         # allow space separator
-        return datetime.fromisoformat(ts.replace(" ", "T"))
+        return datetime.fromisoformat(_normalize_iso_string(ts.replace(" ", "T")))
 
 
 def load_latencies(path: Path) -> List[Dict[str, object]]:
