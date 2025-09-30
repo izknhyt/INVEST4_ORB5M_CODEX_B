@@ -1,0 +1,9 @@
+# API credential placeholders. Do not commit real secrets.
+#
+# Copy this file to a local override (e.g. configs/api_keys.local.yml) or set
+# environment variables such as `ALPHA_VANTAGE_API_KEY` to supply credentials at
+# runtime. `scripts/_secrets.load_api_credentials` merges environment variables
+# over the values defined here.
+
+alpha_vantage:
+  api_key: "demo"

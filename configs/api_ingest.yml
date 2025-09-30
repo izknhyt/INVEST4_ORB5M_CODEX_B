@@ -1,0 +1,59 @@
+# Price ingestion API provider configuration
+#
+# Each provider block defines how to query an upstream REST endpoint and how to
+# normalize the payload into bar records understood by `scripts/pull_prices.py`.
+# The defaults target Alpha Vantage's FX_INTRADAY endpoint, but the schema is
+# flexible enough for other JSON-based providers.
+
+version: 1
+lookback_minutes: 120
+providers:
+  alpha_vantage:
+    description: "Alpha Vantage FX_INTRADAY (free tier)"
+    base_url: "https://www.alphavantage.co/query"
+    method: GET
+    query:
+      function: FX_INTRADAY
+      from_symbol: "{base}"
+      to_symbol: "{quote}"
+      interval: "{interval}"
+      outputsize: compact
+      datatype: json
+      apikey: "{api_key}"
+    headers: {}
+    tf_map:
+      "1m": "1min"
+      "5m": "5min"
+      "15m": "15min"
+      "60m": "60min"
+    credentials:
+      - api_key
+    response:
+      format: json
+      data_path:
+        - "Time Series FX ({interval})"
+      entry_type: mapping
+      timestamp_field: key
+      fields:
+        o: "1. open"
+        h: "2. high"
+        l: "3. low"
+        c: "4. close"
+        v: null
+        spread: null
+      timestamp_formats:
+        - "%Y-%m-%d %H:%M:%S"
+        - "%Y-%m-%dT%H:%M:%S"
+      timezone: UTC
+    rate_limit:
+      max_requests_per_minute: 5
+      cooldown_seconds: 12
+    retry:
+      attempts: 5
+      backoff_seconds: 2
+      multiplier: 2
+      max_backoff_seconds: 32
+      retryable_statuses: [429, 500, 502, 503, 504]
+      error_keys:
+        - "Error Message"
+        - "Note"
