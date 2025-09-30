@@ -130,6 +130,8 @@ python3 scripts/run_sim.py --csv data/ohlc5m.csv --symbol USDJPY --json-out out.
 
 ### オンデマンドインジェスト CLI
 - `scripts/pull_prices.py` はヒストリカルCSV（またはAPIエクスポート）から未処理バーを検出し、`raw/`→`validated/`→`features/` に冪等に追記する。
+- REST API 連携は `scripts/fetch_prices_api.py` を経由して行う。`configs/api_ingest.yml` でプロバイダ定義を管理し、`configs/api_keys.yml` または環境変数に格納した鍵を `scripts/_secrets.load_api_credentials` が読み込む。
+- `python3 scripts/run_daily_workflow.py --ingest --use-api` とすると、API で取得したバーをそのまま `pull_prices.ingest_records` に渡し、CSV 経由を省略できる。デフォルト設定は Alpha Vantage の FX_INTRADAY を想定しているが、configを書き換えれば他のRESTプロバイダにも適用可能。
 - 直近の成功時刻は `ops/runtime_snapshot.json` の `ingest` セクションで管理し、異常は `ops/logs/ingest_anomalies.jsonl` に記録。
 - タイムスタンプは ISO 8601 (`Z` や `+00:00` 付き)・空白区切りどちらにも対応。
 
@@ -137,6 +139,14 @@ python3 scripts/run_sim.py --csv data/ohlc5m.csv --symbol USDJPY --json-out out.
 
 ```
 python3 scripts/pull_prices.py --source data/usdjpy_5m_2018-2024_utc.csv --symbol USDJPY --tf 5m
+```
+
+API 直接取得の例（`configs/api_ingest.yml` を上書きして別プロバイダにも対応可）:
+
+```
+python3 scripts/run_daily_workflow.py \
+  --ingest --use-api --symbol USDJPY --mode conservative \
+  --api-config configs/api_ingest.yml --api-credentials configs/api_keys.yml
 ```
 
 ドライラン（スナップショット更新なし）:

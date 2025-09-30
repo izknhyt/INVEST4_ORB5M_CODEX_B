@@ -7,6 +7,8 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from core.utils import yaml_compat as yaml
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -32,10 +34,36 @@ def main(argv=None) -> int:
         help="Fetch latest bars via Dukascopy before ingestion",
     )
     parser.add_argument(
+        "--use-api",
+        action="store_true",
+        help="Fetch latest bars via REST API before ingestion",
+    )
+    parser.add_argument(
         "--dukascopy-lookback-minutes",
         type=int,
         default=180,
         help="Minutes of history to re-request when using Dukascopy ingestion",
+    )
+    parser.add_argument(
+        "--api-provider",
+        default=None,
+        help="Override API provider defined in configs/api_ingest.yml",
+    )
+    parser.add_argument(
+        "--api-config",
+        default=str(ROOT / "configs/api_ingest.yml"),
+        help="Path to API ingest configuration file",
+    )
+    parser.add_argument(
+        "--api-credentials",
+        default=str(ROOT / "configs/api_keys.yml"),
+        help="Path to API credential store",
+    )
+    parser.add_argument(
+        "--api-lookback-minutes",
+        type=int,
+        default=None,
+        help="Override history window when using API ingestion",
     )
     parser.add_argument("--update-state", action="store_true", help="Replay new bars and update state.json")
     parser.add_argument("--benchmarks", action="store_true", help="Run baseline + rolling benchmarks")
@@ -110,6 +138,10 @@ def main(argv=None) -> int:
     bars_csv = args.bars or str(ROOT / f"validated/{args.symbol}/5m.csv")
 
     if args.ingest:
+        if args.use_dukascopy and args.use_api:
+            print("[wf] --use-dukascopy and --use-api cannot be combined")
+            return 1
+
         if args.use_dukascopy:
             try:
                 from scripts.dukascopy_fetch import fetch_bars
@@ -168,6 +200,87 @@ def main(argv=None) -> int:
 
             print(
                 "[wf] dukascopy_ingest",
+                f"rows={result['rows_validated']}",
+                f"last_ts={result['last_ts_now']}",
+            )
+        elif args.use_api:
+            try:
+                from scripts.fetch_prices_api import fetch_prices
+                from scripts.pull_prices import ingest_records, get_last_processed_ts
+            except Exception as exc:  # pragma: no cover - import failure
+                print(f"[wf] API ingestion unavailable: {exc}")
+                return 1
+
+            snapshot_path = ROOT / "ops/runtime_snapshot.json"
+            tf = "5m"
+            symbol_upper = args.symbol.upper()
+            validated_path = ROOT / "validated" / symbol_upper / f"{tf}.csv"
+            raw_path = ROOT / "raw" / symbol_upper / f"{tf}.csv"
+            features_path = ROOT / "features" / symbol_upper / f"{tf}.csv"
+
+            last_ts = get_last_processed_ts(
+                symbol_upper,
+                tf,
+                snapshot_path=snapshot_path,
+                validated_path=validated_path,
+            )
+            now = datetime.utcnow()
+            lookback_default = args.api_lookback_minutes
+            if lookback_default is None:
+                try:
+                    with Path(args.api_config).open(encoding="utf-8") as fh:
+                        cfg = yaml.safe_load(fh) or {}
+                    provider_name = args.api_provider or cfg.get("default_provider")
+                    providers = cfg.get("providers", {})
+                    provider_cfg = providers.get(provider_name) if provider_name else None
+                    lookback_default = (
+                        args.api_lookback_minutes
+                        or (provider_cfg or {}).get("lookback_minutes")
+                        or cfg.get("lookback_minutes")
+                    )
+                except Exception:
+                    lookback_default = None
+            lookback_minutes = max(5, int(lookback_default or 120))
+
+            if last_ts is not None:
+                start = last_ts - timedelta(minutes=lookback_minutes)
+            else:
+                start = now - timedelta(minutes=lookback_minutes)
+
+            print(
+                "[wf] fetching API bars",
+                args.symbol,
+                tf,
+                start.isoformat(timespec="seconds"),
+                now.isoformat(timespec="seconds"),
+            )
+
+            try:
+                records = fetch_prices(
+                    symbol_upper,
+                    tf,
+                    start=start,
+                    end=now,
+                    provider=args.api_provider,
+                    config_path=args.api_config,
+                    credentials_path=args.api_credentials,
+                )
+                result = ingest_records(
+                    records,
+                    symbol=symbol_upper,
+                    tf=tf,
+                    snapshot_path=snapshot_path,
+                    raw_path=raw_path,
+                    validated_path=validated_path,
+                    features_path=features_path,
+                    source_name="api",
+                )
+            except Exception as exc:
+                print(f"[wf] API ingestion failed: {exc}")
+                return 1
+
+            print(
+                "[wf] api_ingest",
                 f"rows={result['rows_validated']}",
                 f"last_ts={result['last_ts_now']}",
             )

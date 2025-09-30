@@ -12,9 +12,10 @@
     - [docs/state_runbook.md](docs/state_runbook.md)
     - [README.md#オンデマンドインジェスト-cli](README.md#オンデマンドインジェスト-cli)
   - Pending Questions:
-    - [ ] API プロバイダとレート制限の要件整理
+    - [x] API プロバイダとレート制限の要件整理 — Alpha Vantage FX_INTRADAY を初期ターゲットとして config 化済み。
     - [ ] 認証情報保管/ローテーション方針の決定
   - Docs note: Draft design in `docs/api_ingest_plan.md`（新規作成予定）。
+  - 2025-10-22: `scripts/fetch_prices_api.py` と `configs/api_ingest.yml` を整備し、`run_daily_workflow.py --ingest --use-api` で REST → `pull_prices.ingest_records` の直結を実装。`tests/test_fetch_prices_api.py` で成功/リトライの両ケースを固定し、README / state runbook / todo_next を更新。
 
 ### 運用メモ
 - バックログから着手するタスクは先にこのリストへ追加し、ID・着手予定日・DoD リンクを明示する。

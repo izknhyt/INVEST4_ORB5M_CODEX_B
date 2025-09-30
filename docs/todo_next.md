@@ -36,16 +36,16 @@
 - **価格インジェストAPI基盤整備**（バックログ: `docs/task_backlog.md` → P1「ローリング検証 + 健全性モニタリング」） — `state.md` 2025-10-16 <!-- anchor: docs/task_backlog.md#p1-04-価格インジェストapi基盤整備 -->
   - Scope: REST/Streaming API クライアント設計 → `pull_prices.py` 連携 → workflow 統合。
   - Deliverables (EN): API ingestion design doc (`docs/api_ingest_plan.md`), CLI integration plan, retry/test matrix.
-  - Next step: Document API provider assumptions・認証管理・リトライポリシーをまとめ、運用ランブック更新案を起草。
+  - Next step: Dry-run `python3 scripts/run_daily_workflow.py --ingest --use-api --benchmarks` to confirm freshness clearance, then capture credential rotation SOP in `docs/checklists/p1-04_api_ingest.md`.
   - Backlog Anchor: [価格インジェストAPI基盤整備 (P1-04)](docs/task_backlog.md#p1-04-価格インジェストapi基盤整備)
   - Vision / Runbook References:
     - [readme/設計方針（投資_3_）v_1.md](readme/設計方針（投資_3_）v_1.md)
     - [docs/state_runbook.md](docs/state_runbook.md)
     - [README.md#オンデマンドインジェスト-cli](README.md#オンデマンドインジェスト-cli)
   - Pending Questions:
-    - [ ] API ソース (ベンダー/レート制限/ヒストリカル期間) の決定
+    - [x] API ソース (ベンダー/レート制限/ヒストリカル期間) の決定 — Alpha Vantage FX_INTRADAY を初期実装として採用。
     - [ ] 認証情報の保管先とローテーション手順
-  - Docs note: Draft plan in `docs/api_ingest_plan.md` and update runbook/checklist once design is reviewed.
+  - Docs note: `docs/api_ingest_plan.md` / README / `docs/state_runbook.md` を更新済み。残タスクはチェックリストに鍵ローテーション手順を追記すること。
   - DoD チェックリスト: [docs/checklists/p1-04_api_ingest.md](docs/checklists/p1-04_api_ingest.md) を利用して進捗を管理する。
 
 ### Ready
