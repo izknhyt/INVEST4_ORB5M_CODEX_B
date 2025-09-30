@@ -4,9 +4,12 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 def run_cmd(cmd):
@@ -23,6 +26,17 @@ def main(argv=None) -> int:
     parser.add_argument("--mode", default="conservative", choices=["conservative", "bridge"])
     parser.add_argument("--equity", default="100000")
     parser.add_argument("--ingest", action="store_true", help="Run pull_prices to append latest bars")
+    parser.add_argument(
+        "--use-dukascopy",
+        action="store_true",
+        help="Fetch latest bars via Dukascopy before ingestion",
+    )
+    parser.add_argument(
+        "--dukascopy-lookback-minutes",
+        type=int,
+        default=180,
+        help="Minutes of history to re-request when using Dukascopy ingestion",
+    )
     parser.add_argument("--update-state", action="store_true", help="Replay new bars and update state.json")
     parser.add_argument("--benchmarks", action="store_true", help="Run baseline + rolling benchmarks")
     parser.add_argument("--state-health", action="store_true", help="Run state health checker")
@@ -96,12 +110,79 @@ def main(argv=None) -> int:
     bars_csv = args.bars or str(ROOT / f"validated/{args.symbol}/5m.csv")
 
     if args.ingest:
-        cmd = [sys.executable, str(ROOT / "scripts/pull_prices.py"),
-               "--source", str(ROOT / "data/usdjpy_5m_2018-2024_utc.csv"),
-               "--symbol", args.symbol]
-        exit_code = run_cmd(cmd)
-        if exit_code:
-            return exit_code
+        if args.use_dukascopy:
+            try:
+                from scripts.dukascopy_fetch import fetch_bars
+                from scripts.pull_prices import ingest_records, get_last_processed_ts
+            except RuntimeError as exc:
+                print(f"[wf] Dukascopy ingestion unavailable: {exc}")
+                return 1
+
+            snapshot_path = ROOT / "ops/runtime_snapshot.json"
+            tf = "5m"
+            symbol_upper = args.symbol.upper()
+            validated_path = ROOT / "validated" / symbol_upper / f"{tf}.csv"
+            raw_path = ROOT / "raw" / symbol_upper / f"{tf}.csv"
+            features_path = ROOT / "features" / symbol_upper / f"{tf}.csv"
+
+            last_ts = get_last_processed_ts(
+                symbol_upper,
+                tf,
+                snapshot_path=snapshot_path,
+                validated_path=validated_path,
+            )
+            now = datetime.utcnow()
+            lookback = max(5, args.dukascopy_lookback_minutes)
+            if last_ts is not None:
+                start = last_ts - timedelta(minutes=lookback)
+            else:
+                start = now - timedelta(minutes=lookback)
+
+            print(
+                "[wf] fetching Dukascopy bars",
+                args.symbol,
+                tf,
+                start.isoformat(timespec="seconds"),
+                now.isoformat(timespec="seconds"),
+            )
+
+            try:
+                records = fetch_bars(
+                    args.symbol,
+                    tf,
+                    start=start,
+                    end=now,
+                )
+                result = ingest_records(
+                    records,
+                    symbol=symbol_upper,
+                    tf=tf,
+                    snapshot_path=snapshot_path,
+                    raw_path=raw_path,
+                    validated_path=validated_path,
+                    features_path=features_path,
+                )
+            except Exception as exc:
+                print(f"[wf] Dukascopy ingestion failed: {exc}")
+                return 1
+
+            print(
+                "[wf] dukascopy_ingest",
+                f"rows={result['rows_validated']}",
+                f"last_ts={result['last_ts_now']}",
+            )
+        else:
+            cmd = [
+                sys.executable,
+                str(ROOT / "scripts/pull_prices.py"),
+                "--source",
+                str(ROOT / "data/usdjpy_5m_2018-2024_utc.csv"),
+                "--symbol",
+                args.symbol,
+            ]
+            exit_code = run_cmd(cmd)
+            if exit_code:
+                return exit_code
 
     if args.update_state:
         cmd = [sys.executable, str(ROOT / "scripts/update_state.py"),

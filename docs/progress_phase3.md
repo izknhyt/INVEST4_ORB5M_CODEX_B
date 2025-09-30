@@ -12,6 +12,12 @@
 - `scripts/run_daily_workflow.py` を追加。最適化 (`--optimize`)、レイテンシ分析 (`--analyze-latency`)、stateアーカイブ (`--archive-state`) をまとめて実行可能。
 - Cron 例 (`scripts/cron_schedule_example.json`) を用意。実際の自動化は CI/cron 環境に合わせて設定。
 
+## Dukascopy Auto Ingestion
+- Introduced `scripts/dukascopy_fetch.py` and refactored `scripts/pull_prices.py` so the same ingestion pipeline accepts in-memory bar records.
+- `python3 scripts/run_daily_workflow.py --ingest --use-dukascopy` now re-fetches the latest USDJPY 5m bars directly from Dukascopy and appends them to `raw/`, `validated/`, and `features/` idempotently.
+- Added regression coverage for the new `ingest_records` helper to guarantee duplicate-safe runs when the workflow is triggered multiple times per day.
+- Added `scripts/merge_dukascopy_monthly.py` to combine monthly exports like `USDJPY_202501_5min.csv` into a single `data/usdjpy_5m_2025.csv`, then ingested the merged file to backfill `raw/`→`features/` ahead of live refresh。
+
 ## TODO
 - `analysis/broker_fills.ipynb` による Fill 差分可視化と、ブローカー仕様に合わせたモデル調整。
 - `run_daily_workflow.py` のログ出力・通知内容を強化し、本番運用フローへ組み込む。

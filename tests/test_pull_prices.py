@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from scripts.pull_prices import ingest_records
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -91,3 +93,59 @@ def test_pull_prices_pipeline(tmp_path):
         feature_rows_second = list(csv.DictReader(f))
     assert len(feature_rows_second) == 8
 
+
+def test_ingest_records_inline(tmp_path):
+    snapshot_path = tmp_path / "snapshot.json"
+    raw_path = tmp_path / "raw" / "USDJPY" / "5m.csv"
+    validated_path = tmp_path / "validated" / "USDJPY" / "5m.csv"
+    features_path = tmp_path / "features" / "USDJPY" / "5m.csv"
+
+    rows = [
+        {
+            "timestamp": "2024-01-02T00:00:00Z",
+            "symbol": "USDJPY",
+            "tf": "5m",
+            "o": 150.0,
+            "h": 150.1,
+            "l": 149.9,
+            "c": 150.02,
+            "v": 120,
+            "spread": 0.02,
+        },
+        {
+            "timestamp": "2024-01-02T00:05:00Z",
+            "symbol": "USDJPY",
+            "tf": "5m",
+            "o": 150.02,
+            "h": 150.12,
+            "l": 149.92,
+            "c": 150.04,
+            "v": 118,
+            "spread": 0.02,
+        },
+    ]
+
+    result = ingest_records(
+        rows,
+        symbol="USDJPY",
+        tf="5m",
+        snapshot_path=snapshot_path,
+        raw_path=raw_path,
+        validated_path=validated_path,
+        features_path=features_path,
+    )
+
+    assert result["rows_validated"] == 2
+    assert result["last_ts_now"].endswith("00:05:00")
+
+    # Second run should be idempotent
+    result_second = ingest_records(
+        rows,
+        symbol="USDJPY",
+        tf="5m",
+        snapshot_path=snapshot_path,
+        raw_path=raw_path,
+        validated_path=validated_path,
+        features_path=features_path,
+    )
+    assert result_second["rows_validated"] == 0

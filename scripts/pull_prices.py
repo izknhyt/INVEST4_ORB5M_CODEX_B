@@ -224,6 +224,235 @@ def _format_float(val: float) -> str:
     return text or "0"
 
 
+def get_last_processed_ts(
+    symbol: str,
+    tf: str,
+    *,
+    snapshot_path: Path = SNAPSHOT_PATH,
+    validated_path: Optional[Path] = None,
+) -> Optional[datetime]:
+    """Return the last ingested timestamp, using snapshot first then validated CSV."""
+
+    snapshot = _load_snapshot(snapshot_path)
+    key = f"{symbol}_{tf}"
+    last_ts = _last_ts_from_snapshot(snapshot, key)
+    if last_ts is not None:
+        return last_ts
+
+    validated_path = validated_path or VALIDATED_ROOT / symbol / f"{tf}.csv"
+    return _infer_last_ts_from_csv(validated_path)
+
+
+def ingest_records(
+    records: Iterable[Dict[str, object]],
+    *,
+    symbol: str,
+    tf: str,
+    snapshot_path: Path = SNAPSHOT_PATH,
+    raw_path: Optional[Path] = None,
+    validated_path: Optional[Path] = None,
+    features_path: Optional[Path] = None,
+    or_n: int = 6,
+    dry_run: bool = False,
+    source_name: Optional[str] = None,
+) -> Dict[str, object]:
+    """Ingest pre-normalized bar records into raw/validated/feature storage."""
+
+    symbol = symbol.upper()
+    tf = tf
+
+    raw_path = raw_path or RAW_ROOT / symbol / f"{tf}.csv"
+    validated_path = validated_path or VALIDATED_ROOT / symbol / f"{tf}.csv"
+    features_path = features_path or FEATURES_ROOT / symbol / f"{tf}.csv"
+    snapshot_path = Path(snapshot_path)
+
+    snapshot = _load_snapshot(snapshot_path)
+    key = f"{symbol}_{tf}"
+    last_ts = _last_ts_from_snapshot(snapshot, key)
+    if last_ts is None:
+        last_ts = _infer_last_ts_from_csv(validated_path)
+
+    history = _load_recent_validated(validated_path)
+    ctx = FeatureContext(or_n=or_n)
+    ctx.bootstrap(history)
+    prev_dt = history[-1]["dt"] if history else None
+
+    raw_rows: List[List[object]] = []
+    validated_rows: List[List[object]] = []
+    feature_rows: List[List[object]] = []
+    anomalies: List[Dict[str, object]] = []
+    gaps: List[Dict[str, object]] = []
+
+    latest_ts: Optional[datetime] = last_ts
+
+    for row in records:
+        ts_raw = str(row.get("timestamp", ""))
+        try:
+            ts = _parse_ts(ts_raw)
+        except Exception as exc:
+            anomalies.append(
+                {
+                    "type": "parse_error",
+                    "reason": str(exc),
+                    "row": row,
+                }
+            )
+            continue
+
+        if last_ts and ts <= last_ts:
+            continue
+
+        raw_rows.append([row.get(h, "") for h in RAW_HEADER])
+
+        try:
+            o = float(row.get("o", 0.0))
+            h_val = float(row.get("h", 0.0))
+            l = float(row.get("l", 0.0))
+            c = float(row.get("c", 0.0))
+            v = float(row.get("v", 0.0) or 0.0)
+            spread = float(row.get("spread", 0.0) or 0.0)
+        except Exception as exc:
+            anomalies.append(
+                {
+                    "type": "numeric_error",
+                    "reason": str(exc),
+                    "row": row,
+                }
+            )
+            continue
+
+        tf_val = str(row.get("tf", "")).strip() or tf
+        sym_val = str(row.get("symbol", symbol)).strip() or symbol
+        if tf_val != tf:
+            anomalies.append(
+                {
+                    "type": "tf_mismatch",
+                    "expected": tf,
+                    "actual": tf_val,
+                    "timestamp": ts_raw,
+                }
+            )
+            continue
+        if sym_val.upper() != symbol:
+            anomalies.append(
+                {
+                    "type": "symbol_mismatch",
+                    "expected": symbol,
+                    "actual": sym_val,
+                    "timestamp": ts_raw,
+                }
+            )
+            continue
+
+        if h_val < max(o, c) or l > min(o, c) or l > h_val:
+            anomalies.append(
+                {
+                    "type": "ohlc_invalid",
+                    "timestamp": ts_raw,
+                    "values": {"o": o, "h": h_val, "l": l, "c": c},
+                }
+            )
+            continue
+
+        if prev_dt and ts <= prev_dt:
+            info = {
+                "type": "non_monotonic",
+                "prev_ts": _format_ts(prev_dt),
+                "current_ts": _format_ts(ts),
+            }
+            anomalies.append(info)
+            continue
+
+        if prev_dt and ts - prev_dt > timedelta(minutes=5):
+            gap_entry = {
+                "type": "gap",
+                "start_ts": _format_ts(prev_dt),
+                "end_ts": _format_ts(ts),
+                "minutes": (ts - prev_dt).total_seconds() / 60.0,
+            }
+            gaps.append(gap_entry)
+            anomalies.append(gap_entry)
+
+        prev_dt = ts
+        latest_ts = ts if latest_ts is None or ts > latest_ts else latest_ts
+
+        ts_str = _format_ts(ts)
+        validated_rows.append(
+            [
+                ts_str,
+                symbol,
+                tf,
+                o,
+                h_val,
+                l,
+                c,
+                v,
+                spread,
+            ]
+        )
+
+        feature_vals = ctx.compute(
+            ts,
+            {
+                "o": o,
+                "h": h_val,
+                "l": l,
+                "c": c,
+            },
+        )
+
+        feature_rows.append(
+            [
+                ts_str,
+                symbol,
+                tf,
+                o,
+                h_val,
+                l,
+                c,
+                v,
+                spread,
+                _format_float(feature_vals[0]),
+                _format_float(feature_vals[1]),
+                _format_float(feature_vals[2]),
+                _format_float(feature_vals[3]),
+                _format_float(feature_vals[4]),
+            ]
+        )
+
+    raw_rows_count = _append_csv(raw_path, RAW_HEADER, raw_rows, dry_run=dry_run)
+    validated_rows_count = _append_csv(
+        validated_path, VALIDATED_HEADER, validated_rows, dry_run=dry_run
+    )
+    feature_rows_count = _append_csv(
+        features_path, FEATURE_HEADER, feature_rows, dry_run=dry_run
+    )
+    anomalies_logged = _log_anomalies(anomalies, dry_run=dry_run)
+
+    result = {
+        "source": source_name or "inline",
+        "raw_path": str(raw_path),
+        "validated_path": str(validated_path),
+        "features_path": str(features_path),
+        "rows_raw": raw_rows_count,
+        "rows_validated": validated_rows_count,
+        "rows_featured": feature_rows_count,
+        "anomalies_logged": anomalies_logged,
+        "gaps_detected": len(gaps),
+        "last_ts_prev": last_ts.isoformat() if last_ts else None,
+        "last_ts_now": latest_ts.isoformat() if latest_ts else None,
+    }
+
+    if dry_run or raw_rows_count == 0 or latest_ts is None:
+        return result
+
+    if last_ts is None or latest_ts > last_ts:
+        updated = _update_snapshot(snapshot, key, latest_ts)
+        _save_snapshot(snapshot_path, updated)
+
+    return result
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="On-demand ingestion for 5m bars")
     parser.add_argument("--source", default=str(DEFAULT_SOURCE), help="Source CSV path")
@@ -249,172 +478,22 @@ def main(argv=None) -> int:
     validated_path = VALIDATED_ROOT / symbol / f"{tf}.csv"
     features_path = FEATURES_ROOT / symbol / f"{tf}.csv"
 
-    snapshot_path = Path(args.snapshot)
-    snapshot = _load_snapshot(snapshot_path)
-    key = f"{symbol}_{tf}"
-    last_ts = _last_ts_from_snapshot(snapshot, key)
-    if last_ts is None:
-        last_ts = _infer_last_ts_from_csv(validated_path)
-
-    history = _load_recent_validated(validated_path)
-    ctx = FeatureContext(or_n=args.or_n)
-    ctx.bootstrap(history)
-    prev_dt = history[-1]["dt"] if history else None
-
-    raw_rows: List[List[object]] = []
-    validated_rows: List[List[object]] = []
-    feature_rows: List[List[object]] = []
-    anomalies: List[Dict[str, object]] = []
-    gaps: List[Dict[str, object]] = []
-
-    latest_ts: Optional[datetime] = last_ts
-
     with source.open(newline="", encoding="utf-8") as src_f:
         reader = csv.DictReader(src_f)
-        for row in reader:
-            ts_raw = row.get("timestamp", "")
-            try:
-                ts = _parse_ts(ts_raw)
-            except Exception as exc:
-                anomalies.append({
-                    "type": "parse_error",
-                    "reason": str(exc),
-                    "row": row,
-                })
-                continue
-            if last_ts and ts <= last_ts:
-                continue
-
-            raw_rows.append([row.get(h, "") for h in RAW_HEADER])
-
-            try:
-                o = float(row.get("o", 0.0))
-                h_val = float(row.get("h", 0.0))
-                l = float(row.get("l", 0.0))
-                c = float(row.get("c", 0.0))
-                v = float(row.get("v", 0.0) or 0.0)
-                spread = float(row.get("spread", 0.0) or 0.0)
-            except Exception as exc:
-                anomalies.append({
-                    "type": "numeric_error",
-                    "reason": str(exc),
-                    "row": row,
-                })
-                continue
-
-            tf_val = row.get("tf", "").strip() or tf
-            sym_val = row.get("symbol", symbol).strip() or symbol
-            if tf_val != tf:
-                anomalies.append({
-                    "type": "tf_mismatch",
-                    "expected": tf,
-                    "actual": tf_val,
-                    "timestamp": ts_raw,
-                })
-                continue
-            if sym_val.upper() != symbol:
-                anomalies.append({
-                    "type": "symbol_mismatch",
-                    "expected": symbol,
-                    "actual": sym_val,
-                    "timestamp": ts_raw,
-                })
-                continue
-
-            if h_val < max(o, c) or l > min(o, c) or l > h_val:
-                anomalies.append({
-                    "type": "ohlc_invalid",
-                    "timestamp": ts_raw,
-                    "values": {"o": o, "h": h_val, "l": l, "c": c},
-                })
-                continue
-
-            if prev_dt and ts <= prev_dt:
-                info = {
-                    "type": "non_monotonic",
-                    "prev_ts": _format_ts(prev_dt),
-                    "current_ts": _format_ts(ts),
-                }
-                anomalies.append(info)
-                continue
-
-            if prev_dt and ts - prev_dt > timedelta(minutes=5):
-                gap_entry = {
-                    "type": "gap",
-                    "start_ts": _format_ts(prev_dt),
-                    "end_ts": _format_ts(ts),
-                    "minutes": (ts - prev_dt).total_seconds() / 60.0,
-                }
-                gaps.append(gap_entry)
-                anomalies.append(gap_entry)
-
-            prev_dt = ts
-            latest_ts = ts if latest_ts is None or ts > latest_ts else latest_ts
-
-            ts_str = _format_ts(ts)
-            validated_rows.append([
-                ts_str,
-                symbol,
-                tf,
-                o,
-                h_val,
-                l,
-                c,
-                v,
-                spread,
-            ])
-
-            feature_vals = ctx.compute(ts, {
-                "o": o,
-                "h": h_val,
-                "l": l,
-                "c": c,
-            })
-
-            feature_rows.append([
-                ts_str,
-                symbol,
-                tf,
-                o,
-                h_val,
-                l,
-                c,
-                v,
-                spread,
-                _format_float(feature_vals[0]),
-                _format_float(feature_vals[1]),
-                _format_float(feature_vals[2]),
-                _format_float(feature_vals[3]),
-                _format_float(feature_vals[4]),
-            ])
-
-    raw_rows_count = _append_csv(raw_path, RAW_HEADER, raw_rows, dry_run=args.dry_run)
-    validated_rows_count = _append_csv(validated_path, VALIDATED_HEADER, validated_rows, dry_run=args.dry_run)
-    feature_rows_count = _append_csv(features_path, FEATURE_HEADER, feature_rows, dry_run=args.dry_run)
-    anomalies_logged = _log_anomalies(anomalies, dry_run=args.dry_run)
-
-    result = {
-        "source": str(source),
-        "raw_path": str(raw_path),
-        "validated_path": str(validated_path),
-        "features_path": str(features_path),
-        "rows_raw": raw_rows_count,
-        "rows_validated": validated_rows_count,
-        "rows_featured": feature_rows_count,
-        "anomalies_logged": anomalies_logged,
-        "gaps_detected": len(gaps),
-        "last_ts_prev": last_ts.isoformat() if last_ts else None,
-        "last_ts_now": latest_ts.isoformat() if latest_ts else None,
-    }
+        result = ingest_records(
+            reader,
+            symbol=symbol,
+            tf=tf,
+            snapshot_path=Path(args.snapshot),
+            raw_path=raw_path,
+            validated_path=validated_path,
+            features_path=features_path,
+            or_n=args.or_n,
+            dry_run=args.dry_run,
+            source_name=str(source),
+        )
 
     print(json.dumps(result, ensure_ascii=False))
-
-    if args.dry_run or raw_rows_count == 0 or latest_ts is None:
-        return 0
-
-    if last_ts is None or latest_ts > last_ts:
-        updated = _update_snapshot(snapshot, key, latest_ts)
-        _save_snapshot(snapshot_path, updated)
     return 0
 
 

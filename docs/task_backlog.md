@@ -79,6 +79,9 @@ REST/Streaming API と `scripts/pull_prices.py` を連携させ、手動CSV投�
 
 **進捗メモ**
 - 2025-10-16: API インジェスト設計を起案し、`docs/todo_next.md` / `state.md` にタスク登録。設計ドキュメント (`docs/api_ingest_plan.md`) とチェックリスト (`docs/checklists/p1-04_api_ingest.md`) を整備し、ワークフロー統合を次ステップとする。
+- 2025-10-21: Added Dukascopy ingestion option to `scripts/run_daily_workflow.py` (`--use-dukascopy`) with shared `ingest_records` helper so fresh 5m bars flow through `raw/`→`validated/`→`features/` without manual CSV staging. Updated progress docs and design notes to capture the workflow and test coverage.
+- 2025-10-21: Created `scripts/merge_dukascopy_monthly.py` and generated `data/usdjpy_5m_2025.csv` from the monthly exports to backfill storage before live refresh. Documented the merge step in phase3 progress notes.
+- 2025-10-21: Cloud deploy flagged "diff too large" during the backfill. Local merge + ingest cleared it, and we need to document how to temporarily relax/re-enable the cloud diff guard (TODO: define guard reset workflow in runbook).
 
 ### P1-05 バックテストランナーのデバッグ可視化強化
 `core/runner.py` のデバッグ計測とログドキュメントを整理し、EV ゲート診断の調査手順を標準化する。

@@ -9,19 +9,25 @@
   - Ensure `run_daily_workflow.py --ingest` keeps `raw/`, `validated/`, `features/` and `ops/runtime_snapshot.json.ingest` up to date so freshness checks stay within 6h.
 
 ## 2. Data Flow
-API provider (JSON/CSV) → `scripts/fetch_prices_api.py` (new) → normalized bar iterator → `pull_prices.ingest_rows` (refactored) → CSV append (`raw`/`validated`/`features`) → snapshot/anomaly logging.
+API provider (JSON/CSV) or Dukascopy feed → `scripts/fetch_prices_api.py` / `scripts/dukascopy_fetch.py` → normalized bar iterator → `pull_prices.ingest_records` → CSV append (`raw`/`validated`/`features`) → snapshot/anomaly logging.
 
 ## 3. Modules & Interfaces
 - `scripts/fetch_prices_api.py`
   - CLI: `python3 scripts/fetch_prices_api.py --symbol USDJPY --tf 5m --start-ts ... --end-ts ... [--out csv|stream] [--dry-run]`.
   - Library: `fetch_prices(symbol: str, tf: str, start: datetime, end: datetime) -> Iterator[Dict[str, Any]]`.
   - Responsibilities: pagination, query parameter construction, retries/backoff, rate-limit handling, basic schema validation.
+- `scripts/dukascopy_fetch.py`
+  - Lightweight wrapper around `dukascopy_python.live_fetch`, normalizing rows to the ingestion schema (timestamp/symbol/tf/o/h/l/c/v/spread).
+  - Provides CLI for ad-hoc exports and is invoked by `run_daily_workflow.py --ingest --use-dukascopy` to refresh recent 5m bars.
+- `scripts/merge_dukascopy_monthly.py`
+  - Globs monthly CSV dumps (e.g., `USDJPY_202501_5min.csv`) and produces a single normalized file for bulk backfill prior to live refresh.
+  - Ensures duplicates are de-duplicated and timestamps are sorted so `pull_prices.ingest_records` can append cleanly.
 - `scripts/_secrets.py` (new helper)
   - `load_api_credentials(service: str)` reads from `configs/api_keys.yml` or environment variables (fallback) and centralizes error messages.
 - `scripts/pull_prices.py`
-  - Add `ingest_rows(rows: Iterable[Dict[str, Any]], *, dry_run: bool = False)` so CSV path ingestion becomes a lightweight wrapper around the shared logic.
+  - Exposes `ingest_records(rows: Iterable[Dict[str, Any]], ...)` so CSV path ingestion and API/Dukascopy providers share the same idempotent pipeline.
 - `scripts/run_daily_workflow.py`
-  - `--ingest` gains `--use-api` (default off). When enabled, compute `(last_ts - buffer, now)` and call `fetch_prices_api.fetch_prices` → `pull_prices.ingest_rows`.
+  - `--ingest` gains provider flags (`--use-api`, `--use-dukascopy`) so we can switch between REST exports and the Dukascopy bridge. When enabled, compute `(last_ts - buffer, now)` and call the relevant fetcher → `pull_prices.ingest_records`.
   - Exit non-zero on hard failures so Webhook/alert integrations continue to work.
 
 ## 4. Configuration
