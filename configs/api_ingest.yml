@@ -122,4 +122,5 @@ providers:
       max_backoff_seconds: 16
       retryable_statuses: [429, 500, 502, 503, 504]
       error_keys:
-        - status
+        - key: status
+          allowed_values: ["ok"]

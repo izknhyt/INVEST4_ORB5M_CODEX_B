@@ -38,10 +38,15 @@
 - [ ] レビュー/承認者を記録した。
 
 ### 2025-11-07 サンドボックス実行ログ
+
 - `python3 scripts/run_daily_workflow.py --ingest --use-dukascopy --symbol USDJPY --mode conservative`
   - Dukascopy 呼び出しで `dukascopy_python` 未導入のため失敗。
   - 自動フェイルオーバーで yfinance (`JPY=X`) 取得を試行したが、`yfinance` 未導入のためフォールバックも失敗。`ops/runtime_snapshot.json.ingest.USDJPY_5m` は更新されず、最新バーは 2025-10-01T14:10:00 のまま。
 - `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6`
   - ベンチマーク最新バー/サマリーがそれぞれ 18.60h / 9.31h 遅延で鮮度閾値 6h を超過。インジェストが再開するまで 90 分閾値は現状維持しつつ、依存導入後の再実行が必要。
+
+
+### 2025-11-09 Twelve Data status handling
+- `scripts/fetch_prices_api.py` に構造化 `error_keys` を追加し、`status: "ok"` を許容しつつ `status: "error"` をエラーとして捕捉できるよう回帰テスト (`tests/test_fetch_prices_api.py`) を拡張。Twelve Data の挙動に合わせて `configs/api_ingest.yml` を更新。
 
 > API供給元や鍵管理ポリシーは `docs/api_ingest_plan.md` の更新と併せて、タスク完了までに最新化してください。現状は Dukascopy 主経路で運用し、REST/API は契約条件が整い次第再開します。

@@ -178,6 +178,126 @@ def test_fetch_prices_success(tmp_path, api_server):
     assert (tmp_path / "anomalies.jsonl").exists() is False
 
 
+def test_fetch_prices_allows_whitelisted_status(tmp_path, api_server):
+    handler, base_url = api_server
+    config_path, credentials_path = _write_config(tmp_path, base_url)
+
+    config = yaml_compat.safe_load(config_path.read_text(encoding="utf-8"))
+    provider = config["providers"]["mock"]
+    provider["response"]["data_path"] = ["values"]
+    provider["response"]["timestamp_field"] = "datetime"
+    provider["response"]["fields"] = {
+        "o": "open",
+        "h": "high",
+        "l": "low",
+        "c": "close",
+        "v": "volume",
+        "spread": None,
+    }
+    provider.setdefault("retry", {})["error_keys"] = [
+        {"key": "status", "allowed_values": ["ok", "OK"]}
+    ]
+    config_path.write_text(yaml_compat.safe_dump(config), encoding="utf-8")
+
+    handler.queue = [
+        {
+            "status": 200,
+            "body": {
+                "status": "ok",
+                "values": [
+                    {
+                        "datetime": "2025-01-02 00:05:00",
+                        "open": "150.05",
+                        "high": "150.15",
+                        "low": "149.95",
+                        "close": "150.10",
+                        "volume": "118",
+                    },
+                    {
+                        "datetime": "2025-01-02 00:00:00",
+                        "open": "150.00",
+                        "high": "150.08",
+                        "low": "149.90",
+                        "close": "150.02",
+                        "volume": "120",
+                    },
+                ],
+            },
+        }
+    ]
+
+    start = datetime(2025, 1, 2, 0, 0)
+    end = start + timedelta(minutes=5)
+    anomaly_log = tmp_path / "whitelist_anomalies.jsonl"
+    rows = fetch_prices(
+        "USDJPY",
+        "5m",
+        start=start,
+        end=end,
+        provider="mock",
+        config_path=config_path,
+        credentials_path=credentials_path,
+        anomaly_log_path=anomaly_log,
+    )
+
+    assert [row["timestamp"] for row in rows] == [
+        "2025-01-02T00:00:00Z",
+        "2025-01-02T00:05:00Z",
+    ]
+    assert rows[0]["v"] == 120.0
+    assert not anomaly_log.exists()
+
+
+def test_fetch_prices_rejects_disallowed_status(tmp_path, api_server):
+    handler, base_url = api_server
+    config_path, credentials_path = _write_config(tmp_path, base_url)
+
+    config = yaml_compat.safe_load(config_path.read_text(encoding="utf-8"))
+    provider = config["providers"]["mock"]
+    provider.setdefault("retry", {})["error_keys"] = [
+        {"key": "status", "allowed_values": ["ok"]}
+    ]
+    config_path.write_text(yaml_compat.safe_dump(config), encoding="utf-8")
+
+    handler.queue = [
+        {
+            "status": 200,
+            "body": {
+                "status": "error",
+                "message": "quota exceeded",
+                "data": [],
+            },
+        },
+        {
+            "status": 200,
+            "body": {
+                "status": "error",
+                "message": "still failing",
+                "data": [],
+            },
+        },
+    ]
+
+    anomaly_log = tmp_path / "status_anomalies.jsonl"
+    start = datetime(2025, 1, 2, 0, 0)
+    end = start + timedelta(minutes=5)
+
+    with pytest.raises(RuntimeError):
+        fetch_prices(
+            "USDJPY",
+            "5m",
+            start=start,
+            end=end,
+            provider="mock",
+            config_path=config_path,
+            credentials_path=credentials_path,
+            anomaly_log_path=anomaly_log,
+        )
+
+    log_entries = [json.loads(line) for line in anomaly_log.read_text().splitlines()]
+    assert log_entries[-1]["error"].startswith("api_error_value:status=")
+
+
 def test_fetch_prices_retry_logs_failure(tmp_path, api_server):
     handler, base_url = api_server
     config_path, credentials_path = _write_config(tmp_path, base_url)
