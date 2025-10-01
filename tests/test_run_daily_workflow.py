@@ -579,6 +579,8 @@ def test_dukascopy_failure_falls_back_to_yfinance(tmp_path, monkeypatch):
             "conservative",
             "--dukascopy-freshness-threshold-minutes",
             "30",
+            "--yfinance-lookback-minutes",
+            "240",
         ]
     )
 
@@ -586,7 +588,8 @@ def test_dukascopy_failure_falls_back_to_yfinance(tmp_path, monkeypatch):
     assert ingest_meta["source_name"] == "yfinance"
     assert len(ingest_meta["rows"]) == 2
 
-    expected_start = fixed_now - timedelta(days=7)
+    last_ts = datetime.fromisoformat("2025-10-01T03:55:00")
+    expected_start = last_ts - timedelta(minutes=240)
     assert fallback_calls["start"] == expected_start
     assert fallback_calls["end"] == fixed_now
 
@@ -689,6 +692,8 @@ def test_dukascopy_missing_dependency_falls_back_to_yfinance(tmp_path, monkeypat
             "USDJPY",
             "--mode",
             "conservative",
+            "--yfinance-lookback-minutes",
+            "90",
         ]
     )
 
@@ -696,7 +701,9 @@ def test_dukascopy_missing_dependency_falls_back_to_yfinance(tmp_path, monkeypat
     assert ticker_calls["symbol"] == "USDJPY"
     assert fallback_calls["symbol"] == "USDJPY"
     assert fallback_calls["tf"] == "5m"
-    assert fallback_calls["start"] == fixed_now - timedelta(days=7)
+    last_ts = datetime.fromisoformat("2025-10-02T03:55:00")
+    expected_start = last_ts - timedelta(minutes=90)
+    assert fallback_calls["start"] == expected_start
     assert fallback_calls["end"] == fixed_now
 
     csv_lines = validated_csv.read_text(encoding="utf-8").splitlines()
