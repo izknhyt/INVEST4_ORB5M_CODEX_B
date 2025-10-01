@@ -33,10 +33,11 @@
   - Docs note: 参照: [docs/logic_overview.md](docs/logic_overview.md) / [docs/simulation_plan.md](docs/simulation_plan.md) / [docs/benchmark_runbook.md#スケジュールとアラート管理](docs/benchmark_runbook.md#スケジュールとアラート管理)
   - DoD チェックリスト: [docs/checklists/p1-01.md](docs/checklists/p1-01.md) を更新して進捗を管理する。
 
-- **価格インジェストAPI基盤整備**（バックログ: `docs/task_backlog.md` → P1「ローリング検証 + 健全性モニタリング」） — `state.md` 2025-10-16, 2025-11-05 <!-- anchor: docs/task_backlog.md#p1-04-価格インジェストapi基盤整備 -->
+- **価格インジェストAPI基盤整備**（バックログ: `docs/task_backlog.md` → P1「ローリング検証 + 健全性モニタリング」） — `state.md` 2025-10-16, 2025-11-05, 2025-11-06 <!-- anchor: docs/task_backlog.md#p1-04-価格インジェストapi基盤整備 -->
   - Scope: Dukascopy 主経路の堅牢化と、REST/API ルートの保留管理・フォールバック設計（yfinance など無料ソース）。
   - Deliverables (EN): API ingestion design doc (`docs/api_ingest_plan.md`), CLI integration plan, retry/test matrix.
   - 2025-11-05: Alpha Vantage（Premium 49.99 USD/月）と Twelve Data Free（0 USD, 8req/min, 800req/日）を `activation_criteria` で比較し、Alpha Vantage は保留継続・Twelve Data はフォールバック候補として記録。`configs/api_ingest.yml` に閾値・候補ノートを追記済み。
+  - 2025-11-06: 暗号化ストレージ運用と鍵ローテーション記録フローを `docs/state_runbook.md` / README / チェックリストへ反映し、`credential_rotation` プレースホルダを定義。Reviewers: ops-security（高橋）, ops-runbook（佐藤）。
   - Next step: Twelve Data のレスポンス差異（UTC/ボリューム欠損時の扱い）をモック API テストへ反映し、フォールバック手順を `docs/state_runbook.md` へ追記する。
   - Backlog Anchor: [価格インジェストAPI基盤整備 (P1-04)](docs/task_backlog.md#p1-04-価格インジェストapi基盤整備)
   - Vision / Runbook References:

@@ -28,9 +28,14 @@ python3 scripts/run_daily_workflow.py --ingest --update-state --benchmarks --sta
     - 実行後は `ops/runtime_snapshot.json.ingest.USDJPY_5m` の更新時刻と `ops/logs/ingest_anomalies.jsonl` を確認し、鮮度が 90 分超で推移する場合は閾値見直しや手動調査を実施する。
   - API 直接取得（保留中）:
     1. `configs/api_ingest.yml` の `activation_criteria` が満たされていることを確認し、必要なら `target_cost_ceiling_usd`・`minimum_free_quota_per_day`・`retry_budget_per_run` を最新値へ更新する。
-    2. `ALPHA_VANTAGE_API_KEY`（または利用するプロバイダのキー）を環境変数に設定し、同値を `configs/api_keys.yml`（暗号化ストレージ推奨）へ同期する。ローカルでは `.env` を利用し、CI/cron は Secrets 管理で注入する。
-    3. `configs/api_ingest.yml` の `credential_rotation` に `next_rotation_at`・`cadence_days` を記録した上で、ローテーションログを `docs/checklists/p1-04_api_ingest.md` に反映する。
-    4. `python3 -m scripts.run_daily_workflow --ingest --use-api --symbol USDJPY --mode conservative` を実行する。Alpha Vantage FX_INTRADAY がプレミアム専用のため 2025-10 時点では契約後に再開予定であり、条件を外れた場合は `--use-api` を一時的に停止する。
+    2. 認証情報を投入する前に暗号化ストレージ（Vault / SOPS / gpg など）へ保存先を作成し、`credential_rotation.storage_reference` に URI を記録する。平文ファイルを一時的に扱う場合は、コミット対象から除外されていることを `.gitignore` と CI ルールで再確認する。
+    3. 取得した API キーを環境変数へエクスポートする。例:
+       ```bash
+       export ALPHA_VANTAGE_API_KEY="<redacted>"
+       ```
+       `.env` 管理時は `dotenv run` などで一時読み込みし、CI/cron はシークレット管理サービス（GitHub Actions Secrets、GCP Secret Manager など）から注入する。環境変数と同じ値を `configs/api_keys.yml`（暗号化版: `configs/api_keys.local.yml.gpg` など）へ同期し、暗号化前後の検証ログを残す。
+    4. `configs/api_ingest.yml` の `credential_rotation` に `next_rotation_at`・`cadence_days`・`owner` を記録し、ローテーション予定/完了ログを `docs/checklists/p1-04_api_ingest.md` へ追記する。鍵を差し替えたら `last_rotated_at` とレビュー担当者も更新する。
+    5. `python3 -m scripts.run_daily_workflow --ingest --use-api --symbol USDJPY --mode conservative` を実行する。Alpha Vantage FX_INTRADAY がプレミアム専用のため 2025-10 時点では契約後に再開予定であり、条件を外れた場合は `--use-api` を一時的に停止する。
 - state更新: `python3 scripts/update_state.py --bars validated/USDJPY/5m.csv --chunk-size 20000`
 - 検証・集計: `python3 scripts/run_benchmark_runs.py --bars validated/USDJPY/5m.csv --windows 365,180,90` → `python3 scripts/report_benchmark_summary.py --plot-out reports/benchmark_summary.png`
 - ヘルスチェック: `python3 scripts/check_state_health.py`
@@ -57,7 +62,7 @@ python3 scripts/run_daily_workflow.py --ingest --update-state --benchmarks --sta
 - **ヘルスチェック:** `scripts/check_state_health.py` を日次（`run_daily_workflow.py --state-health`）で実行し、結果を `ops/health/state_checks.json` に追記する。勝率 LCB・バケット別サンプル・滑り係数を監視し、警告が出た場合は `--webhook` で Slack 等へ通知。`--fail-on-warning` を CI/バッチに組み込むと異常時にジョブを停止できる。
 - **履歴保持:** 標準では直近 90 レコードを保持する。上限を変更する場合は `--history-limit` を調整する。履歴の可視化は Notebook or BI で `checked_at` を横軸に `ev_win_lcb` やワーニング件数をプロットする。
 - **タスク同期:** `state.md` と `docs/todo_next.md` の整合を保つ際は `scripts/manage_task_cycle.py` を優先利用する。`start-task` で Ready 登録→In Progress 昇格を一括実行し、既存アンカー検知で重複記録を抑止する。完了時は `finish-task` でまとめてログとアーカイブへ送る。いずれも `--dry-run` でコマンド内容を確認してから本実行する。Codex セッションにおける具体的な開始前チェックや終了処理は [docs/codex_workflow.md](codex_workflow.md) を参照する。
-- **API鍵管理:** REST インジェストを有効化する場合は `configs/api_keys.yml`（もしくは `configs/api_keys.local.yml`）にプレースホルダを用意し、実際の鍵はローカルで上書きする。CI/cron では `ALPHA_VANTAGE_API_KEY` のような環境変数を設定し、`scripts/_secrets.load_api_credentials` が YAML よりも優先して読み込む。鍵のローテーション履歴は別メモに残し、更新したら `docs/checklists/p1-04_api_ingest.md` のチェックボックスに反映する。
+- **API鍵管理:** REST インジェストを有効化する場合は、暗号化ストレージに登録したシークレットを唯一の正本とし、`configs/api_keys.yml`（平文テンプレート）にはプレースホルダのみを残す。ローカル開発では `configs/api_keys.local.yml.gpg` のように暗号化したファイルを復号して利用し、CI/cron では `ALPHA_VANTAGE_API_KEY` などの環境変数をシークレットマネージャ経由で注入する。`scripts/_secrets.load_api_credentials` は環境変数を優先するため、ローテーション後は `export` した値と暗号化ストレージの両方を同期する。`configs/api_ingest.yml` の `credential_rotation` を更新したら、ローテーション日時・実施者・レビュー担当者を `docs/checklists/p1-04_api_ingest.md` に記録し、監査証跡を保持する。
 - **API 運用切替:** `--use-api` を有効化する際は上記「API 直接取得」手順を踏み、初回はドライラン (`--dry-run`) でレスポンス整合性・レートリミットヘッダを確認する。`configs/api_ingest.yml` の `activation_criteria` 逸脱や `retry_budget_per_run` 超過を検知した場合は直ちに `--use-api` を無効化し、Dukascopy 経路へ戻す。
 - **レート制限/ SLA エスカレーション:** 429 や SLA 違反が 2 回連続で発生した場合は `ops/logs/ingest_anomalies.jsonl` を添えて #ops チャネルへ報告し、契約窓口への連絡可否を確認する。それまでは `retry_budget_per_run` を超えない範囲で 15 分間隔の再試行にとどめ、`docs/api_ingest_plan.md#4-configuration` のコスト上限を再チェックする。
 - **テンプレ適用:** `state.md` の `## Next Task` へ手動で項目を追加する場合は、必ず [docs/templates/next_task_entry.md](templates/next_task_entry.md) を貼り付けてアンカー・参照リンク・疑問点スロットを埋める。`scripts/manage_task_cycle.py start-task` を使うとテンプレが自動挿入されるため、手動調整より優先する。
