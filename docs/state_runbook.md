@@ -26,7 +26,11 @@ python3 scripts/run_daily_workflow.py --ingest --update-state --benchmarks --sta
   - Dukascopy 経由（標準経路）: `python3 -m scripts.run_daily_workflow --ingest --use-dukascopy --symbol USDJPY --mode conservative`
     - 失敗時や取得データが `--dukascopy-freshness-threshold-minutes`（既定 90 分）より古い場合は自動で yfinance (`period="7d"`) へ切替。`pip install dukascopy-python yfinance` を事前に実行して依存を満たす。
     - 実行後は `ops/runtime_snapshot.json.ingest.USDJPY_5m` の更新時刻と `ops/logs/ingest_anomalies.jsonl` を確認し、鮮度が 90 分超で推移する場合は閾値見直しや手動調査を実施する。
-  - API 直接取得（保留中）: `python3 -m scripts.run_daily_workflow --ingest --use-api --symbol USDJPY --mode conservative` ※ Alpha Vantage FX_INTRADAY がプレミアム専用のため 2025-10 時点では契約後に再開予定。
+  - API 直接取得（保留中）:
+    1. `configs/api_ingest.yml` の `activation_criteria` が満たされていることを確認し、必要なら `target_cost_ceiling_usd`・`minimum_free_quota_per_day`・`retry_budget_per_run` を最新値へ更新する。
+    2. `ALPHA_VANTAGE_API_KEY`（または利用するプロバイダのキー）を環境変数に設定し、同値を `configs/api_keys.yml`（暗号化ストレージ推奨）へ同期する。ローカルでは `.env` を利用し、CI/cron は Secrets 管理で注入する。
+    3. `configs/api_ingest.yml` の `credential_rotation` に `next_rotation_at`・`cadence_days` を記録した上で、ローテーションログを `docs/checklists/p1-04_api_ingest.md` に反映する。
+    4. `python3 -m scripts.run_daily_workflow --ingest --use-api --symbol USDJPY --mode conservative` を実行する。Alpha Vantage FX_INTRADAY がプレミアム専用のため 2025-10 時点では契約後に再開予定であり、条件を外れた場合は `--use-api` を一時的に停止する。
   - state更新: `python3 scripts/update_state.py --bars validated/USDJPY/5m.csv --chunk-size 20000`
   - 検証・集計: `python3 scripts/run_benchmark_runs.py --bars validated/USDJPY/5m.csv --windows 365,180,90` → `python3 scripts/report_benchmark_summary.py --plot-out reports/benchmark_summary.png`
   - ヘルスチェック: `python3 scripts/check_state_health.py`
@@ -41,6 +45,8 @@ python3 scripts/run_daily_workflow.py --ingest --update-state --benchmarks --sta
 - **履歴保持:** 標準では直近 90 レコードを保持する。上限を変更する場合は `--history-limit` を調整する。履歴の可視化は Notebook or BI で `checked_at` を横軸に `ev_win_lcb` やワーニング件数をプロットする。
 - **タスク同期:** `state.md` と `docs/todo_next.md` の整合を保つ際は `scripts/manage_task_cycle.py` を優先利用する。`start-task` で Ready 登録→In Progress 昇格を一括実行し、既存アンカー検知で重複記録を抑止する。完了時は `finish-task` でまとめてログとアーカイブへ送る。いずれも `--dry-run` でコマンド内容を確認してから本実行する。Codex セッションにおける具体的な開始前チェックや終了処理は [docs/codex_workflow.md](codex_workflow.md) を参照する。
 - **API鍵管理:** REST インジェストを有効化する場合は `configs/api_keys.yml`（もしくは `configs/api_keys.local.yml`）にプレースホルダを用意し、実際の鍵はローカルで上書きする。CI/cron では `ALPHA_VANTAGE_API_KEY` のような環境変数を設定し、`scripts/_secrets.load_api_credentials` が YAML よりも優先して読み込む。鍵のローテーション履歴は別メモに残し、更新したら `docs/checklists/p1-04_api_ingest.md` のチェックボックスに反映する。
+- **API 運用切替:** `--use-api` を有効化する際は上記「API 直接取得」手順を踏み、初回はドライラン (`--dry-run`) でレスポンス整合性・レートリミットヘッダを確認する。`configs/api_ingest.yml` の `activation_criteria` 逸脱や `retry_budget_per_run` 超過を検知した場合は直ちに `--use-api` を無効化し、Dukascopy 経路へ戻す。
+- **レート制限/ SLA エスカレーション:** 429 や SLA 違反が 2 回連続で発生した場合は `ops/logs/ingest_anomalies.jsonl` を添えて #ops チャネルへ報告し、契約窓口への連絡可否を確認する。それまでは `retry_budget_per_run` を超えない範囲で 15 分間隔の再試行にとどめ、`docs/api_ingest_plan.md#4-configuration` のコスト上限を再チェックする。
 - **テンプレ適用:** `state.md` の `## Next Task` へ手動で項目を追加する場合は、必ず [docs/templates/next_task_entry.md](templates/next_task_entry.md) を貼り付けてアンカー・参照リンク・疑問点スロットを埋める。`scripts/manage_task_cycle.py start-task` を使うとテンプレが自動挿入されるため、手動調整より優先する。
 - **DoD チェックリスト:** Ready へ昇格する際は [docs/templates/dod_checklist.md](templates/dod_checklist.md) をコピーし、`docs/checklists/<task-slug>.md` として保存する。テンプレート内の Ready チェック項目は昇格時点で状態を更新し、バックログ固有の DoD 箇条書きをチェックボックスへ転記する。進行中は該当タスクの `docs/todo_next.md` エントリからリンクし、完了後も `docs/checklists/` に履歴として保管する。
 
