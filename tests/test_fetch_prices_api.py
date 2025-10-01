@@ -327,3 +327,136 @@ def test_fetch_prices_retry_logs_failure(tmp_path, api_server):
     log_entries = [json.loads(line) for line in anomaly_log.read_text().splitlines()]
     assert log_entries[-1]["type"] == "api_request_failure"
     assert len(handler.paths) == 2
+
+
+def test_fetch_prices_optional_field_defaults(tmp_path, api_server):
+    handler, base_url = api_server
+    config_path, credentials_path = _write_config(tmp_path, base_url)
+
+    config = yaml_compat.safe_load(config_path.read_text(encoding="utf-8"))
+    provider = config["providers"]["mock"]
+    provider["response"]["fields"]["v"] = {
+        "source": "volume",
+        "required": False,
+        "default": 0.0,
+    }
+    config_path.write_text(yaml_compat.safe_dump(config), encoding="utf-8")
+
+    handler.queue = [
+        {
+            "status": 200,
+            "body": {
+                "data": [
+                    {
+                        "ts": "2025-01-01T00:00:00",
+                        "open": "150.0",
+                        "high": "150.1",
+                        "low": "149.9",
+                        "close": "150.05",
+                    },
+                    {
+                        "ts": "2025-01-01T00:05:00",
+                        "open": "150.05",
+                        "high": "150.15",
+                        "low": "149.95",
+                        "close": "150.10",
+                        "volume": "  ",
+                    },
+                ]
+            },
+        }
+    ]
+
+    start = datetime(2025, 1, 1, 0, 0)
+    end = start + timedelta(minutes=5)
+    rows = fetch_prices(
+        "USDJPY",
+        "5m",
+        start=start,
+        end=end,
+        provider="mock",
+        config_path=config_path,
+        credentials_path=credentials_path,
+        anomaly_log_path=tmp_path / "optional_volume.jsonl",
+    )
+
+    assert [row["v"] for row in rows] == [0.0, 0.0]
+
+
+def test_fetch_prices_missing_required_field_raises(tmp_path, api_server):
+    handler, base_url = api_server
+    config_path, credentials_path = _write_config(tmp_path, base_url)
+
+    handler.queue = [
+        {
+            "status": 200,
+            "body": {
+                "data": [
+                    {
+                        "ts": "2025-01-01T00:00:00",
+                        "high": "150.1",
+                        "low": "149.9",
+                        "close": "150.05",
+                        "volume": "100",
+                    }
+                ]
+            },
+        }
+    ]
+
+    start = datetime(2025, 1, 1, 0, 0)
+    end = start + timedelta(minutes=5)
+
+    with pytest.raises(RuntimeError) as exc:
+        fetch_prices(
+            "USDJPY",
+            "5m",
+            start=start,
+            end=end,
+            provider="mock",
+            config_path=config_path,
+            credentials_path=credentials_path,
+            anomaly_log_path=tmp_path / "missing_required.jsonl",
+        )
+
+    assert "missing_field:open" in str(exc.value)
+
+
+def test_fetch_prices_invalid_value_raises(tmp_path, api_server):
+    handler, base_url = api_server
+    config_path, credentials_path = _write_config(tmp_path, base_url)
+
+    handler.queue = [
+        {
+            "status": 200,
+            "body": {
+                "data": [
+                    {
+                        "ts": "2025-01-01T00:00:00",
+                        "open": "150.0",
+                        "high": "150.1",
+                        "low": "149.9",
+                        "close": "150.05",
+                        "volume": "not_a_number",
+                    }
+                ]
+            },
+        }
+    ]
+
+    start = datetime(2025, 1, 1, 0, 0)
+    end = start + timedelta(minutes=5)
+
+    with pytest.raises(RuntimeError) as exc:
+        fetch_prices(
+            "USDJPY",
+            "5m",
+            start=start,
+            end=end,
+            provider="mock",
+            config_path=config_path,
+            credentials_path=credentials_path,
+            anomaly_log_path=tmp_path / "invalid_value.jsonl",
+        )
+
+    assert "invalid_field_value:volume" in str(exc.value)

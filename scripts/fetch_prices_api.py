@@ -27,6 +27,61 @@ _SLEEP = time.sleep
 _MISSING = object()
 
 
+def _default_for_field(target: str):
+    """Return default numeric value for known optional fields."""
+
+    if target in {"v", "spread"}:
+        return 0.0
+    return None
+
+
+def _parse_field_spec(target: str, spec) -> tuple[Optional[str], bool, object]:
+    """Normalize ``fields`` configuration entries.
+
+    The configuration supports either string values (source key name) or mapping
+    objects with ``source``/``field``/``key`` aliases, along with ``required``
+    and ``default`` overrides. When ``spec`` is ``None`` we treat the field as
+    optional and fall back to a default value when available (e.g. volume /
+    spread). The helper returns a tuple of ``(source_key, required, default)``.
+    """
+
+    default_value = _default_for_field(target)
+    required = True
+    source_key: Optional[str] = None
+
+    if spec is None:
+        required = False
+    elif isinstance(spec, str):
+        source_key = spec
+    elif isinstance(spec, Mapping):
+        source_key = (
+            spec.get("source")
+            or spec.get("field")
+            or spec.get("name")
+            or spec.get("key")
+        )
+        if "default" in spec:
+            default_value = spec.get("default")
+        if "value" in spec and source_key is None:
+            # Allow constant assignments without referencing response payload
+            default_value = spec.get("value")
+            required = False
+        required = bool(spec.get("required", True)) if source_key else False
+    else:
+        source_key = str(spec)
+
+    return source_key, required, default_value
+
+
+def _to_float(value, *, field_name: str):
+    """Return ``value`` coerced to ``float`` with descriptive errors."""
+
+    try:
+        return float(value)
+    except (TypeError, ValueError) as exc:  # pragma: no cover - defensive
+        raise RuntimeError(f"invalid_field_value:{field_name}={value}") from exc
+
+
 def _as_list(value):
     """Return a list representation for config-provided value collections."""
 
@@ -399,14 +454,30 @@ def _normalize_rows(
             "symbol": symbol.upper(),
             "tf": tf,
         }
-        for target, source in fields.items():
-            if source is None:
-                if target in ("v", "spread"):
-                    normalized[target] = 0.0
+        for target, spec in fields.items():
+            source_key, required, default_value = _parse_field_spec(target, spec)
+            value_present = True
+            raw_value = None
+
+            if source_key is None:
+                value_present = default_value is not None
+                raw_value = default_value
+            else:
+                raw_value = record.get(source_key, _MISSING)
+                if raw_value is _MISSING or (
+                    isinstance(raw_value, str) and not raw_value.strip()
+                ) or raw_value is None:
+                    if required:
+                        raise RuntimeError(f"missing_field:{source_key}")
+                    value_present = default_value is not None
+                    raw_value = default_value
+
+            if not value_present:
                 continue
-            if source not in record:
-                raise RuntimeError(f"missing_field:{source}")
-            normalized[target] = float(record[source])
+
+            field_name = source_key or target
+            normalized[target] = _to_float(raw_value, field_name=field_name)
+
         normalized.setdefault("v", 0.0)
         normalized.setdefault("spread", 0.0)
         rows.append(normalized)

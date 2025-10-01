@@ -49,4 +49,9 @@
 ### 2025-11-09 Twelve Data status handling
 - `scripts/fetch_prices_api.py` に構造化 `error_keys` を追加し、`status: "ok"` を許容しつつ `status: "error"` をエラーとして捕捉できるよう回帰テスト (`tests/test_fetch_prices_api.py`) を拡張。Twelve Data の挙動に合わせて `configs/api_ingest.yml` を更新。
 
+### 2025-11-10 Twelve Data volume fallback
+- `configs/api_ingest.yml` の `response.fields.v` に `required=false` と `default=0.0` を導入し、`volume` 欠損や空文字レスポンスを許容。
+- `scripts/fetch_prices_api.py` でフィールド仕様の正規化ヘルパーを追加し、オプション項目が未入力でも 0.0 を割り当てるよう調整。必須項目欠損時は従来通り `missing_field:<name>` を発火。
+- `tests/test_fetch_prices_api.py` に欠損ボリューム/空文字/数値以外の値を扱う回帰を追加して `python3 -m pytest` のカバレッジを拡張。
+
 > API供給元や鍵管理ポリシーは `docs/api_ingest_plan.md` の更新と併せて、タスク完了までに最新化してください。現状は Dukascopy 主経路で運用し、REST/API は契約条件が整い次第再開します。
