@@ -11,6 +11,15 @@ activation_criteria:
   target_cost_ceiling_usd: 40
   minimum_free_quota_per_day: 500
   retry_budget_per_run: 15
+credential_rotation:
+  cadence_days: 90  # Placeholder cadence; update once contract is confirmed.
+  next_rotation_at: null  # ISO8601 timestamp for the upcoming rotation window.
+  last_rotated_at: null  # Set when the rotation is completed.
+  owner: "ops-team"  # Primary contact responsible for the credential vault entry.
+  storage_reference: "vault://api/alpha_vantage"  # Point to the encrypted secret store location.
+  notes:
+    - "Record rotation events in docs/checklists/p1-04_api_ingest.md with date and reviewer."
+    - "Sync environment variables and configs/api_keys.yml after each rotation."
 providers:
   alpha_vantage:
     description: "Alpha Vantage FX_INTRADAY (free tier)"
