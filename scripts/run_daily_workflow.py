@@ -6,12 +6,21 @@ import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Callable
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.utils import yaml_compat as yaml
+
+
+def _load_dukascopy_fetch() -> Callable[..., object]:
+    """Return the Dukascopy fetch function, raising if unavailable."""
+
+    from scripts.dukascopy_fetch import fetch_bars
+
+    return fetch_bars
 
 
 def run_cmd(cmd):
@@ -173,11 +182,20 @@ def main(argv=None) -> int:
 
         if args.use_dukascopy:
             try:
-                from scripts.dukascopy_fetch import fetch_bars
                 from scripts.pull_prices import ingest_records, get_last_processed_ts
             except RuntimeError as exc:
                 print(f"[wf] Dukascopy ingestion unavailable: {exc}")
                 return 1
+            except Exception as exc:  # pragma: no cover - unexpected import failure
+                print(f"[wf] Dukascopy ingestion failed to initialize: {exc}")
+                return 1
+
+            fetch_bars = None
+            fallback_reason = None
+            try:
+                fetch_bars = _load_dukascopy_fetch()
+            except Exception as exc:  # pragma: no cover - optional dependency
+                fallback_reason = f"initialization error: {exc}"
 
             snapshot_path = ROOT / "ops/runtime_snapshot.json"
             tf = "5m"
@@ -207,19 +225,19 @@ def main(argv=None) -> int:
                 now.isoformat(timespec="seconds"),
             )
 
-            fallback_reason = None
             dukascopy_records = []
-            try:
-                dukascopy_records = list(
-                    fetch_bars(
-                        args.symbol,
-                        tf,
-                        start=start,
-                        end=now,
+            if fallback_reason is None and fetch_bars is not None:
+                try:
+                    dukascopy_records = list(
+                        fetch_bars(
+                            args.symbol,
+                            tf,
+                            start=start,
+                            end=now,
+                        )
                     )
-                )
-            except Exception as exc:
-                fallback_reason = f"fetch error: {exc}"
+                except Exception as exc:
+                    fallback_reason = f"fetch error: {exc}"
 
             freshness_threshold = args.dukascopy_freshness_threshold_minutes
             if fallback_reason is None:
