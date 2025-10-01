@@ -35,6 +35,8 @@ Dukascopy feed（正式運用） → 正常時は `scripts/dukascopy_fetch.py` �
 - `configs/api_ingest.yml` (new):
   - `base_url`, endpoint paths, required query params。
   - `rate_limit` (requests/min), `batch_size`, `lookback_minutes` (buffer before `last_ts`)。Free-tier defaults should reflect conservative quotas (≤5 req/min, ≤500 req/day) and allow optional overrides。Alpha Vantage 設定は保留ステータスとし、再開時に差し替えやすい YAML を維持。
+  - `activation_criteria` プレースホルダを明示し、REST ルートを有効化する判断指標を管理する: `target_cost_ceiling_usd`（例: 月額 40 USD 以内）、`minimum_free_quota_per_day`（例: 500 リクエスト以上）、`retry_budget_per_run`（例: 15 リトライ以内）。閾値は `docs/state_runbook.md` での運用手順に沿ってレビューし、逸脱時は `--use-api` を停止する。
+  - `credential_rotation` セクションで `cadence_days`（例: 30 日）、`next_rotation_at`、`owner` を記載するプレースホルダを追加し、CI/ローカル双方で参照する。更新後は `docs/checklists/p1-04_api_ingest.md` のローテーション記録項目をチェックする。
 - `configs/api_keys.yml` (new or repurposed): store API key/secret with rotation notes.
 - Local `.env` pattern: for personal use, load keys from environment variables (not committed) and document manual rotation steps.
 - Safety margin: default 60 minutes so gaps around clock shifts or downtime are re-requested。Dukascopy 経路では別途 `--dukascopy-freshness-threshold-minutes`（既定 90 分）を確認し、超過時は自動で yfinance (`pip install dukascopy-python yfinance`) へ切替わる。
@@ -62,6 +64,6 @@ Dukascopy feed（正式運用） → 正常時は `scripts/dukascopy_fetch.py` �
 
 ## 8. Open Questions
 - API provider choice (OANDA REST? Alpha Vantage? in-house feed) and associated rate limits/SLA。Alpha Vantage はプレミアム専用となったため、無料枠で使える代替 API or 有償契約を再検討する必要あり。
-- Credential storage: local `.env` vs. secrets manager; rotation cadence.
+- Credential storage: local `.env` vs. secrets manager; rotation cadence。`configs/api_ingest.yml` の `credential_rotation` テンプレに日付・担当・保管場所を反映し、30 日ごとの見直しを既定にするか要検討。`docs/state_runbook.md` とチェックリストでの記録サイクルをどう同期するかも整理する。
 - Streaming/WebSocket rollout timing and relation to current REST-first scope.
 - yfinance フォールバックは `scripts/yfinance_fetch.py` と `--use-yfinance` 経路で実装済み。依存パッケージの導入手順、取得遅延の許容範囲、Dukascopy からの切替判断基準を runbook/チェックリストへ追記する必要がある。Yahoo Finance の intraday 保持期間（≒60 日）に合わせて `period="7d"` で一括取得し、シンボルマッピング（例: USDJPY → JPY=X）や未来日クランプを組み込んだ運用整理も必要。
