@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,6 +54,12 @@ def main(argv=None) -> int:
         type=int,
         default=60,
         help="Minutes of history to re-request when using yfinance ingestion",
+    )
+    parser.add_argument(
+        "--dukascopy-freshness-threshold-minutes",
+        type=int,
+        default=90,
+        help="Minutes before a Dukascopy fetch is considered stale and triggers fallback",
     )
     parser.add_argument(
         "--api-provider",
@@ -201,28 +207,111 @@ def main(argv=None) -> int:
                 now.isoformat(timespec="seconds"),
             )
 
+            fallback_reason = None
+            dukascopy_records = []
             try:
-                records = fetch_bars(
-                    args.symbol,
-                    tf,
-                    start=start,
-                    end=now,
+                dukascopy_records = list(
+                    fetch_bars(
+                        args.symbol,
+                        tf,
+                        start=start,
+                        end=now,
+                    )
                 )
+            except Exception as exc:
+                fallback_reason = f"fetch error: {exc}"
+
+            freshness_threshold = args.dukascopy_freshness_threshold_minutes
+            if fallback_reason is None:
+                if not dukascopy_records:
+                    fallback_reason = "no rows returned"
+                else:
+                    last_record_ts = str(dukascopy_records[-1].get("timestamp", ""))
+                    try:
+                        parsed_last = datetime.fromisoformat(
+                            last_record_ts.replace("Z", "+00:00")
+                        )
+                        if parsed_last.tzinfo is not None:
+                            parsed_last = (
+                                parsed_last.astimezone(timezone.utc)
+                                .replace(tzinfo=None)
+                            )
+                    except Exception:
+                        parsed_last = None
+
+                    if parsed_last is None:
+                        fallback_reason = "could not parse last timestamp"
+                    else:
+                        if freshness_threshold and freshness_threshold > 0:
+                            max_age = timedelta(minutes=freshness_threshold)
+                            if now - parsed_last > max_age:
+                                fallback_reason = (
+                                    "stale data: "
+                                    f"last_ts={parsed_last.isoformat(timespec='seconds')}"
+                                )
+
+            records_to_ingest = dukascopy_records
+            source_name = "dukascopy"
+
+            if fallback_reason is not None:
+                print(
+                    "[wf] Dukascopy unavailable, switching to yfinance fallback:",
+                    fallback_reason,
+                )
+                try:
+                    from scripts import yfinance_fetch as yfinance_module
+                except Exception as exc:  # pragma: no cover - optional dependency
+                    print(f"[wf] yfinance fallback unavailable: {exc}")
+                    return 1
+
+                fallback_window_days = 7
+                fallback_start = now - timedelta(days=fallback_window_days)
+                fetch_symbol = yfinance_module.resolve_ticker(symbol_upper)
+                print(
+                    "[wf] fetching yfinance bars",
+                    fetch_symbol,
+                    f"(fallback for {symbol_upper})",
+                    tf,
+                    fallback_start.isoformat(timespec="seconds"),
+                    now.isoformat(timespec="seconds"),
+                )
+
+                try:
+                    records_to_ingest = list(
+                        yfinance_module.fetch_bars(
+                            args.symbol,
+                            tf,
+                            start=fallback_start,
+                            end=now,
+                        )
+                    )
+                except Exception as exc:
+                    print(f"[wf] yfinance fallback failed: {exc}")
+                    return 1
+
+                if not records_to_ingest:
+                    print("[wf] yfinance fallback returned no rows")
+                    return 1
+
+                source_name = "yfinance"
+
+            try:
                 result = ingest_records(
-                    records,
+                    records_to_ingest,
                     symbol=symbol_upper,
                     tf=tf,
                     snapshot_path=snapshot_path,
                     raw_path=raw_path,
                     validated_path=validated_path,
                     features_path=features_path,
+                    source_name=source_name,
                 )
             except Exception as exc:
-                print(f"[wf] Dukascopy ingestion failed: {exc}")
+                print(f"[wf] ingestion failed: {exc}")
                 return 1
 
             print(
-                "[wf] dukascopy_ingest",
+                f"[wf] {source_name}_ingest",
                 f"rows={result['rows_validated']}",
                 f"last_ts={result['last_ts_now']}",
             )
