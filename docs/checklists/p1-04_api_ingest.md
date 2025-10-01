@@ -15,7 +15,12 @@
 - [x] `scripts/fetch_prices_api.py` が API から5mバーを取得し、リトライ/レート制限ハンドリングを備えている（**現状は保留**）。
 - [x] `scripts/pull_prices.py` が `ingest_rows` 等のインタフェースを通じて API 取得結果を冪等に `raw/`・`validated/`・`features/` へ反映できる。
 - [x] Dukascopy フェッチ失敗/鮮度低下時に yfinance (`period="7d"`) へ自動フェイルオーバーする実装が `scripts/run_daily_workflow.py` に組み込まれ、回帰テストでカバーされている。
-- [ ] REST プロバイダ候補について `docs/api_ingest_plan.md#4-configuration` の `activation_criteria` を満たすか評価し、ターゲットコスト上限・無料枠・リトライ予算をチェックリストに記録した。
+- [x] REST プロバイダ候補について `docs/api_ingest_plan.md#4-configuration` の `activation_criteria` を満たすか評価し、ターゲットコスト上限・無料枠・リトライ予算をチェックリストに記録した。
+  - 2025-11-05 04:00Z 評価: `target_cost_ceiling_usd=40` / `minimum_free_quota_per_day=500` / `retry_budget_per_run=15` を基準に比較。
+    - Alpha Vantage Premium（49.99 USD/月, 75req/min, 1500req/日）→ コスト上限超過・FX_INTRADAY はプレミアム専用のため運用保留。
+    - Alpha Vantage Free（0 USD, 5req/min, ≈500req/日）→ FX_INTRADAY 非対応のため要件未充足。
+    - Twelve Data Free（0 USD, 8req/min, 800req/日, 30日分の5m履歴）→ 基準を満たすがシンボル数2本制限・30日履歴のため本番採用前にフォールバック要件整理。
+    - yfinance（0 USD, 約1req/分相当のバッチ取得, 7日分バッチ取得で60日履歴）→ 現行フェイルオーバー経路として継続、REST置換は不要。
 - [ ] (Deferred) `python3 scripts/run_daily_workflow.py --ingest --use-api --symbol USDJPY --mode conservative` が成功し、`ops/runtime_snapshot.json.ingest` が更新される。→ Alpha Vantage FX_INTRADAY はプレミアム専用のため契約後に再開。テストは `tests/test_run_daily_workflow.py::test_api_ingest_updates_snapshot` でモック検証済み。
 - [ ] `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6` が成功し、鮮度アラートが解消される（Dukascopy 主経路で代替中）。
 - [x] モックAPIを用いた単体/統合テストが `python3 -m pytest` で通過し、API失敗時のアノマリーログ出力が検証されている。
