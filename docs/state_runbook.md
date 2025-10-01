@@ -31,9 +31,22 @@ python3 scripts/run_daily_workflow.py --ingest --update-state --benchmarks --sta
     2. `ALPHA_VANTAGE_API_KEY`（または利用するプロバイダのキー）を環境変数に設定し、同値を `configs/api_keys.yml`（暗号化ストレージ推奨）へ同期する。ローカルでは `.env` を利用し、CI/cron は Secrets 管理で注入する。
     3. `configs/api_ingest.yml` の `credential_rotation` に `next_rotation_at`・`cadence_days` を記録した上で、ローテーションログを `docs/checklists/p1-04_api_ingest.md` に反映する。
     4. `python3 -m scripts.run_daily_workflow --ingest --use-api --symbol USDJPY --mode conservative` を実行する。Alpha Vantage FX_INTRADAY がプレミアム専用のため 2025-10 時点では契約後に再開予定であり、条件を外れた場合は `--use-api` を一時的に停止する。
-  - state更新: `python3 scripts/update_state.py --bars validated/USDJPY/5m.csv --chunk-size 20000`
-  - 検証・集計: `python3 scripts/run_benchmark_runs.py --bars validated/USDJPY/5m.csv --windows 365,180,90` → `python3 scripts/report_benchmark_summary.py --plot-out reports/benchmark_summary.png`
-  - ヘルスチェック: `python3 scripts/check_state_health.py`
+- state更新: `python3 scripts/update_state.py --bars validated/USDJPY/5m.csv --chunk-size 20000`
+- 検証・集計: `python3 scripts/run_benchmark_runs.py --bars validated/USDJPY/5m.csv --windows 365,180,90` → `python3 scripts/report_benchmark_summary.py --plot-out reports/benchmark_summary.png`
+- ヘルスチェック: `python3 scripts/check_state_health.py`
+
+### 常駐インジェスト運用
+- `python3 scripts/live_ingest_worker.py --symbols USDJPY --modes conservative --interval 300`
+  - Dukascopy から 5 分足を再取得し `pull_prices.ingest_records` を通過させたのち、指定したモードで `scripts/update_state.py` を呼び出す。
+  - `--raw-root` / `--validated-root` / `--features-root` / `--snapshot` で保存先を切り替え可能。テスト時はテンポラリディレクトリを指定する。
+- 監視ポイント
+  - `ops/runtime_snapshot.json.ingest.<SYMBOL>_5m`: 直近バー時刻が遅延していないか（90 分以上の乖離は yfinance フォールバック検討）。
+  - `ops/logs/ingest_anomalies.jsonl`: 非単調・欠損・整合性エラーが出力されていないか（記録が出た場合は原因特定後に再実行）。
+  - `runs/active/state.json`: `update_state` 呼び出しで更新されているか、更新が停止した場合は CLI ログを確認。
+- グレースフル停止
+  - 既定のフラグファイル: `ops/live_ingest_worker.stop`。タッチすると次ループ開始前に終了する。
+  - CLI で `--shutdown-file` を渡すと監視先を変更できる。Cron など外部から停止させる場合に指定。
+  - SIGINT/SIGTERM 受信時は進行中のシンボル処理を完了してから停止する。
 
 ## 推奨運用
 - **バックアップ:** 自動アーカイブされた最新ファイル（例: `ops/state_archive/.../<timestamp>_runid.json`）を基準に、必要に応じて別途バックアップを取得する。
