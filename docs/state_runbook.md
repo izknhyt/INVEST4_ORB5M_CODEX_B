@@ -24,6 +24,8 @@ python3 scripts/run_daily_workflow.py --ingest --update-state --benchmarks --sta
 - 個別の実行例
   - 取り込み: `python3 scripts/pull_prices.py --source data/usdjpy_5m_2018-2024_utc.csv`
   - Dukascopy 経由（標準経路）: `python3 -m scripts.run_daily_workflow --ingest --use-dukascopy --symbol USDJPY --mode conservative`
+    - 失敗時や取得データが `--dukascopy-freshness-threshold-minutes`（既定 90 分）より古い場合は自動で yfinance (`period="7d"`) へ切替。`pip install dukascopy-python yfinance` を事前に実行して依存を満たす。
+    - 実行後は `ops/runtime_snapshot.json.ingest.USDJPY_5m` の更新時刻と `ops/logs/ingest_anomalies.jsonl` を確認し、鮮度が 90 分超で推移する場合は閾値見直しや手動調査を実施する。
   - API 直接取得（保留中）: `python3 -m scripts.run_daily_workflow --ingest --use-api --symbol USDJPY --mode conservative` ※ Alpha Vantage FX_INTRADAY がプレミアム専用のため 2025-10 時点では契約後に再開予定。
   - state更新: `python3 scripts/update_state.py --bars validated/USDJPY/5m.csv --chunk-size 20000`
   - 検証・集計: `python3 scripts/run_benchmark_runs.py --bars validated/USDJPY/5m.csv --windows 365,180,90` → `python3 scripts/report_benchmark_summary.py --plot-out reports/benchmark_summary.png`

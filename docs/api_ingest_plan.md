@@ -3,14 +3,14 @@
 ## 1. Scope
 - Target: USDJPY 5m bars (extensible interface for additional symbols/timeframes).
 - Usage context: personal workflow prioritizing free-tier APIs (e.g., Alpha Vantage, Twelve Data) with rate limits around 5 req/min・500 req/day; design should conserve quota and clarify upgrade paths if limits are exceeded.
-- 2025-10 Update: Alpha Vantage FX_INTRADAY がプレミアム専用のため REST/API 連携は保留。運用は Dukascopy → `ingest_records` のルートを標準とし、無料APIはフォールバック候補として仕様を維持する。
+- 2025-10 Update: Alpha Vantage FX_INTRADAY がプレミアム専用のため REST/API 連携は保留。運用は Dukascopy → `ingest_records` のルートを標準とし、無料APIはフォールバック候補として仕様を維持する。2025-11 時点では Dukascopy 失敗/鮮度低下検知時に yfinance (`period="7d"`) へ自動切替するフェイルオーバーを `run_daily_workflow.py` 内へ組み込む。
 - Goals:
   - Acquire recent bars from external REST (phase 1) and prepare for Streaming integration.
   - Feed the results into the existing `pull_prices.py` pipeline without manual CSV steps.
   - Ensure `run_daily_workflow.py --ingest` keeps `raw/`, `validated/`, `features/` and `ops/runtime_snapshot.json.ingest` up to date so freshness checks stay within 6h.
 
 ## 2. Data Flow
-Dukascopy feed（正式運用） or API provider（フォールバック） → `scripts/dukascopy_fetch.py` / `scripts/fetch_prices_api.py` → normalized bar iterator → `pull_prices.ingest_records` → CSV append (`raw`/`validated`/`features`) → snapshot/anomaly logging.
+Dukascopy feed（正式運用） → 正常時は `scripts/dukascopy_fetch.py` → normalized bar iterator → `pull_prices.ingest_records` → CSV append (`raw`/`validated`/`features`) → snapshot/anomaly logging。フェイルオーバー条件（例: 90 分超の鮮度遅延/取得失敗）に該当した場合は自動で `scripts/yfinance_fetch.py` (`period="7d"`, シンボル正規化付き) を呼び出し同フローに合流する。REST API provider（保留中）も同じインターフェースに揃える。
 
 ## 3. Modules & Interfaces
 - `scripts/fetch_prices_api.py`
@@ -28,7 +28,7 @@ Dukascopy feed（正式運用） or API provider（フォールバック） → 
 - `scripts/pull_prices.py`
   - Exposes `ingest_records(rows: Iterable[Dict[str, Any]], ...)` so CSV path ingestion and API/Dukascopy providers share the same idempotent pipeline.
 - `scripts/run_daily_workflow.py`
-  - `--ingest` gains provider flags (`--use-api`, `--use-dukascopy`) so we can switch between REST exports and the Dukascopy bridge。2025-10 現在は `--use-dukascopy` を標準運用とし、`--use-api` はオプション保留。
+  - `--ingest` gains provider flags (`--use-api`, `--use-dukascopy`) so we can switch between REST exports and the Dukascopy bridge。2025-10 現在は `--use-dukascopy` を標準運用とし、`--use-api` はオプション保留。2025-11 以降は `--dukascopy-freshness-threshold-minutes`（既定 90 分）で鮮度を監視し、閾値超過時に yfinance への自動フェイルオーバーが発火する。
   - Exit non-zero on hard failures so Webhook/alert integrations continue to work。
 
 ## 4. Configuration
@@ -37,7 +37,7 @@ Dukascopy feed（正式運用） or API provider（フォールバック） → 
   - `rate_limit` (requests/min), `batch_size`, `lookback_minutes` (buffer before `last_ts`)。Free-tier defaults should reflect conservative quotas (≤5 req/min, ≤500 req/day) and allow optional overrides。Alpha Vantage 設定は保留ステータスとし、再開時に差し替えやすい YAML を維持。
 - `configs/api_keys.yml` (new or repurposed): store API key/secret with rotation notes.
 - Local `.env` pattern: for personal use, load keys from environment variables (not committed) and document manual rotation steps.
-- Safety margin: default 60 minutes so gaps around clock shifts or downtime are re-requested.
+- Safety margin: default 60 minutes so gaps around clock shifts or downtime are re-requested。Dukascopy 経路では別途 `--dukascopy-freshness-threshold-minutes`（既定 90 分）を確認し、超過時は自動で yfinance (`pip install dukascopy-python yfinance`) へ切替わる。
 
 ## 5. Error Handling & Observability
 - Retries: exponential backoff (2s, 4s, 8s, 16s, 32s) with jitter; cap attempts to 5.

@@ -1,12 +1,12 @@
 import json
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 from core.utils import yaml_compat
 
-from scripts import fetch_prices_api, run_daily_workflow, yfinance_fetch
+from scripts import dukascopy_fetch, fetch_prices_api, run_daily_workflow, yfinance_fetch
 
 
 def _capture_run_cmd(monkeypatch):
@@ -476,3 +476,126 @@ def test_yfinance_ingest_accepts_suffix_symbol(tmp_path, monkeypatch):
 
     assert exit_code == 0
     assert captured["symbol"] == "USDJPY"
+
+
+def test_dukascopy_failure_falls_back_to_yfinance(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    (repo_root / "ops/logs").mkdir(parents=True)
+    (repo_root / "raw").mkdir()
+    (repo_root / "validated/USDJPY").mkdir(parents=True)
+    (repo_root / "features/USDJPY").mkdir(parents=True)
+
+    snapshot_path = repo_root / "ops/runtime_snapshot.json"
+    snapshot_path.write_text(
+        json.dumps({"ingest": {"USDJPY_5m": "2025-10-01T03:55:00"}}),
+        encoding="utf-8",
+    )
+
+    validated_csv = repo_root / "validated/USDJPY/5m.csv"
+    validated_csv.write_text(
+        "timestamp,symbol,tf,o,h,l,c,v,spread\n"
+        "2025-10-01T03:55:00,USDJPY,5m,149.10,149.12,149.08,149.11,90,0\n",
+        encoding="utf-8",
+    )
+
+    from scripts import pull_prices
+
+    anomaly_log_path = repo_root / "ops/logs/ingest_anomalies.jsonl"
+    monkeypatch.setattr(pull_prices, "ANOMALY_LOG", anomaly_log_path)
+    monkeypatch.setattr(run_daily_workflow, "ROOT", repo_root)
+
+    fixed_now = datetime(2025, 10, 1, 4, 20)
+
+    class _FixedDatetime(datetime):
+        @classmethod
+        def utcnow(cls):
+            return fixed_now
+
+        @classmethod
+        def fromisoformat(cls, value):
+            return datetime.fromisoformat(value)
+
+    monkeypatch.setattr(run_daily_workflow, "datetime", _FixedDatetime)
+
+    def failing_fetch(*_args, **_kwargs):
+        raise RuntimeError("dukascopy outage")
+
+    monkeypatch.setattr(dukascopy_fetch, "fetch_bars", failing_fetch)
+
+    fallback_calls = {}
+
+    def fake_fetch(symbol, tf, *, start, end):
+        fallback_calls["symbol"] = symbol
+        fallback_calls["tf"] = tf
+        fallback_calls["start"] = start
+        fallback_calls["end"] = end
+        return iter(
+            [
+                {
+                    "timestamp": "2025-10-01T04:00:00",
+                    "symbol": symbol,
+                    "tf": tf,
+                    "o": 149.30,
+                    "h": 149.40,
+                    "l": 149.20,
+                    "c": 149.35,
+                    "v": 105.0,
+                    "spread": 0.0,
+                },
+                {
+                    "timestamp": "2025-10-01T04:05:00",
+                    "symbol": symbol,
+                    "tf": tf,
+                    "o": 149.35,
+                    "h": 149.45,
+                    "l": 149.30,
+                    "c": 149.42,
+                    "v": 110.0,
+                    "spread": 0.0,
+                },
+            ]
+        )
+
+    monkeypatch.setattr(yfinance_fetch, "fetch_bars", fake_fetch)
+
+    ingest_meta = {}
+    original_ingest = pull_prices.ingest_records
+
+    def _tracking_ingest(records, **kwargs):
+        rows = list(records)
+        ingest_meta["rows"] = rows
+        ingest_meta["source_name"] = kwargs.get("source_name")
+        return original_ingest(rows, **kwargs)
+
+    monkeypatch.setattr(pull_prices, "ingest_records", _tracking_ingest)
+
+    exit_code = run_daily_workflow.main(
+        [
+            "--ingest",
+            "--use-dukascopy",
+            "--symbol",
+            "USDJPY",
+            "--mode",
+            "conservative",
+            "--dukascopy-freshness-threshold-minutes",
+            "30",
+        ]
+    )
+
+    assert exit_code == 0
+    assert ingest_meta["source_name"] == "yfinance"
+    assert len(ingest_meta["rows"]) == 2
+
+    expected_start = fixed_now - timedelta(days=7)
+    assert fallback_calls["start"] == expected_start
+    assert fallback_calls["end"] == fixed_now
+
+    csv_lines = validated_csv.read_text(encoding="utf-8").splitlines()
+    assert csv_lines[-1].startswith("2025-10-01T04:05:00")
+
+    features_csv = repo_root / "features/USDJPY/5m.csv"
+    assert features_csv.exists()
+
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    assert snapshot["ingest"]["USDJPY_5m"] == "2025-10-01T04:05:00"
+    assert not anomaly_log_path.exists()

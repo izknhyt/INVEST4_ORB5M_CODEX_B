@@ -130,9 +130,10 @@ python3 scripts/run_sim.py --csv data/ohlc5m.csv --symbol USDJPY --json-out out.
 
 ### オンデマンドインジェスト CLI
 - `scripts/pull_prices.py` はヒストリカルCSV（またはAPIエクスポート）から未処理バーを検出し、`raw/`→`validated/`→`features/` に冪等に追記する。
-- `python3 scripts/run_daily_workflow.py --ingest --use-dukascopy` が現在の標準経路。Dukascopy から最新5mバーを取得し、そのまま `pull_prices.ingest_records` に渡して CSV/特徴量を同期する。
+- `python3 scripts/run_daily_workflow.py --ingest --use-dukascopy` が現在の標準経路。Dukascopy から最新5mバーを取得し、そのまま `pull_prices.ingest_records` に渡して CSV/特徴量を同期する。Dukascopy が失敗するか、取得した最終バーが `--dukascopy-freshness-threshold-minutes`（既定 90 分）より古い場合は自動で yfinance (`period="7d"`) へ切り替わり、同一の CSV/特徴量更新が継続する。
+- 依存ライブラリ（任意導入）: `pip install dukascopy-python yfinance`。フォールバック経路では Yahoo Finance のシンボル変換（例: USDJPY→JPY=X）が自動適用される。
 - REST API 連携は `scripts/fetch_prices_api.py` を経由して行う設計だが、Alpha Vantage FX_INTRADAY がプレミアム専用であるため 2025-10 時点では **保留**。`--use-api` フラグと `configs/api_ingest.yml` は将来の有料契約/無料代替APIに備えて残している。
-- 直近の成功時刻は `ops/runtime_snapshot.json` の `ingest` セクションで管理し、異常は `ops/logs/ingest_anomalies.jsonl` に記録。
+- 直近の成功時刻は `ops/runtime_snapshot.json` の `ingest` セクションで管理し、異常は `ops/logs/ingest_anomalies.jsonl` に記録。毎回の実行後に `USDJPY_5m` の時刻と差分（目安: 90 分以内）を確認し、必要なら `--dukascopy-freshness-threshold-minutes` を一時的に調整する。
 - タイムスタンプは ISO 8601 (`Z` や `+00:00` 付き)・空白区切りどちらにも対応。
 
 実行例:

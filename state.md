@@ -12,13 +12,14 @@
     - [README.md#オンデマンドインジェスト-cli](README.md#オンデマンドインジェスト-cli)
   - Pending Questions:
     - [x] Dukascopy 経路の冪等性・鮮度検証 — `scripts/run_daily_workflow.py --ingest --use-dukascopy` を定常運用フローとして承認。
-    - [ ] yfinance フォールバックの自動切替・鮮度アラート閾値（例: 90–120 分）をワークフローに組み込む。
+    - [x] yfinance フォールバックの自動切替・鮮度アラート閾値（例: 90–120 分）をワークフローに組み込む。
     - [ ] Alpha Vantage (有償 REST) 再開条件と費用対効果、無料 API 代替の比較検討。
   - Docs note: `docs/api_ingest_plan.md` を更新し、Dukascopy 主経路・API 保留・yfinance 冗長化方針を記録する。
   - 2025-10-22: `scripts/fetch_prices_api.py` と `configs/api_ingest.yml` を整備し、`run_daily_workflow.py --ingest --use-api` で REST → `pull_prices.ingest_records` の直結を実装。`tests/test_fetch_prices_api.py` で成功/リトライの両ケースを固定し、README / state runbook / todo_next を更新。
   - 2025-10-23: `tests/test_run_daily_workflow.py::test_api_ingest_updates_snapshot` を追加し、モックAPIで `--ingest --use-api` フローを通しながら snapshot 更新・CSV 追記・アノマリーログ無しを検証。チェックリストの CLI 項目をクローズし、次ステップを鮮度チェック/認証ローテーション整理へ集約。
   - 2025-10-24: Alpha Vantage FX_INTRADAY がプレミアム専用であることを確認。REST ルートは backlog へ「保留」として移し、Dukascopy を主経路に昇格。万一の障害時は yfinance 変換レイヤーで復旧できるよう要件整理を次イテレーションへ設定。
   - 2025-11-01: `scripts/yfinance_fetch.py` を実装し、USDJPY→JPY=X のシンボル変換・`period="7d"` 取得・60日制限対応を整備。`run_daily_workflow.py --ingest --use-yfinance` で 2025-10-01T14:10 (UTC) までのバーを取り込めることを確認し、`tests/test_yfinance_fetch.py` / `tests/test_run_daily_workflow.py` に回帰を追加。残課題は自動フォールバックと最新時刻乖離のアラート化。
+  - 2025-11-02: `scripts/run_daily_workflow.py --ingest --use-dukascopy` に yfinance 自動フェイルオーバー（7 日再取得・シンボル正規化）と `--dukascopy-freshness-threshold-minutes` を実装。`tests/test_run_daily_workflow.py` に障害復旧の回帰を追加し、README / state runbook / ingest plan / チェックリストへ鮮度確認ステップと依存導入ガイドを追記。
 
 ### 運用メモ
 - バックログから着手するタスクは先にこのリストへ追加し、ID・着手予定日・DoD リンクを明示する。
