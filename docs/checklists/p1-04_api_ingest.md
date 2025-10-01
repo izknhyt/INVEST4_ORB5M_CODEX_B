@@ -49,4 +49,9 @@
 ### 2025-11-09 Twelve Data status handling
 - `scripts/fetch_prices_api.py` に構造化 `error_keys` を追加し、`status: "ok"` を許容しつつ `status: "error"` をエラーとして捕捉できるよう回帰テスト (`tests/test_fetch_prices_api.py`) を拡張。Twelve Data の挙動に合わせて `configs/api_ingest.yml` を更新。
 
+### 2025-11-10 yfinance 依存除去
+
+- `scripts/yfinance_fetch.py` を Yahoo Finance チャート API 直叩きの実装へ刷新し、`pip install dukascopy-python` のみでフォールバックが動作するようにした。
+- `tests/test_yfinance_fetch.py` / README / state runbook / 設計書を更新し、ImportError 回避手順と依存リストを同期。
+
 > API供給元や鍵管理ポリシーは `docs/api_ingest_plan.md` の更新と併せて、タスク完了までに最新化してください。現状は Dukascopy 主経路で運用し、REST/API は契約条件が整い次第再開します。

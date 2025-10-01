@@ -44,7 +44,7 @@ Dukascopy feed（正式運用） → 正常時は `scripts/dukascopy_fetch.py` �
   - `credential_rotation` セクションで `cadence_days`（例: 30 日）、`next_rotation_at`、`owner` を記載するプレースホルダを追加し、CI/ローカル双方で参照する。更新後は `docs/checklists/p1-04_api_ingest.md` のローテーション記録項目をチェックする。
 - `configs/api_keys.yml` (new or repurposed): store API key/secret with rotation notes.
 - Local `.env` pattern: for personal use, load keys from environment variables (not committed) and document manual rotation steps.
-- Safety margin: default 60 minutes so gaps around clock shifts or downtime are re-requested。Dukascopy 経路では別途 `--dukascopy-freshness-threshold-minutes`（既定 90 分）を確認し、超過時は自動で yfinance (`pip install dukascopy-python yfinance`) へ切替わる。
+- Safety margin: default 60 minutes so gaps around clock shifts or downtime are re-requested。Dukascopy 経路では別途 `--dukascopy-freshness-threshold-minutes`（既定 90 分）を確認し、超過時は自動で yfinance へ切替わる。フォールバックは Yahoo Finance チャート API を直接利用するため追加パッケージ不要（Dukascopy 経路のみ `pip install dukascopy-python` を推奨）。
 
 ## 5. Error Handling & Observability
 - Retries: exponential backoff (2s, 4s, 8s, 16s, 32s) with jitter; cap attempts to 5.
