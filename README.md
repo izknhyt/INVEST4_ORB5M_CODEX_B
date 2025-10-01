@@ -163,6 +163,25 @@ python3 -m scripts.run_daily_workflow \
 python3 scripts/pull_prices.py --source data/usdjpy_5m_2018-2024_utc.csv --symbol USDJPY --dry-run
 ```
 
+### ライブインジェストワーカー
+- Dukascopy から 5 分足を 5 分間隔で取得し、`pull_prices.ingest_records` と `scripts/update_state.py` を自動実行する常駐ワーカー
+  - `scripts/live_ingest_worker.py`
+- 代表的な起動例:
+
+```bash
+python3 scripts/live_ingest_worker.py \
+  --symbols USDJPY --modes conservative --interval 300
+```
+
+- 監視ポイント
+  - `ops/logs/ingest_anomalies.jsonl`: 異常行が記録されていないか（空でない場合は Slack/ops へ共有）
+  - `ops/runtime_snapshot.json.ingest.<SYMBOL>_5m`: 最新時刻が想定と乖離していないか
+  - `runs/active/state.json`: 更新時刻が追従しているか（`update_state` 呼び出しで更新）
+- グレースフル停止
+  - 既定では `ops/live_ingest_worker.stop` が存在すると次ループ前に停止
+  - 明示的に変えたい場合は `--shutdown-file path/to/flag` を指定
+  - 即時終了は `Ctrl+C`（SIGINT）または `kill`（SIGTERM）で通知
+
 ### 両Fill併走レポート
 - ConservativeとBridgeを同条件で比較するCLI
   - `scripts/run_compare.py`

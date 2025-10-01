@@ -1,0 +1,406 @@
+#!/usr/bin/env python3
+"""Daemon-style live ingestion worker for Dukascopy with fallback."""
+from __future__ import annotations
+
+import argparse
+import signal
+import sys
+import time
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Iterable, List, Optional, Sequence
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+
+from scripts.pull_prices import (  # noqa: E402  # isort:skip
+    FEATURES_ROOT,
+    RAW_ROOT,
+    SNAPSHOT_PATH,
+    VALIDATED_ROOT,
+    get_last_processed_ts,
+    ingest_records,
+)
+
+
+@dataclass
+class WorkerConfig:
+    symbols: Sequence[str]
+    modes: Sequence[str]
+    tf: str
+    interval: float
+    lookback_minutes: int
+    freshness_threshold: Optional[int]
+    snapshot_path: Path
+    raw_root: Path
+    validated_root: Path
+    features_root: Path
+    shutdown_file: Optional[Path]
+    max_iterations: Optional[int]
+    or_n: int
+
+
+class StopSignal:
+    def __init__(self) -> None:
+        self._stop = False
+
+    def request(self) -> None:
+        self._stop = True
+
+    @property
+    def requested(self) -> bool:
+        return self._stop
+
+
+def _parse_csv_list(value: Optional[str], *, default: Sequence[str]) -> List[str]:
+    if not value:
+        return [item.upper() for item in default]
+    items = []
+    for part in value.split(","):
+        item = part.strip()
+        if not item:
+            continue
+        items.append(item.upper())
+    return items or [item.upper() for item in default]
+
+
+def _parse_timestamp(value: str) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
+def _load_dukascopy_records(symbol: str, tf: str, start: datetime, end: datetime) -> List[dict]:
+    from scripts.dukascopy_fetch import fetch_bars
+
+    return list(
+        fetch_bars(
+            symbol,
+            tf,
+            start=start,
+            end=end,
+        )
+    )
+
+
+def _load_yfinance_records(symbol: str, tf: str, start: datetime, end: datetime) -> List[dict]:
+    from scripts import yfinance_fetch as yfinance_module
+
+    return list(
+        yfinance_module.fetch_bars(
+            symbol,
+            tf,
+            start=start,
+            end=end,
+        )
+    )
+
+
+def _should_shutdown(shutdown_file: Optional[Path]) -> bool:
+    if shutdown_file is None:
+        return False
+    return shutdown_file.exists()
+
+
+def _sleep_interval(seconds: float, *, stop_flag: StopSignal, shutdown_file: Optional[Path]) -> None:
+    if seconds <= 0:
+        return
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if stop_flag.requested or _should_shutdown(shutdown_file):
+            return
+        remaining = deadline - time.monotonic()
+        time.sleep(min(1.0, max(0.05, remaining)))
+
+
+def _ingest_symbol(symbol: str, config: WorkerConfig, *, now: datetime) -> Optional[dict]:
+    snapshot_path = config.snapshot_path
+    tf = config.tf
+    raw_path = config.raw_root / symbol / f"{tf}.csv"
+    validated_path = config.validated_root / symbol / f"{tf}.csv"
+    features_path = config.features_root / symbol / f"{tf}.csv"
+
+    last_ts = get_last_processed_ts(
+        symbol,
+        tf,
+        snapshot_path=snapshot_path,
+        validated_path=validated_path,
+    )
+
+    if last_ts is None:
+        start = now - timedelta(minutes=config.lookback_minutes)
+    else:
+        start = last_ts - timedelta(minutes=config.lookback_minutes)
+
+    fallback_reason: Optional[str] = None
+    try:
+        dukascopy_records = _load_dukascopy_records(symbol, tf, start=start, end=now)
+    except Exception as exc:
+        fallback_reason = f"fetch error: {exc}"
+        dukascopy_records = []
+
+    if fallback_reason is None:
+        if not dukascopy_records:
+            fallback_reason = "no rows returned"
+        else:
+            last_record_ts = _parse_timestamp(str(dukascopy_records[-1].get("timestamp", "")))
+            if last_record_ts is None:
+                fallback_reason = "could not parse last timestamp"
+            elif config.freshness_threshold and config.freshness_threshold > 0:
+                max_age = timedelta(minutes=config.freshness_threshold)
+                if now - last_record_ts > max_age:
+                    fallback_reason = (
+                        "stale data: "
+                        f"last_ts={last_record_ts.isoformat(timespec='seconds')}"
+                    )
+
+    source_name = "dukascopy"
+    records: Iterable[dict] = dukascopy_records
+
+    if fallback_reason is not None:
+        print(
+            "[live-ingest] Dukascopy unavailable, switching to yfinance fallback:",
+            fallback_reason,
+        )
+        try:
+            fallback_start = now - timedelta(days=7)
+            records = _load_yfinance_records(symbol, tf, start=fallback_start, end=now)
+            source_name = "yfinance"
+        except Exception as exc:
+            print(f"[live-ingest] yfinance fallback failed: {exc}")
+            return None
+        if not records:
+            print("[live-ingest] yfinance fallback returned no rows")
+            return None
+
+    try:
+        result = ingest_records(
+            records,
+            symbol=symbol,
+            tf=tf,
+            snapshot_path=snapshot_path,
+            raw_path=raw_path,
+            validated_path=validated_path,
+            features_path=features_path,
+            or_n=config.or_n,
+            source_name=source_name,
+        )
+    except Exception as exc:
+        print(f"[live-ingest] ingestion failed for {symbol}: {exc}")
+        return None
+
+    print(
+        f"[live-ingest] {symbol} {source_name} rows={result['rows_validated']} "
+        f"anomalies={result['anomalies_logged']} last_ts={result['last_ts_now']}"
+    )
+    return result
+
+
+def _run_update_state(symbol: str, mode: str, *, bars_path: Path) -> None:
+    from scripts import update_state as update_state_module
+
+    args = [
+        "--bars",
+        str(bars_path),
+        "--symbol",
+        symbol,
+        "--mode",
+        mode,
+    ]
+    rc = update_state_module.main(args)
+    if rc != 0:
+        print(
+            f"[live-ingest] update_state failed for {symbol}:{mode} with exit code {rc}"
+        )
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Run a live ingestion worker that polls Dukascopy every interval",
+    )
+    parser.add_argument("--symbols", default=None, help="Comma-separated list of symbols")
+    parser.add_argument("--symbol", dest="symbol", default=None, help="Single symbol override")
+    parser.add_argument("--modes", default=None, help="Comma-separated strategy modes")
+    parser.add_argument(
+        "--mode",
+        dest="mode",
+        default=None,
+        help="Single mode override (default: conservative)",
+    )
+    parser.add_argument("--tf", default="5m", help="Timeframe key (default 5m)")
+    parser.add_argument(
+        "--interval",
+        type=float,
+        default=300.0,
+        help="Polling interval in seconds (default 300)",
+    )
+    parser.add_argument(
+        "--lookback-minutes",
+        type=int,
+        default=180,
+        help="Minutes to re-request when fetching new bars",
+    )
+    parser.add_argument(
+        "--freshness-threshold-minutes",
+        type=int,
+        default=90,
+        help="Maximum age of the last bar before triggering fallback",
+    )
+    parser.add_argument(
+        "--snapshot",
+        default=str(SNAPSHOT_PATH),
+        help="Runtime snapshot JSON path",
+    )
+    parser.add_argument(
+        "--raw-root",
+        default=str(RAW_ROOT),
+        help="Root directory for raw CSV storage",
+    )
+    parser.add_argument(
+        "--validated-root",
+        default=str(VALIDATED_ROOT),
+        help="Root directory for validated CSV storage",
+    )
+    parser.add_argument(
+        "--features-root",
+        default=str(FEATURES_ROOT),
+        help="Root directory for feature CSV storage",
+    )
+    parser.add_argument(
+        "--shutdown-file",
+        default=str(ROOT / "ops/live_ingest_worker.stop"),
+        help="Path to a file whose presence triggers graceful shutdown",
+    )
+    parser.add_argument(
+        "--max-iterations",
+        type=int,
+        default=None,
+        help="Optional cap on loop iterations (useful for tests)",
+    )
+    parser.add_argument(
+        "--or-n",
+        type=int,
+        default=6,
+        help="Opening range length passed to feature generation",
+    )
+    return parser.parse_args(argv)
+
+
+def _build_config(args) -> WorkerConfig:
+    symbols = _parse_csv_list(
+        args.symbols or args.symbol,
+        default=["USDJPY"],
+    )
+    modes = _parse_csv_list(
+        args.modes or args.mode,
+        default=["conservative"],
+    )
+
+    shutdown_file = Path(args.shutdown_file).resolve() if args.shutdown_file else None
+
+    return WorkerConfig(
+        symbols=symbols,
+        modes=modes,
+        tf=args.tf,
+        interval=max(0.0, float(args.interval)),
+        lookback_minutes=max(1, int(args.lookback_minutes)),
+        freshness_threshold=(
+            int(args.freshness_threshold_minutes)
+            if args.freshness_threshold_minutes is not None
+            else None
+        ),
+        snapshot_path=Path(args.snapshot).resolve(),
+        raw_root=Path(args.raw_root).resolve(),
+        validated_root=Path(args.validated_root).resolve(),
+        features_root=Path(args.features_root).resolve(),
+        shutdown_file=shutdown_file,
+        max_iterations=(
+            int(args.max_iterations) if args.max_iterations is not None else None
+        ),
+        or_n=max(1, int(args.or_n)),
+    )
+
+
+def main(argv=None) -> int:
+    args = parse_args(argv)
+    config = _build_config(args)
+
+    stop_flag = StopSignal()
+
+    def _handle_signal(signum, frame):  # pragma: no cover - signal handler
+        print(f"[live-ingest] received signal {signum}, requesting shutdown")
+        stop_flag.request()
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            signal.signal(sig, _handle_signal)
+        except (ValueError, AttributeError):  # pragma: no cover - platform specific
+            pass
+
+    iteration = 0
+    print(
+        "[live-ingest] starting worker",
+        f"symbols={','.join(config.symbols)}",
+        f"modes={','.join(config.modes)}",
+        f"interval={config.interval}s",
+    )
+
+    while not stop_flag.requested:
+        if config.max_iterations is not None and iteration >= config.max_iterations:
+            break
+        if _should_shutdown(config.shutdown_file):
+            print("[live-ingest] shutdown file detected before iteration")
+            break
+
+        iteration += 1
+        now = datetime.utcnow()
+        print(f"[live-ingest] iteration {iteration} @ {now.isoformat(timespec='seconds')}")
+
+        for symbol in config.symbols:
+            if stop_flag.requested:
+                break
+            result = _ingest_symbol(symbol, config, now=now)
+            if result is None:
+                continue
+            if result.get("rows_validated", 0) <= 0:
+                continue
+            bars_path = config.validated_root / symbol / f"{config.tf}.csv"
+            for mode in config.modes:
+                if stop_flag.requested:
+                    break
+                try:
+                    _run_update_state(symbol, mode, bars_path=bars_path)
+                except Exception as exc:
+                    print(
+                        f"[live-ingest] update_state raised for {symbol}:{mode}: {exc}"
+                    )
+
+        if stop_flag.requested:
+            break
+        if config.max_iterations is not None and iteration >= config.max_iterations:
+            break
+        if _should_shutdown(config.shutdown_file):
+            print("[live-ingest] shutdown file detected; exiting")
+            break
+
+        _sleep_interval(
+            config.interval,
+            stop_flag=stop_flag,
+            shutdown_file=config.shutdown_file,
+        )
+
+    print("[live-ingest] worker stopped")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
