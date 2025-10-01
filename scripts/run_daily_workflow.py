@@ -283,7 +283,16 @@ def main(argv=None) -> int:
                     return 1
 
                 fallback_window_days = 7
-                fallback_start = now - timedelta(days=fallback_window_days)
+                fallback_window = timedelta(days=fallback_window_days)
+                yf_lookback_minutes = max(5, args.yfinance_lookback_minutes or 0)
+                if last_ts is not None:
+                    fallback_start = last_ts - timedelta(minutes=yf_lookback_minutes)
+                else:
+                    minutes = max(yf_lookback_minutes, fallback_window_days * 24 * 60)
+                    fallback_start = now - timedelta(minutes=minutes)
+                fallback_start = max(fallback_start, now - fallback_window)
+                if fallback_start > now:
+                    fallback_start = now
                 fetch_symbol = yfinance_module.resolve_ticker(symbol_upper)
                 print(
                     "[wf] fetching yfinance bars",

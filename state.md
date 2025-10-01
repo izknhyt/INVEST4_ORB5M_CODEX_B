@@ -27,6 +27,7 @@
   - 2025-11-07: サンドボックスで `python3 scripts/run_daily_workflow.py --ingest --use-dukascopy --symbol USDJPY --mode conservative` を実行。`dukascopy_python` 未導入で主経路が失敗し、自動フェイルオーバーの yfinance も未導入のため ImportError。`ops/runtime_snapshot.json.ingest.USDJPY_5m` は 2025-10-01T14:10:00 のまま据え置き。続けて `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6` を実行したところ、最新バーが 18.60h、サマリーが 9.31h 遅延で閾値超過。依存導入後に再取得→鮮度再確認が必要。
   - 2025-11-09: Twelve Data の `status` レスポンスに対応するため `configs/api_ingest.yml` と `scripts/fetch_prices_api.py` を調整し、`status: "ok"` を許容しつつ `status: "error"` を再試行・異常ログに記録できるよう pytest を拡張。
   - 2025-11-08: `run_daily_workflow.py --ingest --use-dukascopy` 実行時に `dukascopy_python` が未導入でも yfinance フォールバックで継続できるようにし、pytest (`tests/test_run_daily_workflow.py::test_dukascopy_missing_dependency_falls_back_to_yfinance`) で回帰確認。
+  - 2025-11-09: yfinance フォールバック時に `--yfinance-lookback-minutes` を参照して再取得ウィンドウを決定するよう更新。冗長な再処理を抑えつつ長期停止後に手動調整できるよう、README / state runbook / 回帰テスト / backlog メモを同期。
 
 ### 運用メモ
 - バックログから着手するタスクは先にこのリストへ追加し、ID・着手予定日・DoD リンクを明示する。
