@@ -106,7 +106,10 @@ providers:
         h: high
         l: low
         c: close
-        v: volume
+        v:
+          source: volume
+          required: false
+          default: 0.0
         spread: null
       timestamp_formats:
         - "%Y-%m-%d %H:%M:%S"
