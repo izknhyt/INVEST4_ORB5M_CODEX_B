@@ -17,7 +17,8 @@
 - `python3 scripts/run_daily_workflow.py --ingest --use-dukascopy` now re-fetches the latest USDJPY 5m bars directly from Dukascopy and appends them to `raw/`, `validated/`, and `features/` idempotently.
 - Added regression coverage for the new `ingest_records` helper to guarantee duplicate-safe runs when the workflow is triggered multiple times per day.
 - Added `scripts/merge_dukascopy_monthly.py` to combine monthly exports like `USDJPY_202501_5min.csv` into a single `data/usdjpy_5m_2025.csv`, then ingested the merged file to backfill `raw/`→`features/` ahead of live refresh。
-- Implemented `scripts/fetch_prices_api.py` with Alpha Vantage defaults, credential loading via `scripts/_secrets.py`, and retry/ratelimit controls. `python3 scripts/run_daily_workflow.py --ingest --use-api` now streams REST responses into `pull_prices.ingest_records`, with pytest covering success and HTTP failure logging.
+- Implemented `scripts/fetch_prices_api.py` with Alpha Vantage defaults, credential loading via `scripts/_secrets.py`, and retry/ratelimit controls. `python3 scripts/run_daily_workflow.py --ingest --use-api` now streams REST responses into `pull_prices.ingest_records`, with pytest covering success and HTTP failure logging。
+- 2025-10-24: Alpha Vantage FX_INTRADAY がプレミアム専用であることを確認し、REST ルートは保留ステータスへ移行。運用は `--use-dukascopy` を主経路とし、障害時は yfinance 由来バーを正規化して `ingest_records` へ流せるよう要件整理を進める。
 
 ## TODO
 - `analysis/broker_fills.ipynb` による Fill 差分可視化と、ブローカー仕様に合わせたモデル調整。

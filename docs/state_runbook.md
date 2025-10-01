@@ -23,7 +23,8 @@ python3 scripts/run_daily_workflow.py --ingest --update-state --benchmarks --sta
 
 - 個別の実行例
   - 取り込み: `python3 scripts/pull_prices.py --source data/usdjpy_5m_2018-2024_utc.csv`
-  - API直接取得: `python3 scripts/run_daily_workflow.py --ingest --use-api --symbol USDJPY --mode conservative`
+  - Dukascopy 経由（標準経路）: `python3 -m scripts.run_daily_workflow --ingest --use-dukascopy --symbol USDJPY --mode conservative`
+  - API 直接取得（保留中）: `python3 -m scripts.run_daily_workflow --ingest --use-api --symbol USDJPY --mode conservative` ※ Alpha Vantage FX_INTRADAY がプレミアム専用のため 2025-10 時点では契約後に再開予定。
   - state更新: `python3 scripts/update_state.py --bars validated/USDJPY/5m.csv --chunk-size 20000`
   - 検証・集計: `python3 scripts/run_benchmark_runs.py --bars validated/USDJPY/5m.csv --windows 365,180,90` → `python3 scripts/report_benchmark_summary.py --plot-out reports/benchmark_summary.png`
   - ヘルスチェック: `python3 scripts/check_state_health.py`

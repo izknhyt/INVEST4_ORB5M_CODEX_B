@@ -1,11 +1,12 @@
 {
   "meta": {
     "symbol": "USDJPY",
-    "config_fingerprint": "401fffc2e5ebfc6c"
+    "config_fingerprint": "401fffc2e5ebfc6c",
+    "last_timestamp": "2025-10-01T03:05:00"
   },
   "ev_global": {
-    "alpha": 28.00532284177403,
-    "beta": 21.99464521354718,
+    "alpha": 27.090549067301946,
+    "beta": 22.909450671959895,
     "prior_alpha": 0.0,
     "prior_beta": 0.0,
     "decay": 0.02,
@@ -13,12 +14,12 @@
   },
   "ev_buckets": {
     "NY:narrow:high": {
-      "alpha": 2.8055127967999995,
-      "beta": 3.8062889568
+      "alpha": 25.64833304946524,
+      "beta": 18.8254066618911
     },
     "NY:narrow:mid": {
-      "alpha": 27.235488515055582,
-      "beta": 22.64555565864998
+      "alpha": 24.09331469056019,
+      "beta": 25.805482091107834
     },
     "TOK:narrow:mid": {
       "alpha": 1.0,
@@ -33,16 +34,16 @@
       "beta": 1.0
     },
     "LDN:narrow:mid": {
-      "alpha": 28.242661532698474,
-      "beta": 21.742187322853855
+      "alpha": 28.69572725204131,
+      "beta": 21.303060183316514
     },
     "LDN:narrow:low": {
       "alpha": 1.0,
       "beta": 1.0
     },
     "LDN:narrow:high": {
-      "alpha": 0.9411919999999999,
-      "beta": 3.881592
+      "alpha": 1.865842380864,
+      "beta": 5.613723337663999
     },
     "NY:narrow:low": {
       "alpha": 1.0,
@@ -75,5 +76,11 @@
     "TOK": null,
     "LDN": null,
     "NY": null
+  },
+  "runtime": {
+    "warmup_left": 0,
+    "day_count": 235,
+    "current_date": "2025-10-01",
+    "last_session": "TOK"
   }
 }

@@ -7,11 +7,11 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from core.utils import yaml_compat as yaml
-
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+from core.utils import yaml_compat as yaml
 
 
 def run_cmd(cmd):
@@ -39,10 +39,21 @@ def main(argv=None) -> int:
         help="Fetch latest bars via REST API before ingestion",
     )
     parser.add_argument(
+        "--use-yfinance",
+        action="store_true",
+        help="Fetch latest bars via yfinance before ingestion",
+    )
+    parser.add_argument(
         "--dukascopy-lookback-minutes",
         type=int,
         default=180,
         help="Minutes of history to re-request when using Dukascopy ingestion",
+    )
+    parser.add_argument(
+        "--yfinance-lookback-minutes",
+        type=int,
+        default=60,
+        help="Minutes of history to re-request when using yfinance ingestion",
     )
     parser.add_argument(
         "--api-provider",
@@ -135,11 +146,23 @@ def main(argv=None) -> int:
     )
     args = parser.parse_args(argv)
 
-    bars_csv = args.bars or str(ROOT / f"validated/{args.symbol}/5m.csv")
+    symbol_input = args.symbol.upper()
+    if symbol_input.endswith("=X"):
+        symbol_upper = symbol_input[:-2]
+    else:
+        symbol_upper = symbol_input
+    args.symbol = symbol_upper
+
+    bars_csv = args.bars or str(ROOT / f"validated/{symbol_upper}/5m.csv")
 
     if args.ingest:
-        if args.use_dukascopy and args.use_api:
-            print("[wf] --use-dukascopy and --use-api cannot be combined")
+        selected_sources = [
+            flag
+            for flag in (args.use_dukascopy, args.use_api, args.use_yfinance)
+            if flag
+        ]
+        if len(selected_sources) > 1:
+            print("[wf] specify at most one of --use-dukascopy/--use-api/--use-yfinance")
             return 1
 
         if args.use_dukascopy:
@@ -200,6 +223,73 @@ def main(argv=None) -> int:
 
             print(
                 "[wf] dukascopy_ingest",
+                f"rows={result['rows_validated']}",
+                f"last_ts={result['last_ts_now']}",
+            )
+        elif args.use_yfinance:
+            try:
+                from scripts.yfinance_fetch import fetch_bars, resolve_ticker
+                from scripts.pull_prices import ingest_records, get_last_processed_ts
+            except RuntimeError as exc:
+                print(f"[wf] yfinance ingestion unavailable: {exc}")
+                return 1
+            except Exception as exc:  # pragma: no cover - import error
+                print(f"[wf] yfinance ingestion failed to initialize: {exc}")
+                return 1
+
+            snapshot_path = ROOT / "ops/runtime_snapshot.json"
+            tf = "5m"
+            symbol_upper = args.symbol
+            validated_path = ROOT / "validated" / symbol_upper / f"{tf}.csv"
+            raw_path = ROOT / "raw" / symbol_upper / f"{tf}.csv"
+            features_path = ROOT / "features" / symbol_upper / f"{tf}.csv"
+
+            last_ts = get_last_processed_ts(
+                symbol_upper,
+                tf,
+                snapshot_path=snapshot_path,
+                validated_path=validated_path,
+            )
+            lookback = max(5, args.yfinance_lookback_minutes)
+            now = datetime.utcnow()
+            if last_ts is not None:
+                start = last_ts - timedelta(minutes=lookback)
+            else:
+                start = now - timedelta(minutes=lookback)
+
+            fetch_symbol = resolve_ticker(symbol_upper)
+            print(
+                "[wf] fetching yfinance bars",
+                fetch_symbol,
+                f"(source {symbol_upper})",
+                tf,
+                start.isoformat(timespec="seconds"),
+                now.isoformat(timespec="seconds"),
+            )
+
+            try:
+                records = fetch_bars(
+                    args.symbol,
+                    tf,
+                    start=start,
+                    end=now,
+                )
+                result = ingest_records(
+                    records,
+                    symbol=symbol_upper,
+                    tf=tf,
+                    snapshot_path=snapshot_path,
+                    raw_path=raw_path,
+                    validated_path=validated_path,
+                    features_path=features_path,
+                    source_name="yfinance",
+                )
+            except Exception as exc:
+                print(f"[wf] yfinance ingestion failed: {exc}")
+                return 1
+
+            print(
+                "[wf] yfinance_ingest",
                 f"rows={result['rows_validated']}",
                 f"last_ts={result['last_ts_now']}",
             )

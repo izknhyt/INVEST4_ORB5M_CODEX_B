@@ -34,18 +34,18 @@
   - DoD チェックリスト: [docs/checklists/p1-01.md](docs/checklists/p1-01.md) を更新して進捗を管理する。
 
 - **価格インジェストAPI基盤整備**（バックログ: `docs/task_backlog.md` → P1「ローリング検証 + 健全性モニタリング」） — `state.md` 2025-10-16 <!-- anchor: docs/task_backlog.md#p1-04-価格インジェストapi基盤整備 -->
-  - Scope: REST/Streaming API クライアント設計 → `pull_prices.py` 連携 → workflow 統合。
+  - Scope: Dukascopy 主経路の堅牢化と、REST/API ルートの保留管理・フォールバック設計（yfinance など無料ソース）。
   - Deliverables (EN): API ingestion design doc (`docs/api_ingest_plan.md`), CLI integration plan, retry/test matrix.
-  - Next step: Extend coverage to the `--ingest --use-api --benchmarks` flow (freshness check) and document the credential rotation SOP in `docs/checklists/p1-04_api_ingest.md` now that `tests/test_run_daily_workflow.py::test_api_ingest_updates_snapshot` verifies the standalone API ingest path.
+  - Next step: yfinance フォールバックの自動切替ロジック（Dukascopy 失敗時に自動で period=7d を取得）と鮮度アラート閾値を `run_daily_workflow.py` へ実装し、Runbook/設計書に運用手順と依存パッケージを追記する。
   - Backlog Anchor: [価格インジェストAPI基盤整備 (P1-04)](docs/task_backlog.md#p1-04-価格インジェストapi基盤整備)
   - Vision / Runbook References:
     - [readme/設計方針（投資_3_）v_1.md](readme/設計方針（投資_3_）v_1.md)
     - [docs/state_runbook.md](docs/state_runbook.md)
     - [README.md#オンデマンドインジェスト-cli](README.md#オンデマンドインジェスト-cli)
   - Pending Questions:
-    - [x] API ソース (ベンダー/レート制限/ヒストリカル期間) の決定 — Alpha Vantage FX_INTRADAY を初期実装として採用。
-    - [ ] 認証情報の保管先とローテーション手順
-  - Docs note: `docs/api_ingest_plan.md` / README / `docs/state_runbook.md` を更新済み。残タスクはチェックリストに鍵ローテーション手順を追記すること。
+    - [x] Dukascopy 経路の冪等性・鮮度検証を完了し、標準運用として承認できるか。
+    - [ ] REST/API を再開する条件（コスト上限・レート制限・鍵ローテーション SOP）と、無料フォールバック（yfinance 自動切替＋鮮度監視）の仕様確定。
+  - Docs note: `docs/api_ingest_plan.md` / README / `docs/state_runbook.md` を更新済み。残タスクはフォールバック仕様と保留メモを `docs/checklists/p1-04_api_ingest.md` に反映すること。
   - DoD チェックリスト: [docs/checklists/p1-04_api_ingest.md](docs/checklists/p1-04_api_ingest.md) を利用して進捗を管理する。
 
 ### Ready

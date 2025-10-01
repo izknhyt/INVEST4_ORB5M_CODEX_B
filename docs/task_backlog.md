@@ -68,22 +68,25 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2024-06-11: `check_state_health` の警告・履歴ローテーション・Webhook 送信を pytest で回帰テスト化し、デフォルト閾値 (勝率LCB/サンプル数/滑り上限) の期待挙動を明記。
 
 ### P1-04 価格インジェストAPI基盤整備
-REST/Streaming API と `scripts/pull_prices.py` を連携させ、手動CSV投入に頼らず 5m バーの継続取得・保存・特徴量更新を自動化する。`run_daily_workflow.py --ingest` 実行時に最新バーが `raw/`→`validated/`→`features/` へ冪等に反映され、鮮度チェックが 6 時間以内を維持できる状態を整える。
+REST/Streaming API と `scripts/pull_prices.py` を連携させ、手動CSV投入に頼らず 5m バーの継続取得・保存・特徴量更新を自動化する。2025-10 時点では Dukascopy フローを正式経路として採用し、Alpha Vantage 等の REST 連携はプレミアム要件により保留とする。`run_daily_workflow.py --ingest` 実行時に最新バーが `raw/`→`validated/`→`features/` へ冪等に反映され、鮮度チェックが 6 時間以内を維持できる状態を整える。
 
-**DoD**
-- `scripts/fetch_prices_api.py`（仮称）で API から指定期間の5mバーを取得し、認証情報は `configs/api_keys.yml` などで安全にロードできること。
-- `scripts/pull_prices.py` が API 取得結果を直接受け取れるように拡張され、`raw/`・`validated/`・`features/` が冪等更新されること。
-- `python3 scripts/run_daily_workflow.py --ingest --benchmarks` 実行時に新APIフローが呼ばれ、`ops/runtime_snapshot.json.ingest` が更新されること。
+- `scripts/pull_prices.py` が API/外部取得結果を直接受け取れるように拡張され、`raw/`・`validated/`・`features/` が冪等更新されること。
+- `python3 scripts/run_daily_workflow.py --ingest --benchmarks` 実行時に Dukascopy フローが呼ばれ、`ops/runtime_snapshot.json.ingest` が更新されること。
 - `python3 scripts/check_benchmark_freshness.py --target <symbol>:<mode> --max-age-hours 6` が成功し、鮮度アラートが解消されること。
-- APIモックを用いた単体テスト / 統合テストが追加され、失敗時のリトライ・アノマリーログ出力が検証されていること。
+- API/REST プロバイダは保留状態のため、再開条件・費用対効果・yfinance 等の冗長化候補を整理したメモが更新されていること。
+- APIモックを用いた単体テスト / 統合テストが追加され、失敗時のリトライ・アノマリーログ出力が検証されていること（保留中はスキップ可、再開時に再利用）。
 
 **進捗メモ**
 - 2025-10-16: API インジェスト設計を起案し、`docs/todo_next.md` / `state.md` にタスク登録。設計ドキュメント (`docs/api_ingest_plan.md`) とチェックリスト (`docs/checklists/p1-04_api_ingest.md`) を整備し、ワークフロー統合を次ステップとする。
 - 2025-10-21: Added Dukascopy ingestion option to `scripts/run_daily_workflow.py` (`--use-dukascopy`) with shared `ingest_records` helper so fresh 5m bars flow through `raw/`→`validated/`→`features/` without manual CSV staging. Updated progress docs and design notes to capture the workflow and test coverage.
 - 2025-10-21: Created `scripts/merge_dukascopy_monthly.py` and generated `data/usdjpy_5m_2025.csv` from the monthly exports to backfill storage before live refresh. Documented the merge step in phase3 progress notes.
 - 2025-10-21: Cloud deploy flagged "diff too large" during the backfill. Local merge + ingest cleared it, and we need to document how to temporarily relax/re-enable the cloud diff guard (TODO: define guard reset workflow in runbook).
+- 2025-10-24: Alpha Vantage FX_INTRADAY がプレミアム専用であることを確認し、REST/API 連携は backlog 保留に変更。`scripts/run_daily_workflow.py --ingest --use-dukascopy` を主経路として採用し、冗長化候補として yfinance 正規化レイヤーを追加検討するメモを `docs/api_ingest_plan.md` へ追記予定。
+- 2025-11-01: Added yfinance fallback adapter (`scripts/yfinance_fetch.py`) and `--use-yfinance` CLI path. Backfilling uses `fetch_bars` → `ingest_records` with optional lookback (`--yfinance-lookback-minutes`), and regression tests cover CLI wiringと正規化。Dukascopy遅延時に即時更新を試せる状態に昇格。Runbookへ切替手順と依存（yfinanceパッケージ）の記載を追加予定。
+- 2025-11-01: yfinance フォールバックを強化。Yahoo シンボル自動マッピング（USDJPY→JPY=X 等）、`period="7d"` での一括取得＋60 日 intraday 制限を考慮したフィルタリング、未来日リクエストの防止、`--symbol USDJPY=X` 受け入れを追加。`tests/test_yfinance_fetch.py` / `tests/test_run_daily_workflow.py::test_yfinance_ingest_accepts_suffix_symbol` で回帰を確保。
 - 2025-10-22: Implemented REST ingestion via `scripts/fetch_prices_api.py`, introduced `scripts/_secrets.load_api_credentials` + `configs/api_ingest.yml`, added `--use-api` wiring to `scripts/run_daily_workflow.py`, and created pytest coverage (`tests/test_fetch_prices_api.py`) for success + retry logging. README / state runbook / progress_phase3 updated with API usage + credential guidance.
 - 2025-10-23: Added an integration test (`tests/test_run_daily_workflow.py::test_api_ingest_updates_snapshot`) that mocks the API provider and exercises `python3 scripts/run_daily_workflow.py --ingest --use-api`, confirming snapshot updates, CSV appends, and anomaly-free ingestion. Checklistを更新して DoD の CLI 項目をクローズ。
+- 2025-10-31: `scripts/pull_prices.ingest_records` を修正し、非単調バーを raw 層へ書き出さずアノマリーログのみに記録。`tests/test_pull_prices.py::test_non_monotonic_rows_skip_raw` を追加し、重複膨張を停止させる回帰テストを整備。既存 raw CSV のクリーンアップ手順は追って runbook へ整理予定。
 
 ### P1-05 バックテストランナーのデバッグ可視化強化
 `core/runner.py` のデバッグ計測とログドキュメントを整理し、EV ゲート診断の調査手順を標準化する。

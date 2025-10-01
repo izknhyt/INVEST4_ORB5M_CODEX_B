@@ -1,64 +1,47 @@
 {
-  "generated_at": "2025-09-29T13:51:00.636681Z",
+  "generated_at": "2025-10-01T12:22:27.942084Z",
   "symbol": "USDJPY",
   "mode": "conservative",
   "baseline": {
     "trades": 122,
     "wins": 83,
     "win_rate": 0.680327868852459,
-    "total_pips": -102.2971428571467,
-    "sharpe": -1.385762040621163,
-    "max_drawdown": -150.47285714286255
+    "total_pips": -100.67142857143244,
+    "sharpe": -1.3655637975442885,
+    "max_drawdown": -148.8471428571483
   },
   "rolling": [
     {
-      "trades": 82,
-      "wins": 57,
-      "win_rate": 0.6951219512195121,
-      "total_pips": 126.988571428657,
-      "sharpe": 1.6595141331902403,
-      "max_drawdown": -144.56285714282853,
+      "trades": 50,
+      "wins": 23,
+      "win_rate": 0.46,
+      "total_pips": -10.644285714232637,
+      "sharpe": -0.2135694474067891,
+      "max_drawdown": -54.108571428557184,
       "window": 90
     },
     {
-      "trades": 85,
-      "wins": 54,
-      "win_rate": 0.6352941176470588,
-      "total_pips": -27.542857142749995,
-      "sharpe": -0.21021431840015434,
-      "max_drawdown": -180.76428571424094,
+      "trades": 78,
+      "wins": 47,
+      "win_rate": 0.6025641025641025,
+      "total_pips": 501.9142857143521,
+      "sharpe": 3.3041030873727064,
+      "max_drawdown": -169.90571428569297,
       "window": 180
     },
     {
-      "trades": 168,
-      "wins": 109,
-      "win_rate": 0.6488095238095238,
-      "total_pips": 273.8357142859119,
-      "sharpe": 1.9420266289905321,
-      "max_drawdown": -129.58428571427567,
+      "trades": 102,
+      "wins": 64,
+      "win_rate": 0.6274509803921569,
+      "total_pips": 546.3857142858119,
+      "sharpe": 4.008701548671984,
+      "max_drawdown": -149.40714285712943,
       "window": 365
     }
   ],
   "warnings": [
-    "rolling window 180 total_pips negative: -27.54",
-    "rolling window 180 sharpe -0.21 below min_sharpe 0.50",
-    "baseline total_pips negative: -102.30",
-    "baseline sharpe -1.39 below min_sharpe 0.50"
+    "rolling window 90 total_pips negative: -10.64",
+    "baseline total_pips negative: -100.67"
   ],
-  "threshold_alerts": [
-    {
-      "label": "rolling window 180",
-      "metric": "sharpe",
-      "value": -0.21021431840015434,
-      "threshold": 0.5,
-      "comparison": "lt"
-    },
-    {
-      "label": "baseline",
-      "metric": "sharpe",
-      "value": -1.385762040621163,
-      "threshold": 0.5,
-      "comparison": "lt"
-    }
-  ]
+  "threshold_alerts": []
 }

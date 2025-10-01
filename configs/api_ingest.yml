@@ -20,7 +20,6 @@ providers:
       outputsize: compact
       datatype: json
       apikey: "{api_key}"
-    headers: {}
     tf_map:
       "1m": "1min"
       "5m": "5min"

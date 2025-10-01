@@ -1,39 +1,22 @@
 {
   "ingest": {
-    "USDJPY_5m": "2025-09-30T12:00:00"
+    "USDJPY_5m": "2025-10-01T14:10:00"
   },
   "state_update": {
-    "USDJPY_conservative": "2024-12-31T21:55:00"
+    "USDJPY_conservative": "2025-10-01T03:05:00"
   },
   "benchmarks": {
-    "USDJPY_conservative": "2024-12-31T21:55:00"
+    "USDJPY_conservative": "2025-10-01T03:05:00"
   },
   "benchmark_pipeline": {
     "USDJPY_conservative": {
-      "latest_ts": "2024-12-31T21:55:00",
-      "summary_generated_at": "2025-09-29T13:51:00.636681Z",
+      "latest_ts": "2025-10-01T03:05:00",
+      "summary_generated_at": "2025-10-01T12:22:27.116291Z",
       "warnings": [
-        "rolling window 180 total_pips negative: -27.54",
-        "rolling window 180 sharpe -0.21 below min_sharpe 0.50",
-        "baseline total_pips negative: -102.30",
-        "baseline sharpe -1.39 below min_sharpe 0.50"
+        "rolling window 90 total_pips negative: -10.64",
+        "baseline total_pips negative: -100.67"
       ],
-      "threshold_alerts": [
-        {
-          "label": "rolling window 180",
-          "metric": "sharpe",
-          "value": -0.21021431840015434,
-          "threshold": 0.5,
-          "comparison": "lt"
-        },
-        {
-          "label": "baseline",
-          "metric": "sharpe",
-          "value": -1.385762040621163,
-          "threshold": 0.5,
-          "comparison": "lt"
-        }
-      ],
+      "threshold_alerts": [],
       "alert": {
         "triggered": false,
         "reason": "below_threshold"

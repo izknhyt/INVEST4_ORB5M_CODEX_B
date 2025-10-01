@@ -302,7 +302,7 @@ def ingest_records(
         if last_ts and ts <= last_ts:
             continue
 
-        raw_rows.append([row.get(h, "") for h in RAW_HEADER])
+        raw_record = [row.get(h, "") for h in RAW_HEADER]
 
         try:
             o = float(row.get("o", 0.0))
@@ -375,6 +375,8 @@ def ingest_records(
 
         prev_dt = ts
         latest_ts = ts if latest_ts is None or ts > latest_ts else latest_ts
+
+        raw_rows.append(raw_record)
 
         ts_str = _format_ts(ts)
         validated_rows.append(

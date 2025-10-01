@@ -11,3 +11,8 @@ tests/runs_*/
 !tests/data/
 !tests/data/*.csv
 !data/sample_orb.csv
+
+configs/api_keys.local.yml
+ops/logs/ingest_anomalies.jsonl
+raw/USDJPY/5m.csv
+features/USDJPY/5m.csv

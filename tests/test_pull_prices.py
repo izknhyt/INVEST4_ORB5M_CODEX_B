@@ -149,3 +149,73 @@ def test_ingest_records_inline(tmp_path):
         features_path=features_path,
     )
     assert result_second["rows_validated"] == 0
+
+
+def test_non_monotonic_rows_skip_raw(tmp_path, monkeypatch):
+    snapshot_path = tmp_path / "snapshot.json"
+    raw_path = tmp_path / "raw" / "USDJPY" / "5m.csv"
+    validated_path = tmp_path / "validated" / "USDJPY" / "5m.csv"
+    features_path = tmp_path / "features" / "USDJPY" / "5m.csv"
+
+    from scripts import pull_prices
+
+    anomaly_log = tmp_path / "ops" / "logs" / "ingest_anomalies.jsonl"
+    monkeypatch.setattr(pull_prices, "ANOMALY_LOG", anomaly_log)
+
+    rows = [
+        {
+            "timestamp": "2024-02-01T00:00:00Z",
+            "symbol": "USDJPY",
+            "tf": "5m",
+            "o": 150.0,
+            "h": 150.1,
+            "l": 149.9,
+            "c": 150.02,
+            "v": 100,
+            "spread": 0.02,
+        },
+        {
+            "timestamp": "2024-02-01T00:05:00Z",
+            "symbol": "USDJPY",
+            "tf": "5m",
+            "o": 150.02,
+            "h": 150.12,
+            "l": 149.92,
+            "c": 150.04,
+            "v": 105,
+            "spread": 0.02,
+        },
+        {
+            "timestamp": "2024-02-01T00:05:00Z",
+            "symbol": "USDJPY",
+            "tf": "5m",
+            "o": 150.02,
+            "h": 150.18,
+            "l": 149.90,
+            "c": 150.06,
+            "v": 110,
+            "spread": 0.02,
+        },
+    ]
+
+    result = ingest_records(
+        rows,
+        symbol="USDJPY",
+        tf="5m",
+        snapshot_path=snapshot_path,
+        raw_path=raw_path,
+        validated_path=validated_path,
+        features_path=features_path,
+    )
+
+    assert result["rows_raw"] == 2
+    assert result["rows_validated"] == 2
+    assert result["anomalies_logged"] == 1
+
+    with raw_path.open(newline="", encoding="utf-8") as f:
+        raw_rows = list(csv.DictReader(f))
+    assert len(raw_rows) == 2
+
+    with anomaly_log.open(encoding="utf-8") as f:
+        entries = [json.loads(line) for line in f]
+    assert entries[0]["type"] == "non_monotonic"

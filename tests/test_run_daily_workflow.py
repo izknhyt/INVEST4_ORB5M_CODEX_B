@@ -6,7 +6,7 @@ from datetime import datetime
 import pytest
 from core.utils import yaml_compat
 
-from scripts import fetch_prices_api, run_daily_workflow
+from scripts import fetch_prices_api, run_daily_workflow, yfinance_fetch
 
 
 def _capture_run_cmd(monkeypatch):
@@ -323,3 +323,156 @@ def test_api_ingest_updates_snapshot(tmp_path, monkeypatch):
     snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
     assert snapshot["ingest"]["USDJPY_5m"] == "2025-01-01T00:30:00"
     assert not anomaly_log_path.exists()
+
+
+def test_yfinance_ingest_updates_snapshot(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    (repo_root / "ops/logs").mkdir(parents=True)
+    (repo_root / "raw").mkdir()
+    (repo_root / "validated/USDJPY").mkdir(parents=True)
+    (repo_root / "features/USDJPY").mkdir(parents=True)
+
+    snapshot_path = repo_root / "ops/runtime_snapshot.json"
+    snapshot_path.write_text(
+        json.dumps({"ingest": {"USDJPY_5m": "2025-10-01T03:55:00"}}),
+        encoding="utf-8",
+    )
+
+    validated_csv = repo_root / "validated/USDJPY/5m.csv"
+    validated_csv.write_text(
+        "timestamp,symbol,tf,o,h,l,c,v,spread\n"
+        "2025-10-01T03:55:00,USDJPY,5m,147.94,147.95,147.93,147.94,100,0\n",
+        encoding="utf-8",
+    )
+
+    from scripts import pull_prices
+
+    anomaly_log_path = repo_root / "ops/logs/ingest_anomalies.jsonl"
+    monkeypatch.setattr(pull_prices, "ANOMALY_LOG", anomaly_log_path)
+    monkeypatch.setattr(run_daily_workflow, "ROOT", repo_root)
+
+    fixed_now = datetime(2025, 10, 1, 4, 20)
+
+    class _FixedDatetime(datetime):
+        @classmethod
+        def utcnow(cls):
+            return fixed_now
+
+    monkeypatch.setattr(run_daily_workflow, "datetime", _FixedDatetime)
+
+    def fake_fetch_bars(symbol, tf, *, start, end):
+        assert symbol == "USDJPY"
+        assert tf == "5m"
+        assert start == datetime(2025, 10, 1, 3, 20)
+        assert end == fixed_now
+        yield {
+            "timestamp": "2025-10-01T04:00:00",
+            "symbol": symbol,
+            "tf": tf,
+            "o": 147.95,
+            "h": 147.99,
+            "l": 147.92,
+            "c": 147.97,
+            "v": 150.0,
+            "spread": 0.0,
+        }
+        yield {
+            "timestamp": "2025-10-01T04:05:00",
+            "symbol": symbol,
+            "tf": tf,
+            "o": 147.97,
+            "h": 148.01,
+            "l": 147.94,
+            "c": 147.99,
+            "v": 160.0,
+            "spread": 0.0,
+        }
+
+    monkeypatch.setattr(yfinance_fetch, "fetch_bars", fake_fetch_bars)
+
+    exit_code = run_daily_workflow.main(
+        [
+            "--ingest",
+            "--use-yfinance",
+            "--symbol",
+            "USDJPY",
+            "--mode",
+            "conservative",
+            "--yfinance-lookback-minutes",
+            "35",
+        ]
+    )
+
+    assert exit_code == 0
+
+    csv_lines = validated_csv.read_text(encoding="utf-8").splitlines()
+    assert csv_lines[-1].startswith("2025-10-01T04:05:00")
+
+    features_csv = repo_root / "features/USDJPY/5m.csv"
+    assert features_csv.exists()
+
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    assert snapshot["ingest"]["USDJPY_5m"] == "2025-10-01T04:05:00"
+
+
+def test_yfinance_ingest_accepts_suffix_symbol(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    (repo_root / "ops/logs").mkdir(parents=True)
+    (repo_root / "raw").mkdir()
+    (repo_root / "validated/USDJPY").mkdir(parents=True)
+    (repo_root / "features/USDJPY").mkdir(parents=True)
+
+    snapshot_path = repo_root / "ops/runtime_snapshot.json"
+    snapshot_path.write_text(
+        json.dumps({"ingest": {"USDJPY_5m": "2025-10-01T03:55:00"}}),
+        encoding="utf-8",
+    )
+
+    validated_csv = repo_root / "validated/USDJPY/5m.csv"
+    validated_csv.write_text(
+        "timestamp,symbol,tf,o,h,l,c,v,spread\n"
+        "2025-10-01T03:55:00,USDJPY,5m,147.94,147.95,147.93,147.94,100,0\n",
+        encoding="utf-8",
+    )
+
+    from scripts import pull_prices
+
+    anomaly_log_path = repo_root / "ops/logs/ingest_anomalies.jsonl"
+    monkeypatch.setattr(pull_prices, "ANOMALY_LOG", anomaly_log_path)
+    monkeypatch.setattr(run_daily_workflow, "ROOT", repo_root)
+
+    fixed_now = datetime(2025, 10, 1, 4, 20)
+
+    class _FixedDatetime(datetime):
+        @classmethod
+        def utcnow(cls):
+            return fixed_now
+
+    monkeypatch.setattr(run_daily_workflow, "datetime", _FixedDatetime)
+
+    captured = {}
+
+    def fake_fetch_bars(symbol, tf, *, start, end):
+        captured["symbol"] = symbol
+        captured["tf"] = tf
+        captured["start"] = start
+        captured["end"] = end
+        return []
+
+    monkeypatch.setattr(yfinance_fetch, "fetch_bars", fake_fetch_bars)
+
+    exit_code = run_daily_workflow.main(
+        [
+            "--ingest",
+            "--use-yfinance",
+            "--symbol",
+            "USDJPY=X",
+            "--mode",
+            "conservative",
+            "--yfinance-lookback-minutes",
+            "35",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["symbol"] == "USDJPY"
