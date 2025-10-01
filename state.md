@@ -25,6 +25,7 @@
   - 2025-11-05: Alpha Vantage Premium (49.99 USD/月, 75req/min, 1500req/日) は `target_cost_ceiling_usd=40` を超過するため保留継続とし、無料ティアの FX_INTRADAY 制限を再確認。Twelve Data Free (0 USD, 8req/min, 800req/日, 30日履歴) をフォールバック候補に追加し、`configs/api_ingest.yml` へ `activation_criteria` と候補メモを反映。チェックリスト / todo_next を同期。
   - 2025-11-06: API 鍵の暗号化保管・ローテーション記録フローを整理。`configs/api_ingest.yml` へ `credential_rotation` プレースホルダを追加し、`docs/state_runbook.md` / `README.md` / チェックリストで環境変数設定と記録手順を明文化。Reviewers: ops-security（高橋）, ops-runbook（佐藤）。
   - 2025-11-07: サンドボックスで `python3 scripts/run_daily_workflow.py --ingest --use-dukascopy --symbol USDJPY --mode conservative` を実行。`dukascopy_python` 未導入で主経路が失敗し、自動フェイルオーバーの yfinance も未導入のため ImportError。`ops/runtime_snapshot.json.ingest.USDJPY_5m` は 2025-10-01T14:10:00 のまま据え置き。続けて `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6` を実行したところ、最新バーが 18.60h、サマリーが 9.31h 遅延で閾値超過。依存導入後に再取得→鮮度再確認が必要。
+  - 2025-11-08: `run_daily_workflow.py --ingest --use-dukascopy` 実行時に `dukascopy_python` が未導入でも yfinance フォールバックで継続できるようにし、pytest (`tests/test_run_daily_workflow.py::test_dukascopy_missing_dependency_falls_back_to_yfinance`) で回帰確認。
 
 ### 運用メモ
 - バックログから着手するタスクは先にこのリストへ追加し、ID・着手予定日・DoD リンクを明示する。
