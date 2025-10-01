@@ -26,6 +26,7 @@ python3 scripts/run_daily_workflow.py --ingest --update-state --benchmarks --sta
   - Dukascopy 経由（標準経路）: `python3 -m scripts.run_daily_workflow --ingest --use-dukascopy --symbol USDJPY --mode conservative`
     - 失敗時や取得データが `--dukascopy-freshness-threshold-minutes`（既定 90 分）より古い場合は自動で yfinance (`period="7d"`) へ切替。`pip install dukascopy-python yfinance` を事前に実行して依存を満たす。
     - 実行後は `ops/runtime_snapshot.json.ingest.USDJPY_5m` の更新時刻と `ops/logs/ingest_anomalies.jsonl` を確認し、鮮度が 90 分超で推移する場合は閾値見直しや手動調査を実施する。
+    - 2025-11-07 00:40Z Sandbox: 依存未導入のまま実行すると Dukascopy / yfinance 双方が ImportError で停止し、`ops/runtime_snapshot.json.ingest.USDJPY_5m` は 2025-10-01T14:10:00 のまま。サンドボックスでは先に依存導入を済ませた上で再取得→鮮度確認を行う。
   - API 直接取得（保留中）:
     1. `configs/api_ingest.yml` の `activation_criteria` が満たされていることを確認し、必要なら `target_cost_ceiling_usd`・`minimum_free_quota_per_day`・`retry_budget_per_run` を最新値へ更新する。
     2. 認証情報を投入する前に暗号化ストレージ（Vault / SOPS / gpg など）へ保存先を作成し、`credential_rotation.storage_reference` に URI を記録する。平文ファイルを一時的に扱う場合は、コミット対象から除外されていることを `.gitignore` と CI ルールで再確認する。
