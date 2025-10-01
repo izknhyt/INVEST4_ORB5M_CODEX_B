@@ -24,6 +24,116 @@ DEFAULT_ANOMALY_LOG = ROOT / "ops/logs/ingest_anomalies.jsonl"
 
 _SLEEP = time.sleep
 
+_MISSING = object()
+
+
+def _as_list(value):
+    """Return a list representation for config-provided value collections."""
+
+    if value is None:
+        return None
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return list(value)
+    return [value]
+
+
+def _resolve_error_path(spec: Mapping[str, object]) -> Optional[List[object]]:
+    """Return the lookup path for an error condition specification."""
+
+    if "path" in spec:
+        path_value = spec.get("path")
+        if isinstance(path_value, str):
+            return [part for part in path_value.split(".") if part]
+        if isinstance(path_value, Sequence):
+            return list(path_value)
+    key_name = spec.get("key") or spec.get("name")
+    if isinstance(key_name, str) and key_name:
+        return [key_name]
+    return None
+
+
+def _lookup_value(payload: Mapping[str, object], path: Sequence[object]) -> object:
+    current: object = payload
+    for part in path:
+        if isinstance(current, Mapping):
+            current = current.get(part)
+        elif isinstance(current, Sequence) and not isinstance(current, (str, bytes, bytearray)):
+            index = part if isinstance(part, int) else int(part)
+            current = current[index]
+        else:
+            return _MISSING
+        if current is None:
+            return None
+    return current
+
+
+def _evaluate_error_conditions(
+    payload: Mapping[str, object],
+    specs: Iterable[object],
+) -> Optional[str]:
+    """Return an error reason when config-defined conditions flag the payload."""
+
+    for entry in specs or ():
+        if isinstance(entry, str):
+            if entry in payload:
+                return f"api_error_key:{entry}"
+            continue
+
+        if not isinstance(entry, Mapping):
+            continue
+
+        path = _resolve_error_path(entry)
+        if not path:
+            continue
+
+        value = _lookup_value(payload, path)
+        allowed = _as_list(entry.get("allowed_values"))
+        disallowed = _as_list(entry.get("disallowed_values"))
+        trigger_on_missing = bool(entry.get("trigger_on_missing"))
+
+        if value is _MISSING:
+            if trigger_on_missing or allowed is not None:
+                return f"api_error_missing:{'.'.join(str(p) for p in path)}"
+            continue
+
+        if allowed is not None:
+            if value not in allowed:
+                return (
+                    "api_error_value:" +
+                    f"{'.'.join(str(p) for p in path)}={value}"
+                )
+            continue
+
+        if disallowed is not None:
+            if value in disallowed:
+                return (
+                    "api_error_value:" +
+                    f"{'.'.join(str(p) for p in path)}={value}"
+                )
+            continue
+
+        if entry.get("equals") is not None:
+            if value == entry.get("equals"):
+                return (
+                    "api_error_value:" +
+                    f"{'.'.join(str(p) for p in path)}={value}"
+                )
+            continue
+
+        if entry.get("not_equals") is not None:
+            if value != entry.get("not_equals"):
+                return (
+                    "api_error_value:" +
+                    f"{'.'.join(str(p) for p in path)}={value}"
+                )
+            continue
+
+        # Default behaviour: flag presence of the key/path.
+        joined = ".".join(str(p) for p in path)
+        return f"api_error_key:{joined}"
+
+    return None
+
 
 @dataclass
 class ProviderConfig:
@@ -181,17 +291,17 @@ def _request_json(
             last_error = exc
             break
         else:
-            if isinstance(error_keys, Iterable):
-                for key in error_keys:
-                    if isinstance(key, str) and key in data:
-                        last_error = RuntimeError(f"api_error_key:{key}")
-                        break
-                else:
-                    return data
-                if attempt == attempts:
-                    break
-            else:
+            error_reason = (
+                _evaluate_error_conditions(data, error_keys)
+                if isinstance(error_keys, Iterable)
+                else None
+            )
+            if error_reason is None:
                 return data
+
+            last_error = RuntimeError(error_reason)
+            if attempt == attempts:
+                break
 
         sleep_for = min(backoff * (multiplier ** (attempt - 1)), max_backoff)
         _SLEEP(sleep_for)
