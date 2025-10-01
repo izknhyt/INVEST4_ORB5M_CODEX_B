@@ -13,7 +13,7 @@
   - Pending Questions:
     - [x] Dukascopy 経路の冪等性・鮮度検証 — `scripts/run_daily_workflow.py --ingest --use-dukascopy` を定常運用フローとして承認。
     - [x] yfinance フォールバックの自動切替・鮮度アラート閾値（例: 90–120 分）をワークフローに組み込む。
-    - [ ] Alpha Vantage (有償 REST) 再開条件と費用対効果、無料 API 代替の比較検討。
+    - [x] Alpha Vantage (有償 REST) 再開条件と費用対効果、無料 API 代替の比較検討。
   - Docs note: `docs/api_ingest_plan.md` を更新し、Dukascopy 主経路・API 保留・yfinance 冗長化方針を記録する。
   - 2025-10-22: `scripts/fetch_prices_api.py` と `configs/api_ingest.yml` を整備し、`run_daily_workflow.py --ingest --use-api` で REST → `pull_prices.ingest_records` の直結を実装。`tests/test_fetch_prices_api.py` で成功/リトライの両ケースを固定し、README / state runbook / todo_next を更新。
   - 2025-10-23: `tests/test_run_daily_workflow.py::test_api_ingest_updates_snapshot` を追加し、モックAPIで `--ingest --use-api` フローを通しながら snapshot 更新・CSV 追記・アノマリーログ無しを検証。チェックリストの CLI 項目をクローズし、次ステップを鮮度チェック/認証ローテーション整理へ集約。
@@ -22,6 +22,7 @@
   - 2025-11-02: `scripts/run_daily_workflow.py --ingest --use-dukascopy` に yfinance 自動フェイルオーバー（7 日再取得・シンボル正規化）と `--dukascopy-freshness-threshold-minutes` を実装。`tests/test_run_daily_workflow.py` に障害復旧の回帰を追加し、README / state runbook / ingest plan / チェックリストへ鮮度確認ステップと依存導入ガイドを追記。
   - 2025-11-03: `docs/api_ingest_plan.md` の `activation_criteria` と `credential_rotation` を明文化し、`docs/state_runbook.md` / `README.md` / チェックリストへ `--use-api` 切替手順・エスカレーションを追記。REST 再開条件と鍵ローテーション記録フローを整理。
   - 2025-11-04: `scripts/live_ingest_worker.py` を追加し、Dukascopy→yfinance フォールバックと `update_state` 連携の常駐ジョブを実装。pytest 統合テストで重複バーが発生しないことを検証し、README / state runbook へ運用手順とモニタリング項目を追記。
+  - 2025-11-05: Alpha Vantage Premium (49.99 USD/月, 75req/min, 1500req/日) は `target_cost_ceiling_usd=40` を超過するため保留継続とし、無料ティアの FX_INTRADAY 制限を再確認。Twelve Data Free (0 USD, 8req/min, 800req/日, 30日履歴) をフォールバック候補に追加し、`configs/api_ingest.yml` へ `activation_criteria` と候補メモを反映。チェックリスト / todo_next を同期。
 
 ### 運用メモ
 - バックログから着手するタスクは先にこのリストへ追加し、ID・着手予定日・DoD リンクを明示する。

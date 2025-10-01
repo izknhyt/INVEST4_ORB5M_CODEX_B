@@ -7,9 +7,17 @@
 
 version: 1
 lookback_minutes: 120
+activation_criteria:
+  target_cost_ceiling_usd: 40
+  minimum_free_quota_per_day: 500
+  retry_budget_per_run: 15
 providers:
   alpha_vantage:
     description: "Alpha Vantage FX_INTRADAY (free tier)"
+    activation_status: hold
+    activation_notes:
+      - "2025-10: FX_INTRADAY requires Premium (>=49.99 USD/month) so free tier no longer applies."
+      - "Free quota observed at 5 req/min and ~500 req/day but blocked for FX symbols without Premium entitlement."
     base_url: "https://www.alphavantage.co/query"
     method: GET
     query:
@@ -46,6 +54,7 @@ providers:
       timezone: UTC
     rate_limit:
       max_requests_per_minute: 5
+      max_requests_per_day: 500
       cooldown_seconds: 12
     retry:
       attempts: 5
@@ -56,3 +65,52 @@ providers:
       error_keys:
         - "Error Message"
         - "Note"
+  twelve_data:
+    description: "Twelve Data FX time_series (free tier candidate)"
+    activation_status: candidate
+    activation_notes:
+      - "Free plan tested at 8 req/min and 800 req/day; intraday history available for ~30 days with 2 active symbols."
+      - "Quotes returned in UTC with \"values\" array; requires EUR/USD-style symbol with slash separator."
+    base_url: "https://api.twelvedata.com/time_series"
+    method: GET
+    query:
+      symbol: "{base}/{quote}"
+      interval: "{interval}"
+      outputsize: 120
+      format: JSON
+      apikey: "{api_key}"
+    tf_map:
+      "1m": "1min"
+      "5m": "5min"
+      "15m": "15min"
+      "60m": "1h"
+    credentials:
+      - api_key
+    response:
+      format: json
+      data_path:
+        - values
+      entry_type: sequence
+      timestamp_field: datetime
+      fields:
+        o: open
+        h: high
+        l: low
+        c: close
+        v: volume
+        spread: null
+      timestamp_formats:
+        - "%Y-%m-%d %H:%M:%S"
+      timezone: UTC
+    rate_limit:
+      max_requests_per_minute: 8
+      max_requests_per_day: 800
+      cooldown_seconds: 8
+    retry:
+      attempts: 5
+      backoff_seconds: 2
+      multiplier: 2
+      max_backoff_seconds: 16
+      retryable_statuses: [429, 500, 502, 503, 504]
+      error_keys:
+        - status
