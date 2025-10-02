@@ -40,6 +40,8 @@
   - 2025-11-06: 暗号化ストレージ運用と鍵ローテーション記録フローを `docs/state_runbook.md` / README / チェックリストへ反映し、`credential_rotation` プレースホルダを定義。Reviewers: ops-security（高橋）, ops-runbook（佐藤）。
   - 2025-11-07: サンドボックスで `run_daily_workflow --ingest --use-dukascopy` を実行したが、`dukascopy_python` / `yfinance` 未導入で双方失敗しスナップショット未更新。`check_benchmark_freshness --max-age-hours 6` では最新バー 18.60h / サマリー 9.31h 遅延で閾値超過を確認。依存導入→再取得→鮮度確認を次アクションに設定。
   - 2025-11-09: REST retry error_keys を構造化し、Twelve Data の `status: "ok"` 成功レスポンスと `status: "error"` エラーを正しく判別できるよう `configs/api_ingest.yml` / `scripts/fetch_prices_api.py` / pytest を同期。
+  - 2025-11-10: yfinance フォールバックを標準ライブラリ実装へ刷新し、`pip install dukascopy-python` のみで `--use-dukascopy` → yfinance 自動切替が動作するよう改善。README / state runbook / 設計書・チェックリストを同期。
+  - 2025-11-11: yfinance フォールバックに 7 日ウィンドウの自動分割と最大 60 日までの段階的再取得を追加。`tests/test_yfinance_fetch.py::test_fetch_bars_chunks_intraday_requests` で連続リクエストと重複スキップを検証し、README / runbook / ingest plan / チェックリスト / backlog を更新。
   - Next step: Twelve Data のレスポンス差異（UTC/ボリューム欠損時の扱い）をモック API テストへ反映し、フォールバック手順を `docs/state_runbook.md` へ追記する。
   - Backlog Anchor: [価格インジェストAPI基盤整備 (P1-04)](docs/task_backlog.md#p1-04-価格インジェストapi基盤整備)
   - Vision / Runbook References:

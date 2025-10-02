@@ -130,8 +130,8 @@ python3 scripts/run_sim.py --csv data/ohlc5m.csv --symbol USDJPY --json-out out.
 
 ### オンデマンドインジェスト CLI
 - `scripts/pull_prices.py` はヒストリカルCSV（またはAPIエクスポート）から未処理バーを検出し、`raw/`→`validated/`→`features/` に冪等に追記する。
-- `python3 scripts/run_daily_workflow.py --ingest --use-dukascopy` が現在の標準経路。Dukascopy から最新5mバーを取得し、そのまま `pull_prices.ingest_records` に渡して CSV/特徴量を同期する。Dukascopy が失敗するか、取得した最終バーが `--dukascopy-freshness-threshold-minutes`（既定 90 分）より古い場合は自動で yfinance (`period="7d"`) へ切り替わり、`--yfinance-lookback-minutes`（既定 60 分）を基準に再取得ウィンドウを決めつつ同一の CSV/特徴量更新が継続する。
-- 依存ライブラリ（任意導入）: `pip install dukascopy-python yfinance`。フォールバック経路では Yahoo Finance のシンボル変換（例: USDJPY→JPY=X）が自動適用される。
+- `python3 scripts/run_daily_workflow.py --ingest --use-dukascopy` が現在の標準経路。Dukascopy から最新5mバーを取得し、そのまま `pull_prices.ingest_records` に渡して CSV/特徴量を同期する。Dukascopy が失敗するか、取得した最終バーが `--dukascopy-freshness-threshold-minutes`（既定 90 分）より古い場合は自動で yfinance（Yahoo Finance チャート API を標準ライブラリで叩き、7日分のウィンドウを自動分割して取得）へ切り替わり、`--yfinance-lookback-minutes`（既定 60 分）を基準に再取得ウィンドウを決めつつ同一の CSV/特徴量更新が継続する。
+- 依存ライブラリ（任意導入）: `pip install dukascopy-python`。yfinance フォールバックは Yahoo Finance のチャート API を標準ライブラリで叩くため追加パッケージ不要。フォールバック経路ではシンボル変換（例: USDJPY→JPY=X）が自動適用される。
 - REST API 連携は `scripts/fetch_prices_api.py` を経由して行う設計だが、Alpha Vantage FX_INTRADAY がプレミアム専用であるため 2025-10 時点では **保留**。再開時は `configs/api_ingest.yml` の `activation_criteria`（ターゲットコスト上限 40 USD/月以内、日次最低無料枠 500 リクエスト以上、リトライ予算 15 回以内 など）を満たすか確認し、鍵は Vault / SOPS / gpg などの暗号化ストレージで一元管理する。`ALPHA_VANTAGE_API_KEY` 等を環境変数へエクスポートし、同一値を暗号化済みの `configs/api_keys.local.yml.gpg` などへ同期した後に、平文テンプレート (`configs/api_keys.yml`) はプレースホルダのまま維持する。`credential_rotation` の `cadence_days` / `next_rotation_at` / `owner` を更新し、完了時は `last_rotated_at` とレビュワーを `docs/checklists/p1-04_api_ingest.md` へ記録する。429 や SLA 違反が 2 回連続した場合は `--use-api` を停止し、Dukascopy 経路へフォールバックしつつ #ops へエスカレーションする。
 - 直近の成功時刻は `ops/runtime_snapshot.json` の `ingest` セクションで管理し、異常は `ops/logs/ingest_anomalies.jsonl` に記録。毎回の実行後に `USDJPY_5m` の時刻と差分（目安: 90 分以内）を確認し、必要なら `--dukascopy-freshness-threshold-minutes` を一時的に調整する。
 - タイムスタンプは ISO 8601 (`Z` や `+00:00` 付き)・空白区切りどちらにも対応。

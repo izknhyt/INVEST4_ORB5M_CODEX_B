@@ -3,14 +3,14 @@
 ## 1. Scope
 - Target: USDJPY 5m bars (extensible interface for additional symbols/timeframes).
 - Usage context: personal workflow prioritizing free-tier APIs (e.g., Alpha Vantage, Twelve Data) with rate limits around 5 req/min・500 req/day; design should conserve quota and clarify upgrade paths if limits are exceeded.
-- 2025-10 Update: Alpha Vantage FX_INTRADAY がプレミアム専用のため REST/API 連携は保留。運用は Dukascopy → `ingest_records` のルートを標準とし、無料APIはフォールバック候補として仕様を維持する。2025-11 時点では Dukascopy 失敗/鮮度低下検知時に yfinance (`period="7d"`) へ自動切替するフェイルオーバーを `run_daily_workflow.py` 内へ組み込む。
+- 2025-10 Update: Alpha Vantage FX_INTRADAY がプレミアム専用のため REST/API 連携は保留。運用は Dukascopy → `ingest_records` のルートを標準とし、無料APIはフォールバック候補として仕様を維持する。2025-11 時点では Dukascopy 失敗/鮮度低下検知時に yfinance（Yahoo Finance チャート API を標準ライブラリで呼び出し、7 日ウィンドウを自動分割して取得）へ自動切替するフェイルオーバーを `run_daily_workflow.py` 内へ組み込む。
 - Goals:
   - Acquire recent bars from external REST (phase 1) and prepare for Streaming integration.
   - Feed the results into the existing `pull_prices.py` pipeline without manual CSV steps.
   - Ensure `run_daily_workflow.py --ingest` keeps `raw/`, `validated/`, `features/` and `ops/runtime_snapshot.json.ingest` up to date so freshness checks stay within 6h.
 
 ## 2. Data Flow
-Dukascopy feed（正式運用） → 正常時は `scripts/dukascopy_fetch.py` → normalized bar iterator → `pull_prices.ingest_records` → CSV append (`raw`/`validated`/`features`) → snapshot/anomaly logging。フェイルオーバー条件（例: 90 分超の鮮度遅延/取得失敗）に該当した場合は自動で `scripts/yfinance_fetch.py` (`period="7d"`, シンボル正規化付き) を呼び出し同フローに合流する。REST API provider（保留中）も同じインターフェースに揃える。
+Dukascopy feed（正式運用） → 正常時は `scripts/dukascopy_fetch.py` → normalized bar iterator → `pull_prices.ingest_records` → CSV append (`raw`/`validated`/`features`) → snapshot/anomaly logging。フェイルオーバー条件（例: 90 分超の鮮度遅延/取得失敗）に該当した場合は自動で `scripts/yfinance_fetch.py`（シンボル正規化付き。Yahoo Finance チャート API を 7 日単位で分割取得し、最大 60 日まで遡れるよう連続ウィンドウで再取得）を呼び出し同フローに合流する。REST API provider（保留中）も同じインターフェースに揃える。
 
 ## 3. Modules & Interfaces
 - `scripts/fetch_prices_api.py`
@@ -40,11 +40,11 @@ Dukascopy feed（正式運用） → 正常時は `scripts/dukascopy_fetch.py` �
     - Alpha Vantage Premium: 49.99 USD/月、75 req/min、1,500 req/日。`target_cost_ceiling_usd=40` を超過し、FX_INTRADAY がプレミアム専用となったため保留。
     - Alpha Vantage Free: 0 USD、5 req/min、≈500 req/日。ただし FX_INTRADAY は Premium 限定で実運用不可。
     - Twelve Data Free: 0 USD、8 req/min、800 req/日、30 日分の 5m 履歴（同時シンボル 2 本）。コスト/レート要件は満たすが、履歴長とシンボル上限を考慮したフォールバック運用が必要。
-    - yfinance: 0 USD、7 日バッチ取得（`period="7d"`）で 1 リクエストあたり 5m バーを 60 日分まで取得。既存フェイルオーバー経路として継続運用。
+    - yfinance: 0 USD、Yahoo Finance チャート API を標準ライブラリで叩き、7 日ウィンドウを自動分割して 60 日分までの 5m バーを順次取得。既存フェイルオーバー経路として継続運用。
   - `credential_rotation` セクションで `cadence_days`（例: 30 日）、`next_rotation_at`、`owner` を記載するプレースホルダを追加し、CI/ローカル双方で参照する。更新後は `docs/checklists/p1-04_api_ingest.md` のローテーション記録項目をチェックする。
 - `configs/api_keys.yml` (new or repurposed): store API key/secret with rotation notes.
 - Local `.env` pattern: for personal use, load keys from environment variables (not committed) and document manual rotation steps.
-- Safety margin: default 60 minutes so gaps around clock shifts or downtime are re-requested。Dukascopy 経路では別途 `--dukascopy-freshness-threshold-minutes`（既定 90 分）を確認し、超過時は自動で yfinance (`pip install dukascopy-python yfinance`) へ切替わる。
+- Safety margin: default 60 minutes so gaps around clock shifts or downtime are re-requested。Dukascopy 経路では別途 `--dukascopy-freshness-threshold-minutes`（既定 90 分）を確認し、超過時は自動で yfinance へ切替わる。フォールバックは Yahoo Finance チャート API を直接利用するため追加パッケージ不要（Dukascopy 経路のみ `pip install dukascopy-python` を推奨）。
 
 ## 5. Error Handling & Observability
 - Retries: exponential backoff (2s, 4s, 8s, 16s, 32s) with jitter; cap attempts to 5.
@@ -71,4 +71,4 @@ Dukascopy feed（正式運用） → 正常時は `scripts/dukascopy_fetch.py` �
 - API provider choice (OANDA REST? Alpha Vantage? in-house feed) and associated rate limits/SLA。Alpha Vantage はプレミアム専用となったため、無料枠で使える代替 API or 有償契約を再検討する必要あり。2025-11 時点では Twelve Data Free をフォールバック候補として比較し、保留解除の前提条件（履歴 30 日制限の扱い / シンボル追加時のコスト試算）を洗い出す。
 - Credential storage: local `.env` vs. secrets manager; rotation cadence。`configs/api_ingest.yml` の `credential_rotation` テンプレに日付・担当・保管場所を反映し、30 日ごとの見直しを既定にするか要検討。`docs/state_runbook.md` とチェックリストでの記録サイクルをどう同期するかも整理する。
 - Streaming/WebSocket rollout timing and relation to current REST-first scope.
-- yfinance フォールバックは `scripts/yfinance_fetch.py` と `--use-yfinance` 経路で実装済み。依存パッケージの導入手順、取得遅延の許容範囲、Dukascopy からの切替判断基準を runbook/チェックリストへ追記する必要がある。Yahoo Finance の intraday 保持期間（≒60 日）に合わせて `period="7d"` で一括取得し、シンボルマッピング（例: USDJPY → JPY=X）や未来日クランプを組み込んだ運用整理も必要。
+- yfinance フォールバックは `scripts/yfinance_fetch.py` と `--use-yfinance` 経路で実装済み。依存パッケージの導入手順、取得遅延の許容範囲、Dukascopy からの切替判断基準を runbook/チェックリストへ追記する必要がある。Yahoo Finance の intraday 保持期間（≒60 日）に合わせて 7 日ウィンドウを連続取得し、シンボルマッピング（例: USDJPY → JPY=X）や未来日クランプを組み込んだ運用整理も必要。

@@ -28,6 +28,8 @@
   - 2025-11-09: Twelve Data の `status` レスポンスに対応するため `configs/api_ingest.yml` と `scripts/fetch_prices_api.py` を調整し、`status: "ok"` を許容しつつ `status: "error"` を再試行・異常ログに記録できるよう pytest を拡張。
   - 2025-11-08: `run_daily_workflow.py --ingest --use-dukascopy` 実行時に `dukascopy_python` が未導入でも yfinance フォールバックで継続できるようにし、pytest (`tests/test_run_daily_workflow.py::test_dukascopy_missing_dependency_falls_back_to_yfinance`) で回帰確認。
   - 2025-11-09: yfinance フォールバック時に `--yfinance-lookback-minutes` を参照して再取得ウィンドウを決定するよう更新。冗長な再処理を抑えつつ長期停止後に手動調整できるよう、README / state runbook / 回帰テスト / backlog メモを同期。
+  - 2025-11-10: `scripts/yfinance_fetch.py` を Yahoo Finance チャート API 直叩き実装へ刷新し、`pip install dukascopy-python` のみで `--use-dukascopy` → yfinance 自動切替が機能するよう改善。README / state runbook / 設計メモ / チェックリスト / 回帰テストを同期。
+  - 2025-11-11: yfinance フォールバックに 7 日ウィンドウ自動分割を導入し、最大 60 日まで段階的に再取得できるよう拡張。`scripts/yfinance_fetch.py` にウィンドウ生成ヘルパを追加し、`tests/test_yfinance_fetch.py::test_fetch_bars_chunks_intraday_requests` で連続リクエストと重複排除を検証。README / state runbook / ingest plan / チェックリスト / todo_next / backlog を同期。
 
 ### 運用メモ
 - バックログから着手するタスクは先にこのリストへ追加し、ID・着手予定日・DoD リンクを明示する。

@@ -14,13 +14,13 @@
 ## バックログ固有の DoD
 - [x] `scripts/fetch_prices_api.py` が API から5mバーを取得し、リトライ/レート制限ハンドリングを備えている（**現状は保留**）。
 - [x] `scripts/pull_prices.py` が `ingest_rows` 等のインタフェースを通じて API 取得結果を冪等に `raw/`・`validated/`・`features/` へ反映できる。
-- [x] Dukascopy フェッチ失敗/鮮度低下時に yfinance (`period="7d"`) へ自動フェイルオーバーする実装が `scripts/run_daily_workflow.py` に組み込まれ、回帰テストでカバーされている。
+- [x] Dukascopy フェッチ失敗/鮮度低下時に yfinance（Yahoo Finance チャート API を標準ライブラリで叩き、7 日ウィンドウを自動分割して 60 日分まで取得）へ自動フェイルオーバーする実装が `scripts/run_daily_workflow.py` に組み込まれ、回帰テストでカバーされている。
 - [x] REST プロバイダ候補について `docs/api_ingest_plan.md#4-configuration` の `activation_criteria` を満たすか評価し、ターゲットコスト上限・無料枠・リトライ予算をチェックリストに記録した。
   - 2025-11-05 04:00Z 評価: `target_cost_ceiling_usd=40` / `minimum_free_quota_per_day=500` / `retry_budget_per_run=15` を基準に比較。
     - Alpha Vantage Premium（49.99 USD/月, 75req/min, 1500req/日）→ コスト上限超過・FX_INTRADAY はプレミアム専用のため運用保留。
     - Alpha Vantage Free（0 USD, 5req/min, ≈500req/日）→ FX_INTRADAY 非対応のため要件未充足。
     - Twelve Data Free（0 USD, 8req/min, 800req/日, 30日分の5m履歴）→ 基準を満たすがシンボル数2本制限・30日履歴のため本番採用前にフォールバック要件整理。
-    - yfinance（0 USD, 約1req/分相当のバッチ取得, 7日分バッチ取得で60日履歴）→ 現行フェイルオーバー経路として継続、REST置換は不要。
+    - yfinance（0 USD, Yahoo Finance チャート API を標準ライブラリで分割取得, 7 日ウィンドウを連続リクエストして 60 日履歴までカバー）→ 現行フェイルオーバー経路として継続、REST置換は不要。
 - [ ] (Deferred) `python3 scripts/run_daily_workflow.py --ingest --use-api --symbol USDJPY --mode conservative` が成功し、`ops/runtime_snapshot.json.ingest` が更新される。→ Alpha Vantage FX_INTRADAY はプレミアム専用のため契約後に再開。テストは `tests/test_run_daily_workflow.py::test_api_ingest_updates_snapshot` でモック検証済み。
 - [ ] `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6` が成功し、鮮度アラートが解消される（Dukascopy 主経路で代替中）。
   - 2025-11-07 00:45Z: `ops/runtime_snapshot.json.benchmark_pipeline.USDJPY_conservative` が 9.31h / 18.60h 遅延のままで、鮮度アラートが継続。インジェスト再開後に再検証する。
@@ -48,5 +48,11 @@
 
 ### 2025-11-09 Twelve Data status handling
 - `scripts/fetch_prices_api.py` に構造化 `error_keys` を追加し、`status: "ok"` を許容しつつ `status: "error"` をエラーとして捕捉できるよう回帰テスト (`tests/test_fetch_prices_api.py`) を拡張。Twelve Data の挙動に合わせて `configs/api_ingest.yml` を更新。
+
+### 2025-11-10 yfinance 依存除去
+
+- `scripts/yfinance_fetch.py` を Yahoo Finance チャート API 直叩きの実装へ刷新し、`pip install dukascopy-python` のみでフォールバックが動作するようにした。
+- `tests/test_yfinance_fetch.py` / README / state runbook / 設計書を更新し、ImportError 回避手順と依存リストを同期。
+- 7 日ウィンドウを自動分割して連続取得する仕組みを追加し、`--yfinance-lookback-minutes` を 60 日範囲まで段階的に拡張できるようにした。
 
 > API供給元や鍵管理ポリシーは `docs/api_ingest_plan.md` の更新と併せて、タスク完了までに最新化してください。現状は Dukascopy 主経路で運用し、REST/API は契約条件が整い次第再開します。
