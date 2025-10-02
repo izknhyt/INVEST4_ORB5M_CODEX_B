@@ -59,4 +59,9 @@
 - `fetch_prices_api` が `symbol=USD/JPY` 形式のクエリと降順レスポンスの昇順整列を行う点を回帰テストで確認し、`ops/logs/ingest_anomalies.jsonl` への不要な書き込みが発生しないことを確認。
 - `docs/state_runbook.md` に Twelve Data のドライラン手順と UTC/volume 正規化の確認項目を追記。
 
+### 2025-11-12 Sandbox local CSV fallback
+- Dukascopy / yfinance 両経路が未導入の環境でも `run_daily_workflow.py --ingest --use-dukascopy` が継続できるよう、`pull_prices.DEFAULT_SOURCE` を用いたローカル CSV フェイルオーバーを実装。
+- `tests/test_run_daily_workflow.py::test_dukascopy_and_yfinance_missing_falls_back_to_local_csv` を追加し、Sandbox で snapshot 更新・validated CSV 追記・アノマリーログ抑止を確認。
+- `docs/task_backlog.md` / `docs/todo_next.md` / 本チェックリストへフェイルオーバー手順とフォローアップ（依存導入後の再検証）を記録。
+
 > API供給元や鍵管理ポリシーは `docs/api_ingest_plan.md` の更新と併せて、タスク完了までに最新化してください。現状は Dukascopy 主経路で運用し、REST/API は契約条件が整い次第再開します。
