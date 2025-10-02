@@ -148,6 +148,7 @@ def evaluate_target(
     *,
     now: _dt.datetime,
     max_age_hours: float,
+    benchmark_max_age_hours: float,
     ingest_meta_key: Optional[str] = None,
     ingest_meta: Optional[Dict[str, Any]] = None,
     downgrade_stale_to_advisory: bool = False,
@@ -225,9 +226,9 @@ def evaluate_target(
             age_hours = (now - benchmark_ts).total_seconds() / 3600
             result["benchmarks_timestamp"] = benchmark_ts_str
             result["benchmarks_age_hours"] = age_hours
-            if age_hours > max_age_hours:
+            if age_hours > benchmark_max_age_hours:
                 _record_issue(
-                    f"benchmarks.{target} stale by {age_hours:.2f}h (limit {max_age_hours}h)"
+                    f"benchmarks.{target} stale by {age_hours:.2f}h (limit {benchmark_max_age_hours}h)"
                 )
         except ValueError as exc:
             _record_issue(str(exc))
@@ -265,8 +266,7 @@ def evaluate_target(
                 result["summary_age_hours"] = summary_age_hours
                 if summary_age_hours > max_age_hours:
                     _record_issue(
-                        "benchmark_pipeline."
-                        f"{target}.summary_generated_at stale by {summary_age_hours:.2f}h "
+                        f"benchmark_pipeline.{target}.summary_generated_at stale by {summary_age_hours:.2f}h "
                         f"(limit {max_age_hours}h)"
                     )
             except ValueError as exc:
@@ -280,6 +280,7 @@ def check_benchmark_freshness(
     targets: List[str],
     *,
     max_age_hours: float,
+    benchmark_max_age_hours: Optional[float] = None,
     ingest_timeframe: Optional[str] = None,
     now: Optional[_dt.datetime] = None,
 ) -> Dict[str, Any]:
@@ -289,6 +290,9 @@ def check_benchmark_freshness(
         now = _dt.datetime.now(tz=_dt.timezone.utc)
 
     raw_snapshot = json.loads(snapshot_path.read_text())
+
+    if benchmark_max_age_hours is None:
+        benchmark_max_age_hours = max_age_hours
 
     normalised_targets = [_normalise_target(t) for t in targets]
 
@@ -306,6 +310,7 @@ def check_benchmark_freshness(
                 target,
                 now=now,
                 max_age_hours=max_age_hours,
+                benchmark_max_age_hours=benchmark_max_age_hours,
                 ingest_meta_key=meta_key,
                 ingest_meta=meta,
                 downgrade_stale_to_advisory=downgrade,
@@ -318,6 +323,7 @@ def check_benchmark_freshness(
     return {
         "ok": not errors,
         "max_age_hours": max_age_hours,
+        "benchmark_max_age_hours": benchmark_max_age_hours,
         "checked": evaluations,
         "errors": errors,
         "advisories": advisories,
@@ -348,6 +354,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Maximum allowed age in hours for benchmark timestamps",
     )
     parser.add_argument(
+        "--benchmark-freshness-max-age-hours",
+        type=float,
+        default=None,
+        help=(
+            "Maximum allowed age in hours for entries under benchmarks.*. "
+            "Defaults to --max-age-hours when omitted."
+        ),
+    )
+    parser.add_argument(
         "--ingest-timeframe",
         default="5m",
         help="Expected ingestion timeframe (used to locate ingest metadata)",
@@ -363,6 +378,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         snapshot_path=args.snapshot,
         targets=args.targets,
         max_age_hours=args.max_age_hours,
+        benchmark_max_age_hours=args.benchmark_freshness_max_age_hours,
         ingest_timeframe=args.ingest_timeframe,
     )
 
