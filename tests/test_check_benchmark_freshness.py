@@ -235,6 +235,10 @@ def test_missing_pipeline_with_synthetic_is_advisory(
     assert any(
         msg.startswith("benchmark_pipeline.") for msg in result["advisories"]
     )
+    checked = result["checked"][0]
+    metadata = checked.get("ingest_metadata")
+    assert metadata is not None
+    assert metadata.get("fallbacks") == ["dukascopy", "yfinance"]
 
 
 def test_benchmarks_missing_with_synthetic_is_advisory(
