@@ -9,7 +9,9 @@ import sys
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Iterable, Iterator, List, Optional
 
-import requests
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 
 _INTERVAL_MAP = {
@@ -69,7 +71,6 @@ def _download_chart(
     interval: str,
     start: datetime,
     end: datetime,
-    session: Optional[requests.Session] = None,
 ) -> Dict[str, object]:
     params = {
         "interval": interval,
@@ -79,17 +80,20 @@ def _download_chart(
         "events": "div,splits",
     }
 
-    http = session or requests
-    response = http.get(
-        _YF_BASE_URL.format(ticker=ticker),
-        params=params,
-        headers=_YF_HEADERS,
-        timeout=30,
-    )
-    response.raise_for_status()
+    url = _YF_BASE_URL.format(ticker=ticker)
+    query = urlencode(params)
+    request = Request(f"{url}?{query}", headers=_YF_HEADERS)
 
     try:
-        payload = response.json()
+        with urlopen(request, timeout=30) as resp:
+            raw = resp.read().decode("utf-8")
+    except HTTPError as exc:  # pragma: no cover - network error path
+        raise RuntimeError(f"yfinance HTTP error: {exc.code}") from exc
+    except URLError as exc:  # pragma: no cover - network error path
+        raise RuntimeError(f"yfinance connection error: {exc.reason}") from exc
+
+    try:
+        payload = json.loads(raw)
     except json.JSONDecodeError as exc:
         raise RuntimeError("yfinance JSON decode error") from exc
 
