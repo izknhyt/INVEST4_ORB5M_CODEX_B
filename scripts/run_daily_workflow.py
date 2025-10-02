@@ -1060,6 +1060,43 @@ def main(argv=None) -> int:
             features_path = ROOT / "features" / symbol_upper / f"{tf}.csv"
             fallback_notes: List[Dict[str, str]] = []
 
+            def _run_local_csv_fallback(reason: str) -> Optional[Dict[str, object]]:
+                print("[wf] local CSV fallback triggered:", reason)
+                try:
+                    result_local = _ingest_local_csv_backup(
+                        ingest_records_func=ingest_records,
+                        symbol=symbol_upper,
+                        tf=tf,
+                        snapshot_path=snapshot_path,
+                        raw_path=raw_path,
+                        validated_path=validated_path,
+                        features_path=features_path,
+                        backup_path=local_backup_path,
+                        enable_synthetic=synthetic_allowed,
+                    )
+                except Exception as backup_exc:  # pragma: no cover - unexpected failure
+                    print(f"[wf] local CSV fallback unavailable: {backup_exc}")
+                    return None
+
+                detail_path = None
+                next_source = None
+                if isinstance(result_local, dict):
+                    backup_path_value = result_local.get("local_backup_path")
+                    if isinstance(backup_path_value, str) and backup_path_value:
+                        detail_path = backup_path_value
+                    source_value = str(result_local.get("source") or "")
+                    if "synthetic_local" in source_value:
+                        next_source = "synthetic_local"
+
+                _append_fallback(
+                    fallback_notes,
+                    stage="local_csv",
+                    reason="local CSV fallback executed",
+                    next_source=next_source,
+                    detail=detail_path,
+                )
+                return result_local
+
             last_ts = get_last_processed_ts(
                 symbol_upper,
                 tf,
@@ -1097,6 +1134,9 @@ def main(argv=None) -> int:
                 now.isoformat(timespec="seconds"),
             )
 
+            label = "api"
+            result: Optional[Dict[str, object]] = None
+
             try:
                 records = fetch_prices(
                     symbol_upper,
@@ -1107,22 +1147,64 @@ def main(argv=None) -> int:
                     config_path=args.api_config,
                     credentials_path=args.api_credentials,
                 )
-                result = ingest_records(
-                    records,
-                    symbol=symbol_upper,
-                    tf=tf,
-                    snapshot_path=snapshot_path,
-                    raw_path=raw_path,
-                    validated_path=validated_path,
-                    features_path=features_path,
-                    source_name="api",
-                )
             except Exception as exc:
-                print(f"[wf] API ingestion failed: {exc}")
+                reason = f"api ingestion failed: {exc}"
+                _append_fallback(
+                    fallback_notes,
+                    stage="api",
+                    reason=reason,
+                    next_source="local_csv",
+                )
+                result = _run_local_csv_fallback(reason)
+                if result is None:
+                    return 1
+                label = "local_csv"
+            else:
+                if not records:
+                    reason = "api ingestion returned no rows"
+                    _append_fallback(
+                        fallback_notes,
+                        stage="api",
+                        reason=reason,
+                        next_source="local_csv",
+                    )
+                    result = _run_local_csv_fallback(reason)
+                    if result is None:
+                        return 1
+                    label = "local_csv"
+                else:
+                    try:
+                        result = ingest_records(
+                            records,
+                            symbol=symbol_upper,
+                            tf=tf,
+                            snapshot_path=snapshot_path,
+                            raw_path=raw_path,
+                            validated_path=validated_path,
+                            features_path=features_path,
+                            source_name="api",
+                        )
+                    except Exception as exc:
+                        reason = f"api ingestion failed during ingest: {exc}"
+                        _append_fallback(
+                            fallback_notes,
+                            stage="api",
+                            reason=reason,
+                            next_source="local_csv",
+                        )
+                        result = _run_local_csv_fallback(reason)
+                        if result is None:
+                            return 1
+                        label = "local_csv"
+
+            if result is None:
+                print("[wf] API ingestion produced no result")
                 return 1
 
+            detail = result.get("source") if isinstance(result, dict) else None
+            suffix = f" ({detail})" if detail and detail != label else ""
             print(
-                "[wf] api_ingest",
+                f"[wf] {label}_ingest{suffix}",
                 f"rows={result['rows_validated']}",
                 f"last_ts={result['last_ts_now']}",
             )

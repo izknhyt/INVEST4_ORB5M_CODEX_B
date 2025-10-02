@@ -343,6 +343,110 @@ def test_api_ingest_updates_snapshot(tmp_path, monkeypatch):
     assert meta["snapshot_path"] == str(snapshot_path)
 
 
+def test_api_ingest_falls_back_to_local_csv(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    (repo_root / "ops/logs").mkdir(parents=True)
+    (repo_root / "configs").mkdir()
+    (repo_root / "raw").mkdir()
+    (repo_root / "validated/USDJPY").mkdir(parents=True)
+    (repo_root / "features/USDJPY").mkdir(parents=True)
+    (repo_root / "data").mkdir(parents=True, exist_ok=True)
+
+    snapshot_path = repo_root / "ops/runtime_snapshot.json"
+    snapshot_path.write_text(
+        json.dumps({"ingest": {"USDJPY_5m": "2025-10-01T03:55:00"}}),
+        encoding="utf-8",
+    )
+
+    validated_csv = repo_root / "validated/USDJPY/5m.csv"
+    validated_csv.write_text(
+        "timestamp,symbol,tf,o,h,l,c,v,spread\n"
+        "2025-10-01T03:55:00,USDJPY,5m,147.94,147.95,147.93,147.94,100,0\n",
+        encoding="utf-8",
+    )
+
+    fallback_csv = repo_root / "data/usdjpy_5m_2018-2024_utc.csv"
+    fallback_csv.write_text(
+        "timestamp,symbol,tf,o,h,l,c,v,spread\n"
+        "2025-10-01T04:00:00,USDJPY,5m,147.95,147.99,147.92,147.97,140,0\n"
+        "2025-10-01T04:05:00,USDJPY,5m,147.97,148.02,147.94,148.00,135,0\n",
+        encoding="utf-8",
+    )
+
+    config_path = repo_root / "configs/api_ingest.yml"
+    credentials_path = repo_root / "configs/api_keys.yml"
+    config = {
+        "default_provider": "mock",
+        "lookback_minutes": 30,
+        "providers": {
+            "mock": {
+                "base_url": "http://example.test",
+                "method": "GET",
+                "credentials": ["token"],
+            }
+        },
+    }
+    config_path.write_text(yaml_compat.safe_dump(config), encoding="utf-8")
+    credentials_path.write_text(
+        yaml_compat.safe_dump({"mock": {"token": "secret"}}),
+        encoding="utf-8",
+    )
+
+    from scripts import pull_prices
+
+    anomaly_log_path = repo_root / "ops/logs/ingest_anomalies.jsonl"
+    monkeypatch.setattr(pull_prices, "ANOMALY_LOG", anomaly_log_path)
+    monkeypatch.setattr(run_daily_workflow, "ROOT", repo_root)
+
+    fixed_now = datetime(2025, 10, 1, 4, 15)
+
+    class _FixedDatetime(datetime):
+        @classmethod
+        def utcnow(cls):
+            return fixed_now
+
+    monkeypatch.setattr(run_daily_workflow, "datetime", _FixedDatetime)
+
+    def _failing_fetch(*_args, **_kwargs):
+        raise RuntimeError("mock provider unavailable")
+
+    monkeypatch.setattr(fetch_prices_api, "fetch_prices", _failing_fetch)
+
+    exit_code = run_daily_workflow.main(
+        [
+            "--ingest",
+            "--use-api",
+            "--symbol",
+            "USDJPY",
+            "--mode",
+            "conservative",
+            "--api-provider",
+            "mock",
+            "--api-config",
+            str(config_path),
+            "--api-credentials",
+            str(credentials_path),
+        ]
+    )
+
+    assert exit_code == 0
+
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    meta = snapshot["ingest_meta"]["USDJPY_5m"]
+    assert meta["primary_source"] == "api"
+    chain = meta["source_chain"]
+    assert chain[0]["source"] == "local_csv"
+    assert chain[-1]["source"] == "synthetic_local"
+    assert meta["synthetic_extension"] is True
+    fallbacks = meta["fallbacks"]
+    api_note = next(note for note in fallbacks if note["stage"] == "api")
+    assert "mock provider unavailable" in api_note["reason"]
+    local_note = next(note for note in fallbacks if note["stage"] == "local_csv")
+    assert Path(local_note["detail"]) == fallback_csv
+    assert local_note.get("next_source") == "synthetic_local"
+    assert meta["local_backup_path"] == str(fallback_csv)
+    assert snapshot["ingest"]["USDJPY_5m"] >= "2025-10-01T04:05:00"
+
 def test_yfinance_ingest_updates_snapshot(tmp_path, monkeypatch):
     repo_root = tmp_path / "repo"
     (repo_root / "ops/logs").mkdir(parents=True)
