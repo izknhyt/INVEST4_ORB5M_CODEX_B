@@ -174,6 +174,9 @@ def evaluate_target(
         source_chain = _normalise_string_sequence(ingest_meta.get("source_chain"))
         if source_chain:
             meta_summary["source_chain"] = source_chain
+        backup_path = ingest_meta.get("local_backup_path")
+        if isinstance(backup_path, str) and backup_path:
+            meta_summary["local_backup_path"] = backup_path
 
         result["ingest_metadata"] = meta_summary
 

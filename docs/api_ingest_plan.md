@@ -55,6 +55,7 @@ Dukascopy feed（正式運用） → 正常時は `scripts/dukascopy_fetch.py` �
 - HTTP 4xx/5xx: classify vs. retryable; log to `ops/logs/ingest_anomalies.jsonl` with `source="api"` and reason codes.
 - Data validation: reject rows missing timestamp/symbol/price; record anomaly entries and continue.
 - Persist supplementary ingestion metadata in `ops/runtime_snapshot.json.ingest_meta.<symbol>_<tf>` so operators can inspect `primary_source`, `source_chain`, `freshness_minutes`, row counts, and recorded `fallbacks`. This allows quick confirmation that a run used Dukascopy, yfinance, or local CSV/synthetic fallbacks without diffing CSV files.
+- Persist supplementary ingestion metadata in `ops/runtime_snapshot.json.ingest_meta.<symbol>_<tf>` so operators can inspect `primary_source`, `source_chain`, `freshness_minutes`, row counts, recorded `fallbacks`, and the resolved `local_backup_path` when the local CSV route is exercised. This allows quick confirmation that a run used Dukascopy, yfinance, or local CSV/synthetic fallbacks without diffing CSV files and makes it obvious which backup file was consumed.
 - Metrics (future): capture fetch duration, rows ingested, retry counts in structured log for potential Grafana ingestion.
 - Sandbox で外部フィードが利用できずローカル合成バーのみとなる場合は、`python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6` の結果を情報提供レベルとして扱い、PyPI 依存導入後に Dukascopy/yfinance の実データで再実行して閾値クリアを確認する。
 
