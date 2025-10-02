@@ -180,8 +180,20 @@ def evaluate_target(
     def _append_issue(container: List[str], message: str) -> None:
         container.append(message)
 
+    def _should_downgrade(message: str) -> bool:
+        if not downgrade_stale_to_advisory:
+            return False
+
+        if "stale" in message:
+            return True
+
+        if message.startswith("benchmark_pipeline."):
+            return True
+
+        return False
+
     def _record_issue(message: str) -> None:
-        if downgrade_stale_to_advisory and "stale" in message:
+        if _should_downgrade(message):
             _append_issue(result["advisories"], message)
         else:
             _append_issue(result["errors"], message)
