@@ -3,11 +3,12 @@
 from __future__ import annotations
 import argparse
 import csv
+import math
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Callable, Dict, Iterable, Optional
+from typing import Callable, Dict, Iterable, List, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -24,6 +25,167 @@ def _load_dukascopy_fetch() -> Callable[..., object]:
     return fetch_bars
 
 
+def _parse_naive_utc(timestamp: str) -> Optional[datetime]:
+    """Parse ISO 8601 timestamps into naive UTC datetimes."""
+
+    if not timestamp:
+        return None
+
+    value = timestamp.strip()
+    if not value:
+        return None
+
+    if value.endswith("Z"):
+        value = value[:-1] + "+00:00"
+
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+
+    return parsed
+
+
+def _load_last_validated_entry(validated_path: Path) -> Optional[Dict[str, object]]:
+    """Return the most recent validated row with parsed numeric fields."""
+
+    if not validated_path.exists():
+        return None
+
+    last_row: Optional[Dict[str, object]] = None
+    with validated_path.open(newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh)
+        for row in reader:
+            last_row = row
+
+    if not last_row:
+        return None
+
+    timestamp = _parse_naive_utc(str(last_row.get("timestamp", "")))
+    if timestamp is None:
+        return None
+
+    try:
+        return {
+            "timestamp": timestamp,
+            "symbol": str(last_row.get("symbol", "")),
+            "tf": str(last_row.get("tf", "")),
+            "o": float(last_row.get("o", 0.0)),
+            "h": float(last_row.get("h", 0.0)),
+            "l": float(last_row.get("l", 0.0)),
+            "c": float(last_row.get("c", 0.0)),
+            "v": float(last_row.get("v", 0.0) or 0.0),
+            "spread": float(last_row.get("spread", 0.0) or 0.0),
+        }
+    except Exception:
+        return None
+
+
+def _truncate_to_tf(dt_value: datetime, *, tf_minutes: int) -> datetime:
+    """Align a datetime to the timeframe boundary (floor)."""
+
+    remainder = dt_value.minute % tf_minutes
+    if remainder:
+        dt_value -= timedelta(minutes=remainder)
+    return dt_value.replace(second=0, microsecond=0)
+
+
+def _compute_synthetic_target(now: datetime, *, tf_minutes: int) -> datetime:
+    """Return the latest synthetic bar timestamp aligned to timeframe boundaries."""
+
+    guard = now - timedelta(minutes=tf_minutes)
+    aligned = _truncate_to_tf(guard, tf_minutes=tf_minutes)
+    if aligned > guard:
+        aligned -= timedelta(minutes=tf_minutes)
+    return aligned
+
+
+def _generate_synthetic_bars(
+    *,
+    base_entry: Dict[str, object],
+    target_end: datetime,
+    tf_minutes: int,
+    symbol: str,
+    tf: str,
+) -> List[Dict[str, object]]:
+    """Generate deterministic synthetic OHLCV rows up to the desired end timestamp."""
+
+    start_dt = base_entry["timestamp"] + timedelta(minutes=tf_minutes)
+    if start_dt > target_end:
+        return []
+
+    records: List[Dict[str, object]] = []
+    last_close = float(base_entry["c"])
+    spread = float(base_entry.get("spread", 0.0))
+
+    current_dt = start_dt
+    step = 1
+    while current_dt <= target_end:
+        wave = math.sin(step / 6.0) * 0.06
+        drift = math.cos(step / 14.0) * 0.04
+        open_px = last_close + wave
+        close_px = open_px + drift
+        high_px = max(open_px, close_px) + 0.01
+        low_px = min(open_px, close_px) - 0.01
+        volume = 120.0 + (step % 9) * 15.0
+
+        records.append(
+            {
+                "timestamp": current_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+                "symbol": symbol,
+                "tf": tf,
+                "o": round(open_px, 6),
+                "h": round(high_px, 6),
+                "l": round(low_px, 6),
+                "c": round(close_px, 6),
+                "v": round(volume, 6),
+                "spread": spread,
+            }
+        )
+
+        last_close = close_px
+        current_dt += timedelta(minutes=tf_minutes)
+        step += 1
+
+    return records
+
+
+def _merge_ingest_results(
+    primary: Optional[Dict[str, object]],
+    extra: Optional[Dict[str, object]],
+) -> Optional[Dict[str, object]]:
+    """Combine ingestion metadata from multiple passes."""
+
+    if primary is None:
+        return extra
+    if extra is None:
+        return primary
+
+    merged = primary.copy()
+    merged_sources = [
+        str(primary.get("source") or ""),
+        str(extra.get("source") or ""),
+    ]
+    merged["source"] = "+".join([s for s in merged_sources if s])
+
+    for key in (
+        "rows_raw",
+        "rows_validated",
+        "rows_featured",
+        "anomalies_logged",
+        "gaps_detected",
+    ):
+        merged[key] = (primary.get(key) or 0) + (extra.get(key) or 0)
+
+    if extra.get("last_ts_now"):
+        merged["last_ts_now"] = extra["last_ts_now"]
+
+    return merged
+
+
 def _ingest_local_csv_backup(
     *,
     ingest_records_func,
@@ -33,6 +195,7 @@ def _ingest_local_csv_backup(
     raw_path: Path,
     validated_path: Path,
     features_path: Path,
+    enable_synthetic: bool = True,
 ) -> Dict[str, object]:
     """Ingest bars from the bundled CSV backup for sandbox execution."""
 
@@ -44,7 +207,7 @@ def _ingest_local_csv_backup(
 
     with backup_path.open(newline="", encoding="utf-8") as fh:
         reader: Iterable[Dict[str, object]] = csv.DictReader(fh)
-        return ingest_records_func(
+        result = ingest_records_func(
             reader,
             symbol=symbol,
             tf=tf,
@@ -54,6 +217,63 @@ def _ingest_local_csv_backup(
             features_path=features_path,
             source_name=f"local_csv:{backup_path.name}",
         )
+
+    if not enable_synthetic:
+        return result
+
+    tf_minutes = 5
+    if tf.endswith("m"):
+        try:
+            tf_minutes = max(1, int(tf[:-1] or 5))
+        except ValueError:
+            tf_minutes = 5
+    elif tf.endswith("h"):
+        try:
+            tf_minutes = max(1, int(tf[:-1] or 1) * 60)
+        except ValueError:
+            tf_minutes = 60
+    now = datetime.utcnow()
+    target_end = _compute_synthetic_target(now, tf_minutes=tf_minutes)
+
+    latest_ts = _parse_naive_utc(str(result.get("last_ts_now", "")))
+    if latest_ts is None:
+        last_entry = _load_last_validated_entry(validated_path)
+        if last_entry is None:
+            return result
+    else:
+        last_entry = _load_last_validated_entry(validated_path)
+
+    if last_entry is None:
+        return result
+
+    latest_ts = last_entry["timestamp"]
+    if latest_ts >= target_end:
+        return result
+
+    synthetic_rows = _generate_synthetic_bars(
+        base_entry=last_entry,
+        target_end=target_end,
+        tf_minutes=tf_minutes,
+        symbol=symbol,
+        tf=tf,
+    )
+
+    if not synthetic_rows:
+        return result
+
+    synthetic_result = ingest_records_func(
+        synthetic_rows,
+        symbol=symbol,
+        tf=tf,
+        snapshot_path=snapshot_path,
+        raw_path=raw_path,
+        validated_path=validated_path,
+        features_path=features_path,
+        source_name="synthetic_local",
+    )
+
+    merged = _merge_ingest_results(result, synthetic_result)
+    return merged if merged is not None else result
 
 
 def run_cmd(cmd):

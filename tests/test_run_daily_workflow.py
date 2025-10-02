@@ -574,13 +574,17 @@ def test_dukascopy_failure_falls_back_to_yfinance(tmp_path, monkeypatch):
 
     monkeypatch.setattr(yfinance_fetch, "fetch_bars", fake_fetch)
 
-    ingest_meta = {}
+    ingest_calls = []
     original_ingest = pull_prices.ingest_records
 
     def _tracking_ingest(records, **kwargs):
         rows = list(records)
-        ingest_meta["rows"] = rows
-        ingest_meta["source_name"] = kwargs.get("source_name")
+        ingest_calls.append(
+            {
+                "rows": rows,
+                "source_name": kwargs.get("source_name"),
+            }
+        )
         return original_ingest(rows, **kwargs)
 
     monkeypatch.setattr(pull_prices, "ingest_records", _tracking_ingest)
@@ -601,8 +605,12 @@ def test_dukascopy_failure_falls_back_to_yfinance(tmp_path, monkeypatch):
     )
 
     assert exit_code == 0
-    assert ingest_meta["source_name"] == "yfinance"
-    assert len(ingest_meta["rows"]) == 2
+    assert ingest_calls
+    assert ingest_calls[0]["source_name"] == "yfinance"
+    assert len(ingest_calls[0]["rows"]) == 2
+    if len(ingest_calls) > 1:
+        assert ingest_calls[-1]["source_name"] == "synthetic_local"
+        assert len(ingest_calls[-1]["rows"]) == 2
 
     last_ts = datetime.fromisoformat("2025-10-01T03:55:00")
     expected_start = last_ts - timedelta(minutes=240)
@@ -793,13 +801,17 @@ def test_dukascopy_and_yfinance_missing_falls_back_to_local_csv(
 
     monkeypatch.setattr(yfinance_fetch, "fetch_bars", _missing_yfinance)
 
-    ingest_meta = {}
+    ingest_calls = []
     original_ingest = pull_prices.ingest_records
 
     def _tracking_ingest(records, **kwargs):
         rows = list(records)
-        ingest_meta["rows"] = rows
-        ingest_meta["source_name"] = kwargs.get("source_name")
+        ingest_calls.append(
+            {
+                "rows": rows,
+                "source_name": kwargs.get("source_name"),
+            }
+        )
         return original_ingest(rows, **kwargs)
 
     monkeypatch.setattr(pull_prices, "ingest_records", _tracking_ingest)
@@ -818,16 +830,19 @@ def test_dukascopy_and_yfinance_missing_falls_back_to_local_csv(
     )
 
     assert exit_code == 0
-    assert ingest_meta["source_name"].startswith("local_csv:")
-    assert len(ingest_meta["rows"]) == 5
+    assert ingest_calls
+    assert ingest_calls[0]["source_name"].startswith("local_csv:")
+    assert len(ingest_calls[0]["rows"]) == 5
+    assert ingest_calls[-1]["source_name"] == "synthetic_local"
+    assert len(ingest_calls[-1]["rows"]) == 1
 
     csv_lines = validated_csv.read_text(encoding="utf-8").splitlines()
-    assert csv_lines[-1].startswith("2025-10-03T04:20:00")
+    assert csv_lines[-1].startswith("2025-10-03T04:25:00")
 
     features_csv = repo_root / "features/USDJPY/5m.csv"
     assert features_csv.exists()
 
     snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
-    assert snapshot["ingest"]["USDJPY_5m"] == "2025-10-03T04:20:00"
+    assert snapshot["ingest"]["USDJPY_5m"] == "2025-10-03T04:25:00"
     if anomaly_log_path.exists():
         assert anomaly_log_path.read_text(encoding="utf-8").strip() == ""
