@@ -85,10 +85,13 @@ def synthetic_snapshot(snapshot_dir, fixed_now: dt.datetime) -> Path:
             "USDJPY_5m": {
                 "synthetic_extension": True,
                 "primary_source": "local_csv",
+                "freshness_minutes": 130.5,
+                "fallbacks": ["local_csv", "synthetic_local"],
                 "source_chain": [
                     {"source": "local_csv"},
                     {"source": "synthetic_local"},
                 ],
+                "last_ingest_at": "2025-01-01T10:15:00+00:00",
             }
         },
     }
@@ -145,6 +148,11 @@ def test_stale_with_synthetic_is_advisory(
     ingest_meta = checked.get("ingest_metadata")
     assert ingest_meta is not None
     assert ingest_meta["synthetic_extension"] is True
+    assert ingest_meta["primary_source"] == "local_csv"
+    assert ingest_meta["freshness_minutes"] == pytest.approx(130.5)
+    assert ingest_meta["fallbacks"] == ["local_csv", "synthetic_local"]
+    assert ingest_meta["source_chain"] == ["local_csv", "synthetic_local"]
+    assert ingest_meta["last_ingest_at"].startswith("2025-01-01T10:15:00")
 
 
 def test_cli_missing_fields_outputs_errors(missing_fields_snapshot: Path, capsys):
