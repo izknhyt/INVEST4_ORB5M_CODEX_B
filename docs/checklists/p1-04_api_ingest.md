@@ -86,4 +86,8 @@
 - `scripts/run_daily_workflow.py` が `ingest_meta` に `last_ingest_at` を記録するよう更新し、`tests/test_run_daily_workflow.py` でフィールド存在を回帰確認。
 - `check_benchmark_freshness` 出力で取得時刻を参照できるため、鮮度レビュー時にフェッチ完了タイミングを追跡しやすくなった。
 
+### 2025-11-22 Benchmarks missing downgrade
+- `scripts/check_benchmark_freshness.py` が `ingest_meta.source_chain` に `synthetic_local` を含む場合、`benchmarks.<target> missing` も `advisories` へ降格するよう更新。
+- サンドボックスでベンチマーク JSON が未生成でも `ok=true` を維持しつつ、`benchmarks.` 系メッセージを情報共有レベルに留められる。
+
 > API供給元や鍵管理ポリシーは `docs/api_ingest_plan.md` の更新と併せて、タスク完了までに最新化してください。現状は Dukascopy 主経路で運用し、REST/API は契約条件が整い次第再開します。

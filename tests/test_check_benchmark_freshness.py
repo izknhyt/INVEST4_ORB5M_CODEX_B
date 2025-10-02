@@ -126,6 +126,37 @@ def synthetic_missing_pipeline_snapshot(
     return snapshot_dir(data)
 
 
+@pytest.fixture
+def synthetic_missing_benchmarks_snapshot(
+    snapshot_dir, fixed_now: dt.datetime
+) -> Path:
+    base_ts = (fixed_now - dt.timedelta(minutes=10)).isoformat()
+    summary_ts = (fixed_now - dt.timedelta(minutes=5)).isoformat()
+    data = {
+        "benchmarks": {},
+        "benchmark_pipeline": {
+            "USDJPY_conservative": {
+                "latest_ts": base_ts,
+                "summary_generated_at": summary_ts,
+            }
+        },
+        "ingest_meta": {
+            "USDJPY_5m": {
+                "synthetic_extension": True,
+                "primary_source": "local_csv",
+                "source_chain": [
+                    {"source": "local_csv"},
+                    {"source": "synthetic_local"},
+                ],
+                "fallbacks": ["local_csv", "synthetic_local"],
+                "freshness_minutes": 55.0,
+                "last_ingest_at": "2025-01-01T11:05:00+00:00",
+            }
+        },
+    }
+    return snapshot_dir(data)
+
+
 def test_check_benchmark_freshness_ok(fresh_snapshot: Path, fixed_now: dt.datetime):
     result = check_benchmark_freshness(
         snapshot_path=fresh_snapshot,
@@ -198,6 +229,28 @@ def test_missing_pipeline_with_synthetic_is_advisory(
     assert result["advisories"]
     assert any(
         msg.startswith("benchmark_pipeline.") for msg in result["advisories"]
+    )
+
+
+def test_benchmarks_missing_with_synthetic_is_advisory(
+    synthetic_missing_benchmarks_snapshot: Path, fixed_now: dt.datetime
+):
+    result = check_benchmark_freshness(
+        snapshot_path=synthetic_missing_benchmarks_snapshot,
+        targets=["USDJPY:conservative"],
+        max_age_hours=6,
+        now=fixed_now,
+    )
+
+    assert result["ok"] is True
+    assert result["errors"] == []
+    assert any(
+        msg.startswith("benchmarks.") for msg in result["advisories"]
+    )
+    checked = result["checked"][0]
+    assert checked["errors"] == []
+    assert any(
+        msg.startswith("benchmarks.") for msg in checked["advisories"]
     )
 
 
