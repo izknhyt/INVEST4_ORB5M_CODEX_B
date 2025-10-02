@@ -75,9 +75,9 @@ def test_live_worker_ingests_without_duplicates(monkeypatch, tmp_path):
     ]
     duk_calls = []
 
-    def fake_dukascopy(symbol, tf, start, end):
+    def fake_dukascopy(symbol, tf, *, start, end, offer_side):
         idx = min(len(duk_calls), len(records_seq) - 1)
-        duk_calls.append((symbol, start, end))
+        duk_calls.append((symbol, start, end, offer_side))
         return list(records_seq[idx])
 
     monkeypatch.setattr(worker, "_load_dukascopy_records", fake_dukascopy)
@@ -127,6 +127,7 @@ def test_live_worker_ingests_without_duplicates(monkeypatch, tmp_path):
         "2024-01-01T00:10:00",
     ]
     assert len(updates) == 2
+    assert all(call[3] == "bid" for call in duk_calls)
 
 
 def test_live_worker_fallback_to_yfinance(monkeypatch, tmp_path):

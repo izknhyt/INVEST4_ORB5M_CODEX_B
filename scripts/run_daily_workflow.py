@@ -362,6 +362,10 @@ def _prepare_ingest_metadata(
 
     metadata["last_ingest_at"] = _format_utc_iso(now)
 
+    offer_side = result.get("dukascopy_offer_side")
+    if offer_side:
+        metadata["dukascopy_offer_side"] = str(offer_side)
+
     if fallback_notes:
         metadata["fallbacks"] = fallback_notes
 
@@ -458,6 +462,12 @@ def main(argv=None) -> int:
         type=int,
         default=180,
         help="Minutes of history to re-request when using Dukascopy ingestion",
+    )
+    parser.add_argument(
+        "--dukascopy-offer-side",
+        default="bid",
+        choices=["bid", "ask"],
+        help="Offer side (bid/ask) requested from Dukascopy",
     )
     parser.add_argument(
         "--yfinance-lookback-minutes",
@@ -636,12 +646,14 @@ def main(argv=None) -> int:
             else:
                 start = now - timedelta(minutes=lookback)
 
+            offer_side = (args.dukascopy_offer_side or "bid").lower()
             print(
                 "[wf] fetching Dukascopy bars",
                 args.symbol,
                 tf,
                 start.isoformat(timespec="seconds"),
                 now.isoformat(timespec="seconds"),
+                f"offer_side={offer_side}",
             )
 
             dukascopy_records = []
@@ -653,6 +665,7 @@ def main(argv=None) -> int:
                             tf,
                             start=start,
                             end=now,
+                            offer_side=offer_side,
                         )
                     )
                 except Exception as exc:
@@ -824,6 +837,8 @@ def main(argv=None) -> int:
             )
 
             finish_now = datetime.utcnow()
+            if isinstance(result, dict) and offer_side:
+                result.setdefault("dukascopy_offer_side", offer_side)
             _persist_ingest_metadata(
                 symbol=symbol_upper,
                 tf=tf,

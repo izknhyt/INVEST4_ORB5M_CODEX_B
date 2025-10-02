@@ -25,6 +25,7 @@ python3 scripts/run_daily_workflow.py --ingest --update-state --benchmarks --sta
   - 取り込み: `python3 scripts/pull_prices.py --source data/usdjpy_5m_2018-2024_utc.csv`
   - Dukascopy 経由（標準経路）: `python3 -m scripts.run_daily_workflow --ingest --use-dukascopy --symbol USDJPY --mode conservative`
     - 失敗時や取得データが `--dukascopy-freshness-threshold-minutes`（既定 90 分）より古い場合は自動で yfinance (`period="7d"`) へ切替。フォールバック時は `--yfinance-lookback-minutes`（既定 60 分）で再取得ウィンドウを決めるため、長期停止後に再開する際は値を大きめに設定してから実行する。`pip install dukascopy-python yfinance` を事前に実行して依存を満たす。
+    - BID/ASK の取得側は `--dukascopy-offer-side` で切り替え可能（既定 BID）。取得サイドは `ops/runtime_snapshot.json.ingest_meta.<symbol>_<tf>.dukascopy_offer_side` に保存されるため、アラート調査時はメタデータで確認する。
     - ローカル CSV フォールバックで利用するファイルは `--local-backup-csv data/usdjpy_5m_2025.csv` のように明示指定できる。Sandbox で最新のバックフィルを持ち込む場合や別シンボルを検証したい場合は、対象 CSV を `data/` 以下へ配置してからフラグで差し替える。
     - 実行後は `ops/runtime_snapshot.json.ingest.USDJPY_5m` の更新時刻と `ops/logs/ingest_anomalies.jsonl` を確認し、鮮度が 90 分超で推移する場合は閾値見直しや手動調査を実施する。
     - `ops/runtime_snapshot.json.ingest_meta.USDJPY_5m` に補助メタデータが保存される。`primary_source`（実行フラグ）、`source_chain`（実際に利用したデータソース。例: `dukascopy` → `yfinance` → `local_csv` → `synthetic_local`）、`freshness_minutes`（`datetime.utcnow()` との差分）、`rows_validated` / `rows_raw` / `rows_featured`、`fallbacks`（発生したフォールバックの理由と次のソース）、`synthetic_extension`（ローカル合成バーで補完したか）をレビューし、Sandbox で `synthetic_extension=true` の場合は依存導入後に実データで再実行する。
@@ -50,6 +51,7 @@ python3 scripts/run_daily_workflow.py --ingest --update-state --benchmarks --sta
 - `python3 scripts/live_ingest_worker.py --symbols USDJPY --modes conservative --interval 300`
   - Dukascopy から 5 分足を再取得し `pull_prices.ingest_records` を通過させたのち、指定したモードで `scripts/update_state.py` を呼び出す。
   - `--raw-root` / `--validated-root` / `--features-root` / `--snapshot` で保存先を切り替え可能。テスト時はテンポラリディレクトリを指定する。
+  - BID/ASK の取得側は `--offer-side` で切替（既定 BID）。CLI ログと `ingest_meta` に保存される `dukascopy_offer_side` を確認する。
 - 監視ポイント
   - `ops/runtime_snapshot.json.ingest.<SYMBOL>_5m`: 直近バー時刻が遅延していないか（90 分以上の乖離は yfinance フォールバック検討）。
   - `ops/logs/ingest_anomalies.jsonl`: 非単調・欠損・整合性エラーが出力されていないか（記録が出た場合は原因特定後に再実行）。
