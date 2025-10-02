@@ -24,6 +24,7 @@ python3 scripts/run_daily_workflow.py --ingest --update-state --benchmarks --sta
 - 個別の実行例
   - 取り込み: `python3 scripts/pull_prices.py --source data/usdjpy_5m_2018-2024_utc.csv`
   - Dukascopy 経由（標準経路）: `python3 -m scripts.run_daily_workflow --ingest --use-dukascopy --symbol USDJPY --mode conservative`
+    - 必要に応じて `--dukascopy-offer-side {bid,ask}` で BID/ASK サイドを切替えられる。選択内容は `ops/runtime_snapshot.json.ingest_meta.USDJPY_5m.primary_parameters.offer_side` に保存され、レビュー時に確認可能。
     - 失敗時や取得データが `--dukascopy-freshness-threshold-minutes`（既定 90 分）より古い場合は自動で yfinance (`period="7d"`) へ切替。フォールバック時は `--yfinance-lookback-minutes`（既定 60 分）で再取得ウィンドウを決めるため、長期停止後に再開する際は値を大きめに設定してから実行する。`pip install dukascopy-python yfinance` を事前に実行して依存を満たす。
     - ローカル CSV フォールバックで利用するファイルは `--local-backup-csv data/usdjpy_5m_2025.csv` のように明示指定できる。Sandbox で最新のバックフィルを持ち込む場合や別シンボルを検証したい場合は、対象 CSV を `data/` 以下へ配置してからフラグで差し替える。
     - 実行後は `ops/runtime_snapshot.json.ingest.USDJPY_5m` の更新時刻と `ops/logs/ingest_anomalies.jsonl` を確認し、鮮度が 90 分超で推移する場合は閾値見直しや手動調査を実施する。

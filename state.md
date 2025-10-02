@@ -38,6 +38,7 @@
   - 2025-11-18: Sandbox で `benchmark_pipeline.*` が欠損しても `ingest_meta.source_chain` に `synthetic_local` が含まれていれば `check_benchmark_freshness` が `advisories` を返すよう拡張。`tests/test_check_benchmark_freshness.py` に欠損ケースの回帰を追加し、`docs/benchmark_runbook.md` / `docs/checklists/p1-04_api_ingest.md` を更新して `ok=true` + `advisories` の扱いを明文化。
   - 2025-11-19: `scripts/run_daily_workflow.py` に `--local-backup-csv` を追加し、ローカル CSV フォールバックで利用するファイルを差し替え可能にした。Sandbox で最新バックフィルを持ち込む際の運用ガイド（README / state runbook / API ingest plan）も更新し、`tests/test_run_daily_workflow.py` にカスタム CSV 指定の回帰を追加。
   - 2025-11-20: `scripts/run_daily_workflow.py` が `ingest_meta` へ `last_ingest_at` を保存するように調整。`tests/test_run_daily_workflow.py` でフィールドを検証し、`check_benchmark_freshness` の出力から取得時刻を参照できるようになった。
+  - 2025-11-21: `scripts/run_daily_workflow.py` に `--dukascopy-offer-side` を追加し、BID/ASK サイドを CLI から選択できるようにした。選択値は `ingest_meta.primary_parameters.offer_side` に保持され、`tests/test_run_daily_workflow.py::test_dukascopy_offer_side_metadata` で回帰を追加。README / state runbook / task backlog に手順を反映済み。
   - 2025-11-08: `run_daily_workflow.py --ingest --use-dukascopy` 実行時に `dukascopy_python` が未導入でも yfinance フォールバックで継続できるようにし、pytest (`tests/test_run_daily_workflow.py::test_dukascopy_missing_dependency_falls_back_to_yfinance`) で回帰確認。
   - 2025-11-09: yfinance フォールバック時に `--yfinance-lookback-minutes` を参照して再取得ウィンドウを決定するよう更新。冗長な再処理を抑えつつ長期停止後に手動調整できるよう、README / state runbook / 回帰テスト / backlog メモを同期。
 

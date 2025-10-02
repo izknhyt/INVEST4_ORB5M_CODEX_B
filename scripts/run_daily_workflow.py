@@ -335,6 +335,7 @@ def _prepare_ingest_metadata(
     fallback_notes: List[Dict[str, str]],
     primary_source: str,
     now: datetime,
+    primary_parameters: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Assemble structured ingestion metadata for persistence."""
 
@@ -369,6 +370,12 @@ def _prepare_ingest_metadata(
         entry.get("source") == "synthetic_local" for entry in source_chain
     )
 
+    if primary_parameters:
+        metadata["primary_parameters"] = {
+            key: primary_parameters[key]
+            for key in sorted(primary_parameters)
+        }
+
     return metadata
 
 
@@ -381,6 +388,7 @@ def _persist_ingest_metadata(
     fallback_notes: List[Dict[str, str]],
     primary_source: str,
     now: datetime,
+    primary_parameters: Optional[Dict[str, Any]] = None,
 ) -> None:
     metadata = _prepare_ingest_metadata(
         symbol=symbol,
@@ -390,6 +398,7 @@ def _persist_ingest_metadata(
         fallback_notes=fallback_notes,
         primary_source=primary_source,
         now=now,
+        primary_parameters=primary_parameters,
     )
     if not metadata:
         return
@@ -458,6 +467,12 @@ def main(argv=None) -> int:
         type=int,
         default=180,
         help="Minutes of history to re-request when using Dukascopy ingestion",
+    )
+    parser.add_argument(
+        "--dukascopy-offer-side",
+        default="bid",
+        choices=["bid", "ask"],
+        help="Offer side to request when pulling Dukascopy bars",
     )
     parser.add_argument(
         "--yfinance-lookback-minutes",
@@ -653,6 +668,7 @@ def main(argv=None) -> int:
                             tf,
                             start=start,
                             end=now,
+                            offer_side=args.dukascopy_offer_side,
                         )
                     )
                 except Exception as exc:
@@ -832,6 +848,7 @@ def main(argv=None) -> int:
                 fallback_notes=fallback_notes,
                 primary_source="dukascopy",
                 now=finish_now,
+                primary_parameters={"offer_side": args.dukascopy_offer_side},
             )
         elif args.use_yfinance:
             try:

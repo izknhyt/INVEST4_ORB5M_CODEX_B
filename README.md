@@ -130,7 +130,7 @@ python3 scripts/run_sim.py --csv data/ohlc5m.csv --symbol USDJPY --json-out out.
 
 ### オンデマンドインジェスト CLI
 - `scripts/pull_prices.py` はヒストリカルCSV（またはAPIエクスポート）から未処理バーを検出し、`raw/`→`validated/`→`features/` に冪等に追記する。
-- `python3 scripts/run_daily_workflow.py --ingest --use-dukascopy` が現在の標準経路。Dukascopy から最新5mバーを取得し、そのまま `pull_prices.ingest_records` に渡して CSV/特徴量を同期する。Dukascopy が失敗するか、取得した最終バーが `--dukascopy-freshness-threshold-minutes`（既定 90 分）より古い場合は自動で yfinance (`period="7d"`) へ切り替わり、`--yfinance-lookback-minutes`（既定 60 分）を基準に再取得ウィンドウを決めつつ同一の CSV/特徴量更新が継続する。詳細なフォールバック手順は [docs/api_ingest_plan.md](docs/api_ingest_plan.md) を参照。
+- `python3 scripts/run_daily_workflow.py --ingest --use-dukascopy` が現在の標準経路。Dukascopy から最新5mバーを取得し、そのまま `pull_prices.ingest_records` に渡して CSV/特徴量を同期する。Dukascopy が失敗するか、取得した最終バーが `--dukascopy-freshness-threshold-minutes`（既定 90 分）より古い場合は自動で yfinance (`period="7d"`) へ切り替わり、`--yfinance-lookback-minutes`（既定 60 分）を基準に再取得ウィンドウを決めつつ同一の CSV/特徴量更新が継続する。必要に応じて `--dukascopy-offer-side {bid,ask}` で BID/ASK を切り替えられ、選択したサイドは `ops/runtime_snapshot.json.ingest_meta.<symbol>_<tf>.primary_parameters` に記録される。詳細なフォールバック手順は [docs/api_ingest_plan.md](docs/api_ingest_plan.md) を参照。
 - 依存ライブラリ（任意導入）: `pip install dukascopy-python yfinance`。フォールバック経路では Yahoo Finance のシンボル変換（例: USDJPY→JPY=X）が自動適用される。
 - Sandbox では企業プロキシが PyPI への直接接続を遮断するため、上記ライブラリはホワイトリスト登録後に `pip install` するか、事前にダウンロードしたホイール (`pip install dukascopy_python-*.whl yfinance-*.whl`) で導入する。未導入の場合は自動でローカル CSV → `synthetic_local` のフォールバックに切り替わり `ops/runtime_snapshot.json.ingest` を最新 5 分境界まで補完する。この間の運用メモは [readme/設計方針（投資_3_）v_1.md](readme/設計方針（投資_3_）v_1.md#sandbox-known-limitations) の Sandbox Known Limitations を参照。
 - フォールバックに使用するローカル CSV は `--local-backup-csv path/to.csv` で差し替え可能。複数シンボルや最新バックフィル済みのアーカイブを使いたい場合は、対象 CSV をリポジトリ配下へ配置してからフラグで指定する。
@@ -150,7 +150,7 @@ python3 scripts/pull_prices.py --source data/usdjpy_5m_2018-2024_utc.csv --symbo
 
 ```
 python3 -m scripts.run_daily_workflow \
-  --ingest --use-dukascopy --symbol USDJPY --mode conservative
+  --ingest --use-dukascopy --symbol USDJPY --mode conservative --dukascopy-offer-side bid
 ```
 
 API 再開時の例（プレミアム契約または別 API が利用可能になったときに有効化）:

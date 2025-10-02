@@ -672,6 +672,7 @@ def test_dukascopy_failure_falls_back_to_yfinance(tmp_path, monkeypatch):
     dukascopy_note = next(note for note in fallbacks if note["stage"] == "dukascopy")
     assert "dukascopy outage" in dukascopy_note["reason"]
     assert meta["last_ingest_at"] == fixed_now.replace(tzinfo=timezone.utc).isoformat()
+    assert meta["primary_parameters"]["offer_side"] == "bid"
 
 
 def test_dukascopy_missing_dependency_falls_back_to_yfinance(tmp_path, monkeypatch):
@@ -796,6 +797,7 @@ def test_dukascopy_missing_dependency_falls_back_to_yfinance(tmp_path, monkeypat
     assert meta["last_ingest_at"] == fixed_now.replace(tzinfo=timezone.utc).isoformat()
     if anomaly_log_path.exists():
         assert anomaly_log_path.read_text(encoding="utf-8").strip() == ""
+    assert meta["primary_parameters"]["offer_side"] == "bid"
 
 
 def test_dukascopy_and_yfinance_missing_falls_back_to_local_csv(
@@ -916,6 +918,112 @@ def test_dukascopy_and_yfinance_missing_falls_back_to_local_csv(
     assert any(note["stage"] == "dukascopy" for note in fallbacks)
     assert any(note["stage"] == "yfinance" for note in fallbacks)
     assert meta["last_ingest_at"] == fixed_now.replace(tzinfo=timezone.utc).isoformat()
+    assert meta["primary_parameters"]["offer_side"] == "bid"
+
+
+def test_dukascopy_offer_side_metadata(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    (repo_root / "ops/logs").mkdir(parents=True)
+    (repo_root / "raw").mkdir()
+    (repo_root / "validated/USDJPY").mkdir(parents=True)
+    (repo_root / "features/USDJPY").mkdir(parents=True)
+
+    snapshot_path = repo_root / "ops/runtime_snapshot.json"
+    snapshot_path.write_text(
+        json.dumps({"ingest": {"USDJPY_5m": "2025-10-01T04:00:00"}}),
+        encoding="utf-8",
+    )
+
+    validated_csv = repo_root / "validated/USDJPY/5m.csv"
+    validated_csv.write_text(
+        "timestamp,symbol,tf,o,h,l,c,v,spread\n"
+        "2025-10-01T04:00:00,USDJPY,5m,148.00,148.02,147.98,148.01,120,0\n",
+        encoding="utf-8",
+    )
+
+    from scripts import pull_prices
+
+    anomaly_log_path = repo_root / "ops/logs/ingest_anomalies.jsonl"
+    monkeypatch.setattr(pull_prices, "ANOMALY_LOG", anomaly_log_path)
+    monkeypatch.setattr(run_daily_workflow, "ROOT", repo_root)
+
+    fixed_now = datetime(2025, 10, 1, 5, 0)
+
+    class _FixedDatetime(datetime):
+        @classmethod
+        def utcnow(cls):
+            return fixed_now
+
+        @classmethod
+        def fromisoformat(cls, value):
+            return datetime.fromisoformat(value)
+
+    monkeypatch.setattr(run_daily_workflow, "datetime", _FixedDatetime)
+
+    capture = {}
+
+    def fake_fetch(symbol, tf, *, start, end, offer_side):
+        capture["symbol"] = symbol
+        capture["tf"] = tf
+        capture["start"] = start
+        capture["end"] = end
+        capture["offer_side"] = offer_side
+        return [
+            {
+                "timestamp": "2025-10-01T04:05:00",
+                "symbol": symbol,
+                "tf": tf,
+                "o": 148.02,
+                "h": 148.06,
+                "l": 147.99,
+                "c": 148.04,
+                "v": 130.0,
+                "spread": 0.0,
+            },
+            {
+                "timestamp": "2025-10-01T04:55:00",
+                "symbol": symbol,
+                "tf": tf,
+                "o": 148.05,
+                "h": 148.09,
+                "l": 148.01,
+                "c": 148.07,
+                "v": 135.0,
+                "spread": 0.0,
+            },
+        ]
+
+    monkeypatch.setattr(dukascopy_fetch, "fetch_bars", fake_fetch)
+
+    exit_code = run_daily_workflow.main(
+        [
+            "--ingest",
+            "--use-dukascopy",
+            "--symbol",
+            "USDJPY",
+            "--mode",
+            "conservative",
+            "--dukascopy-lookback-minutes",
+            "120",
+            "--dukascopy-offer-side",
+            "ask",
+        ]
+    )
+
+    assert exit_code == 0
+    assert capture["offer_side"] == "ask"
+    assert capture["symbol"] == "USDJPY"
+    assert capture["tf"] == "5m"
+    assert capture["end"] == fixed_now
+
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    meta = snapshot["ingest_meta"]["USDJPY_5m"]
+    assert meta["primary_source"] == "dukascopy"
+    assert meta["primary_parameters"]["offer_side"] == "ask"
+    assert meta["freshness_minutes"] == pytest.approx(5.0)
+    chain_sources = [entry["source"] for entry in meta["source_chain"]]
+    assert chain_sources[0] == "dukascopy"
+    assert not meta.get("fallbacks")
 
 
 def test_local_csv_fallback_accepts_custom_backup(tmp_path, monkeypatch):
