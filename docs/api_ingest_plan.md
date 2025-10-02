@@ -3,14 +3,14 @@
 ## 1. Scope
 - Target: USDJPY 5m bars (extensible interface for additional symbols/timeframes).
 - Usage context: personal workflow prioritizing free-tier APIs (e.g., Alpha Vantage, Twelve Data) with rate limits around 5 req/min・500 req/day; design should conserve quota and clarify upgrade paths if limits are exceeded.
-- 2025-10 Update: Alpha Vantage FX_INTRADAY がプレミアム専用のため REST/API 連携は保留。運用は Dukascopy → `ingest_records` のルートを標準とし、無料APIはフォールバック候補として仕様を維持する。2025-11 時点では Dukascopy 失敗/鮮度低下検知時に yfinance (`period="7d"`) へ自動切替するフェイルオーバーを `run_daily_workflow.py` 内へ組み込む。
+- 2025-10 Update: Alpha Vantage FX_INTRADAY がプレミアム専用のため REST/API 連携は保留。運用は Dukascopy → `ingest_records` のルートを標準とし、無料APIはフォールバック候補として仕様を維持する。2025-11 時点では Dukascopy 失敗/鮮度低下検知時に yfinance (`period="7d"`) へ自動切替するフェイルオーバーを `run_daily_workflow.py` 内へ組み込む。CLI 手順と依存導入メモは [README.md#オンデマンドインジェスト-cli](../README.md#オンデマンドインジェスト-cli) を参照。
 - Goals:
   - Acquire recent bars from external REST (phase 1) and prepare for Streaming integration.
   - Feed the results into the existing `pull_prices.py` pipeline without manual CSV steps.
   - Ensure `run_daily_workflow.py --ingest` keeps `raw/`, `validated/`, `features/` and `ops/runtime_snapshot.json.ingest` up to date so freshness checks stay within 6h.
 
 ## 2. Data Flow
-Dukascopy feed（正式運用） → 正常時は `scripts/dukascopy_fetch.py` → normalized bar iterator → `pull_prices.ingest_records` → CSV append (`raw`/`validated`/`features`) → snapshot/anomaly logging。フェイルオーバー条件（例: 90 分超の鮮度遅延/取得失敗）に該当した場合は自動で `scripts/yfinance_fetch.py` (`period="7d"`, シンボル正規化付き) を呼び出し同フローに合流する。両方の外部依存が利用できない Sandbox では、ローカル CSV → `synthetic_local` 合成バー生成のチェーンで `ops/runtime_snapshot.json.ingest` を最新 5 分境界まで引き上げる。REST API provider（保留中）も同じインターフェースに揃える。
+Dukascopy feed（正式運用） → 正常時は `scripts/dukascopy_fetch.py` → normalized bar iterator → `pull_prices.ingest_records` → CSV append (`raw`/`validated`/`features`) → snapshot/anomaly logging。フェイルオーバー条件（例: 90 分超の鮮度遅延/取得失敗）に該当した場合は自動で `scripts/yfinance_fetch.py` (`period="7d"`, シンボル正規化付き) を呼び出し同フローに合流する。両方の外部依存が利用できない Sandbox では、ローカル CSV → `synthetic_local` 合成バー生成のチェーンで `ops/runtime_snapshot.json.ingest` を最新 5 分境界まで引き上げる。この制約と対応策は [readme/設計方針（投資_3_）v_1.md#sandbox-known-limitations](../readme/設計方針（投資_3_）v_1.md#sandbox-known-limitations) でも追跡する。REST API provider（保留中）も同じインターフェースに揃える。
 
 ## 3. Modules & Interfaces
 - `scripts/fetch_prices_api.py`
@@ -52,6 +52,7 @@ Dukascopy feed（正式運用） → 正常時は `scripts/dukascopy_fetch.py` �
 - HTTP 4xx/5xx: classify vs. retryable; log to `ops/logs/ingest_anomalies.jsonl` with `source="api"` and reason codes.
 - Data validation: reject rows missing timestamp/symbol/price; record anomaly entries and continue.
 - Metrics (future): capture fetch duration, rows ingested, retry counts in structured log for potential Grafana ingestion.
+- Sandbox で外部フィードが利用できずローカル合成バーのみとなる場合は、`python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6` の結果を情報提供レベルとして扱い、PyPI 依存導入後に Dukascopy/yfinance の実データで再実行して閾値クリアを確認する。
 
 ## 6. Testing Strategy
 - Unit tests:
