@@ -103,6 +103,36 @@ def _metadata_indicates_synthetic(meta: Dict[str, Any]) -> bool:
     return False
 
 
+def _coerce_freshness_minutes(value: Any) -> Optional[float]:
+    """Return a float representation of *value* when possible."""
+
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _normalise_string_sequence(values: Any) -> List[str]:
+    """Return a list of string entries extracted from *values*."""
+
+    if not isinstance(values, list):
+        return []
+
+    result: List[str] = []
+    for item in values:
+        if isinstance(item, str) and item:
+            result.append(item)
+        elif isinstance(item, dict):
+            source = item.get("source")
+            if isinstance(source, str) and source:
+                result.append(source)
+    return result
+
+
 def evaluate_target(
     snapshot: Dict[str, Any],
     target: str,
@@ -124,10 +154,28 @@ def evaluate_target(
     if ingest_meta_key:
         result["ingest_meta_key"] = ingest_meta_key
     if ingest_meta is not None:
-        result["ingest_metadata"] = {
+        meta_summary: Dict[str, Any] = {
             "synthetic_extension": bool(ingest_meta.get("synthetic_extension")),
             "primary_source": ingest_meta.get("primary_source"),
         }
+
+        freshness_minutes = _coerce_freshness_minutes(
+            ingest_meta.get("freshness_minutes")
+        )
+        if freshness_minutes is not None:
+            meta_summary["freshness_minutes"] = freshness_minutes
+        last_ingest_at = ingest_meta.get("last_ingest_at")
+        if isinstance(last_ingest_at, str) and last_ingest_at:
+            meta_summary["last_ingest_at"] = last_ingest_at
+
+        fallbacks = _normalise_string_sequence(ingest_meta.get("fallbacks"))
+        if fallbacks:
+            meta_summary["fallbacks"] = fallbacks
+        source_chain = _normalise_string_sequence(ingest_meta.get("source_chain"))
+        if source_chain:
+            meta_summary["source_chain"] = source_chain
+
+        result["ingest_metadata"] = meta_summary
 
     def _append_issue(container: List[str], message: str) -> None:
         container.append(message)
