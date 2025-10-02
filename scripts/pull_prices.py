@@ -47,6 +47,12 @@ VALIDATED_HEADER = RAW_HEADER.copy()
 FEATURE_HEADER = RAW_HEADER + ["atr14", "adx14", "or_high", "or_low", "rv12"]
 
 
+def _utcnow_iso() -> str:
+    """Return the current UTC time in ISO format (seconds precision)."""
+
+    return datetime.utcnow().replace(microsecond=0).isoformat()
+
+
 def _load_snapshot(path: Path) -> dict:
     if not path.exists():
         return {}
@@ -68,6 +74,25 @@ def _parse_ts(value: str) -> datetime:
         value,
         fallback_formats=("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"),
     )
+
+
+def record_ingest_metadata(
+    symbol: str,
+    tf: str,
+    metadata: Dict[str, object],
+    *,
+    snapshot_path: Path = SNAPSHOT_PATH,
+) -> None:
+    """Persist supplementary ingestion metadata to the runtime snapshot."""
+
+    snapshot_path = Path(snapshot_path)
+    snapshot = _load_snapshot(snapshot_path)
+    key = f"{symbol}_{tf}"
+    ingest_meta = snapshot.setdefault("ingest_meta", {})
+    payload = dict(metadata)
+    payload["updated_at"] = _utcnow_iso()
+    ingest_meta[key] = payload
+    _save_snapshot(snapshot_path, snapshot)
 
 
 def _last_ts_from_snapshot(snapshot: dict, key: str) -> Optional[datetime]:

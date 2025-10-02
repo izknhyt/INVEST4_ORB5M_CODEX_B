@@ -30,6 +30,7 @@
   - 2025-11-06 06:30Z: 暗号化ストレージ（Vault/SOPS/gpg）必須・環境変数注入/同期手順を明文化し、ローテーション記録フローを追記。
 - [x] `configs/api_ingest.yml` の `credential_rotation` セクションへ最新情報を反映し、更新履歴を `docs/state_runbook.md` または運用ログへ追記した（ローテーション実施時にチェック）。
   - 2025-11-06 06:30Z: `cadence_days`/`next_rotation_at`/`owner` などのプレースホルダと記録メモを追加。ローテーション実績は checklist で追跡。
+- [x] `ops/runtime_snapshot.json.ingest_meta` にフェッチソース・フォールバック理由・`freshness_minutes` を記録し、runbook/README でレビュー手順と `synthetic_extension` の扱いを明文化した。
 
 ## 成果物とログ更新
 - [x] `docs/state_runbook.md` と `README.md` のインジェスト手順を更新した（yfinance フェイルオーバー・依存導入・鮮度閾値レビューを記載）。

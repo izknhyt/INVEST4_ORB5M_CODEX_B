@@ -332,6 +332,15 @@ def test_api_ingest_updates_snapshot(tmp_path, monkeypatch):
     assert snapshot["ingest"]["USDJPY_5m"] == "2025-01-01T00:30:00"
     assert not anomaly_log_path.exists()
 
+    meta = snapshot["ingest_meta"]["USDJPY_5m"]
+    assert meta["primary_source"] == "api"
+    assert meta["source_chain"] == [{"source": "api"}]
+    assert meta["rows_validated"] == 2
+    assert meta["freshness_minutes"] == pytest.approx(0.0)
+    assert meta["synthetic_extension"] is False
+    assert "fallbacks" not in meta
+    assert meta["snapshot_path"] == str(snapshot_path)
+
 
 def test_yfinance_ingest_updates_snapshot(tmp_path, monkeypatch):
     repo_root = tmp_path / "repo"
@@ -422,6 +431,14 @@ def test_yfinance_ingest_updates_snapshot(tmp_path, monkeypatch):
     snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
     assert snapshot["ingest"]["USDJPY_5m"] == "2025-10-01T04:05:00"
 
+    meta = snapshot["ingest_meta"]["USDJPY_5m"]
+    assert meta["primary_source"] == "yfinance"
+    assert [entry["source"] for entry in meta["source_chain"]] == ["yfinance"]
+    assert meta["rows_validated"] == 2
+    assert meta["freshness_minutes"] == pytest.approx(15.0)
+    assert meta["synthetic_extension"] is False
+    assert "fallbacks" not in meta
+
 
 def test_yfinance_ingest_accepts_suffix_symbol(tmp_path, monkeypatch):
     repo_root = tmp_path / "repo"
@@ -492,6 +509,18 @@ def test_yfinance_ingest_accepts_suffix_symbol(tmp_path, monkeypatch):
 
     assert exit_code == 0
     assert captured["symbol"] == "USDJPY"
+
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    meta = snapshot["ingest_meta"]["USDJPY_5m"]
+    assert meta["primary_source"] == "yfinance"
+    chain = meta["source_chain"]
+    assert chain[0]["source"] == "local_csv"
+    assert chain[0]["detail"] == fallback_csv.name
+    assert chain[-1]["source"] == "synthetic_local"
+    assert meta["synthetic_extension"] is True
+    assert meta["rows_validated"] == 4
+    assert meta["freshness_minutes"] == pytest.approx(5.0)
+    assert any(note["stage"] == "yfinance" for note in meta["fallbacks"])
 
 
 def test_dukascopy_failure_falls_back_to_yfinance(tmp_path, monkeypatch):
@@ -627,6 +656,19 @@ def test_dukascopy_failure_falls_back_to_yfinance(tmp_path, monkeypatch):
     assert snapshot["ingest"]["USDJPY_5m"] == "2025-10-01T04:05:00"
     assert not anomaly_log_path.exists()
 
+    meta = snapshot["ingest_meta"]["USDJPY_5m"]
+    assert meta["primary_source"] == "dukascopy"
+    chain_sources = [entry["source"] for entry in meta["source_chain"]]
+    assert "yfinance" in chain_sources
+    if meta["synthetic_extension"]:
+        assert chain_sources[-1] == "synthetic_local"
+    assert meta["rows_validated"] >= 2
+    assert meta["freshness_minutes"] == pytest.approx(15.0)
+    fallbacks = meta["fallbacks"]
+    assert any(note["stage"] == "dukascopy" for note in fallbacks)
+    dukascopy_note = next(note for note in fallbacks if note["stage"] == "dukascopy")
+    assert "dukascopy outage" in dukascopy_note["reason"]
+
 
 def test_dukascopy_missing_dependency_falls_back_to_yfinance(tmp_path, monkeypatch):
     repo_root = tmp_path / "repo"
@@ -738,6 +780,15 @@ def test_dukascopy_missing_dependency_falls_back_to_yfinance(tmp_path, monkeypat
 
     snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
     assert snapshot["ingest"]["USDJPY_5m"] == "2025-10-02T04:30:00"
+    meta = snapshot["ingest_meta"]["USDJPY_5m"]
+    assert meta["primary_source"] == "dukascopy"
+    chain_sources = [entry["source"] for entry in meta["source_chain"]]
+    assert "yfinance" in chain_sources
+    assert meta["freshness_minutes"] == pytest.approx(0.0)
+    assert meta["rows_validated"] >= 7
+    fallbacks = meta["fallbacks"]
+    dukascopy_note = next(note for note in fallbacks if note["stage"] == "dukascopy")
+    assert "dukascopy_python is required" in dukascopy_note["reason"]
     if anomaly_log_path.exists():
         assert anomaly_log_path.read_text(encoding="utf-8").strip() == ""
 
@@ -846,3 +897,16 @@ def test_dukascopy_and_yfinance_missing_falls_back_to_local_csv(
     assert snapshot["ingest"]["USDJPY_5m"] == "2025-10-03T04:25:00"
     if anomaly_log_path.exists():
         assert anomaly_log_path.read_text(encoding="utf-8").strip() == ""
+
+    meta = snapshot["ingest_meta"]["USDJPY_5m"]
+    assert meta["primary_source"] == "dukascopy"
+    chain = meta["source_chain"]
+    assert chain[0]["source"] == "local_csv"
+    assert chain[0]["detail"] == fallback_csv.name
+    assert chain[-1]["source"] == "synthetic_local"
+    assert meta["synthetic_extension"] is True
+    assert meta["rows_validated"] >= 6
+    assert meta["freshness_minutes"] == pytest.approx(5.0)
+    fallbacks = meta["fallbacks"]
+    assert any(note["stage"] == "dukascopy" for note in fallbacks)
+    assert any(note["stage"] == "yfinance" for note in fallbacks)

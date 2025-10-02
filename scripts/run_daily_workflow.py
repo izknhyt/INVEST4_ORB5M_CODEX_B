@@ -8,7 +8,7 @@ import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -276,6 +276,137 @@ def _ingest_local_csv_backup(
     return merged if merged is not None else result
 
 
+def _split_source_chain(source_text: Optional[str]) -> List[Dict[str, str]]:
+    """Break a merged source string into structured entries."""
+
+    if not source_text:
+        return []
+
+    entries: List[Dict[str, str]] = []
+    for raw in source_text.split("+"):
+        piece = raw.strip()
+        if not piece:
+            continue
+        if ":" in piece:
+            label, detail = piece.split(":", 1)
+            item = {"source": label.strip() or piece}
+            detail = detail.strip()
+            if detail:
+                item["detail"] = detail
+        else:
+            item = {"source": piece}
+        entries.append(item)
+    return entries
+
+
+def _compute_freshness_minutes(last_ts_raw: Optional[str], now: datetime) -> Optional[float]:
+    """Return the freshness delta in minutes between now and the last timestamp."""
+
+    parsed = _parse_naive_utc(last_ts_raw or "")
+    if parsed is None:
+        return None
+
+    delta = now - parsed
+    minutes = max(delta.total_seconds() / 60.0, 0.0)
+    return round(minutes, 3)
+
+
+def _prepare_ingest_metadata(
+    *,
+    symbol: str,
+    tf: str,
+    snapshot_path: Path,
+    result: Dict[str, Any],
+    fallback_notes: List[Dict[str, str]],
+    primary_source: str,
+    now: datetime,
+) -> Optional[Dict[str, Any]]:
+    """Assemble structured ingestion metadata for persistence."""
+
+    if not isinstance(result, dict):
+        return None
+
+    raw_source = str(result.get("source") or "")
+    source_chain = _split_source_chain(raw_source)
+    last_ts_raw = result.get("last_ts_now")
+    freshness = _compute_freshness_minutes(last_ts_raw, now)
+
+    metadata: Dict[str, Any] = {
+        "primary_source": primary_source,
+        "source_label": raw_source or None,
+        "source_chain": source_chain,
+        "rows_raw": int(result.get("rows_raw", 0) or 0),
+        "rows_validated": int(result.get("rows_validated", 0) or 0),
+        "rows_featured": int(result.get("rows_featured", 0) or 0),
+        "anomalies_logged": int(result.get("anomalies_logged", 0) or 0),
+        "gaps_detected": int(result.get("gaps_detected", 0) or 0),
+        "last_ts_now": last_ts_raw,
+        "freshness_minutes": freshness,
+        "snapshot_path": str(snapshot_path),
+    }
+
+    if fallback_notes:
+        metadata["fallbacks"] = fallback_notes
+
+    metadata["synthetic_extension"] = any(
+        entry.get("source") == "synthetic_local" for entry in source_chain
+    )
+
+    return metadata
+
+
+def _persist_ingest_metadata(
+    *,
+    symbol: str,
+    tf: str,
+    snapshot_path: Path,
+    result: Dict[str, Any],
+    fallback_notes: List[Dict[str, str]],
+    primary_source: str,
+    now: datetime,
+) -> None:
+    metadata = _prepare_ingest_metadata(
+        symbol=symbol,
+        tf=tf,
+        snapshot_path=snapshot_path,
+        result=result,
+        fallback_notes=fallback_notes,
+        primary_source=primary_source,
+        now=now,
+    )
+    if not metadata:
+        return
+
+    try:
+        from scripts.pull_prices import record_ingest_metadata
+    except Exception as exc:  # pragma: no cover - unexpected import failure
+        print(f"[wf] unable to import record_ingest_metadata: {exc}")
+        return
+
+    try:
+        record_ingest_metadata(
+            symbol,
+            tf,
+            metadata,
+            snapshot_path=snapshot_path,
+        )
+    except Exception as exc:  # pragma: no cover - persistence failures
+        print(f"[wf] failed to persist ingest metadata: {exc}")
+
+
+def _append_fallback(
+    fallbacks: List[Dict[str, str]],
+    *,
+    stage: str,
+    reason: str,
+    next_source: Optional[str] = None,
+) -> None:
+    note = {"stage": stage, "reason": reason}
+    if next_source:
+        note["next_source"] = next_source
+    fallbacks.append(note)
+
+
 def run_cmd(cmd):
     print(f"[wf] running: {' '.join(cmd)}")
     result = subprocess.run(cmd, check=False)
@@ -445,6 +576,7 @@ def main(argv=None) -> int:
 
             fetch_bars = None
             fallback_reason = None
+            fallback_notes: List[Dict[str, str]] = []
             try:
                 fetch_bars = _load_dukascopy_fetch()
             except Exception as exc:  # pragma: no cover - optional dependency
@@ -542,6 +674,12 @@ def main(argv=None) -> int:
                     return None
 
             if fallback_reason is not None:
+                _append_fallback(
+                    fallback_notes,
+                    stage="dukascopy",
+                    reason=fallback_reason,
+                    next_source="yfinance",
+                )
                 print(
                     "[wf] Dukascopy unavailable, switching to yfinance fallback:",
                     fallback_reason,
@@ -549,7 +687,14 @@ def main(argv=None) -> int:
                 try:
                     from scripts import yfinance_fetch as yfinance_module
                 except Exception as exc:  # pragma: no cover - optional dependency
-                    result = _run_local_csv_fallback(f"yfinance import failed: {exc}")
+                    reason = f"yfinance import failed: {exc}"
+                    _append_fallback(
+                        fallback_notes,
+                        stage="yfinance",
+                        reason=reason,
+                        next_source="local_csv",
+                    )
+                    result = _run_local_csv_fallback(reason)
                     if result is None:
                         return 1
                     source_name = "local_csv"
@@ -588,18 +733,28 @@ def main(argv=None) -> int:
                             )
                         )
                     except Exception as exc:
-                        result = _run_local_csv_fallback(
-                            f"yfinance fallback failed: {exc}"
+                        reason = f"yfinance fallback failed: {exc}"
+                        _append_fallback(
+                            fallback_notes,
+                            stage="yfinance",
+                            reason=reason,
+                            next_source="local_csv",
                         )
+                        result = _run_local_csv_fallback(reason)
                         if result is None:
                             return 1
                         source_name = "local_csv"
                         records_to_ingest = None
                     else:
                         if not yfinance_records:
-                            result = _run_local_csv_fallback(
-                                "yfinance fallback returned no rows"
+                            reason = "yfinance fallback returned no rows"
+                            _append_fallback(
+                                fallback_notes,
+                                stage="yfinance",
+                                reason=reason,
+                                next_source="local_csv",
                             )
+                            result = _run_local_csv_fallback(reason)
                             if result is None:
                                 return 1
                             source_name = "local_csv"
@@ -632,6 +787,17 @@ def main(argv=None) -> int:
                 f"rows={result['rows_validated']}",
                 f"last_ts={result['last_ts_now']}",
             )
+
+            finish_now = datetime.utcnow()
+            _persist_ingest_metadata(
+                symbol=symbol_upper,
+                tf=tf,
+                snapshot_path=snapshot_path,
+                result=result,
+                fallback_notes=fallback_notes,
+                primary_source="dukascopy",
+                now=finish_now,
+            )
         elif args.use_yfinance:
             try:
                 from scripts.pull_prices import ingest_records, get_last_processed_ts
@@ -649,7 +815,15 @@ def main(argv=None) -> int:
             raw_path = ROOT / "raw" / symbol_upper / f"{tf}.csv"
             features_path = ROOT / "features" / symbol_upper / f"{tf}.csv"
 
+            fallback_notes: List[Dict[str, str]] = []
+
             def _run_local_csv_fallback(reason: str) -> Optional[Dict[str, object]]:
+                _append_fallback(
+                    fallback_notes,
+                    stage="yfinance",
+                    reason=reason,
+                    next_source="local_csv",
+                )
                 print("[wf] local CSV fallback triggered:", reason)
                 try:
                     return _ingest_local_csv_backup(
@@ -704,19 +878,17 @@ def main(argv=None) -> int:
                             start=start,
                             end=now,
                         )
-                    )
+                        )
                 except Exception as exc:
-                    result = _run_local_csv_fallback(
-                        f"yfinance ingestion failed: {exc}"
-                    )
+                    reason = f"yfinance ingestion failed: {exc}"
+                    result = _run_local_csv_fallback(reason)
                     if result is None:
                         return 1
                     label = "local_csv"
                 else:
                     if not records_list:
-                        result = _run_local_csv_fallback(
-                            "yfinance ingestion returned no rows"
-                        )
+                        reason = "yfinance ingestion returned no rows"
+                        result = _run_local_csv_fallback(reason)
                         if result is None:
                             return 1
                         label = "local_csv"
@@ -733,9 +905,10 @@ def main(argv=None) -> int:
                                 source_name="yfinance",
                             )
                         except Exception as exc:
-                            result = _run_local_csv_fallback(
+                            reason = (
                                 f"yfinance ingestion failed during ingest: {exc}"
                             )
+                            result = _run_local_csv_fallback(reason)
                             if result is None:
                                 return 1
                             label = "local_csv"
@@ -748,6 +921,17 @@ def main(argv=None) -> int:
                 f"[wf] {label}_ingest{suffix}",
                 f"rows={result['rows_validated']}",
                 f"last_ts={result['last_ts_now']}",
+            )
+
+            finish_now = datetime.utcnow()
+            _persist_ingest_metadata(
+                symbol=symbol_upper,
+                tf=tf,
+                snapshot_path=snapshot_path,
+                result=result,
+                fallback_notes=fallback_notes,
+                primary_source="yfinance",
+                now=finish_now,
             )
         elif args.use_api:
             try:
@@ -763,6 +947,7 @@ def main(argv=None) -> int:
             validated_path = ROOT / "validated" / symbol_upper / f"{tf}.csv"
             raw_path = ROOT / "raw" / symbol_upper / f"{tf}.csv"
             features_path = ROOT / "features" / symbol_upper / f"{tf}.csv"
+            fallback_notes: List[Dict[str, str]] = []
 
             last_ts = get_last_processed_ts(
                 symbol_upper,
@@ -829,6 +1014,17 @@ def main(argv=None) -> int:
                 "[wf] api_ingest",
                 f"rows={result['rows_validated']}",
                 f"last_ts={result['last_ts_now']}",
+            )
+
+            finish_now = datetime.utcnow()
+            _persist_ingest_metadata(
+                symbol=symbol_upper,
+                tf=tf,
+                snapshot_path=snapshot_path,
+                result=result,
+                fallback_notes=fallback_notes,
+                primary_source="api",
+                now=finish_now,
             )
         else:
             cmd = [
