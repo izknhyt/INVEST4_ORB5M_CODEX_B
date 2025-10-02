@@ -1,14 +1,14 @@
 {
-  "generated_at": "2025-10-02T14:46:11.109823Z",
+  "generated_at": "2025-10-02T21:40:17.471193Z",
   "symbol": "USDJPY",
   "mode": "conservative",
   "baseline": {
-    "trades": 175,
-    "wins": 115,
-    "win_rate": 0.6571428571428571,
-    "total_pips": -26.56428571424101,
-    "sharpe": -0.22364067909748994,
-    "max_drawdown": -137.4785714285615
+    "trades": 300,
+    "wins": 192,
+    "win_rate": 0.64,
+    "total_pips": 222.9371428573188,
+    "sharpe": 1.3746904365328712,
+    "max_drawdown": -93.66857142857549
   },
   "rolling": [
     {
@@ -30,17 +30,15 @@
       "window": 180
     },
     {
-      "trades": 122,
-      "wins": 84,
-      "win_rate": 0.6885245901639344,
-      "total_pips": 98.5883299248228,
-      "sharpe": 0.989317377330993,
-      "max_drawdown": -115.32142857136239,
+      "trades": 120,
+      "wins": 83,
+      "win_rate": 0.6916666666666667,
+      "total_pips": 96.70261563911504,
+      "sharpe": 0.9793797809155727,
+      "max_drawdown": -116.07142857135796,
       "window": 365
     }
   ],
-  "warnings": [
-    "baseline total_pips negative: -26.56"
-  ],
+  "warnings": [],
   "threshold_alerts": []
 }
