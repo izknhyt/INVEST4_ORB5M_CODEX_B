@@ -378,11 +378,12 @@ def test_yfinance_ingest_updates_snapshot(tmp_path, monkeypatch):
 
     monkeypatch.setattr(run_daily_workflow, "datetime", _FixedDatetime)
 
-    def fake_fetch_bars(symbol, tf, *, start, end):
+    def fake_fetch_bars(symbol, tf, *, start, end, **kwargs):
         assert symbol == "USDJPY"
         assert tf == "5m"
         assert start == datetime(2025, 10, 1, 3, 20)
         assert end == fixed_now
+        assert "offer_side" not in kwargs
         yield {
             "timestamp": "2025-10-01T04:00:00",
             "symbol": symbol,
@@ -487,11 +488,12 @@ def test_yfinance_ingest_accepts_suffix_symbol(tmp_path, monkeypatch):
 
     captured = {}
 
-    def fake_fetch_bars(symbol, tf, *, start, end):
+    def fake_fetch_bars(symbol, tf, *, start, end, **kwargs):
         captured["symbol"] = symbol
         captured["tf"] = tf
         captured["start"] = start
         captured["end"] = end
+        captured["extra"] = kwargs
         return []
 
     monkeypatch.setattr(yfinance_fetch, "fetch_bars", fake_fetch_bars)
@@ -511,6 +513,7 @@ def test_yfinance_ingest_accepts_suffix_symbol(tmp_path, monkeypatch):
 
     assert exit_code == 0
     assert captured["symbol"] == "USDJPY"
+    assert captured["extra"] == {}
 
     snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
     meta = snapshot["ingest_meta"]["USDJPY_5m"]
@@ -572,11 +575,12 @@ def test_dukascopy_failure_falls_back_to_yfinance(tmp_path, monkeypatch):
 
     fallback_calls = {}
 
-    def fake_fetch(symbol, tf, *, start, end):
+    def fake_fetch(symbol, tf, *, start, end, **kwargs):
         fallback_calls["symbol"] = symbol
         fallback_calls["tf"] = tf
         fallback_calls["start"] = start
         fallback_calls["end"] = end
+        fallback_calls["extra"] = kwargs
         return iter(
             [
                 {
@@ -648,6 +652,7 @@ def test_dukascopy_failure_falls_back_to_yfinance(tmp_path, monkeypatch):
     expected_start = last_ts - timedelta(minutes=240)
     assert fallback_calls["start"] == expected_start
     assert fallback_calls["end"] == fixed_now
+    assert fallback_calls["extra"] == {}
 
     csv_lines = validated_csv.read_text(encoding="utf-8").splitlines()
     assert csv_lines[-1].startswith("2025-10-01T04:05:00")
@@ -672,6 +677,7 @@ def test_dukascopy_failure_falls_back_to_yfinance(tmp_path, monkeypatch):
     dukascopy_note = next(note for note in fallbacks if note["stage"] == "dukascopy")
     assert "dukascopy outage" in dukascopy_note["reason"]
     assert meta["last_ingest_at"] == fixed_now.replace(tzinfo=timezone.utc).isoformat()
+    assert meta["dukascopy_offer_side"] == "bid"
 
 
 def test_dukascopy_missing_dependency_falls_back_to_yfinance(tmp_path, monkeypatch):
@@ -796,6 +802,7 @@ def test_dukascopy_missing_dependency_falls_back_to_yfinance(tmp_path, monkeypat
     assert meta["last_ingest_at"] == fixed_now.replace(tzinfo=timezone.utc).isoformat()
     if anomaly_log_path.exists():
         assert anomaly_log_path.read_text(encoding="utf-8").strip() == ""
+    assert meta["dukascopy_offer_side"] == "bid"
 
 
 def test_dukascopy_and_yfinance_missing_falls_back_to_local_csv(
@@ -916,6 +923,7 @@ def test_dukascopy_and_yfinance_missing_falls_back_to_local_csv(
     assert any(note["stage"] == "dukascopy" for note in fallbacks)
     assert any(note["stage"] == "yfinance" for note in fallbacks)
     assert meta["last_ingest_at"] == fixed_now.replace(tzinfo=timezone.utc).isoformat()
+    assert meta["dukascopy_offer_side"] == "bid"
 
 
 def test_local_csv_fallback_accepts_custom_backup(tmp_path, monkeypatch):
@@ -1015,4 +1023,8 @@ def test_local_csv_fallback_accepts_custom_backup(tmp_path, monkeypatch):
     fallbacks = snapshot["ingest_meta"]["USDJPY_5m"]["fallbacks"]
     assert any(note["stage"] == "dukascopy" for note in fallbacks)
     assert any(note["stage"] == "yfinance" for note in fallbacks)
+    assert (
+        snapshot["ingest_meta"]["USDJPY_5m"]["dukascopy_offer_side"]
+        == "bid"
+    )
 

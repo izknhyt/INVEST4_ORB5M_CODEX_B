@@ -20,6 +20,7 @@ Dukascopy feed（正式運用） → 正常時は `scripts/dukascopy_fetch.py` �
 - `scripts/dukascopy_fetch.py`
   - Lightweight wrapper around `dukascopy_python.live_fetch`, normalizing rows to the ingestion schema (timestamp/symbol/tf/o/h/l/c/v/spread).
   - Provides CLI for ad-hoc exports and is invoked by `run_daily_workflow.py --ingest --use-dukascopy` to refresh recent 5m bars.
+  - Accepts an `offer_side` parameter (bid/ask) so operators can request BID or ASK quotes; this flag is surfaced via the daily workflow CLI.
 - `scripts/merge_dukascopy_monthly.py`
   - Globs monthly CSV dumps (e.g., `USDJPY_202501_5min.csv`) and produces a single normalized file for bulk backfill prior to live refresh.
   - Ensures duplicates are de-duplicated and timestamps are sorted so `pull_prices.ingest_records` can append cleanly.
@@ -31,6 +32,7 @@ Dukascopy feed（正式運用） → 正常時は `scripts/dukascopy_fetch.py` �
   - `--ingest` gains provider flags (`--use-api`, `--use-dukascopy`) so we can switch between REST exports and the Dukascopy bridge。2025-10 現在は `--use-dukascopy` を標準運用とし、`--use-api` はオプション保留。2025-11 以降は `--dukascopy-freshness-threshold-minutes`（既定 90 分）で鮮度を監視し、閾値超過時に yfinance への自動フェイルオーバーが発火する。
   - `--local-backup-csv` でローカル CSV フォールバックに使用するファイルを差し替えられる。Sandbox で最新のバックフィルを適用する際や別シンボルの検証に活用する。
   - Exit non-zero on hard failures so Webhook/alert integrations continue to work。
+  - 2025-11 Update: `--dukascopy-offer-side`（既定 BID）で取得サイドを指定し、`ops/runtime_snapshot.json.ingest_meta` にも選択内容を保存する。
 
 ## 4. Configuration
 - `configs/api_ingest.yml` (new):

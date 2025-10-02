@@ -34,6 +34,7 @@ class WorkerConfig:
     interval: float
     lookback_minutes: int
     freshness_threshold: Optional[int]
+    offer_side: str
     snapshot_path: Path
     raw_root: Path
     validated_root: Path
@@ -79,7 +80,14 @@ def _parse_timestamp(value: str) -> Optional[datetime]:
     return dt
 
 
-def _load_dukascopy_records(symbol: str, tf: str, start: datetime, end: datetime) -> List[dict]:
+def _load_dukascopy_records(
+    symbol: str,
+    tf: str,
+    *,
+    start: datetime,
+    end: datetime,
+    offer_side: str,
+) -> List[dict]:
     from scripts.dukascopy_fetch import fetch_bars
 
     return list(
@@ -88,6 +96,7 @@ def _load_dukascopy_records(symbol: str, tf: str, start: datetime, end: datetime
             tf,
             start=start,
             end=end,
+            offer_side=offer_side,
         )
     )
 
@@ -143,7 +152,13 @@ def _ingest_symbol(symbol: str, config: WorkerConfig, *, now: datetime) -> Optio
 
     fallback_reason: Optional[str] = None
     try:
-        dukascopy_records = _load_dukascopy_records(symbol, tf, start=start, end=now)
+        dukascopy_records = _load_dukascopy_records(
+            symbol,
+            tf,
+            start=start,
+            end=now,
+            offer_side=config.offer_side,
+        )
     except Exception as exc:
         fallback_reason = f"fetch error: {exc}"
         dukascopy_records = []
@@ -198,6 +213,9 @@ def _ingest_symbol(symbol: str, config: WorkerConfig, *, now: datetime) -> Optio
         print(f"[live-ingest] ingestion failed for {symbol}: {exc}")
         return None
 
+    if isinstance(result, dict) and config.offer_side:
+        result.setdefault("dukascopy_offer_side", config.offer_side)
+
     print(
         f"[live-ingest] {symbol} {source_name} rows={result['rows_validated']} "
         f"anomalies={result['anomalies_logged']} last_ts={result['last_ts_now']}"
@@ -248,6 +266,12 @@ def parse_args(argv=None):
         type=int,
         default=180,
         help="Minutes to re-request when fetching new bars",
+    )
+    parser.add_argument(
+        "--offer-side",
+        default="bid",
+        choices=["bid", "ask"],
+        help="Offer side (bid/ask) to request from Dukascopy",
     )
     parser.add_argument(
         "--freshness-threshold-minutes",
@@ -318,6 +342,7 @@ def _build_config(args) -> WorkerConfig:
             if args.freshness_threshold_minutes is not None
             else None
         ),
+        offer_side=(args.offer_side or "bid").lower(),
         snapshot_path=Path(args.snapshot).resolve(),
         raw_root=Path(args.raw_root).resolve(),
         validated_root=Path(args.validated_root).resolve(),
@@ -352,6 +377,7 @@ def main(argv=None) -> int:
         f"symbols={','.join(config.symbols)}",
         f"modes={','.join(config.modes)}",
         f"interval={config.interval}s",
+        f"offer_side={config.offer_side}",
     )
 
     while not stop_flag.requested:
