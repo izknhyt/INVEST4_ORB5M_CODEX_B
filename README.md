@@ -297,6 +297,7 @@ ctx = {
 - EV ゲートの調整方法は `docs/ev_tuning.md` にメモをまとめています。
 - 通知運用とレイテンシ監視については `docs/signal_ops.md` を参照してください。
 - Paper 移行前のチェックリストは `docs/go_nogo_checklist.md` を参照してください。
+- 依存パッケージ一覧とインストール指針は `docs/dependencies.md` を参照してください。
 
 ### 補足（追加依存について）
 - ベンチマークサマリー画像の生成や Notebook 可視化では `pandas` と `matplotlib` を利用します。未導入の環境では以下を実行してください。
