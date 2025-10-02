@@ -24,6 +24,7 @@
 - [ ] (Deferred) `python3 scripts/run_daily_workflow.py --ingest --use-api --symbol USDJPY --mode conservative` が成功し、`ops/runtime_snapshot.json.ingest` が更新される。→ Alpha Vantage FX_INTRADAY はプレミアム専用のため契約後に再開。テストは `tests/test_run_daily_workflow.py::test_api_ingest_updates_snapshot` でモック検証済み。
 - [ ] `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6` が成功し、鮮度アラートが解消される（Dukascopy 主経路で代替中）。
   - 2025-11-07 00:45Z: `ops/runtime_snapshot.json.benchmark_pipeline.USDJPY_conservative` が 9.31h / 18.60h 遅延のままで、鮮度アラートが継続。インジェスト再開後に再検証する。
+  - 2025-11-13 04:10Z: Proxy 403 のため `pip install dukascopy-python yfinance` が失敗。`python3 scripts/run_daily_workflow.py --ingest --use-dukascopy --symbol USDJPY --mode conservative` はローカル CSV + `synthetic_local` で完走し、`ops/runtime_snapshot.json.ingest.USDJPY_5m` を 2025-10-02T03:15:00 まで更新したが、ベンチマーク側は 24.29h / 15.00h 遅延のまま `check_benchmark_freshness` が失敗。
 - [x] モックAPIを用いた単体/統合テストが `python3 -m pytest` で通過し、API失敗時のアノマリーログ出力が検証されている。
 - [x] `docs/state_runbook.md` の `--use-api` 運用手順に沿って環境変数 (`ALPHA_VANTAGE_API_KEY` 等) と `configs/api_keys.yml` の保管先を検証し、権限/暗号化の要件を満たしていることを確認した。
   - 2025-11-06 06:30Z: 暗号化ストレージ（Vault/SOPS/gpg）必須・環境変数注入/同期手順を明文化し、ローテーション記録フローを追記。
@@ -44,6 +45,16 @@
   - 自動フェイルオーバーで yfinance (`JPY=X`) 取得を試行したが、`yfinance` 未導入のためフォールバックも失敗。`ops/runtime_snapshot.json.ingest.USDJPY_5m` は更新されず、最新バーは 2025-10-01T14:10:00 のまま。
 - `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6`
   - ベンチマーク最新バー/サマリーがそれぞれ 18.60h / 9.31h 遅延で鮮度閾値 6h を超過。インジェストが再開するまで 90 分閾値は現状維持しつつ、依存導入後の再実行が必要。
+
+
+### 2025-11-13 サンドボックス実行ログ
+
+- `pip install dukascopy-python yfinance`
+  - Sandbox プロキシが PyPI ホストを遮断し、HTTP 403 (Tunnel connection failed) で失敗。依存導入にはオフラインホイール持ち込みまたはホワイトリスト登録が必要。
+- `python3 scripts/run_daily_workflow.py --ingest --use-dukascopy --symbol USDJPY --mode conservative`
+  - Dukascopy → yfinance の順にフォールバックが発火し、最終的にローカル CSV + `synthetic_local` で 157 行を追記。`ops/runtime_snapshot.json.ingest.USDJPY_5m` が 2025-10-02T03:15:00 まで更新され、validated CSV も同時刻まで延長された。
+- `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6`
+  - `benchmarks.USDJPY_conservative` が 24.29h 遅延、`summary_generated_at` が 15.00h 遅延のまま。ベンチマークパイプラインを再実行しない限り鮮度アラートは解消しないため、依存導入後に Dukascopy 実データで再検証する。
 
 
 ### 2025-11-09 Twelve Data status handling

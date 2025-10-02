@@ -10,7 +10,7 @@
   - Ensure `run_daily_workflow.py --ingest` keeps `raw/`, `validated/`, `features/` and `ops/runtime_snapshot.json.ingest` up to date so freshness checks stay within 6h.
 
 ## 2. Data Flow
-Dukascopy feed（正式運用） → 正常時は `scripts/dukascopy_fetch.py` → normalized bar iterator → `pull_prices.ingest_records` → CSV append (`raw`/`validated`/`features`) → snapshot/anomaly logging。フェイルオーバー条件（例: 90 分超の鮮度遅延/取得失敗）に該当した場合は自動で `scripts/yfinance_fetch.py` (`period="7d"`, シンボル正規化付き) を呼び出し同フローに合流する。REST API provider（保留中）も同じインターフェースに揃える。
+Dukascopy feed（正式運用） → 正常時は `scripts/dukascopy_fetch.py` → normalized bar iterator → `pull_prices.ingest_records` → CSV append (`raw`/`validated`/`features`) → snapshot/anomaly logging。フェイルオーバー条件（例: 90 分超の鮮度遅延/取得失敗）に該当した場合は自動で `scripts/yfinance_fetch.py` (`period="7d"`, シンボル正規化付き) を呼び出し同フローに合流する。両方の外部依存が利用できない Sandbox では、ローカル CSV → `synthetic_local` 合成バー生成のチェーンで `ops/runtime_snapshot.json.ingest` を最新 5 分境界まで引き上げる。REST API provider（保留中）も同じインターフェースに揃える。
 
 ## 3. Modules & Interfaces
 - `scripts/fetch_prices_api.py`
@@ -73,3 +73,4 @@ Dukascopy feed（正式運用） → 正常時は `scripts/dukascopy_fetch.py` �
 - Credential storage: local `.env` vs. secrets manager; rotation cadence。`configs/api_ingest.yml` の `credential_rotation` テンプレに日付・担当・保管場所を反映し、30 日ごとの見直しを既定にするか要検討。`docs/state_runbook.md` とチェックリストでの記録サイクルをどう同期するかも整理する。
 - Streaming/WebSocket rollout timing and relation to current REST-first scope.
 - yfinance フォールバックは `scripts/yfinance_fetch.py` と `--use-yfinance` 経路で実装済み。依存パッケージの導入手順、取得遅延の許容範囲、Dukascopy からの切替判断基準を runbook/チェックリストへ追記する必要がある。Yahoo Finance の intraday 保持期間（≒60 日）に合わせて `period="7d"` で一括取得し、シンボルマッピング（例: USDJPY → JPY=X）や未来日クランプを組み込んだ運用整理も必要。
+- Sandbox では企業プロキシが PyPI へのダイレクト接続を遮断するため、`dukascopy-python` / `yfinance` のホイール持ち込み（`pip install <wheel>`）もしくはホワイトリスト申請フローを整備し、依存導入後にフェイルオーバー検証を再実行できるようにする。
