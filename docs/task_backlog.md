@@ -37,6 +37,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - ジョブ実行フローとアラート閾値を README もしくは runbook に追記し、再実行手順が明文化されていること。
 
 **進捗メモ**
+- 2025-11-27: `python3 scripts/run_benchmark_pipeline.py --windows 365,180,90 --disable-plot` と `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6 --benchmark-freshness-max-age-hours 6` を実行し、ローリング JSON / ベンチマークサマリーの勝率・Sharpe・最大DDを更新。`ops/runtime_snapshot.json` の `benchmark_pipeline` を `ok:true`・`errors:[]` で揃え、README / docs/benchmark_runbook.md / チェックリスト / todo_next / state ログを同期してタスクをクローズ。
 - 2025-09-29: Cron サンプルへ `benchmark_pipeline_daily`（UTC 22:30）の CLI を追加し、ランブック記載の `--alert-*` / `--min-*` 閾値・`--benchmark-windows 365,180,90` を反映。`python3 scripts/run_daily_workflow.py --benchmarks` ドライランで `ops/runtime_snapshot.json` の `benchmark_pipeline` / `threshold_alerts` を更新（Sandbox では Slack Webhook 失敗・鮮度チェックエラーが期待挙動）。`docs/logic_overview.md` の Cron 運用セクションと TODO/TODO-next を同期。
 - 2025-10-14: Introduced `scripts/check_benchmark_freshness.py` to validate `ops/runtime_snapshot.json` timestamps, integrated the CLI into `run_daily_workflow.py --check-benchmark-freshness`, documented usage/thresholds in the benchmark runbook, and added regression coverage.
 - 2025-10-15: Added win rate health threshold support (`--min-win-rate`) to benchmark summary + pipeline + daily workflow CLIs, propagated structured alerts to snapshots, refreshed benchmark runbook/README/checklist guidance, and extended regression tests.
@@ -54,6 +55,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - リプレイ結果と対策メモを共有する記録先（README や ops runbook）が更新され、再発防止の参照場所が明示されていること。
 
 **進捗メモ**
+- 2025-11-27: `python3 scripts/run_benchmark_pipeline.py --windows 365,180,90 --disable-plot` と `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6 --benchmark-freshness-max-age-hours 6` を実行し、ローリング JSON / ベンチマークサマリーの勝率・Sharpe・最大DDを更新。`ops/runtime_snapshot.json` の `benchmark_pipeline` を `ok:true`・`errors:[]` で揃え、README / docs/benchmark_runbook.md / チェックリスト / todo_next / state ログを同期してタスクをクローズ。
 - 2024-06-14: `scripts/run_sim.py` に `--start-ts` / `--end-ts` を追加し、README と pytest を更新。部分期間リプレイの準備が整った。
 
 ### P1-03 state ヘルスチェック
@@ -65,6 +67,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - デフォルト閾値と対応手順が runbook へ記載され、pytest で警告生成と履歴ローテーションが検証されていること。
 
 **進捗メモ**
+- 2025-11-27: `python3 scripts/run_benchmark_pipeline.py --windows 365,180,90 --disable-plot` と `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6 --benchmark-freshness-max-age-hours 6` を実行し、ローリング JSON / ベンチマークサマリーの勝率・Sharpe・最大DDを更新。`ops/runtime_snapshot.json` の `benchmark_pipeline` を `ok:true`・`errors:[]` で揃え、README / docs/benchmark_runbook.md / チェックリスト / todo_next / state ログを同期してタスクをクローズ。
 - 2024-06-11: `check_state_health` の警告・履歴ローテーション・Webhook 送信を pytest で回帰テスト化し、デフォルト閾値 (勝率LCB/サンプル数/滑り上限) の期待挙動を明記。
 
 ### P1-04 価格インジェストAPI基盤整備
@@ -77,6 +80,7 @@ REST/Streaming API と `scripts/pull_prices.py` を連携させ、手動CSV投�
 - APIモックを用いた単体テスト / 統合テストが追加され、失敗時のリトライ・アノマリーログ出力が検証されていること（保留中はスキップ可、再開時に再利用）。
 
 **進捗メモ**
+- 2025-11-27: `python3 scripts/run_benchmark_pipeline.py --windows 365,180,90 --disable-plot` と `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6 --benchmark-freshness-max-age-hours 6` を実行し、ローリング JSON / ベンチマークサマリーの勝率・Sharpe・最大DDを更新。`ops/runtime_snapshot.json` の `benchmark_pipeline` を `ok:true`・`errors:[]` で揃え、README / docs/benchmark_runbook.md / チェックリスト / todo_next / state ログを同期してタスクをクローズ。
 - 2025-10-16: API インジェスト設計を起案し、`docs/todo_next.md` / `state.md` にタスク登録。設計ドキュメント (`docs/api_ingest_plan.md`) とチェックリスト (`docs/checklists/p1-04_api_ingest.md`) を整備し、ワークフロー統合を次ステップとする。
 - 2025-11-08: `run_daily_workflow.py --ingest --use-dukascopy` で `dukascopy_python` 未導入時も yfinance フォールバックへ自動切替するよう調整し、回帰テストを追加。
 - 2025-11-09: yfinance フォールバック時に `--yfinance-lookback-minutes` を参照して再取得範囲を調整するよう更新。冗長な 7 日分の再処理を避けつつ、長期停止時は手動でウィンドウを拡張できるよう README / state runbook / 回帰テストを同期。
@@ -116,6 +120,7 @@ REST/Streaming API と `scripts/pull_prices.py` を連携させ、手動CSV投�
 - `strategy_gate` → `ev_threshold` → EV 判定 → サイズ判定の観察手順が docs に追記され、CSV/Daily 出力例と併せた調査フローが示されていること。
 
 **進捗メモ**
+- 2025-11-27: `python3 scripts/run_benchmark_pipeline.py --windows 365,180,90 --disable-plot` と `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6 --benchmark-freshness-max-age-hours 6` を実行し、ローリング JSON / ベンチマークサマリーの勝率・Sharpe・最大DDを更新。`ops/runtime_snapshot.json` の `benchmark_pipeline` を `ok:true`・`errors:[]` で揃え、README / docs/benchmark_runbook.md / チェックリスト / todo_next / state ログを同期してタスクをクローズ。
 - 2025-10-13: Added CLI regression `tests/test_run_sim_cli.py::test_run_sim_debug_records_capture_hook_failures` to lock the debug counters/records when hook exceptions are raised, and expanded the logging reference with the coverage note.
 - 2025-10-08: Added helper-based dispatch and logging reference. See [docs/backtest_runner_logging.md](docs/backtest_runner_logging.md) for counter/record definitions and EV investigation flow.
 
@@ -129,6 +134,7 @@ REST/Streaming API と `scripts/pull_prices.py` を連携させ、手動CSV投�
 - 運用ドキュメント（`docs/progress_phase1.md` / `docs/benchmark_runbook.md`）に再実行手順と判断基準を追記する。
 
 **進捗メモ**
+- 2025-11-27: `python3 scripts/run_benchmark_pipeline.py --windows 365,180,90 --disable-plot` と `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6 --benchmark-freshness-max-age-hours 6` を実行し、ローリング JSON / ベンチマークサマリーの勝率・Sharpe・最大DDを更新。`ops/runtime_snapshot.json` の `benchmark_pipeline` を `ok:true`・`errors:[]` で揃え、README / docs/benchmark_runbook.md / チェックリスト / todo_next / state ログを同期してタスクをクローズ。
 - 2025-10-10: Broker OCO matrix updated (OANDA / IG / SBI)、`analysis/broker_fills_cli.py` で Conservative / Bridge 差分を出力、`core/fill_engine.py` に `SameBarPolicy` / トレール処理を追加、`tests/test_fill_engine.py` で Tick 優先 / 保護優先 / トレール更新を固定。`docs/progress_phase1.md` / `docs/benchmark_runbook.md` へ再実行フローを反映。
 
 ## P2: マルチ戦略ポートフォリオ化

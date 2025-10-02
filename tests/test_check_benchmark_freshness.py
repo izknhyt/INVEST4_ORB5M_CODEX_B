@@ -168,6 +168,7 @@ def test_check_benchmark_freshness_ok(fresh_snapshot: Path, fixed_now: dt.dateti
     assert result["ok"] is True
     assert result["errors"] == []
     assert result["advisories"] == []
+    assert result["benchmark_max_age_hours"] == pytest.approx(6)
     checked = result["checked"][0]
     assert checked["benchmarks_timestamp"].startswith("2025-01-01T11:00:00")
     assert checked["summary_generated_at"].endswith("Z")
@@ -280,3 +281,49 @@ def test_cli_missing_fields_outputs_errors(missing_fields_snapshot: Path, capsys
     assert payload["ok"] is False
     assert "benchmarks.USDJPY_conservative missing" in payload["errors"]
     assert "advisories" in payload
+
+
+def test_benchmark_specific_threshold(fresh_snapshot: Path, fixed_now: dt.datetime):
+    result = check_benchmark_freshness(
+        snapshot_path=fresh_snapshot,
+        targets=["USDJPY:conservative"],
+        max_age_hours=6,
+        benchmark_max_age_hours=0.5,
+        now=fixed_now,
+    )
+
+    assert result["ok"] is False
+    assert any(
+        msg.startswith("benchmarks.") and "limit 0.5" in msg for msg in result["errors"]
+    )
+    checked = result["checked"][0]
+    assert checked["benchmarks_age_hours"] == pytest.approx(1.0)
+    assert any(
+        msg.startswith("benchmarks.") and "limit 0.5" in msg for msg in checked["errors"]
+    )
+    assert not any(
+        msg.startswith("benchmark_pipeline.") for msg in checked.get("errors", [])
+    )
+
+
+def test_cli_accepts_benchmark_specific_threshold(
+    fresh_snapshot: Path, capsys
+):
+    exit_code = main(
+        [
+            "--snapshot",
+            str(fresh_snapshot),
+            "--target",
+            "USDJPY:conservative",
+            "--max-age-hours",
+            "6",
+            "--benchmark-freshness-max-age-hours",
+            "0.5",
+        ]
+    )
+    output = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert output["benchmark_max_age_hours"] == pytest.approx(0.5)
+    assert any(
+        msg.startswith("benchmarks.") and "limit 0.5" in msg for msg in output["errors"]
+    )
