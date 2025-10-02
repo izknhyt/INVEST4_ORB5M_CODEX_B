@@ -44,7 +44,8 @@
   - 2025-11-11: Twelve Data 形式のレスポンス（`datetime` +00:00 / `volume` 欠損）をモック API テストへ反映し、`tests/test_fetch_prices_api.py` に回帰を追加。`docs/state_runbook.md` へドライラン手順と確認項目を追記し、チェックリストへ進捗メモを更新。
   - 2025-11-12: Dukascopy / yfinance の双方が利用できない Sandbox でも `run_daily_workflow.py --ingest --use-dukascopy` が動作するよう、ローカル CSV フェイルオーバーを追加し、`tests/test_run_daily_workflow.py` に回帰を実装。依存導入後に再取得→鮮度チェックを実行するタスクは継続。
   - 2025-11-13: ローカル CSV フォールバック後に `synthetic_local` 合成バーを生成して snapshot を 5 分刻みで最新化。Sandbox でも `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6` を再開できるよう runbook / checklist を更新し、残タスクは実データ依存を導入して鮮度確認を完了させること。
-  - Next step: Sandbox へ `dukascopy-python` / `yfinance` を導入し、`python3 scripts/run_daily_workflow.py --ingest --use-dukascopy` → `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6` を再実行して鮮度アラートが解消されることを確認する。結果を `state.md` / `docs/checklists/p1-04_api_ingest.md` / `docs/task_backlog.md` に反映する。
+  - 2025-11-13: `pip install dukascopy-python yfinance` を試行したが Proxy 403 で遮断。`python3 scripts/run_daily_workflow.py --ingest --use-dukascopy --symbol USDJPY --mode conservative` はローカル CSV + `synthetic_local` フォールバックで完走し、`ops/runtime_snapshot.json.ingest.USDJPY_5m` を 2025-10-02T03:15:00 まで引き上げた。ベンチマークの鮮度は引き続き遅延中のため、依存導入後に再検証する。
+  - Next step: `dukascopy-python` / `yfinance` のホイールを持ち込むか、Sandbox プロキシで PyPI ホストを許可して再インストールを実施し、`python3 scripts/run_daily_workflow.py --ingest --use-dukascopy` → `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6` を再実行して鮮度アラート解消を確認する。結果を `state.md` / `docs/checklists/p1-04_api_ingest.md` / `docs/task_backlog.md` に反映する。
   - Backlog Anchor: [価格インジェストAPI基盤整備 (P1-04)](docs/task_backlog.md#p1-04-価格インジェストapi基盤整備)
   - Vision / Runbook References:
     - [readme/設計方針（投資_3_）v_1.md](readme/設計方針（投資_3_）v_1.md)
