@@ -499,6 +499,11 @@ def main(argv=None) -> int:
         ),
     )
     parser.add_argument(
+        "--disable-synthetic-extension",
+        action="store_true",
+        help="Skip generating synthetic_local bars after local CSV fallback",
+    )
+    parser.add_argument(
         "--dukascopy-freshness-threshold-minutes",
         type=int,
         default=90,
@@ -612,6 +617,8 @@ def main(argv=None) -> int:
     args.symbol = symbol_upper
 
     bars_csv = args.bars or str(ROOT / f"validated/{symbol_upper}/5m.csv")
+
+    synthetic_allowed = not args.disable_synthetic_extension
 
     if args.ingest:
         selected_sources = [
@@ -731,6 +738,7 @@ def main(argv=None) -> int:
                         validated_path=validated_path,
                         features_path=features_path,
                         backup_path=local_backup_path,
+                        enable_synthetic=synthetic_allowed,
                     )
                 except Exception as backup_exc:  # pragma: no cover - unexpected failure
                     print(f"[wf] local CSV fallback unavailable: {backup_exc}")
@@ -918,6 +926,7 @@ def main(argv=None) -> int:
                         validated_path=validated_path,
                         features_path=features_path,
                         backup_path=local_backup_path,
+                        enable_synthetic=synthetic_allowed,
                     )
                 except Exception as backup_exc:  # pragma: no cover - unexpected failure
                     print(f"[wf] local CSV fallback unavailable: {backup_exc}")
