@@ -41,7 +41,8 @@
   - 2025-11-07: サンドボックスで `run_daily_workflow --ingest --use-dukascopy` を実行したが、`dukascopy_python` / `yfinance` 未導入で双方失敗しスナップショット未更新。`check_benchmark_freshness --max-age-hours 6` では最新バー 18.60h / サマリー 9.31h 遅延で閾値超過を確認。依存導入→再取得→鮮度確認を次アクションに設定。
   - 2025-11-09: REST retry error_keys を構造化し、Twelve Data の `status: "ok"` 成功レスポンスと `status: "error"` エラーを正しく判別できるよう `configs/api_ingest.yml` / `scripts/fetch_prices_api.py` / pytest を同期。
   - 2025-11-10: Twelve Data の `volume` 欠損を許容するよう `response.fields` に `required=false` / `default=0.0` を導入し、`fetch_prices_api` の正規化ロジックと pytest を更新。今後は UTC パース差異とフォールバック手順の runbook 追記へ移行。
-  - Next step: Twelve Data のレスポンス差異（UTC/ボリューム欠損時の扱い）をモック API テストへ反映し、フォールバック手順を `docs/state_runbook.md` へ追記する。
+  - 2025-11-11: Twelve Data 形式のレスポンス（`datetime` +00:00 / `volume` 欠損）をモック API テストへ反映し、`tests/test_fetch_prices_api.py` に回帰を追加。`docs/state_runbook.md` へドライラン手順と確認項目を追記し、チェックリストへ進捗メモを更新。
+  - Next step: Sandbox へ `dukascopy-python` / `yfinance` を導入し、`python3 scripts/run_daily_workflow.py --ingest --use-dukascopy` → `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6` を再実行して鮮度アラートが解消されることを確認する。結果を `state.md` / `docs/checklists/p1-04_api_ingest.md` / `docs/task_backlog.md` に反映する。
   - Backlog Anchor: [価格インジェストAPI基盤整備 (P1-04)](docs/task_backlog.md#p1-04-価格インジェストapi基盤整備)
   - Vision / Runbook References:
     - [readme/設計方針（投資_3_）v_1.md](readme/設計方針（投資_3_）v_1.md)
