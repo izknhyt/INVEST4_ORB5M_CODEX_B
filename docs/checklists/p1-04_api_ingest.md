@@ -82,4 +82,8 @@
 - `tests/test_run_daily_workflow.py::test_dukascopy_and_yfinance_missing_falls_back_to_local_csv` を更新して合成バー追記と snapshot 最新化を検証。
 - `docs/state_runbook.md` へサンドボックス向け運用メモを追加し、鮮度チェック DoD を再開できるようドキュメントを同期。
 
+### 2025-11-19 yfinance freshness guard
+- `scripts/run_daily_workflow.py` の yfinance フェイルオーバーで取得したバーが `--dukascopy-freshness-threshold-minutes` を超えて陳腐化している場合、ローカル CSV + `synthetic_local` へ自動切替するガードを追加。
+- `tests/test_run_daily_workflow.py::test_yfinance_fallback_stale_data_switches_to_local_csv` を追加し、`ingest_meta.fallbacks` に stale 理由が記録されることと snapshot の鮮度が 5 分以内へ戻ることを確認。
+
 > API供給元や鍵管理ポリシーは `docs/api_ingest_plan.md` の更新と併せて、タスク完了までに最新化してください。現状は Dukascopy 主経路で運用し、REST/API は契約条件が整い次第再開します。

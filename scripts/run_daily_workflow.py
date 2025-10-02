@@ -760,8 +760,48 @@ def main(argv=None) -> int:
                             source_name = "local_csv"
                             records_to_ingest = None
                         else:
-                            records_to_ingest = yfinance_records
-                            source_name = "yfinance"
+                            yf_last_ts = _parse_naive_utc(
+                                str(yfinance_records[-1].get("timestamp", ""))
+                            )
+                            stale_reason: Optional[str] = None
+                            if yf_last_ts is None:
+                                stale_reason = "could not parse yfinance last timestamp"
+                            elif (
+                                freshness_threshold
+                                and freshness_threshold > 0
+                            ):
+                                age_delta = now - yf_last_ts
+                                if age_delta > timedelta(
+                                    minutes=freshness_threshold
+                                ):
+                                    age_minutes = round(
+                                        max(age_delta.total_seconds() / 60.0, 0.0), 3
+                                    )
+                                    stale_reason = (
+                                        "stale data: "
+                                        f"last_ts={yf_last_ts.isoformat(timespec='seconds')} "
+                                        f"age={age_minutes}m"
+                                    )
+
+                            if stale_reason is not None:
+                                _append_fallback(
+                                    fallback_notes,
+                                    stage="yfinance",
+                                    reason=stale_reason,
+                                    next_source="local_csv",
+                                )
+                                print(
+                                    "[wf] yfinance fallback stale, switching to local CSV:",
+                                    stale_reason,
+                                )
+                                result = _run_local_csv_fallback(stale_reason)
+                                if result is None:
+                                    return 1
+                                source_name = "local_csv"
+                                records_to_ingest = None
+                            else:
+                                records_to_ingest = yfinance_records
+                                source_name = "yfinance"
 
             if result is None:
                 try:
