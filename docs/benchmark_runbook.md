@@ -17,7 +17,7 @@
 
 - 運用 Cron は UTC 22:30（JST 07:30）に `python3 scripts/run_daily_workflow.py --benchmarks` を起動し、`--windows 365,180,90` をまとめて更新する。ジョブ定義の引数（`ops` 側のジョブ設定ファイル/インフラ管理リポジトリ）には、下表で示すアラート閾値（`--alert-pips 60` / `--alert-winrate 0.04` / `--alert-sharpe 0.2` / `--alert-max-drawdown 40`）と併せて記録し、このランブックと整合させる。
 - それぞれのウィンドウは同一コマンドで更新されるが、レビュー頻度・責任者・アラート確認ポイントは下表の通りに運用する。レビュー結果や例外対応は `docs/todo_next.md` または `state.md` に追記する。
-- Cron 後の鮮度確認として `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6` を実行し、`benchmarks` および `benchmark_pipeline` のタイムスタンプが許容範囲に収まっているか検証する。日次ワークフローからは `--check-benchmark-freshness` と `--benchmark-freshness-max-age-hours 6` を併用して自動実行する。`ingest_metadata` ブロックには主経路（`primary_source`）、フェイルオーバー履歴（`fallbacks` / `source_chain`）、最新取得時刻（`last_ingest_at`）、鮮度差分（`freshness_minutes`）がまとめて表示されるため、合成バー (`synthetic_local`) やローカル CSV から復旧したケースでも経路を追跡しやすい。
+- Cron 後の鮮度確認として `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6` を実行し、`benchmarks` および `benchmark_pipeline` のタイムスタンプが許容範囲に収まっているか検証する。日次ワークフローからは `--check-benchmark-freshness` と `--benchmark-freshness-max-age-hours 6` を併用して自動実行する。`ingest_metadata` ブロックには主経路（`primary_source`）、フェイルオーバー履歴（`fallbacks` / `source_chain`）、最新取得時刻（`last_ingest_at`）、鮮度差分（`freshness_minutes`）がまとめて表示されるため、合成バー (`synthetic_local`) やローカル CSV から復旧したケースでも経路を追跡しやすい。Sandbox では `source_chain` に `synthetic_local` が含まれる場合、`benchmark_pipeline.*` の欠損/遅延は `advisories` として報告されるため、実データ再取得後に `errors` が空へ戻ったか確認する。
 
 | ウィンドウ | 更新頻度 / 想定タイミング | 主コマンド / 担当 | アラート設定 / 通知チャネル | レビュー観点 |
 | --- | --- | --- | --- | --- |

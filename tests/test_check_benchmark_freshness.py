@@ -98,6 +98,34 @@ def synthetic_snapshot(snapshot_dir, fixed_now: dt.datetime) -> Path:
     return snapshot_dir(data)
 
 
+@pytest.fixture
+def synthetic_missing_pipeline_snapshot(
+    snapshot_dir, fixed_now: dt.datetime
+) -> Path:
+    base_ts = (fixed_now - dt.timedelta(hours=12)).isoformat()
+    data = {
+        "benchmarks": {"USDJPY_conservative": base_ts},
+        "benchmark_pipeline": {},
+        "ingest_meta": {
+            "USDJPY_5m": {
+                "synthetic_extension": True,
+                "primary_source": "local_csv",
+                "freshness_minutes": 180.0,
+                "source_chain": [
+                    {"source": "local_csv"},
+                    {"source": "synthetic_local"},
+                ],
+                "fallbacks": [
+                    {"stage": "dukascopy", "reason": "dependency_missing"},
+                    {"stage": "yfinance", "reason": "dependency_missing"},
+                ],
+                "last_ingest_at": "2025-01-01T08:15:00+00:00",
+            }
+        },
+    }
+    return snapshot_dir(data)
+
+
 def test_check_benchmark_freshness_ok(fresh_snapshot: Path, fixed_now: dt.datetime):
     result = check_benchmark_freshness(
         snapshot_path=fresh_snapshot,
@@ -153,6 +181,24 @@ def test_stale_with_synthetic_is_advisory(
     assert ingest_meta["fallbacks"] == ["local_csv", "synthetic_local"]
     assert ingest_meta["source_chain"] == ["local_csv", "synthetic_local"]
     assert ingest_meta["last_ingest_at"].startswith("2025-01-01T10:15:00")
+
+
+def test_missing_pipeline_with_synthetic_is_advisory(
+    synthetic_missing_pipeline_snapshot: Path, fixed_now: dt.datetime
+):
+    result = check_benchmark_freshness(
+        snapshot_path=synthetic_missing_pipeline_snapshot,
+        targets=["USDJPY:conservative"],
+        max_age_hours=6,
+        now=fixed_now,
+    )
+
+    assert result["ok"] is True
+    assert result["errors"] == []
+    assert result["advisories"]
+    assert any(
+        msg.startswith("benchmark_pipeline.") for msg in result["advisories"]
+    )
 
 
 def test_cli_missing_fields_outputs_errors(missing_fields_snapshot: Path, capsys):
