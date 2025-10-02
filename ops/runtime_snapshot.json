@@ -6,15 +6,13 @@
     "USDJPY_conservative": "2025-10-01T03:05:00"
   },
   "benchmarks": {
-    "USDJPY_conservative": "2025-10-02T14:42:00"
+    "USDJPY_conservative": "2025-10-02T21:40:17.471193Z"
   },
   "benchmark_pipeline": {
     "USDJPY_conservative": {
-      "latest_ts": "2025-10-02T14:42:00",
-      "summary_generated_at": "2025-10-02T14:46:11.109823Z",
-      "warnings": [
-        "baseline total_pips negative: -26.56"
-      ],
+      "latest_ts": "2025-10-02T21:40:17.471193Z",
+      "summary_generated_at": "2025-10-02T21:40:17.471193Z",
+      "warnings": [],
       "threshold_alerts": [],
       "alert": {
         "triggered": true,
@@ -22,7 +20,7 @@
           "event": "benchmark_shift",
           "symbol": "USDJPY",
           "mode": "conservative",
-          "timestamp": "2025-10-02T14:46:09Z",
+          "timestamp": "2025-10-02T21:40:14Z",
           "thresholds": {
             "total_pips": 50.0,
             "win_rate": 0.05,
@@ -30,14 +28,6 @@
             "max_drawdown": 40.0
           },
           "metrics_prev": {
-            "trades": 290.0,
-            "wins": 186.0,
-            "win_rate": 0.6413793103448275,
-            "total_pips": 177.83142857159817,
-            "sharpe": 1.1248966331730024,
-            "max_drawdown": -95.01142857143174
-          },
-          "metrics_new": {
             "trades": 175.0,
             "wins": 115.0,
             "win_rate": 0.6571428571428571,
@@ -45,10 +35,18 @@
             "sharpe": -0.22364067909748994,
             "max_drawdown": -137.4785714285615
           },
+          "metrics_new": {
+            "trades": 300.0,
+            "wins": 192.0,
+            "win_rate": 0.64,
+            "total_pips": 222.9371428573188,
+            "sharpe": 1.3746904365328712,
+            "max_drawdown": -93.66857142857549
+          },
           "deltas": {
-            "delta_total_pips": -204.39571428583918,
-            "delta_sharpe": -1.3485373122704922,
-            "delta_max_drawdown": -42.46714285712977
+            "delta_total_pips": 249.5014285715598,
+            "delta_sharpe": 1.598331115630361,
+            "delta_max_drawdown": 43.80999999998602
           },
           "report_path": "reports/baseline/USDJPY_conservative.json"
         },
