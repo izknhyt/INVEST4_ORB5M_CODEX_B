@@ -16,35 +16,6 @@
 
 ### In Progress
 
-- **価格インジェストAPI基盤整備**（バックログ: `docs/task_backlog.md` → P1「ローリング検証 + 健全性モニタリング」） — `state.md` 2025-10-16, 2025-11-05, 2025-11-06 <!-- anchor: docs/task_backlog.md#p1-04-価格インジェストapi基盤整備 -->
-  - Scope: Dukascopy 主経路の堅牢化と、REST/API ルートの保留管理・フォールバック設計（yfinance など無料ソース）。
-  - Deliverables (EN): API ingestion design doc (`docs/api_ingest_plan.md`), CLI integration plan, retry/test matrix.
-  - 2025-11-05: Alpha Vantage（Premium 49.99 USD/月）と Twelve Data Free（0 USD, 8req/min, 800req/日）を `activation_criteria` で比較し、Alpha Vantage は保留継続・Twelve Data はフォールバック候補として記録。`configs/api_ingest.yml` に閾値・候補ノートを追記済み。
-  - 2025-11-06: 暗号化ストレージ運用と鍵ローテーション記録フローを `docs/state_runbook.md` / README / チェックリストへ反映し、`credential_rotation` プレースホルダを定義。Reviewers: ops-security（高橋）, ops-runbook（佐藤）。
-  - 2025-11-07: サンドボックスで `run_daily_workflow --ingest --use-dukascopy` を実行したが、`dukascopy_python` / `yfinance` 未導入で双方失敗しスナップショット未更新。`check_benchmark_freshness --max-age-hours 6` では最新バー 18.60h / サマリー 9.31h 遅延で閾値超過を確認。依存導入→再取得→鮮度確認を次アクションに設定。
-  - 2025-11-09: REST retry error_keys を構造化し、Twelve Data の `status: "ok"` 成功レスポンスと `status: "error"` エラーを正しく判別できるよう `configs/api_ingest.yml` / `scripts/fetch_prices_api.py` / pytest を同期。
-  - 2025-11-10: Twelve Data の `volume` 欠損を許容するよう `response.fields` に `required=false` / `default=0.0` を導入し、`fetch_prices_api` の正規化ロジックと pytest を更新。今後は UTC パース差異とフォールバック手順の runbook 追記へ移行。
-  - 2025-11-11: Twelve Data 形式のレスポンス（`datetime` +00:00 / `volume` 欠損）をモック API テストへ反映し、`tests/test_fetch_prices_api.py` に回帰を追加。`docs/state_runbook.md` へドライラン手順と確認項目を追記し、チェックリストへ進捗メモを更新。
-  - 2025-11-12: Dukascopy / yfinance の双方が利用できない Sandbox でも `run_daily_workflow.py --ingest --use-dukascopy` が動作するよう、ローカル CSV フェイルオーバーを追加し、`tests/test_run_daily_workflow.py` に回帰を実装。依存導入後に再取得→鮮度チェックを実行するタスクは継続。
-  - 2025-11-13: ローカル CSV フォールバック後に `synthetic_local` 合成バーを生成して snapshot を 5 分刻みで最新化。Sandbox でも `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6` を再開できるよう runbook / checklist を更新し、残タスクは実データ依存を導入して鮮度確認を完了させること。
-  - 2025-11-13: `pip install dukascopy-python yfinance` を試行したが Proxy 403 で遮断。`python3 scripts/run_daily_workflow.py --ingest --use-dukascopy --symbol USDJPY --mode conservative` はローカル CSV + `synthetic_local` フォールバックで完走し、`ops/runtime_snapshot.json.ingest.USDJPY_5m` を 2025-10-02T03:15:00 まで引き上げた。ベンチマークの鮮度は引き続き遅延中のため、依存導入後に再検証する。
-  - 2025-11-19: `scripts/run_daily_workflow.py` に `--local-backup-csv` を追加し、Sandbox で持ち込むローカル CSV を明示指定できるようにした。README / docs/state_runbook.md / `docs/api_ingest_plan.md` を同期し、`tests/test_run_daily_workflow.py` にカスタム CSV の回帰テストを追加。
-  - 2025-11-24: `--disable-synthetic-extension` を追加してローカル CSV 復旧時の `synthetic_local` 挿入を抑止できるようにし、鮮度遅延をそのまま `check_benchmark_freshness` でレビュー可能にした。README / runbook / ingest plan / チェックリストを更新済み。
-  - 2025-11-25: `--use-api` 経路でも API 障害/空レスポンス検出時にローカル CSV → `synthetic_local` へ自動フォールバックし、`ingest_meta.fallbacks` へ `api` → `local_csv` → `synthetic_local` を記録するよう更新。pytest へフォールバックの回帰テストを追加し、README / state runbook / ingest plan の手順を同期。
-  - 2025-11-26: `check_benchmark_freshness` で `ingest_meta.fallbacks` に記録されたステージ名を正規化し、CLI 出力からフォールバック経路を直接レビューできるようにした。pytest へ `fallbacks` 正規化の回帰を追加し、Sandbox での advisory ダウングレード仕様を維持。
-  - Next step: `dukascopy-python` / `yfinance` のホイールを持ち込むか、Sandbox プロキシで PyPI ホストを許可して再インストールを実施し、`python3 scripts/run_daily_workflow.py --ingest --use-dukascopy` → `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6` を再実行して鮮度アラート解消を確認する。結果を `state.md` / `docs/checklists/p1-04_api_ingest.md` / `docs/task_backlog.md` に反映する。
-  - 2025-11-22: `check_benchmark_freshness` で `benchmarks.<target> missing` を Sandbox では `advisories` へ降格し、CLI 実行結果が `ok=true` を維持できるよう調整。回帰テストとチェックリスト更新を同期。
-  - Backlog Anchor: [価格インジェストAPI基盤整備 (P1-04)](docs/task_backlog.md#p1-04-価格インジェストapi基盤整備)
-  - Vision / Runbook References:
-    - [readme/設計方針（投資_3_）v_1.md](readme/設計方針（投資_3_）v_1.md)
-    - [docs/state_runbook.md](docs/state_runbook.md)
-    - [README.md#オンデマンドインジェスト-cli](README.md#オンデマンドインジェスト-cli)
-  - Pending Questions:
-    - [x] Dukascopy 経路の冪等性・鮮度検証を完了し、標準運用として承認できるか。
-    - [ ] REST/API を再開する条件（コスト上限・レート制限・鍵ローテーション SOP）と、無料フォールバック（yfinance 自動切替＋鮮度監視）の仕様確定。
-  - Docs note: `docs/api_ingest_plan.md` / README / `docs/state_runbook.md` を更新済み。残タスクはフォールバック仕様と保留メモを `docs/checklists/p1-04_api_ingest.md` に反映すること。
-  - DoD チェックリスト: [docs/checklists/p1-04_api_ingest.md](docs/checklists/p1-04_api_ingest.md) を利用して進捗を管理する。
-
 ### Ready
 
 ### Pending Review
@@ -55,6 +26,10 @@
   - Mean Reversion は `zscore` カラムの追加でトレード生成が確認でき、EV プロファイル有無で `ev_reject` 差分が無いことを再現。日次 CSV にゲート/EV カウントを保存済み。次は RV High ブロック条件とウォームアップ回数の調整案を検討。
 
 ## Archive（達成済み）
+- ~~**価格インジェストAPI基盤整備**~~ ✅ — `state.md` 2025-10-16, 2025-11-05, 2025-11-06, 2025-11-28 <!-- anchor: docs/task_backlog.md#p1-04-価格インジェストapi基盤整備 -->
+  - `python3 scripts/run_daily_workflow.py --ingest --use-dukascopy --symbol USDJPY --mode conservative` を実行し、yfinance フォールバックで 91 行を取り込み `ops/runtime_snapshot.json.ingest_meta.USDJPY_5m.freshness_minutes=0.614` を確認。
+  - 続けて `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6 --ingest-timeframe USDJPY_5m` を実行し、`ok: true`・`errors: []`・`advisories: []` を確認。`benchmark_pipeline` 側も遅延 0.59h 以内を維持。
+  - `state.md` / `docs/checklists/p1-04_api_ingest.md` / `docs/api_ingest_plan.md` / `docs/state_runbook.md` / `README.md` の該当箇所を再確認し、フォールバック仕様と依存導入手順が現行運用と一致していることをレビューしたうえで todo を Archive へ移動。
 - ~~**ローリング検証パイプライン**~~ ✅ — `state.md` 2025-11-27 <!-- anchor: docs/task_backlog.md#p1-01-ローリング検証パイプライン -->
   - `python3 scripts/run_benchmark_pipeline.py --windows 365,180,90 --disable-plot` を実行し、`reports/rolling/{365,180,90}/USDJPY_conservative.json` と `reports/benchmark_summary.json` に勝率・Sharpe・最大DDの最新値を反映。
   - `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6 --benchmark-freshness-max-age-hours 6` を完走させ、`ops/runtime_snapshot.json` の `benchmark_pipeline` セクションが `ok: true` で `errors` 空となることを確認。
