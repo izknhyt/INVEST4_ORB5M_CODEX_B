@@ -1,26 +1,81 @@
 {
   "ingest": {
-    "USDJPY_5m": "2025-10-02T03:15:00"
+    "USDJPY_5m": "2025-10-02T14:42:00"
   },
   "state_update": {
     "USDJPY_conservative": "2025-10-01T03:05:00"
   },
   "benchmarks": {
-    "USDJPY_conservative": "2025-10-01T03:05:00"
+    "USDJPY_conservative": "2025-10-02T14:42:00"
   },
   "benchmark_pipeline": {
     "USDJPY_conservative": {
-      "latest_ts": "2025-10-01T03:05:00",
-      "summary_generated_at": "2025-10-01T12:22:27.116291Z",
+      "latest_ts": "2025-10-02T14:42:00",
+      "summary_generated_at": "2025-10-02T14:46:11.109823Z",
       "warnings": [
-        "rolling window 90 total_pips negative: -10.64",
-        "baseline total_pips negative: -100.67"
+        "baseline total_pips negative: -26.56"
       ],
       "threshold_alerts": [],
       "alert": {
-        "triggered": false,
-        "reason": "below_threshold"
+        "triggered": true,
+        "payload": {
+          "event": "benchmark_shift",
+          "symbol": "USDJPY",
+          "mode": "conservative",
+          "timestamp": "2025-10-02T14:46:09Z",
+          "thresholds": {
+            "total_pips": 50.0,
+            "win_rate": 0.05,
+            "sharpe": 0.15,
+            "max_drawdown": 40.0
+          },
+          "metrics_prev": {
+            "trades": 290.0,
+            "wins": 186.0,
+            "win_rate": 0.6413793103448275,
+            "total_pips": 177.83142857159817,
+            "sharpe": 1.1248966331730024,
+            "max_drawdown": -95.01142857143174
+          },
+          "metrics_new": {
+            "trades": 175.0,
+            "wins": 115.0,
+            "win_rate": 0.6571428571428571,
+            "total_pips": -26.56428571424101,
+            "sharpe": -0.22364067909748994,
+            "max_drawdown": -137.4785714285615
+          },
+          "deltas": {
+            "delta_total_pips": -204.39571428583918,
+            "delta_sharpe": -1.3485373122704922,
+            "delta_max_drawdown": -42.46714285712977
+          },
+          "report_path": "reports/baseline/USDJPY_conservative.json"
+        },
+        "deliveries": []
       }
+    }
+  },
+  "ingest_meta": {
+    "USDJPY_5m": {
+      "primary_source": "yfinance",
+      "source_label": "yfinance",
+      "source_chain": [
+        {
+          "source": "yfinance"
+        }
+      ],
+      "rows_raw": 138,
+      "rows_validated": 138,
+      "rows_featured": 138,
+      "anomalies_logged": 0,
+      "gaps_detected": 0,
+      "last_ts_now": "2025-10-02T14:42:00",
+      "freshness_minutes": 0.192,
+      "snapshot_path": "/Users/izumimotohayato/development/invest3_orb5m_codex/ops/runtime_snapshot.json",
+      "last_ingest_at": "2025-10-02T14:42:11+00:00",
+      "synthetic_extension": false,
+      "updated_at": "2025-10-02T14:42:11"
     }
   }
 }

@@ -5,10 +5,14 @@ import pytest
 from scripts import yfinance_fetch
 
 
-class _FakeDatetime(datetime):
-    @classmethod
-    def utcnow(cls):
+class _FakeDatetimeModule:
+    @staticmethod
+    def utcnow():
         return datetime(2025, 10, 1, 4, 30)
+
+    @staticmethod
+    def fromtimestamp(value, tz=None):
+        return datetime.fromtimestamp(value, tz=tz)
 
 
 class _FakeIndex:
@@ -54,50 +58,64 @@ class _FakeFrame:
 
 
 def test_fetch_bars_normalizes_rows(monkeypatch):
-    frame = _FakeFrame()
+    ts_start = int(datetime(2025, 10, 1, 3, 40, tzinfo=timezone.utc).timestamp())
+    ts_end = ts_start + 300
+    chart_payload = {
+        "timestamp": [ts_start, ts_end],
+        "indicators": {
+            "quote": [
+                {
+                    "open": [147.90, 147.95],
+                    "high": [147.95, 148.0],
+                    "low": [147.85, 147.90],
+                    "close": [147.92, 147.99],
+                    "volume": [1000, 1200],
+                }
+            ]
+        },
+    }
 
-    class DummyModule:
-        @staticmethod
-        def download(**kwargs):
-            assert kwargs["tickers"] == "JPY=X"
-            assert kwargs["interval"] == "5m"
-            assert kwargs["period"] == "7d"
-            return frame
+    def _mock_download(**kwargs):
+        assert kwargs["ticker"] == "JPY=X"
+        assert kwargs["interval"] == "5m"
+        return chart_payload
 
-    monkeypatch.setattr(yfinance_fetch, "_ensure_module", lambda: DummyModule())
-    monkeypatch.setattr(yfinance_fetch, "datetime", _FakeDatetime)
+    monkeypatch.setattr(yfinance_fetch, "_download_chart", _mock_download)
+    monkeypatch.setattr(yfinance_fetch, "datetime", _FakeDatetimeModule)
 
     rows = list(
         yfinance_fetch.fetch_bars(
             "USDJPY",
             "5m",
-            start=datetime(2025, 10, 1, 3, 20),
-            end=datetime(2025, 10, 1, 4, 20),
+            start=datetime(2025, 10, 1, 3, 35),
+            end=datetime(2025, 10, 1, 3, 50),
         )
     )
 
     assert len(rows) == 2
-    assert rows[0]["timestamp"] == "2025-10-01T04:00:00"
+    assert rows[0]["timestamp"] == "2025-10-01T03:40:00"
     assert rows[0]["symbol"] == "USDJPY"
     assert rows[0]["o"] == pytest.approx(147.90)
     assert rows[1]["v"] == pytest.approx(1200)
 
 
-def test_fetch_bars_requires_yfinance(monkeypatch):
-    def raise_missing():
-        raise RuntimeError("missing yfinance")
+def test_fetch_bars_returns_empty_on_download_failure(monkeypatch):
+    def raise_error(**_kwargs):
+        raise RuntimeError("download failed")
 
-    monkeypatch.setattr(yfinance_fetch, "_ensure_module", raise_missing)
+    monkeypatch.setattr(yfinance_fetch, "_download_chart", raise_error)
+    monkeypatch.setattr(yfinance_fetch, "datetime", _FakeDatetimeModule)
 
-    with pytest.raises(RuntimeError):
-        list(
-            yfinance_fetch.fetch_bars(
-                "USDJPY",
-                "5m",
-                start=datetime(2025, 10, 1, 3, 55),
-                end=datetime(2025, 10, 1, 4, 10),
-            )
+    rows = list(
+        yfinance_fetch.fetch_bars(
+            "USDJPY",
+            "5m",
+            start=datetime(2025, 10, 1, 3, 55),
+            end=datetime(2025, 10, 1, 4, 10),
         )
+    )
+
+    assert rows == []
 
 
 def test_fetch_bars_rejects_invalid_interval():
@@ -113,20 +131,24 @@ def test_fetch_bars_rejects_invalid_interval():
 
 
 def test_fetch_bars_returns_empty_when_out_of_range(monkeypatch):
-    class EmptyFrame:
-        empty = True
+    ts_start = int(datetime(2025, 10, 1, 3, 40, tzinfo=timezone.utc).timestamp())
+    chart_payload = {
+        "timestamp": [ts_start],
+        "indicators": {
+            "quote": [
+                {
+                    "open": [147.90],
+                    "high": [147.95],
+                    "low": [147.85],
+                    "close": [147.92],
+                    "volume": [1000],
+                }
+            ]
+        },
+    }
 
-        def dropna(self, **_kwargs):
-            return self
-
-    class DummyModule:
-        @staticmethod
-        def download(**kwargs):
-            assert kwargs["period"] == "7d"
-            return EmptyFrame()
-
-    monkeypatch.setattr(yfinance_fetch, "_ensure_module", lambda: DummyModule())
-    monkeypatch.setattr(yfinance_fetch, "datetime", _FakeDatetime)
+    monkeypatch.setattr(yfinance_fetch, "_download_chart", lambda **_: chart_payload)
+    monkeypatch.setattr(yfinance_fetch, "datetime", _FakeDatetimeModule)
 
     rows = list(
         yfinance_fetch.fetch_bars(

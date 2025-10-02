@@ -8,7 +8,7 @@
 1. `run_daily_workflow.py --benchmarks` を日次バッチに組み込み、`validated/<SYMBOL>/5m.csv` を入力として `scripts/run_benchmark_pipeline.py` を呼び出す。
 2. パイプラインは以下を順番に実行し、成功時のみ `ops/runtime_snapshot.json` をアトミックに更新する:
    - `scripts/run_benchmark_runs.py`: 通期 run とローリング run を起動し、`reports/baseline/*.json` / `reports/rolling/<window>/*.json` を更新。前回との乖離が大きい場合は Webhook 通知（`benchmark_shift`）。
-   - `scripts/report_benchmark_summary.py`: `--windows`・`--min-sharpe`・`--min-win-rate`・`--max-drawdown` を受け取り、`reports/benchmark_summary.json` を再生成。閾値違反や欠損があれば `warnings` に追記し、Webhook 通知（`benchmark_summary_warnings`）。
+   - `scripts/report_benchmark_summary.py`: `--windows`・`--min-sharpe`・`--min-win-rate`・`--max-drawdown` を受け取り、`reports/benchmark_summary.json` を再生成。閾値違反や欠損があれば `warnings` に追記し、Webhook 通知（`benchmark_summary_warnings`）。Sandbox や軽量実行では `scripts/run_benchmark_pipeline.py --disable-plot` を併用して PNG 生成をスキップし、`pandas` / `matplotlib` 依存を持ち込まなくても済む。
    - `ops/runtime_snapshot.json`: `benchmarks.<symbol>_<mode>` に最新バー時刻を、`benchmark_pipeline.<symbol>_<mode>` に生成時刻・警告一覧・`threshold_alerts`・`alert`（トリガーフラグと delta/deliveries ブロック）を記録。
 
 3. 直近結果と前回結果の差分を `total_pips`・`win_rate`・`sharpe`・`max_drawdown` で比較し、既定の閾値（`--alert-pips`, `--alert-winrate`, `--alert-sharpe`, `--alert-max-drawdown`）を超えた場合は Webhook 通知を送信する。`report_benchmark_summary.py` は `--min-sharpe`・`--min-win-rate`・`--max-drawdown` で設定した健全性閾値を用いて `warnings` を生成し、`benchmark_summary_warnings` Webhook と JSON に書き出す。

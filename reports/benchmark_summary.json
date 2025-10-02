@@ -1,47 +1,46 @@
 {
-  "generated_at": "2025-10-01T12:22:27.942084Z",
+  "generated_at": "2025-10-02T14:46:11.109823Z",
   "symbol": "USDJPY",
   "mode": "conservative",
   "baseline": {
-    "trades": 122,
-    "wins": 83,
-    "win_rate": 0.680327868852459,
-    "total_pips": -100.67142857143244,
-    "sharpe": -1.3655637975442885,
-    "max_drawdown": -148.8471428571483
+    "trades": 175,
+    "wins": 115,
+    "win_rate": 0.6571428571428571,
+    "total_pips": -26.56428571424101,
+    "sharpe": -0.22364067909748994,
+    "max_drawdown": -137.4785714285615
   },
   "rolling": [
     {
-      "trades": 50,
-      "wins": 23,
-      "win_rate": 0.46,
-      "total_pips": -10.644285714232637,
-      "sharpe": -0.2135694474067891,
-      "max_drawdown": -54.108571428557184,
+      "trades": 52,
+      "wins": 47,
+      "win_rate": 0.9038461538461539,
+      "total_pips": 214.17611271770056,
+      "sharpe": 8.147639742278898,
+      "max_drawdown": -11.352190290176623,
       "window": 90
     },
     {
-      "trades": 78,
+      "trades": 52,
       "wins": 47,
-      "win_rate": 0.6025641025641025,
-      "total_pips": 501.9142857143521,
-      "sharpe": 3.3041030873727064,
-      "max_drawdown": -169.90571428569297,
+      "win_rate": 0.9038461538461539,
+      "total_pips": 214.17611271770056,
+      "sharpe": 8.147639742278898,
+      "max_drawdown": -11.352190290176623,
       "window": 180
     },
     {
-      "trades": 102,
-      "wins": 64,
-      "win_rate": 0.6274509803921569,
-      "total_pips": 546.3857142858119,
-      "sharpe": 4.008701548671984,
-      "max_drawdown": -149.40714285712943,
+      "trades": 122,
+      "wins": 84,
+      "win_rate": 0.6885245901639344,
+      "total_pips": 98.5883299248228,
+      "sharpe": 0.989317377330993,
+      "max_drawdown": -115.32142857136239,
       "window": 365
     }
   ],
   "warnings": [
-    "rolling window 90 total_pips negative: -10.64",
-    "baseline total_pips negative: -100.67"
+    "baseline total_pips negative: -26.56"
   ],
   "threshold_alerts": []
 }

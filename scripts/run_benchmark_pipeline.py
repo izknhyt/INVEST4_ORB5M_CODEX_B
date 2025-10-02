@@ -239,6 +239,11 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--snapshot", default=str(SNAPSHOT_PATH))
     parser.add_argument("--summary-json", default="reports/benchmark_summary.json")
     parser.add_argument("--summary-plot", default="reports/benchmark_summary.png")
+    parser.add_argument(
+        "--disable-plot",
+        action="store_true",
+        help="Skip summary plot generation to avoid optional dependencies.",
+    )
     parser.add_argument("--min-sharpe", type=float, default=None)
     parser.add_argument(
         "--min-win-rate",
@@ -328,7 +333,7 @@ def _build_summary_cmd(args: argparse.Namespace) -> List[str]:
         "--json-out",
         str(args.summary_json),
     ]
-    if args.summary_plot:
+    if not args.disable_plot and args.summary_plot:
         cmd += ["--plot-out", str(args.summary_plot)]
     if args.min_sharpe is not None:
         cmd += ["--min-sharpe", str(args.min_sharpe)]

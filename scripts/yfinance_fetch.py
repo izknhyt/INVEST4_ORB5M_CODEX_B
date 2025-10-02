@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-"""Helper to download bars from yfinance for ingestion."""
+"""Helper to download bars from yfinance for ingestion without heavy deps."""
 from __future__ import annotations
 
 import argparse
 import csv
+import json
 import sys
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Iterable, Iterator
+from typing import Dict, Iterable, Iterator, List, Optional
+
+import requests
+
 
 _INTERVAL_MAP = {
     "5m": "5m",
@@ -20,13 +24,11 @@ _SYMBOL_OVERRIDES = {
     "USDJPY": "JPY=X",
 }
 
-
-def _ensure_module():
-    try:
-        import yfinance as yf  # type: ignore
-    except ImportError as exc:  # pragma: no cover - optional dependency
-        raise RuntimeError("yfinance is required for yfinance ingestion") from exc
-    return yf
+_YF_BASE_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
+_YF_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; invest3-orb5m/1.0)",
+    "Accept": "application/json",
+}
 
 
 def _resolve_ticker(symbol: str) -> str:
@@ -42,19 +44,8 @@ def _resolve_ticker(symbol: str) -> str:
 
 def resolve_ticker(symbol: str) -> str:
     """Return the Yahoo Finance ticker used for the provided symbol."""
+
     return _resolve_ticker(symbol)
-
-
-def _normalize_index_ts(value) -> datetime:
-    if hasattr(value, "to_pydatetime"):
-        dt = value.to_pydatetime()
-    else:
-        dt = datetime.fromtimestamp(float(value))
-    if dt.tzinfo is not None:
-        dt = dt.astimezone(timezone.utc)
-    else:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.replace(tzinfo=None)
 
 
 def _safe_float(value) -> float:
@@ -67,13 +58,58 @@ def _safe_float(value) -> float:
     return result
 
 
+def _to_datetime(epoch_seconds: int) -> datetime:
+    dt = datetime.fromtimestamp(int(epoch_seconds), tz=timezone.utc)
+    return dt.replace(second=0, microsecond=0, tzinfo=None)
+
+
+def _download_chart(
+    *,
+    ticker: str,
+    interval: str,
+    start: datetime,
+    end: datetime,
+    session: Optional[requests.Session] = None,
+) -> Dict[str, object]:
+    params = {
+        "interval": interval,
+        "period1": int(start.replace(tzinfo=timezone.utc).timestamp()),
+        "period2": int(end.replace(tzinfo=timezone.utc).timestamp()),
+        "includePrePost": "true",
+        "events": "div,splits",
+    }
+
+    http = session or requests
+    response = http.get(
+        _YF_BASE_URL.format(ticker=ticker),
+        params=params,
+        headers=_YF_HEADERS,
+        timeout=30,
+    )
+    response.raise_for_status()
+
+    try:
+        payload = response.json()
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("yfinance JSON decode error") from exc
+
+    chart = payload.get("chart", {})
+    if chart.get("error"):
+        raise RuntimeError(f"yfinance returned error: {chart['error']}")
+
+    results: Optional[List[Dict[str, object]]] = chart.get("result")
+    if not results:
+        return {}
+
+    return results[0]
+
+
 def fetch_bars(
     symbol: str,
     tf: str,
     *,
     start: datetime,
     end: datetime,
-    auto_adjust: bool = False,
 ) -> Iterator[Dict[str, object]]:
     """Yield normalized OHLCV rows fetched from yfinance."""
 
@@ -82,63 +118,54 @@ def fetch_bars(
         raise ValueError(f"Unsupported timeframe for yfinance fetch: {tf}")
 
     now_utc = datetime.utcnow()
-    yf = _ensure_module()
     ticker = _resolve_ticker(symbol)
 
-    download_kwargs = {
-        "tickers": ticker,
-        "interval": interval,
-        "auto_adjust": auto_adjust,
-        "progress": False,
-        "repair": True,
-    }
-
-    if interval.endswith("m"):
-        period_start = now_utc - timedelta(days=7)
-        download_kwargs["period"] = "7d"
-    else:
-        period_start = start
-        download_kwargs["start"] = start
-        download_kwargs["end"] = min(end, now_utc)
-
-    frame = yf.download(**download_kwargs)
-
-    if frame is None:
+    effective_start = start.replace(tzinfo=timezone.utc)
+    effective_end = min(end, now_utc).replace(tzinfo=timezone.utc)
+    if effective_end <= effective_start:
         return iter(())
 
     try:
-        frame = frame.dropna(how="all")
-    except AttributeError:
+        chart = _download_chart(
+            ticker=ticker,
+            interval=interval,
+            start=effective_start,
+            end=effective_end,
+        )
+    except Exception:
         return iter(())
 
-    if getattr(frame, "empty", True):
+    timestamps: Optional[List[int]] = chart.get("timestamp") if chart else None
+    indicators: Optional[Dict[str, List[Dict[str, object]]]] = chart.get("indicators") if chart else None
+
+    if not timestamps or not indicators:
         return iter(())
 
-    if getattr(frame.columns, "nlevels", 1) > 1:
-        try:
-            frame = frame.xs(ticker, axis=1, level=-1)
-        except Exception:
-            try:
-                frame = frame.droplevel(-1, axis=1)  # type: ignore[attr-defined]
-            except Exception:
-                pass
-
-    target_start = max(start, period_start)
-    target_end = min(end, now_utc)
-    if target_end <= target_start:
+    quotes: Optional[List[Dict[str, Iterable[float]]]] = indicators.get("quote") if indicators else None
+    if not quotes:
         return iter(())
+
+    quote = quotes[0]
+    opens = quote.get("open") or []
+    highs = quote.get("high") or []
+    lows = quote.get("low") or []
+    closes = quote.get("close") or []
+    volumes = quote.get("volume") or []
+
+    target_start = start.replace(tzinfo=None)
+    target_end = min(end, now_utc).replace(tzinfo=None)
 
     def _iter() -> Iterator[Dict[str, object]]:
-        for ts, row in frame.iterrows():
-            dt = _normalize_index_ts(ts)
+        for idx, ts in enumerate(timestamps):
+            dt = _to_datetime(ts)
             if dt < target_start or dt > target_end:
                 continue
 
-            open_px = _safe_float(row.get("Open", row.get("open")))
-            high_px = _safe_float(row.get("High", row.get("high")))
-            low_px = _safe_float(row.get("Low", row.get("low")))
-            close_px = _safe_float(row.get("Close", row.get("close")))
-            volume = _safe_float(row.get("Volume", row.get("volume")))
+            open_px = _safe_float(opens[idx] if idx < len(opens) else 0.0)
+            high_px = _safe_float(highs[idx] if idx < len(highs) else 0.0)
+            low_px = _safe_float(lows[idx] if idx < len(lows) else 0.0)
+            close_px = _safe_float(closes[idx] if idx < len(closes) else 0.0)
+            volume = _safe_float(volumes[idx] if idx < len(volumes) else 0.0)
 
             if not all([open_px, high_px, low_px, close_px]):
                 continue
@@ -171,7 +198,6 @@ def _cli(argv=None) -> int:
     parser.add_argument("--tf", default="5m")
     parser.add_argument("--start-ts")
     parser.add_argument("--end-ts")
-    parser.add_argument("--auto-adjust", action="store_true")
     parser.add_argument("--out", default="-")
     args = parser.parse_args(argv)
 
@@ -185,7 +211,6 @@ def _cli(argv=None) -> int:
             args.tf,
             start=start,
             end=end,
-            auto_adjust=args.auto_adjust,
         )
     )
 
@@ -200,4 +225,4 @@ def _cli(argv=None) -> int:
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
-    raise SystemExit(_cli(sys.argv[1:]))
+    raise SystemExit(_cli())

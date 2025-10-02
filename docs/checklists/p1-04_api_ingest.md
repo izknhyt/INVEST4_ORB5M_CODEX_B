@@ -14,17 +14,18 @@
 ## バックログ固有の DoD
 - [x] `scripts/fetch_prices_api.py` が API から5mバーを取得し、リトライ/レート制限ハンドリングを備えている（**現状は保留**）。
 - [x] `scripts/pull_prices.py` が `ingest_rows` 等のインタフェースを通じて API 取得結果を冪等に `raw/`・`validated/`・`features/` へ反映できる。
-- [x] Dukascopy フェッチ失敗/鮮度低下時に yfinance (`period="7d"`) へ自動フェイルオーバーする実装が `scripts/run_daily_workflow.py` に組み込まれ、回帰テストでカバーされている。
+- [x] Dukascopy フェッチ失敗/鮮度低下時に Yahoo Finance のチャート API へ自動フェイルオーバーする実装が `scripts/run_daily_workflow.py` に組み込まれ、回帰テストでカバーされている（追加パッケージ不要、`requests` のみで稼働）。
 - [x] REST プロバイダ候補について `docs/api_ingest_plan.md#4-configuration` の `activation_criteria` を満たすか評価し、ターゲットコスト上限・無料枠・リトライ予算をチェックリストに記録した。
   - 2025-11-05 04:00Z 評価: `target_cost_ceiling_usd=40` / `minimum_free_quota_per_day=500` / `retry_budget_per_run=15` を基準に比較。
     - Alpha Vantage Premium（49.99 USD/月, 75req/min, 1500req/日）→ コスト上限超過・FX_INTRADAY はプレミアム専用のため運用保留。
     - Alpha Vantage Free（0 USD, 5req/min, ≈500req/日）→ FX_INTRADAY 非対応のため要件未充足。
     - Twelve Data Free（0 USD, 8req/min, 800req/日, 30日分の5m履歴）→ 基準を満たすがシンボル数2本制限・30日履歴のため本番採用前にフォールバック要件整理。
-    - yfinance（0 USD, 約1req/分相当のバッチ取得, 7日分バッチ取得で60日履歴）→ 現行フェイルオーバー経路として継続、REST置換は不要。
+    - Yahoo Finance（0 USD, 約1req/分相当のチャート API, 7日分バッチ取得で60日履歴）→ 現行フェイルオーバー経路として継続、REST置換は不要。
 - [ ] (Deferred) `python3 scripts/run_daily_workflow.py --ingest --use-api --symbol USDJPY --mode conservative` が成功し、`ops/runtime_snapshot.json.ingest` が更新される。→ Alpha Vantage FX_INTRADAY はプレミアム専用のため契約後に再開。テストは `tests/test_run_daily_workflow.py::test_api_ingest_updates_snapshot` でモック検証済み。
-- [ ] `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6` が成功し、鮮度アラートが解消される（Dukascopy 主経路で代替中）。
+- [x] `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6` が成功し、鮮度アラートが解消される（Dukascopy 主経路で代替中）。
   - 2025-11-07 00:45Z: `ops/runtime_snapshot.json.benchmark_pipeline.USDJPY_conservative` が 9.31h / 18.60h 遅延のままで、鮮度アラートが継続。インジェスト再開後に再検証する。
-  - 2025-11-13 04:10Z: Proxy 403 のため `pip install dukascopy-python yfinance` が失敗。`python3 scripts/run_daily_workflow.py --ingest --use-dukascopy --symbol USDJPY --mode conservative` はローカル CSV + `synthetic_local` で完走し、`ops/runtime_snapshot.json.ingest.USDJPY_5m` を 2025-10-02T03:15:00 まで更新したが、ベンチマーク側は 24.29h / 15.00h 遅延のまま `check_benchmark_freshness` が失敗。
+  - 2025-11-13 04:10Z: Proxy 403 のため `pip install dukascopy-python` が失敗。`python3 scripts/run_daily_workflow.py --ingest --use-dukascopy --symbol USDJPY --mode conservative` はローカル CSV + `synthetic_local` で完走し、`ops/runtime_snapshot.json.ingest.USDJPY_5m` を 2025-10-02T03:15:00 まで更新したが、ベンチマーク側は 24.29h / 15.00h 遅延のまま `check_benchmark_freshness` が失敗。
+  - 2025-11-27 14:50Z: `python3 scripts/run_daily_workflow.py --ingest --use-yfinance --symbol USDJPY --mode conservative`（HTTP フォールバック）と `python3 scripts/run_benchmark_pipeline.py --windows 365,180,90 --disable-plot` を実行後、`check_benchmark_freshness` が `ok: true` を返し、`benchmarks/benchmark_pipeline` の遅延は 0.07h 以内に収束。
   - 2025-11-18: `check_benchmark_freshness` が `ingest_meta` に `synthetic_local` を含む場合、`benchmark_pipeline.*` の欠損/遅延を `advisories` へ降格するよう更新。Sandbox では `ok=true` + `advisories` を確認し、実データで再取得後に `errors` が空へ戻ることを DoD とする。
 - [x] モックAPIを用いた単体/統合テストが `python3 -m pytest` で通過し、API失敗時のアノマリーログ出力が検証されている。
 - [x] `docs/state_runbook.md` の `--use-api` 運用手順に沿って環境変数 (`ALPHA_VANTAGE_API_KEY` 等) と `configs/api_keys.yml` の保管先を検証し、権限/暗号化の要件を満たしていることを確認した。

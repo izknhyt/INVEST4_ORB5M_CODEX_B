@@ -6,6 +6,7 @@
 - EVゲート: OCO=Beta-Binomial（勝率LCB）/ トレール=t下側分位、閾値はデフォルト0.5 pip（`RunnerConfig.threshold_lcb_pip` / CLI `--threshold-lcb` で調整可能）
 - Fill二系統: Conservative / Bridge（Brownian Bridge近似のフック）
 - サイズ: 分数ケリー(0.25×) + ガード（1トレード≤0.5%, 日次DD≤2%, クールダウン）
+- 想定環境: 個人開発者が単一PCで実行する前提。社内アーティファクトサーバや大規模配布は不要で、必要な依存はローカル環境で `pip install` すればよい。
 
 ## 使い方（簡易）
 1) `configs/*.yml` を確認・調整
@@ -131,8 +132,8 @@ python3 scripts/run_sim.py --csv data/ohlc5m.csv --symbol USDJPY --json-out out.
 ### オンデマンドインジェスト CLI
 - `scripts/pull_prices.py` はヒストリカルCSV（またはAPIエクスポート）から未処理バーを検出し、`raw/`→`validated/`→`features/` に冪等に追記する。
 - `python3 scripts/run_daily_workflow.py --ingest --use-dukascopy` が現在の標準経路。Dukascopy から最新5mバーを取得し、そのまま `pull_prices.ingest_records` に渡して CSV/特徴量を同期する。必要に応じて `--dukascopy-offer-side ask` で ASK 側に切り替えられ、指定がなければ BID 側（既定値）を取得する。Dukascopy が失敗するか、取得した最終バーが `--dukascopy-freshness-threshold-minutes`（既定 90 分）より古い場合は自動で yfinance (`period="7d"`) へ切り替わり、`--yfinance-lookback-minutes`（既定 60 分）を基準に再取得ウィンドウを決めつつ同一の CSV/特徴量更新が継続する。詳細なフォールバック手順は [docs/api_ingest_plan.md](docs/api_ingest_plan.md) を参照。
-- 依存ライブラリ（任意導入）: `pip install dukascopy-python yfinance`。フォールバック経路では Yahoo Finance のシンボル変換（例: USDJPY→JPY=X）が自動適用される。
-- Sandbox では企業プロキシが PyPI への直接接続を遮断するため、上記ライブラリはホワイトリスト登録後に `pip install` するか、事前にダウンロードしたホイール (`pip install dukascopy_python-*.whl yfinance-*.whl`) で導入する。未導入の場合は自動でローカル CSV → `synthetic_local` のフォールバックに切り替わり `ops/runtime_snapshot.json.ingest` を最新 5 分境界まで補完する。この間の運用メモは [readme/設計方針（投資_3_）v_1.md](readme/設計方針（投資_3_）v_1.md#sandbox-known-limitations) の Sandbox Known Limitations を参照。
+- 依存ライブラリ（任意導入）: `pip install dukascopy-python`。Dukascopy が失敗した場合は Yahoo Finance のチャート API へ直接 HTTP リクエストを送り、追加の Python パッケージなしでフォールバックを完結させる。シンボル変換（例: USDJPY→JPY=X）はスクリプト側で処理される。
+- Sandbox では企業プロキシが PyPI への直接接続を遮断するため、上記ライブラリはホワイトリスト登録後に `pip install` するか、事前にダウンロードしたホイール (`pip install dukascopy_python-*.whl`) で導入する。未導入の場合は自動でローカル CSV → `synthetic_local` のフォールバックに切り替わり `ops/runtime_snapshot.json.ingest` を最新 5 分境界まで補完する。この間の運用メモは [readme/設計方針（投資_3_）v_1.md](readme/設計方針（投資_3_）v_1.md#sandbox-known-limitations) の Sandbox Known Limitations を参照。
 - ローカル CSV での復旧時に合成バーを挿入したくない場合は `--disable-synthetic-extension` を指定する。`synthetic_local` をスキップすると最新バー時刻はローカル CSV の終端のままとなり、`check_benchmark_freshness` で鮮度遅延が `errors` として報告されるため、実データ取得後に再実行して解消を確認する。
 - フォールバックに使用するローカル CSV は `--local-backup-csv path/to.csv` で差し替え可能。複数シンボルや最新バックフィル済みのアーカイブを使いたい場合は、対象 CSV をリポジトリ配下へ配置してからフラグで指定する。
 - `synthetic_local` 合成バーが挿入されている間は `python3 scripts/check_benchmark_freshness.py` が `ok: true` を維持しつつ `advisories` 配列へ鮮度遅延を記録する。Sandbox では exit code=0 のまま情報共有扱いとし、PyPI 依存導入後に再取得して `advisories` が消えることを確認する。
