@@ -25,6 +25,7 @@ python3 scripts/run_daily_workflow.py --ingest --update-state --benchmarks --sta
   - 取り込み: `python3 scripts/pull_prices.py --source data/usdjpy_5m_2018-2024_utc.csv`
   - Dukascopy 経由（標準経路）: `python3 -m scripts.run_daily_workflow --ingest --use-dukascopy --symbol USDJPY --mode conservative`
     - 失敗時や取得データが `--dukascopy-freshness-threshold-minutes`（既定 90 分）より古い場合は自動で yfinance (`period="7d"`) へ切替。フォールバック時は `--yfinance-lookback-minutes`（既定 60 分）で再取得ウィンドウを決めるため、長期停止後に再開する際は値を大きめに設定してから実行する。`pip install dukascopy-python yfinance` を事前に実行して依存を満たす。
+    - ローカル CSV フォールバックで利用するファイルは `--local-backup-csv data/usdjpy_5m_2025.csv` のように明示指定できる。Sandbox で最新のバックフィルを持ち込む場合や別シンボルを検証したい場合は、対象 CSV を `data/` 以下へ配置してからフラグで差し替える。
     - 実行後は `ops/runtime_snapshot.json.ingest.USDJPY_5m` の更新時刻と `ops/logs/ingest_anomalies.jsonl` を確認し、鮮度が 90 分超で推移する場合は閾値見直しや手動調査を実施する。
     - `ops/runtime_snapshot.json.ingest_meta.USDJPY_5m` に補助メタデータが保存される。`primary_source`（実行フラグ）、`source_chain`（実際に利用したデータソース。例: `dukascopy` → `yfinance` → `local_csv` → `synthetic_local`）、`freshness_minutes`（`datetime.utcnow()` との差分）、`rows_validated` / `rows_raw` / `rows_featured`、`fallbacks`（発生したフォールバックの理由と次のソース）、`synthetic_extension`（ローカル合成バーで補完したか）をレビューし、Sandbox で `synthetic_extension=true` の場合は依存導入後に実データで再実行する。
     - 2025-11-07 00:40Z Sandbox: 依存未導入のまま実行すると Dukascopy / yfinance 双方が ImportError で停止し、`ops/runtime_snapshot.json.ingest.USDJPY_5m` は 2025-10-01T14:10:00 のまま。サンドボックスでは先に依存導入を済ませた上で再取得→鮮度確認を行う。

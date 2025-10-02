@@ -910,3 +910,103 @@ def test_dukascopy_and_yfinance_missing_falls_back_to_local_csv(
     fallbacks = meta["fallbacks"]
     assert any(note["stage"] == "dukascopy" for note in fallbacks)
     assert any(note["stage"] == "yfinance" for note in fallbacks)
+
+
+def test_local_csv_fallback_accepts_custom_backup(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    (repo_root / "ops/logs").mkdir(parents=True)
+    (repo_root / "raw").mkdir()
+    (repo_root / "validated/USDJPY").mkdir(parents=True)
+    (repo_root / "features/USDJPY").mkdir(parents=True)
+    (repo_root / "data").mkdir(parents=True, exist_ok=True)
+
+    snapshot_path = repo_root / "ops/runtime_snapshot.json"
+    snapshot_path.write_text(
+        json.dumps({"ingest": {"USDJPY_5m": "2025-10-03T03:55:00"}}),
+        encoding="utf-8",
+    )
+
+    validated_csv = repo_root / "validated/USDJPY/5m.csv"
+    validated_csv.write_text(
+        "timestamp,symbol,tf,o,h,l,c,v,spread\n"
+        "2025-10-03T03:55:00,USDJPY,5m,148.04,148.05,148.03,148.04,120,0\n",
+        encoding="utf-8",
+    )
+
+    custom_csv = repo_root / "data/custom_backup.csv"
+    custom_csv.write_text(
+        "timestamp,symbol,tf,o,h,l,c,v,spread\n"
+        "2025-10-03T04:00:00,USDJPY,5m,149.00,149.02,148.98,149.01,160,0\n"
+        "2025-10-03T04:05:00,USDJPY,5m,149.02,149.05,148.99,149.04,162,0\n",
+        encoding="utf-8",
+    )
+
+    from scripts import pull_prices
+
+    anomaly_log_path = repo_root / "ops/logs/ingest_anomalies.jsonl"
+    monkeypatch.setattr(pull_prices, "ANOMALY_LOG", anomaly_log_path)
+    monkeypatch.setattr(run_daily_workflow, "ROOT", repo_root)
+
+    fixed_now = datetime(2025, 10, 3, 4, 10)
+
+    class _FixedDatetime(datetime):
+        @classmethod
+        def utcnow(cls):
+            return fixed_now
+
+    monkeypatch.setattr(run_daily_workflow, "datetime", _FixedDatetime)
+
+    def _fail_load():
+        raise RuntimeError("dukascopy_python is required")
+
+    monkeypatch.setattr(run_daily_workflow, "_load_dukascopy_fetch", _fail_load)
+
+    def _missing_yfinance(*_args, **_kwargs):
+        raise RuntimeError("missing yfinance dependency")
+
+    monkeypatch.setattr(yfinance_fetch, "fetch_bars", _missing_yfinance)
+
+    ingest_calls = []
+    original_ingest = pull_prices.ingest_records
+
+    def _tracking_ingest(records, **kwargs):
+        rows = list(records)
+        ingest_calls.append(
+            {
+                "rows": rows,
+                "source_name": kwargs.get("source_name"),
+            }
+        )
+        return original_ingest(rows, **kwargs)
+
+    monkeypatch.setattr(pull_prices, "ingest_records", _tracking_ingest)
+
+    exit_code = run_daily_workflow.main(
+        [
+            "--ingest",
+            "--use-dukascopy",
+            "--symbol",
+            "USDJPY",
+            "--mode",
+            "conservative",
+            "--local-backup-csv",
+            "data/custom_backup.csv",
+        ]
+    )
+
+    assert exit_code == 0
+    assert ingest_calls
+    assert ingest_calls[0]["source_name"] == "local_csv:custom_backup.csv"
+
+    csv_lines = validated_csv.read_text(encoding="utf-8").splitlines()
+    assert csv_lines[-1].startswith("2025-10-03T04:05:00")
+
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    chain = snapshot["ingest_meta"]["USDJPY_5m"]["source_chain"]
+    assert chain[0]["source"] == "local_csv"
+    assert chain[0]["detail"] == "custom_backup.csv"
+
+    fallbacks = snapshot["ingest_meta"]["USDJPY_5m"]["fallbacks"]
+    assert any(note["stage"] == "dukascopy" for note in fallbacks)
+    assert any(note["stage"] == "yfinance" for note in fallbacks)
+

@@ -29,6 +29,7 @@ Dukascopy feed（正式運用） → 正常時は `scripts/dukascopy_fetch.py` �
   - Exposes `ingest_records(rows: Iterable[Dict[str, Any]], ...)` so CSV path ingestion and API/Dukascopy providers share the same idempotent pipeline.
 - `scripts/run_daily_workflow.py`
   - `--ingest` gains provider flags (`--use-api`, `--use-dukascopy`) so we can switch between REST exports and the Dukascopy bridge。2025-10 現在は `--use-dukascopy` を標準運用とし、`--use-api` はオプション保留。2025-11 以降は `--dukascopy-freshness-threshold-minutes`（既定 90 分）で鮮度を監視し、閾値超過時に yfinance への自動フェイルオーバーが発火する。
+  - `--local-backup-csv` でローカル CSV フォールバックに使用するファイルを差し替えられる。Sandbox で最新のバックフィルを適用する際や別シンボルの検証に活用する。
   - Exit non-zero on hard failures so Webhook/alert integrations continue to work。
 
 ## 4. Configuration

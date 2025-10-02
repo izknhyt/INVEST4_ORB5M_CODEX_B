@@ -195,17 +195,21 @@ def _ingest_local_csv_backup(
     raw_path: Path,
     validated_path: Path,
     features_path: Path,
+    backup_path: Optional[Path] = None,
     enable_synthetic: bool = True,
 ) -> Dict[str, object]:
     """Ingest bars from the bundled CSV backup for sandbox execution."""
 
     from scripts import pull_prices as pull_module
 
-    backup_path = ROOT / pull_module.DEFAULT_SOURCE
-    if not backup_path.exists():
-        raise RuntimeError(f"local CSV backup not found: {backup_path}")
+    candidate_path = backup_path
+    if candidate_path is None:
+        candidate_path = ROOT / pull_module.DEFAULT_SOURCE
 
-    with backup_path.open(newline="", encoding="utf-8") as fh:
+    if not candidate_path.exists():
+        raise RuntimeError(f"local CSV backup not found: {candidate_path}")
+
+    with candidate_path.open(newline="", encoding="utf-8") as fh:
         reader: Iterable[Dict[str, object]] = csv.DictReader(fh)
         result = ingest_records_func(
             reader,
@@ -215,7 +219,7 @@ def _ingest_local_csv_backup(
             raw_path=raw_path,
             validated_path=validated_path,
             features_path=features_path,
-            source_name=f"local_csv:{backup_path.name}",
+            source_name=f"local_csv:{candidate_path.name}",
         )
 
     if not enable_synthetic:
@@ -449,6 +453,14 @@ def main(argv=None) -> int:
         help="Minutes of history to re-request when using yfinance ingestion",
     )
     parser.add_argument(
+        "--local-backup-csv",
+        default=None,
+        help=(
+            "Path to the CSV used when falling back to local ingestion; "
+            "defaults to pull_prices.DEFAULT_SOURCE"
+        ),
+    )
+    parser.add_argument(
         "--dukascopy-freshness-threshold-minutes",
         type=int,
         default=90,
@@ -544,6 +556,15 @@ def main(argv=None) -> int:
         help="Comma-separated symbol:mode targets for freshness checks",
     )
     args = parser.parse_args(argv)
+
+    local_backup_path: Optional[Path] = None
+    if args.local_backup_csv:
+        candidate = Path(args.local_backup_csv)
+        if not candidate.is_absolute():
+            candidate = (ROOT / candidate).resolve()
+        else:
+            candidate = candidate.resolve()
+        local_backup_path = candidate
 
     symbol_input = args.symbol.upper()
     if symbol_input.endswith("=X"):
@@ -668,6 +689,7 @@ def main(argv=None) -> int:
                         raw_path=raw_path,
                         validated_path=validated_path,
                         features_path=features_path,
+                        backup_path=local_backup_path,
                     )
                 except Exception as backup_exc:  # pragma: no cover - unexpected failure
                     print(f"[wf] local CSV fallback unavailable: {backup_exc}")
@@ -834,6 +856,7 @@ def main(argv=None) -> int:
                         raw_path=raw_path,
                         validated_path=validated_path,
                         features_path=features_path,
+                        backup_path=local_backup_path,
                     )
                 except Exception as backup_exc:  # pragma: no cover - unexpected failure
                     print(f"[wf] local CSV fallback unavailable: {backup_exc}")
