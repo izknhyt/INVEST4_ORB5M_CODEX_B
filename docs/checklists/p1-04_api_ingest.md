@@ -88,6 +88,11 @@
 - `tests/test_run_daily_workflow.py::test_local_csv_fallback_can_disable_synthetic_extension` を追加し、`synthetic_extension` フラグが `False` のまま `source_chain` / `freshness_minutes` がローカル CSV 終端に一致することを検証。
 - README / `docs/state_runbook.md` / `docs/api_ingest_plan.md` を更新し、新フラグの用途と鮮度チェック時の留意点（`check_benchmark_freshness` で `errors` 扱いになる点）を追記。
 
+### 2025-11-25 API fallback to local CSV
+- `run_daily_workflow.py --ingest --use-api` でプロバイダ障害や空レスポンスが発生した場合、自動でローカル CSV → `synthetic_local` へ切り替え `ingest_meta.fallbacks` / `source_chain` / `local_backup_path` に経路を記録するよう更新。
+- `tests/test_run_daily_workflow.py::test_api_ingest_falls_back_to_local_csv` を追加し、`primary_source="api"` のままフォールバック記録と鮮度補完が行われることを固定。
+- README / `docs/state_runbook.md` / `docs/api_ingest_plan.md` の `--use-api` 手順へフォールバック確認手順を追記。
+
 ### 2025-11-20 Ingest metadata timestamp capture
 - `scripts/run_daily_workflow.py` が `ingest_meta` に `last_ingest_at` を記録するよう更新し、`tests/test_run_daily_workflow.py` でフィールド存在を回帰確認。
 - `check_benchmark_freshness` 出力で取得時刻を参照できるため、鮮度レビュー時にフェッチ完了タイミングを追跡しやすくなった。
