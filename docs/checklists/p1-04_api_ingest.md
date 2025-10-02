@@ -64,4 +64,9 @@
 - `tests/test_run_daily_workflow.py::test_dukascopy_and_yfinance_missing_falls_back_to_local_csv` を追加し、Sandbox で snapshot 更新・validated CSV 追記・アノマリーログ抑止を確認。
 - `docs/task_backlog.md` / `docs/todo_next.md` / 本チェックリストへフェイルオーバー手順とフォローアップ（依存導入後の再検証）を記録。
 
+### 2025-11-13 Synthetic local extension
+- ローカル CSV フォールバックだけでは最新バーが更新されないケースに備え、`scripts/run_daily_workflow.py` に合成 OHLCV 生成 (`synthetic_local`) を追加し、5 分刻みで `ops/runtime_snapshot.json.ingest` を更新できるようにした。
+- `tests/test_run_daily_workflow.py::test_dukascopy_and_yfinance_missing_falls_back_to_local_csv` を更新して合成バー追記と snapshot 最新化を検証。
+- `docs/state_runbook.md` へサンドボックス向け運用メモを追加し、鮮度チェック DoD を再開できるようドキュメントを同期。
+
 > API供給元や鍵管理ポリシーは `docs/api_ingest_plan.md` の更新と併せて、タスク完了までに最新化してください。現状は Dukascopy 主経路で運用し、REST/API は契約条件が整い次第再開します。
