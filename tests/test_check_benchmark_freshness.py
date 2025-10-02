@@ -69,6 +69,32 @@ def missing_fields_snapshot(snapshot_dir) -> Path:
     return snapshot_dir(data)
 
 
+@pytest.fixture
+def synthetic_snapshot(snapshot_dir, fixed_now: dt.datetime) -> Path:
+    base_ts = (fixed_now - dt.timedelta(hours=12)).isoformat()
+    summary_ts = (fixed_now - dt.timedelta(hours=11)).isoformat()
+    data = {
+        "benchmarks": {"USDJPY_conservative": base_ts},
+        "benchmark_pipeline": {
+            "USDJPY_conservative": {
+                "latest_ts": base_ts,
+                "summary_generated_at": summary_ts,
+            }
+        },
+        "ingest_meta": {
+            "USDJPY_5m": {
+                "synthetic_extension": True,
+                "primary_source": "local_csv",
+                "source_chain": [
+                    {"source": "local_csv"},
+                    {"source": "synthetic_local"},
+                ],
+            }
+        },
+    }
+    return snapshot_dir(data)
+
+
 def test_check_benchmark_freshness_ok(fresh_snapshot: Path, fixed_now: dt.datetime):
     result = check_benchmark_freshness(
         snapshot_path=fresh_snapshot,
@@ -78,9 +104,11 @@ def test_check_benchmark_freshness_ok(fresh_snapshot: Path, fixed_now: dt.dateti
     )
     assert result["ok"] is True
     assert result["errors"] == []
+    assert result["advisories"] == []
     checked = result["checked"][0]
     assert checked["benchmarks_timestamp"].startswith("2025-01-01T11:00:00")
     assert checked["summary_generated_at"].endswith("Z")
+    assert checked["advisories"] == []
 
 
 def test_check_benchmark_freshness_reports_stale(
@@ -94,6 +122,29 @@ def test_check_benchmark_freshness_reports_stale(
     )
     assert result["ok"] is False
     assert any("stale" in err for err in result["errors"])
+    checked = result["checked"][0]
+    assert checked["advisories"] == []
+
+
+def test_stale_with_synthetic_is_advisory(
+    synthetic_snapshot: Path, fixed_now: dt.datetime
+):
+    result = check_benchmark_freshness(
+        snapshot_path=synthetic_snapshot,
+        targets=["USDJPY:conservative"],
+        max_age_hours=6,
+        now=fixed_now,
+    )
+
+    assert result["ok"] is True
+    assert result["errors"] == []
+    assert result["advisories"]
+    checked = result["checked"][0]
+    assert checked["errors"] == []
+    assert checked["advisories"]
+    ingest_meta = checked.get("ingest_metadata")
+    assert ingest_meta is not None
+    assert ingest_meta["synthetic_extension"] is True
 
 
 def test_cli_missing_fields_outputs_errors(missing_fields_snapshot: Path, capsys):
@@ -112,3 +163,4 @@ def test_cli_missing_fields_outputs_errors(missing_fields_snapshot: Path, capsys
     assert exit_code == 1
     assert payload["ok"] is False
     assert "benchmarks.USDJPY_conservative missing" in payload["errors"]
+    assert "advisories" in payload
