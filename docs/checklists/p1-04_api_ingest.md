@@ -83,6 +83,11 @@
 - `tests/test_run_daily_workflow.py::test_dukascopy_and_yfinance_missing_falls_back_to_local_csv` を更新して合成バー追記と snapshot 最新化を検証。
 - `docs/state_runbook.md` へサンドボックス向け運用メモを追加し、鮮度チェック DoD を再開できるようドキュメントを同期。
 
+### 2025-11-24 Synthetic extension toggle
+- 運用側の要望で、ローカル CSV 復旧時に合成バーを挿入せず鮮度遅延を可視化したいケースに対応。`python3 scripts/run_daily_workflow.py --ingest --use-dukascopy --disable-synthetic-extension` を追加し、`ingest_meta` に `synthetic_local` が含まれない経路を選択できるようにした。
+- `tests/test_run_daily_workflow.py::test_local_csv_fallback_can_disable_synthetic_extension` を追加し、`synthetic_extension` フラグが `False` のまま `source_chain` / `freshness_minutes` がローカル CSV 終端に一致することを検証。
+- README / `docs/state_runbook.md` / `docs/api_ingest_plan.md` を更新し、新フラグの用途と鮮度チェック時の留意点（`check_benchmark_freshness` で `errors` 扱いになる点）を追記。
+
 ### 2025-11-20 Ingest metadata timestamp capture
 - `scripts/run_daily_workflow.py` が `ingest_meta` に `last_ingest_at` を記録するよう更新し、`tests/test_run_daily_workflow.py` でフィールド存在を回帰確認。
 - `check_benchmark_freshness` 出力で取得時刻を参照できるため、鮮度レビュー時にフェッチ完了タイミングを追跡しやすくなった。

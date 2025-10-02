@@ -10,7 +10,7 @@
   - Ensure `run_daily_workflow.py --ingest` keeps `raw/`, `validated/`, `features/` and `ops/runtime_snapshot.json.ingest` up to date so freshness checks stay within 6h.
 
 ## 2. Data Flow
-Dukascopy feed（正式運用） → 正常時は `scripts/dukascopy_fetch.py` → normalized bar iterator → `pull_prices.ingest_records` → CSV append (`raw`/`validated`/`features`) → snapshot/anomaly logging。フェイルオーバー条件（例: 90 分超の鮮度遅延/取得失敗）に該当した場合は自動で `scripts/yfinance_fetch.py` (`period="7d"`, シンボル正規化付き) を呼び出し同フローに合流する。両方の外部依存が利用できない Sandbox では、ローカル CSV → `synthetic_local` 合成バー生成のチェーンで `ops/runtime_snapshot.json.ingest` を最新 5 分境界まで引き上げる。この制約と対応策は [readme/設計方針（投資_3_）v_1.md#sandbox-known-limitations](../readme/設計方針（投資_3_）v_1.md#sandbox-known-limitations) でも追跡する。REST API provider（保留中）も同じインターフェースに揃える。
+Dukascopy feed（正式運用） → 正常時は `scripts/dukascopy_fetch.py` → normalized bar iterator → `pull_prices.ingest_records` → CSV append (`raw`/`validated`/`features`) → snapshot/anomaly logging。フェイルオーバー条件（例: 90 分超の鮮度遅延/取得失敗）に該当した場合は自動で `scripts/yfinance_fetch.py` (`period="7d"`, シンボル正規化付き) を呼び出し同フローに合流する。両方の外部依存が利用できない Sandbox では、ローカル CSV → `synthetic_local` 合成バー生成のチェーンで `ops/runtime_snapshot.json.ingest` を最新 5 分境界まで引き上げる。この制約と対応策は [readme/設計方針（投資_3_）v_1.md#sandbox-known-limitations](../readme/設計方針（投資_3_）v_1.md#sandbox-known-limitations) でも追跡する。必要に応じて `--disable-synthetic-extension` を指定すると合成バー挿入を抑止でき、ローカル CSV 終端時刻のまま鮮度確認を行える。REST API provider（保留中）も同じインターフェースに揃える。
 
 ## 3. Modules & Interfaces
 - `scripts/fetch_prices_api.py`
