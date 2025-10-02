@@ -190,6 +190,9 @@ def evaluate_target(
         if message.startswith("benchmark_pipeline."):
             return True
 
+        if message.startswith("benchmarks."):
+            return True
+
         return False
 
     def _record_issue(message: str) -> None:
