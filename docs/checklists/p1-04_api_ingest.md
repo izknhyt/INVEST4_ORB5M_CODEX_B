@@ -32,6 +32,7 @@
 - [x] `configs/api_ingest.yml` の `credential_rotation` セクションへ最新情報を反映し、更新履歴を `docs/state_runbook.md` または運用ログへ追記した（ローテーション実施時にチェック）。
   - 2025-11-06 06:30Z: `cadence_days`/`next_rotation_at`/`owner` などのプレースホルダと記録メモを追加。ローテーション実績は checklist で追跡。
 - [x] `ops/runtime_snapshot.json.ingest_meta` にフェッチソース・フォールバック理由・`freshness_minutes`・`dukascopy_offer_side` を記録し、runbook/README でレビュー手順と `synthetic_extension` の扱いを明文化した。
+  - 2025-11-23: `local_csv` フォールバック時に `local_backup_path`（実際に読み込んだ CSV の絶対パス）を記録するよう更新。`--local-backup-csv` で差し替えた場合もメタデータで即確認できる。
 
 ## 成果物とログ更新
 - [x] `docs/state_runbook.md` と `README.md` のインジェスト手順を更新した（yfinance フェイルオーバー・依存導入・鮮度閾値レビューを記載）。

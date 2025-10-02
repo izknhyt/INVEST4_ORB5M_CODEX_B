@@ -526,7 +526,11 @@ def test_yfinance_ingest_accepts_suffix_symbol(tmp_path, monkeypatch):
     assert meta["rows_validated"] == 4
     assert meta["freshness_minutes"] == pytest.approx(5.0)
     assert meta["last_ingest_at"] == fixed_now.replace(tzinfo=timezone.utc).isoformat()
-    assert any(note["stage"] == "yfinance" for note in meta["fallbacks"])
+    fallbacks = meta["fallbacks"]
+    assert any(note["stage"] == "yfinance" for note in fallbacks)
+    local_note = next(note for note in fallbacks if note["stage"] == "local_csv")
+    assert Path(local_note["detail"]) == fallback_csv
+    assert meta["local_backup_path"] == str(fallback_csv)
 
 
 def test_dukascopy_failure_falls_back_to_yfinance(tmp_path, monkeypatch):
@@ -922,6 +926,10 @@ def test_dukascopy_and_yfinance_missing_falls_back_to_local_csv(
     fallbacks = meta["fallbacks"]
     assert any(note["stage"] == "dukascopy" for note in fallbacks)
     assert any(note["stage"] == "yfinance" for note in fallbacks)
+    local_note = next(note for note in fallbacks if note["stage"] == "local_csv")
+    assert Path(local_note["detail"]) == fallback_csv
+    assert local_note.get("next_source") == "synthetic_local"
+    assert meta["local_backup_path"] == str(fallback_csv)
     assert meta["last_ingest_at"] == fixed_now.replace(tzinfo=timezone.utc).isoformat()
     assert meta["dukascopy_offer_side"] == "bid"
 
@@ -1023,6 +1031,11 @@ def test_local_csv_fallback_accepts_custom_backup(tmp_path, monkeypatch):
     fallbacks = snapshot["ingest_meta"]["USDJPY_5m"]["fallbacks"]
     assert any(note["stage"] == "dukascopy" for note in fallbacks)
     assert any(note["stage"] == "yfinance" for note in fallbacks)
+    local_note = next(note for note in fallbacks if note["stage"] == "local_csv")
+    assert Path(local_note["detail"]) == custom_csv
+    assert snapshot["ingest_meta"]["USDJPY_5m"]["local_backup_path"] == str(
+        custom_csv
+    )
     assert (
         snapshot["ingest_meta"]["USDJPY_5m"]["dukascopy_offer_side"]
         == "bid"

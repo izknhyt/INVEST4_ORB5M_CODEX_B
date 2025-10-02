@@ -92,6 +92,7 @@ def synthetic_snapshot(snapshot_dir, fixed_now: dt.datetime) -> Path:
                     {"source": "synthetic_local"},
                 ],
                 "last_ingest_at": "2025-01-01T10:15:00+00:00",
+                "local_backup_path": "/data/usdjpy_5m_2018-2024_utc.csv",
             }
         },
     }
@@ -212,6 +213,10 @@ def test_stale_with_synthetic_is_advisory(
     assert ingest_meta["fallbacks"] == ["local_csv", "synthetic_local"]
     assert ingest_meta["source_chain"] == ["local_csv", "synthetic_local"]
     assert ingest_meta["last_ingest_at"].startswith("2025-01-01T10:15:00")
+    assert (
+        ingest_meta["local_backup_path"]
+        == "/data/usdjpy_5m_2018-2024_utc.csv"
+    )
 
 
 def test_missing_pipeline_with_synthetic_is_advisory(

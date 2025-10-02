@@ -194,6 +194,11 @@ def _merge_ingest_results(
     if extra.get("last_ts_now"):
         merged["last_ts_now"] = extra["last_ts_now"]
 
+    if primary.get("local_backup_path") and not extra.get("local_backup_path"):
+        merged.setdefault("local_backup_path", primary["local_backup_path"])
+    elif extra.get("local_backup_path"):
+        merged["local_backup_path"] = extra["local_backup_path"]
+
     return merged
 
 
@@ -232,6 +237,9 @@ def _ingest_local_csv_backup(
             features_path=features_path,
             source_name=f"local_csv:{candidate_path.name}",
         )
+
+    if isinstance(result, dict):
+        result.setdefault("local_backup_path", str(candidate_path))
 
     if not enable_synthetic:
         return result
@@ -373,6 +381,10 @@ def _prepare_ingest_metadata(
         entry.get("source") == "synthetic_local" for entry in source_chain
     )
 
+    backup_path = result.get("local_backup_path") if isinstance(result, dict) else None
+    if isinstance(backup_path, str) and backup_path:
+        metadata["local_backup_path"] = backup_path
+
     return metadata
 
 
@@ -421,10 +433,13 @@ def _append_fallback(
     stage: str,
     reason: str,
     next_source: Optional[str] = None,
+    detail: Optional[str] = None,
 ) -> None:
     note = {"stage": stage, "reason": reason}
     if next_source:
         note["next_source"] = next_source
+    if detail:
+        note["detail"] = detail
     fallbacks.append(note)
 
 
@@ -707,7 +722,7 @@ def main(argv=None) -> int:
             def _run_local_csv_fallback(reason: str) -> Optional[Dict[str, object]]:
                 print("[wf] local CSV fallback triggered:", reason)
                 try:
-                    return _ingest_local_csv_backup(
+                    result = _ingest_local_csv_backup(
                         ingest_records_func=ingest_records,
                         symbol=symbol_upper,
                         tf=tf,
@@ -720,6 +735,24 @@ def main(argv=None) -> int:
                 except Exception as backup_exc:  # pragma: no cover - unexpected failure
                     print(f"[wf] local CSV fallback unavailable: {backup_exc}")
                     return None
+                else:
+                    detail_path = None
+                    next_source = None
+                    if isinstance(result, dict):
+                        backup_path_value = result.get("local_backup_path")
+                        if isinstance(backup_path_value, str) and backup_path_value:
+                            detail_path = backup_path_value
+                        source_value = str(result.get("source") or "")
+                        if "synthetic_local" in source_value:
+                            next_source = "synthetic_local"
+                    _append_fallback(
+                        fallback_notes,
+                        stage="local_csv",
+                        reason="local CSV fallback executed",
+                        next_source=next_source,
+                        detail=detail_path,
+                    )
+                    return result
 
             if fallback_reason is not None:
                 _append_fallback(
@@ -876,7 +909,7 @@ def main(argv=None) -> int:
                 )
                 print("[wf] local CSV fallback triggered:", reason)
                 try:
-                    return _ingest_local_csv_backup(
+                    result = _ingest_local_csv_backup(
                         ingest_records_func=ingest_records,
                         symbol=symbol_upper,
                         tf=tf,
@@ -889,6 +922,24 @@ def main(argv=None) -> int:
                 except Exception as backup_exc:  # pragma: no cover - unexpected failure
                     print(f"[wf] local CSV fallback unavailable: {backup_exc}")
                     return None
+                else:
+                    detail_path = None
+                    next_source = None
+                    if isinstance(result, dict):
+                        backup_path_value = result.get("local_backup_path")
+                        if isinstance(backup_path_value, str) and backup_path_value:
+                            detail_path = backup_path_value
+                        source_value = str(result.get("source") or "")
+                        if "synthetic_local" in source_value:
+                            next_source = "synthetic_local"
+                    _append_fallback(
+                        fallback_notes,
+                        stage="local_csv",
+                        reason="local CSV fallback executed",
+                        next_source=next_source,
+                        detail=detail_path,
+                    )
+                    return result
 
             try:
                 from scripts.yfinance_fetch import fetch_bars, resolve_ticker
