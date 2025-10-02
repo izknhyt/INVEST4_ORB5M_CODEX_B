@@ -248,6 +248,98 @@ def test_fetch_prices_allows_whitelisted_status(tmp_path, api_server):
     assert not anomaly_log.exists()
 
 
+def test_fetch_prices_twelve_data_like_payload(tmp_path, api_server):
+    handler, base_url = api_server
+    config_path, credentials_path = _write_config(tmp_path, base_url)
+
+    config = yaml_compat.safe_load(config_path.read_text(encoding="utf-8"))
+    provider = config["providers"]["mock"]
+    provider["query"]["symbol"] = "{base}/{quote}"
+    provider["query"]["interval"] = "{interval}"
+    provider["tf_map"] = {"5m": "5min"}
+    provider["response"]["data_path"] = ["values"]
+    provider["response"]["entry_type"] = "sequence"
+    provider["response"]["timestamp_field"] = "datetime"
+    provider["response"]["fields"]["v"] = {
+        "source": "volume",
+        "required": False,
+        "default": 0.0,
+    }
+    provider["response"]["timestamp_formats"] = ["%Y-%m-%d %H:%M:%S"]
+    provider.setdefault("retry", {})["error_keys"] = [
+        {"key": "status", "allowed_values": ["ok"]}
+    ]
+    config_path.write_text(yaml_compat.safe_dump(config), encoding="utf-8")
+
+    handler.queue = [
+        {
+            "status": 200,
+            "body": {
+                "status": "ok",
+                "meta": {
+                    "symbol": "USD/JPY",
+                    "interval": "5min",
+                    "timezone": "UTC",
+                },
+                "values": [
+                    {
+                        "datetime": "2025-01-03 00:05:00+00:00",
+                        "open": "150.05",
+                        "high": "150.15",
+                        "low": "149.95",
+                        "close": "150.10",
+                        "volume": "",
+                    },
+                    {
+                        "datetime": "2025-01-03 00:00:00",
+                        "open": "150.00",
+                        "high": "150.08",
+                        "low": "149.90",
+                        "close": "150.02",
+                        "volume": None,
+                    },
+                    {
+                        "datetime": "2025-01-02 23:55:00",
+                        "open": "149.95",
+                        "high": "150.05",
+                        "low": "149.85",
+                        "close": "149.98",
+                        "volume": "150",
+                    },
+                ],
+            },
+        }
+    ]
+
+    start = datetime(2025, 1, 3, 0, 0)
+    end = start + timedelta(minutes=5)
+    anomaly_log = tmp_path / "twelve_data.jsonl"
+
+    rows = fetch_prices(
+        "USDJPY",
+        "5m",
+        start=start,
+        end=end,
+        provider="mock",
+        config_path=config_path,
+        credentials_path=credentials_path,
+        anomaly_log_path=anomaly_log,
+    )
+
+    assert [row["timestamp"] for row in rows] == [
+        "2025-01-03T00:00:00Z",
+        "2025-01-03T00:05:00Z",
+    ]
+    assert [row["v"] for row in rows] == [0.0, 0.0]
+    assert [row["symbol"] for row in rows] == ["USDJPY", "USDJPY"]
+    assert not anomaly_log.exists()
+
+    parsed = urllib.parse.urlparse(handler.paths[0])
+    params = urllib.parse.parse_qs(parsed.query)
+    assert params["symbol"] == ["USD/JPY"]
+    assert params["interval"] == ["5min"]
+
+
 def test_fetch_prices_rejects_disallowed_status(tmp_path, api_server):
     handler, base_url = api_server
     config_path, credentials_path = _write_config(tmp_path, base_url)

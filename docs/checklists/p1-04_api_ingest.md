@@ -54,4 +54,9 @@
 - `scripts/fetch_prices_api.py` でフィールド仕様の正規化ヘルパーを追加し、オプション項目が未入力でも 0.0 を割り当てるよう調整。必須項目欠損時は従来通り `missing_field:<name>` を発火。
 - `tests/test_fetch_prices_api.py` に欠損ボリューム/空文字/数値以外の値を扱う回帰を追加して `python3 -m pytest` のカバレッジを拡張。
 
+### 2025-11-11 Twelve Data UTC + volume regression
+- Twelve Data 形式のレスポンスをモック API で再現し、`datetime` が `+00:00` 付きでも UTC 正規化されることと、`volume` 欠損（空文字/NULL）が 0.0 にフォールバックすることを `tests/test_fetch_prices_api.py::test_fetch_prices_twelve_data_like_payload` で固定。
+- `fetch_prices_api` が `symbol=USD/JPY` 形式のクエリと降順レスポンスの昇順整列を行う点を回帰テストで確認し、`ops/logs/ingest_anomalies.jsonl` への不要な書き込みが発生しないことを確認。
+- `docs/state_runbook.md` に Twelve Data のドライラン手順と UTC/volume 正規化の確認項目を追記。
+
 > API供給元や鍵管理ポリシーは `docs/api_ingest_plan.md` の更新と併せて、タスク完了までに最新化してください。現状は Dukascopy 主経路で運用し、REST/API は契約条件が整い次第再開します。
