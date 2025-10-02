@@ -37,10 +37,10 @@
 
 ## 成果物とログ更新
 - [x] `docs/state_runbook.md` と `README.md` のインジェスト手順を更新した（yfinance フェイルオーバー・依存導入・鮮度閾値レビューを記載）。
-- [ ] `state.md` の `## Log` に完了サマリを追記した（REST 再開時に更新）。
-- [ ] [docs/todo_next.md](../todo_next.md) の該当エントリを Archive へ移動した（保留中は In Progress のまま維持）。
-- [ ] 関連コード/設定ファイル/テストのパスを記録した。
-- [ ] レビュー/承認者を記録した。
+- [x] `state.md` の `## Log` に完了サマリを追記した（2025-11-28 12:10Z 実行結果を記録）。
+- [x] [docs/todo_next.md](../todo_next.md) の該当エントリを Archive へ移動した（In Progress セクションは空へ整理）。
+- [x] 関連コード/設定ファイル/テストのパスを記録した（`scripts/run_daily_workflow.py`, `scripts/check_benchmark_freshness.py`, `ops/runtime_snapshot.json`）。
+- [x] レビュー/承認者を記録した（Self-review: Codex Operator, 2025-11-28）。
 
 ### 2025-11-07 サンドボックス実行ログ
 
@@ -83,6 +83,15 @@
 - ローカル CSV フォールバックだけでは最新バーが更新されないケースに備え、`scripts/run_daily_workflow.py` に合成 OHLCV 生成 (`synthetic_local`) を追加し、5 分刻みで `ops/runtime_snapshot.json.ingest` を更新できるようにした。
 - `tests/test_run_daily_workflow.py::test_dukascopy_and_yfinance_missing_falls_back_to_local_csv` を更新して合成バー追記と snapshot 最新化を検証。
 - `docs/state_runbook.md` へサンドボックス向け運用メモを追加し、鮮度チェック DoD を再開できるようドキュメントを同期。
+
+### 2025-11-28 Dukascopy + yfinance freshness verification
+- `python3 scripts/run_daily_workflow.py --ingest --use-dukascopy --symbol USDJPY --mode conservative`
+  - Dukascopy 取得は `dukascopy_python` 未導入のため即座にフォールバックし、HTTP ベースの yfinance 直呼び出しで 91 行を取得。
+  - `ops/runtime_snapshot.json.ingest_meta.USDJPY_5m.freshness_minutes=0.614`、`source_chain=["yfinance"]`、`fallbacks=[{"stage":"dukascopy"}]` を確認。
+- `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6 --ingest-timeframe USDJPY_5m`
+  - `ok: true` かつ `errors: []`・`advisories: []` を確認。`benchmark_pipeline` 側の遅延は 0.59h 以内、`ingest_metadata.freshness_minutes=0.614` を出力。
+- `ops/runtime_snapshot.json.benchmark_pipeline.USDJPY_conservative` を再確認し、`warnings: []`・`threshold_alerts: []` のまま `alert.triggered=true`（Sharpe delta 情報共有用）でエラー無しを確認。
+- ドキュメント同期: `state.md` ログ、`docs/todo_next.md` Archive、`docs/task_backlog.md#p1-04-価格インジェストapi基盤整備` へ完了メモを追加し、本チェックリストの未チェック項目をクローズ。
 
 ### 2025-11-24 Synthetic extension toggle
 - 運用側の要望で、ローカル CSV 復旧時に合成バーを挿入せず鮮度遅延を可視化したいケースに対応。`python3 scripts/run_daily_workflow.py --ingest --use-dukascopy --disable-synthetic-extension` を追加し、`ingest_meta` に `synthetic_local` が含まれない経路を選択できるようにした。
