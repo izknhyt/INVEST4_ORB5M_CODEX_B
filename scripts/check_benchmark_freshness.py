@@ -124,12 +124,21 @@ def _normalise_string_sequence(values: Any) -> List[str]:
 
     result: List[str] = []
     for item in values:
-        if isinstance(item, str) and item:
-            result.append(item)
+        if isinstance(item, str):
+            text = item.strip()
+            if text:
+                result.append(text)
         elif isinstance(item, dict):
-            source = item.get("source")
-            if isinstance(source, str) and source:
-                result.append(source)
+            candidate: Optional[str] = None
+            for key in ("source", "stage", "label"):
+                value = item.get(key)
+                if isinstance(value, str):
+                    stripped = value.strip()
+                    if stripped:
+                        candidate = stripped
+                        break
+            if candidate:
+                result.append(candidate)
     return result
 
 

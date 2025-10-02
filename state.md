@@ -44,6 +44,7 @@
 - 2025-11-23: `scripts/run_daily_workflow.py` のローカル CSV フォールバックで使用したファイルを `local_backup_path` として `ingest_meta` に保存し、fallback ログへ `local_csv` ステージ（パス付き）を追記。`check_benchmark_freshness` の出力・README・state runbook・チェックリストを同期してレビュー時に参照できるようにした。
 - 2025-11-24: ローカル CSV フォールバック時に `synthetic_local` 合成バーを挿入しないオプション（`--disable-synthetic-extension`）を追加。`tests/test_run_daily_workflow.py::test_local_csv_fallback_can_disable_synthetic_extension` で回帰を整備し、README / runbook / ingest plan / checklist を更新して鮮度アラートが `errors` 扱いになるケースを明記。
 - 2025-11-25: `run_daily_workflow.py --ingest --use-api` で API 障害や空レスポンスが発生した際にローカル CSV → `synthetic_local` へ自動フォールバックし、`ingest_meta` に `api` → `local_csv` → `synthetic_local` の `fallbacks` / `source_chain` / `local_backup_path` を記録するよう更新。`tests/test_run_daily_workflow.py::test_api_ingest_falls_back_to_local_csv` を追加し、README / state runbook / ingest plan を同期。
+- 2025-11-26: `scripts/check_benchmark_freshness.py` で `ingest_meta.fallbacks` のステージ名を正規化し、CLI 出力からフォールバック連鎖を直接確認できるようにした。`tests/test_check_benchmark_freshness.py` に回帰を追加し、Sandbox の advisory ダウングレード仕様が維持されることを確認。
   - 2025-11-08: `run_daily_workflow.py --ingest --use-dukascopy` 実行時に `dukascopy_python` が未導入でも yfinance フォールバックで継続できるようにし、pytest (`tests/test_run_daily_workflow.py::test_dukascopy_missing_dependency_falls_back_to_yfinance`) で回帰確認。
   - 2025-11-09: yfinance フォールバック時に `--yfinance-lookback-minutes` を参照して再取得ウィンドウを決定するよう更新。冗長な再処理を抑えつつ長期停止後に手動調整できるよう、README / state runbook / 回帰テスト / backlog メモを同期。
 

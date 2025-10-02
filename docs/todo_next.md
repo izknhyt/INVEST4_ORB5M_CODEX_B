@@ -48,6 +48,7 @@
   - 2025-11-19: `scripts/run_daily_workflow.py` に `--local-backup-csv` を追加し、Sandbox で持ち込むローカル CSV を明示指定できるようにした。README / docs/state_runbook.md / `docs/api_ingest_plan.md` を同期し、`tests/test_run_daily_workflow.py` にカスタム CSV の回帰テストを追加。
   - 2025-11-24: `--disable-synthetic-extension` を追加してローカル CSV 復旧時の `synthetic_local` 挿入を抑止できるようにし、鮮度遅延をそのまま `check_benchmark_freshness` でレビュー可能にした。README / runbook / ingest plan / チェックリストを更新済み。
   - 2025-11-25: `--use-api` 経路でも API 障害/空レスポンス検出時にローカル CSV → `synthetic_local` へ自動フォールバックし、`ingest_meta.fallbacks` へ `api` → `local_csv` → `synthetic_local` を記録するよう更新。pytest へフォールバックの回帰テストを追加し、README / state runbook / ingest plan の手順を同期。
+  - 2025-11-26: `check_benchmark_freshness` で `ingest_meta.fallbacks` に記録されたステージ名を正規化し、CLI 出力からフォールバック経路を直接レビューできるようにした。pytest へ `fallbacks` 正規化の回帰を追加し、Sandbox での advisory ダウングレード仕様を維持。
   - Next step: `dukascopy-python` / `yfinance` のホイールを持ち込むか、Sandbox プロキシで PyPI ホストを許可して再インストールを実施し、`python3 scripts/run_daily_workflow.py --ingest --use-dukascopy` → `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6` を再実行して鮮度アラート解消を確認する。結果を `state.md` / `docs/checklists/p1-04_api_ingest.md` / `docs/task_backlog.md` に反映する。
   - 2025-11-22: `check_benchmark_freshness` で `benchmarks.<target> missing` を Sandbox では `advisories` へ降格し、CLI 実行結果が `ok=true` を維持できるよう調整。回帰テストとチェックリスト更新を同期。
   - Backlog Anchor: [価格インジェストAPI基盤整備 (P1-04)](docs/task_backlog.md#p1-04-価格インジェストapi基盤整備)
