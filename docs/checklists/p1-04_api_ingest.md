@@ -82,4 +82,8 @@
 - `tests/test_run_daily_workflow.py::test_dukascopy_and_yfinance_missing_falls_back_to_local_csv` を更新して合成バー追記と snapshot 最新化を検証。
 - `docs/state_runbook.md` へサンドボックス向け運用メモを追加し、鮮度チェック DoD を再開できるようドキュメントを同期。
 
+### 2025-11-20 Ingest metadata timestamp capture
+- `scripts/run_daily_workflow.py` が `ingest_meta` に `last_ingest_at` を記録するよう更新し、`tests/test_run_daily_workflow.py` でフィールド存在を回帰確認。
+- `check_benchmark_freshness` 出力で取得時刻を参照できるため、鮮度レビュー時にフェッチ完了タイミングを追跡しやすくなった。
+
 > API供給元や鍵管理ポリシーは `docs/api_ingest_plan.md` の更新と併せて、タスク完了までに最新化してください。現状は Dukascopy 主経路で運用し、REST/API は契約条件が整い次第再開します。

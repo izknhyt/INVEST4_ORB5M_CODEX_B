@@ -49,6 +49,17 @@ def _parse_naive_utc(timestamp: str) -> Optional[datetime]:
     return parsed
 
 
+def _format_utc_iso(dt_value: datetime) -> str:
+    """Return an ISO8601 string in UTC for *dt_value*."""
+
+    if dt_value.tzinfo is None:
+        dt_value = dt_value.replace(tzinfo=timezone.utc)
+    else:
+        dt_value = dt_value.astimezone(timezone.utc)
+
+    return dt_value.replace(microsecond=0).isoformat()
+
+
 def _load_last_validated_entry(validated_path: Path) -> Optional[Dict[str, object]]:
     """Return the most recent validated row with parsed numeric fields."""
 
@@ -348,6 +359,8 @@ def _prepare_ingest_metadata(
         "freshness_minutes": freshness,
         "snapshot_path": str(snapshot_path),
     }
+
+    metadata["last_ingest_at"] = _format_utc_iso(now)
 
     if fallback_notes:
         metadata["fallbacks"] = fallback_notes

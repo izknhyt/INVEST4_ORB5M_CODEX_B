@@ -1,7 +1,7 @@
 import json
 import sys
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from core.utils import yaml_compat
@@ -339,6 +339,7 @@ def test_api_ingest_updates_snapshot(tmp_path, monkeypatch):
     assert meta["freshness_minutes"] == pytest.approx(0.0)
     assert meta["synthetic_extension"] is False
     assert "fallbacks" not in meta
+    assert meta["last_ingest_at"] == fixed_now.replace(tzinfo=timezone.utc).isoformat()
     assert meta["snapshot_path"] == str(snapshot_path)
 
 
@@ -438,6 +439,7 @@ def test_yfinance_ingest_updates_snapshot(tmp_path, monkeypatch):
     assert meta["freshness_minutes"] == pytest.approx(15.0)
     assert meta["synthetic_extension"] is False
     assert "fallbacks" not in meta
+    assert meta["last_ingest_at"] == fixed_now.replace(tzinfo=timezone.utc).isoformat()
 
 
 def test_yfinance_ingest_accepts_suffix_symbol(tmp_path, monkeypatch):
@@ -520,6 +522,7 @@ def test_yfinance_ingest_accepts_suffix_symbol(tmp_path, monkeypatch):
     assert meta["synthetic_extension"] is True
     assert meta["rows_validated"] == 4
     assert meta["freshness_minutes"] == pytest.approx(5.0)
+    assert meta["last_ingest_at"] == fixed_now.replace(tzinfo=timezone.utc).isoformat()
     assert any(note["stage"] == "yfinance" for note in meta["fallbacks"])
 
 
@@ -668,6 +671,7 @@ def test_dukascopy_failure_falls_back_to_yfinance(tmp_path, monkeypatch):
     assert any(note["stage"] == "dukascopy" for note in fallbacks)
     dukascopy_note = next(note for note in fallbacks if note["stage"] == "dukascopy")
     assert "dukascopy outage" in dukascopy_note["reason"]
+    assert meta["last_ingest_at"] == fixed_now.replace(tzinfo=timezone.utc).isoformat()
 
 
 def test_dukascopy_missing_dependency_falls_back_to_yfinance(tmp_path, monkeypatch):
@@ -789,6 +793,7 @@ def test_dukascopy_missing_dependency_falls_back_to_yfinance(tmp_path, monkeypat
     fallbacks = meta["fallbacks"]
     dukascopy_note = next(note for note in fallbacks if note["stage"] == "dukascopy")
     assert "dukascopy_python is required" in dukascopy_note["reason"]
+    assert meta["last_ingest_at"] == fixed_now.replace(tzinfo=timezone.utc).isoformat()
     if anomaly_log_path.exists():
         assert anomaly_log_path.read_text(encoding="utf-8").strip() == ""
 
@@ -910,6 +915,7 @@ def test_dukascopy_and_yfinance_missing_falls_back_to_local_csv(
     fallbacks = meta["fallbacks"]
     assert any(note["stage"] == "dukascopy" for note in fallbacks)
     assert any(note["stage"] == "yfinance" for note in fallbacks)
+    assert meta["last_ingest_at"] == fixed_now.replace(tzinfo=timezone.utc).isoformat()
 
 
 def test_local_csv_fallback_accepts_custom_backup(tmp_path, monkeypatch):
