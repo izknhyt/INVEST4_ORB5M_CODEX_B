@@ -258,6 +258,73 @@ class TestReportBenchmarkSummary(unittest.TestCase):
             self.assertIn("summary plot skipped", " ".join(payload["warnings"]))
             self.assertFalse(plot_path.exists(), msg="plot should not be created when dependencies missing")
 
+    def test_missing_plot_dependency_triggers_webhook_warning(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base_dir = Path(tmpdir)
+            reports_dir = base_dir
+            baseline_dir = reports_dir / "baseline"
+            rolling_dir = reports_dir / "rolling"
+            baseline_dir.mkdir(parents=True)
+            (rolling_dir / "30").mkdir(parents=True)
+
+            baseline_metrics = {
+                "trades": 20,
+                "wins": 11,
+                "total_pips": 15.0,
+                "sharpe": 0.4,
+                "max_drawdown": -10.0,
+            }
+            rolling_metrics = {
+                "trades": 18,
+                "wins": 10,
+                "total_pips": 12.0,
+                "sharpe": 0.35,
+                "max_drawdown": -9.0,
+            }
+
+            (baseline_dir / "USDJPY_conservative.json").write_text(json.dumps(baseline_metrics))
+            (rolling_dir / "30" / "USDJPY_conservative.json").write_text(json.dumps(rolling_metrics))
+
+            output_path = reports_dir / "benchmark_summary.json"
+            plot_path = reports_dir / "benchmark_summary.png"
+
+            original_import = __import__
+
+            def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+                if name.startswith("matplotlib") or name == "pandas":
+                    raise ModuleNotFoundError(name)
+                return original_import(name, globals, locals, fromlist, level)
+
+            args = [
+                "--symbol",
+                "USDJPY",
+                "--mode",
+                "conservative",
+                "--reports-dir",
+                str(reports_dir),
+                "--windows",
+                "30",
+                "--json-out",
+                str(output_path),
+                "--plot-out",
+                str(plot_path),
+                "--webhook",
+                "https://example.com/hook",
+            ]
+
+            with mock.patch("builtins.__import__", side_effect=fake_import):
+                with mock.patch.object(rbs, "_post_webhook", return_value=(True, "status=200")) as post_hook:
+                    rc = rbs.main(args)
+
+            self.assertEqual(rc, 0)
+            self.assertEqual(post_hook.call_count, 1)
+            payload = json.loads(output_path.read_text())
+            self.assertIn("summary plot skipped", " ".join(payload["warnings"]))
+            self.assertFalse(plot_path.exists(), msg="plot should not be created when dependencies missing")
+            deliveries = payload.get("webhook", {}).get("deliveries", [])
+            self.assertEqual(len(deliveries), 1, msg=f"deliveries missing from payload: {payload}")
+            self.assertTrue(deliveries[0]["ok"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -235,25 +235,9 @@ def main(argv=None) -> int:
         "threshold_alerts": threshold_alerts,
     }
 
-    webhook_urls = _parse_webhook_urls(args.webhook)
-    deliveries: List[Dict[str, object]] = []
-    if webhook_urls and warnings:
-        webhook_payload = {
-            "event": "benchmark_summary_warnings",
-            "symbol": args.symbol,
-            "mode": args.mode,
-            "warnings": warnings,
-            "generated_at": payload["generated_at"],
-            "threshold_alerts": threshold_alerts,
-        }
-        for url in webhook_urls:
-            ok, detail = _post_webhook(url, webhook_payload)
-            deliveries.append({"url": url, "ok": ok, "detail": detail})
-        payload["webhook"] = {"targets": webhook_urls, "deliveries": deliveries}
-
     if args.plot_out:
         try:
-            # Lazy import to avoid matplotlib requirement unless必要
+            # Lazy import to avoid matplotlib requirement unless necessary
             import matplotlib
             matplotlib.use("Agg")
             import matplotlib.pyplot as plt
@@ -290,6 +274,22 @@ def main(argv=None) -> int:
             plot_path.parent.mkdir(parents=True, exist_ok=True)
             fig.savefig(plot_path)
             plt.close(fig)
+
+    webhook_urls = _parse_webhook_urls(args.webhook)
+    deliveries: List[Dict[str, object]] = []
+    if webhook_urls and warnings:
+        webhook_payload = {
+            "event": "benchmark_summary_warnings",
+            "symbol": args.symbol,
+            "mode": args.mode,
+            "warnings": warnings,
+            "generated_at": payload["generated_at"],
+            "threshold_alerts": threshold_alerts,
+        }
+        for url in webhook_urls:
+            ok, detail = _post_webhook(url, webhook_payload)
+            deliveries.append({"url": url, "ok": ok, "detail": detail})
+        payload["webhook"] = {"targets": webhook_urls, "deliveries": deliveries}
 
     json_out = Path(args.json_out)
     json_out.parent.mkdir(parents=True, exist_ok=True)
