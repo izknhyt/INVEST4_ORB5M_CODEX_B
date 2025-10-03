@@ -13,6 +13,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from scripts._time_utils import utcnow_naive
+
 
 _INTERVAL_MAP = {
     "5m": "5m",
@@ -121,7 +123,7 @@ def fetch_bars(
     if interval is None:
         raise ValueError(f"Unsupported timeframe for yfinance fetch: {tf}")
 
-    now_utc = datetime.utcnow()
+    now_utc = utcnow_naive(dt_cls=datetime)
     ticker = _resolve_ticker(symbol)
 
     effective_start = start.replace(tzinfo=timezone.utc)
@@ -205,7 +207,7 @@ def _cli(argv=None) -> int:
     parser.add_argument("--out", default="-")
     args = parser.parse_args(argv)
 
-    now = datetime.utcnow()
+    now = utcnow_naive(dt_cls=datetime)
     end = datetime.fromisoformat(args.end_ts) if args.end_ts else now
     start = datetime.fromisoformat(args.start_ts) if args.start_ts else end - timedelta(days=1)
 

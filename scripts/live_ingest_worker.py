@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 
+from scripts._time_utils import utcnow_naive  # noqa: E402  # isort:skip
 from scripts.pull_prices import (  # noqa: E402  # isort:skip
     FEATURES_ROOT,
     RAW_ROOT,
@@ -388,7 +389,7 @@ def main(argv=None) -> int:
             break
 
         iteration += 1
-        now = datetime.utcnow()
+        now = utcnow_naive(dt_cls=datetime)
         print(f"[live-ingest] iteration {iteration} @ {now.isoformat(timespec='seconds')}")
 
         for symbol in config.symbols:

@@ -152,6 +152,7 @@ REST/Streaming API と `scripts/pull_prices.py` を連携させ、手動CSV投�
 
 **進捗メモ**
 - 2025-12-05: チェックリスト初版 (`docs/checklists/p1-07_phase1_bug_refactor.md`) を作成し、`docs/task_backlog.md` / `docs/todo_next.md` / `docs/codex_workflow.md` / `state.md` へ参照リンクと運用メモを追記。フェーズ1 バグチェックとリファクタリングのテンプレート化を Ready 状態に引き上げた。
+- 2025-12-06: UTC タイムスタンプ処理を `datetime.now(timezone.utc)` 起点へ統一し、`scripts/run_daily_workflow.py` ほかフェーズ1 ワークフロー群での `datetime.utcnow()` DeprecationWarning を解消。pytest を再実行してノイズレスなバグチェック結果を共有できる状態を確認。
 
 ## P2: マルチ戦略ポートフォリオ化
 - **戦略マニフェスト整備**: スキャル/デイ/スイングの候補戦略ごとに、依存特徴量・セッション・リスク上限を YAML で定義し、ルーターが参照できるようにする (`configs/strategies/*.yaml`)。

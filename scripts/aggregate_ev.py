@@ -8,7 +8,7 @@ import json
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
@@ -16,6 +16,8 @@ from typing import Dict, Iterable, List, Optional, Tuple
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+
+from scripts._time_utils import utcnow_aware
 
 
 def resolve_repo_path(path: Path) -> Path:
@@ -153,7 +155,7 @@ def build_profile(all_summary: Dict[str, Dict], recent_summary: Dict[str, Dict],
             "strategy_key": strategy_key,
             "symbol": symbol,
             "mode": mode,
-            "generated_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "generated_at": utcnow_aware(dt_cls=datetime).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "files_total": len(files),
             "recent_count": min(recent_count, len(files)),
             "latest_state_ts": latest_ts.strftime("%Y-%m-%dT%H:%M:%SZ") if latest_ts else None,

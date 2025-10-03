@@ -21,7 +21,7 @@ import csv
 import json
 import sys
 from collections import deque
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Deque, Dict, Iterable, List, Optional, Tuple
 
@@ -29,6 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scripts._time_utils import utcnow_iso
 from scripts._ts_utils import parse_naive_utc_timestamp
 from core.feature_store import adx as calc_adx
 from core.feature_store import atr as calc_atr
@@ -50,7 +51,7 @@ FEATURE_HEADER = RAW_HEADER + ["atr14", "adx14", "or_high", "or_low", "rv12"]
 def _utcnow_iso() -> str:
     """Return the current UTC time in ISO format (seconds precision)."""
 
-    return datetime.utcnow().replace(microsecond=0).isoformat()
+    return utcnow_iso(dt_cls=datetime)
 
 
 def _load_snapshot(path: Path) -> dict:

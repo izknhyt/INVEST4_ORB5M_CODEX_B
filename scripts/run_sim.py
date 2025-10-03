@@ -27,6 +27,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from core.utils import yaml_compat as yaml
+from scripts._time_utils import utcnow_aware
 from core.runner import BacktestRunner, RunnerConfig
 from scripts.config_utils import build_runner_config
 from configs.strategies.loader import load_manifest, StrategyManifest
@@ -463,7 +464,7 @@ def main(argv=None):
                 if archive_dir is None:
                     archive_dir = Path(args.state_archive) / _strategy_state_key(strategy_cls) / symbol / args.mode
                 archive_dir.mkdir(parents=True, exist_ok=True)
-                stamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+                stamp = utcnow_aware(dt_cls=datetime).strftime("%Y%m%d_%H%M%S")
                 archive_name = f"{stamp}_{os.path.basename(run_dir)}.json"
                 archive_path = archive_dir / archive_name
                 with archive_path.open("w") as f:
@@ -573,7 +574,7 @@ def main(argv=None):
             try:
                 st = runner.export_state()
                 archive_dir.mkdir(parents=True, exist_ok=True)
-                stamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+                stamp = utcnow_aware(dt_cls=datetime).strftime("%Y%m%d_%H%M%S")
                 archive_path = archive_dir / f"{stamp}.json"
                 with archive_path.open("w") as f:
                     json.dump(st, f, ensure_ascii=False, indent=2)

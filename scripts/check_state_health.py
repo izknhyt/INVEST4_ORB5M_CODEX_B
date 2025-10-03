@@ -14,9 +14,10 @@ import sys
 import urllib.error
 import urllib.request
 from statistics import NormalDist
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+from scripts._time_utils import utcnow_iso
 
 
 DEFAULT_STATE = Path("runs/active/state.json")
@@ -166,7 +167,7 @@ def rotate_history(history: List[Dict], record: Dict, limit: int) -> List[Dict]:
 
 def build_record(state_path: Path, summary: Dict, warnings: List[str], *, confidence: float,
                  thresholds: Dict[str, float]) -> Dict[str, object]:
-    checked_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    checked_at = utcnow_iso()
     return {
         "checked_at": checked_at,
         "state_path": str(state_path),
