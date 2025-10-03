@@ -4,6 +4,9 @@
 - Review this file before starting any task to confirm the latest context and checklist.
 - Update this file after completing work to record outcomes, blockers, and next steps.
 
+- 2025-12-12: `scripts/run_daily_workflow.py` のローカルCSVフォールバック合成バー経路をリファクタし、`_tf_to_minutes` ヘルパーを
+  追加。`tests/test_run_daily_workflow.py` を実行して 24 件グリーンを確認し、`result.get("last_ts_now")` の有無を問わずバリデー
+  ション済み最新行を単回ロードするよう整理。
 - 2025-12-11: `scripts/run_daily_workflow.py` のローカルCSVフォールバック処理を `_execute_local_csv_fallback` ヘルパーへ集約し、
   Dukascopy/yfinance/API 経路のラッパー関数を共通化。フォールバックノートの `stage`/`reason` を呼び出し側で指定できるように
   整理し、`python3 -m pytest tests/test_run_daily_workflow.py` を実行して回帰が通ることを確認（24件パス）。
