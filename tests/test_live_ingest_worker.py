@@ -189,4 +189,28 @@ def test_live_worker_fallback_to_yfinance(monkeypatch, tmp_path):
     validated_path = tmp_path / "validated" / "USDJPY" / "5m.csv"
     rows = _read_validated(validated_path)
     assert len(rows) == 1
-    assert updates == [("USDJPY", "CONSERVATIVE", validated_path)]
+    assert updates == [("USDJPY", "conservative", validated_path)]
+
+
+def test_run_update_state_passes_lowercase_mode(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_main(args):
+        calls.append(args)
+        return 0
+
+    monkeypatch.setattr("scripts.update_state.main", fake_main)
+
+    bars_path = tmp_path / "bars.csv"
+    worker._run_update_state("USDJPY", "conservative", bars_path=bars_path)
+
+    assert calls == [
+        [
+            "--bars",
+            str(bars_path),
+            "--symbol",
+            "USDJPY",
+            "--mode",
+            "conservative",
+        ]
+    ]
