@@ -18,9 +18,16 @@ class DayORB5m(Strategy):
     def on_start(self, cfg: Dict[str,Any], instruments: List[str], state_store: Dict[str,Any]) -> None:
         self.cfg = cfg
         self.state = {
-            "or_h": None, "or_l": None, "in_or_window": True,
-            "bar_idx": 0, "last_signal_bar": -10**9, "broken": False,
-            "waiting_retest": False, "retest_seen": False, "retest_deadline": 0
+            "or_h": None,
+            "or_l": None,
+            "in_or_window": True,
+            "bar_idx": 0,
+            "last_signal_bar": -10**9,
+            "broken": False,
+            "waiting_retest": False,
+            "retest_seen": False,
+            "retest_deadline": 0,
+            "retest_direction": None,
         }
         self._pending_signal: Optional[Dict[str,Any]] = None
         self._last_gate_reason: Optional[Dict[str, Any]] = None
@@ -47,6 +54,7 @@ class DayORB5m(Strategy):
             self.state["broken"] = False
             self.state["waiting_retest"] = False
             self.state["retest_seen"] = False
+            self.state["retest_direction"] = None
         self.state["bar_idx"] += 1
         window = bar.get("window", [])
         self._update_or(window, n=self.cfg.get("or_n", 6))
@@ -73,27 +81,58 @@ class DayORB5m(Strategy):
             if require_retest:
                 # Step1: detect first touch (initial breakout), then wait for retest
                 if not self.state["waiting_retest"] and not self.state["retest_seen"]:
-                    if (bar["h"] >= or_h) or (bar["l"] <= or_l):
+                    hit_buy = bar["h"] >= or_h
+                    hit_sell = bar["l"] <= or_l
+                    direction: Optional[str] = None
+                    if hit_buy and not hit_sell:
+                        direction = "buy"
+                    elif hit_sell and not hit_buy:
+                        direction = "sell"
+                    elif hit_buy and hit_sell:
+                        close = bar.get("c")
+                        if close is not None:
+                            if close >= or_h and close >= or_l:
+                                direction = "buy"
+                            elif close <= or_l and close <= or_h:
+                                direction = "sell"
+                        if direction is None:
+                            distance_up = bar["h"] - or_h
+                            distance_down = or_l - bar["l"]
+                            direction = "buy" if distance_up >= distance_down else "sell"
+                    if direction:
                         # first breakout seen; set waiting retest
                         self.state["waiting_retest"] = True
                         self.state["retest_deadline"] = self.state["bar_idx"] + retest_max
+                        self.state["retest_direction"] = direction
                 else:
                     # While waiting for retest / after retest seen
                     if self.state["waiting_retest"] and not self.state["retest_seen"]:
                         # check retest toward OR line
-                        if (bar["l"] <= or_h + tol_price) or (bar["h"] >= or_l - tol_price):
+                        direction = self.state.get("retest_direction")
+                        retest_match = False
+                        if direction == "buy":
+                            retest_match = bar["l"] <= or_h + tol_price
+                        elif direction == "sell":
+                            retest_match = bar["h"] >= or_l - tol_price
+                        else:
+                            retest_match = (bar["l"] <= or_h + tol_price) or (bar["h"] >= or_l - tol_price)
+                        if retest_match:
                             self.state["retest_seen"] = True
                             self.state["waiting_retest"] = False
                         elif self.state["bar_idx"] >= self.state["retest_deadline"]:
                             # expire this session (skip trade)
                             self.state["broken"] = True
                             self.state["waiting_retest"] = False
+                            self.state["retest_direction"] = None
                     elif self.state["retest_seen"]:
                         # require re-break with optional close filter
-                        if (bar["h"] >= or_h) and ((not require_close) or (bar["c"] >= or_h)):
+                        direction = self.state.get("retest_direction")
+                        if direction == "buy" and (bar["h"] >= or_h) and ((not require_close) or (bar["c"] >= or_h)):
                             self._pending_signal = {"side":"BUY","tp_pips":tp_pips,"sl_pips":sl_pips,"trail_pips":trail_pips,"entry":or_h}
-                        elif (bar["l"] <= or_l) and ((not require_close) or (bar["c"] <= or_l)):
+                            self.state["retest_direction"] = None
+                        elif direction == "sell" and (bar["l"] <= or_l) and ((not require_close) or (bar["c"] <= or_l)):
                             self._pending_signal = {"side":"SELL","tp_pips":tp_pips,"sl_pips":sl_pips,"trail_pips":trail_pips,"entry":or_l}
+                            self.state["retest_direction"] = None
             else:
                 if (bar["h"] >= or_h) and ((not require_close) or (bar["c"] >= or_h)):
                     self._pending_signal = {"side":"BUY","tp_pips":tp_pips,"sl_pips":sl_pips,"trail_pips":trail_pips,"entry":or_h}
