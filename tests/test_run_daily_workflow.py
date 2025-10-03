@@ -695,6 +695,128 @@ def test_yfinance_ingest_accepts_suffix_symbol(tmp_path, monkeypatch):
     assert meta["local_backup_path"] == str(fallback_csv)
 
 
+def test_yfinance_ingest_accepts_short_suffix_symbol(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    (repo_root / "ops/logs").mkdir(parents=True)
+    (repo_root / "raw").mkdir()
+    (repo_root / "validated/JPY=X").mkdir(parents=True)
+    (repo_root / "features/JPY=X").mkdir(parents=True)
+
+    snapshot_path = repo_root / "ops/runtime_snapshot.json"
+    snapshot_path.write_text(
+        json.dumps({"ingest": {"JPY=X_5m": "2025-10-01T03:55:00"}}),
+        encoding="utf-8",
+    )
+
+    validated_csv = repo_root / "validated/JPY=X/5m.csv"
+    validated_csv.write_text(
+        "timestamp,symbol,tf,o,h,l,c,v,spread\n"
+        "2025-10-01T03:55:00,JPY=X,5m,149.10,149.12,149.08,149.11,90,0\n",
+        encoding="utf-8",
+    )
+
+    from scripts import pull_prices
+
+    anomaly_log_path = repo_root / "ops/logs/ingest_anomalies.jsonl"
+    monkeypatch.setattr(pull_prices, "ANOMALY_LOG", anomaly_log_path)
+    monkeypatch.setattr(run_daily_workflow, "ROOT", repo_root)
+
+    fixed_now = datetime(2025, 10, 1, 4, 20)
+
+    class _FixedDatetime(datetime):
+        @classmethod
+        def utcnow(cls):
+            return fixed_now
+
+        @classmethod
+        def fromisoformat(cls, value):
+            return datetime.fromisoformat(value)
+
+    monkeypatch.setattr(run_daily_workflow, "datetime", _FixedDatetime)
+
+    ticker_calls = {}
+
+    def fake_resolve_ticker(symbol):
+        ticker_calls["symbol"] = symbol
+        return "JPY=X"
+
+    monkeypatch.setattr(yfinance_fetch, "resolve_ticker", fake_resolve_ticker)
+
+    fetch_calls = {}
+
+    def fake_fetch(symbol, tf, *, start, end, **kwargs):
+        fetch_calls["symbol"] = symbol
+        fetch_calls["tf"] = tf
+        fetch_calls["start"] = start
+        fetch_calls["end"] = end
+        fetch_calls["extra"] = kwargs
+        yield {
+            "timestamp": "2025-10-01T04:00:00",
+            "symbol": symbol,
+            "tf": tf,
+            "o": 149.20,
+            "h": 149.25,
+            "l": 149.18,
+            "c": 149.22,
+            "v": 115.0,
+            "spread": 0.0,
+        }
+        yield {
+            "timestamp": "2025-10-01T04:05:00",
+            "symbol": symbol,
+            "tf": tf,
+            "o": 149.22,
+            "h": 149.27,
+            "l": 149.20,
+            "c": 149.25,
+            "v": 118.0,
+            "spread": 0.0,
+        }
+
+    monkeypatch.setattr(yfinance_fetch, "fetch_bars", fake_fetch)
+
+    exit_code = run_daily_workflow.main(
+        [
+            "--ingest",
+            "--use-yfinance",
+            "--symbol",
+            "JPY=X",
+            "--mode",
+            "conservative",
+            "--yfinance-lookback-minutes",
+            "45",
+        ]
+    )
+
+    assert exit_code == 0
+    assert ticker_calls["symbol"] == "JPY=X"
+    assert fetch_calls["symbol"] == "JPY=X"
+    assert fetch_calls["tf"] == "5m"
+    last_ts = datetime.fromisoformat("2025-10-01T03:55:00")
+    expected_start = last_ts - timedelta(minutes=45)
+    assert fetch_calls["start"] == expected_start
+    assert fetch_calls["end"] == fixed_now
+    assert fetch_calls["extra"] == {}
+
+    csv_lines = validated_csv.read_text(encoding="utf-8").splitlines()
+    assert csv_lines[-1].startswith("2025-10-01T04:05:00")
+
+    features_csv = repo_root / "features/JPY=X/5m.csv"
+    assert features_csv.exists()
+
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    assert snapshot["ingest"]["JPY=X_5m"] == "2025-10-01T04:05:00"
+    meta = snapshot["ingest_meta"]["JPY=X_5m"]
+    assert meta["primary_source"] == "yfinance"
+    assert [entry["source"] for entry in meta["source_chain"]] == ["yfinance"]
+    assert meta["rows_validated"] >= 2
+    assert meta["freshness_minutes"] == pytest.approx(15.0)
+    assert meta["synthetic_extension"] is False
+    assert meta.get("fallbacks", []) == []
+    assert meta["last_ingest_at"] == fixed_now.replace(tzinfo=timezone.utc).isoformat()
+    assert not anomaly_log_path.exists()
+
+
 def test_dukascopy_failure_falls_back_to_yfinance(tmp_path, monkeypatch):
     repo_root = tmp_path / "repo"
     (repo_root / "ops/logs").mkdir(parents=True)
