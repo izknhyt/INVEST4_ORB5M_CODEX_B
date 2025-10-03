@@ -62,11 +62,33 @@ class TestRunner(unittest.TestCase):
         metrics_partial = runner_partial.run_partial(bars[4:], mode="conservative")
 
         self.assertEqual(metrics_full.as_dict(), metrics_partial.as_dict())
+        self.assertAlmostEqual(metrics_full.equity_curve[0], 200_000.0)
+        self.assertAlmostEqual(metrics_partial.equity_curve[0], 200_000.0)
 
         state = runner_partial.export_state()
         self.assertIn("runtime", state)
         self.assertIn("warmup_left", state["runtime"])
         self.assertIn("last_timestamp", state.get("meta", {}))
+
+    def test_runtime_reset_reinitializes_equity_curve(self):
+        symbol = "USDJPY"
+        t0 = datetime(2024, 1, 3, 8, 0, tzinfo=timezone.utc)
+        bars = []
+        price = 149.50
+        for i in range(6):
+            bars.append(make_bar(t0 + timedelta(minutes=5 * i), symbol, price, price + 0.10, price - 0.10, price + 0.02, spread=0.02))
+            price += 0.01
+        or_high = max(b["h"] for b in bars)
+        bars.append(make_bar(t0 + timedelta(minutes=5 * 6), symbol, price, or_high + 0.12, price - 0.05, price, spread=0.02))
+
+        runner = BacktestRunner(equity=150_000.0, symbol=symbol)
+        metrics_first = runner.run(list(bars), mode="conservative")
+        metrics_second = runner.run(list(bars), mode="conservative")
+
+        self.assertGreaterEqual(len(metrics_first.equity_curve), 1)
+        self.assertEqual(metrics_first.equity_curve[0], 150_000.0)
+        self.assertEqual(metrics_second.equity_curve[0], 150_000.0)
+        self.assertListEqual(metrics_first.equity_curve[1:], metrics_second.equity_curve[1:])
 
     def test_metrics_compute_sharpe_and_drawdown(self):
         metrics = Metrics()
