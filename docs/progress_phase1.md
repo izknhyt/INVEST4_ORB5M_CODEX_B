@@ -5,6 +5,7 @@
 - サンプル戦略として `strategies/reversion_stub.py` を追加。低ボラ時の閾値緩和・高ボラ時のブロック動作を確認済み。`
 - CLI `run_sim.py --strategy <module.Class>` で任意戦略を注入可能。
 - `scripts/run_sim.py --strategy-manifest` が `configs/strategies/*.yaml` を読み込み、RunnerConfig の許容セッション/リスク上限を適用しつつ戦略パラメータ（例: `allow_high_rv` / `zscore_threshold`）を `Strategy.on_start` にそのまま渡すフローを整備。回帰テスト: `tests/test_run_sim_cli.py::test_run_sim_manifest_mean_reversion`。DoD: [docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化)。
+- 2025-12-05: Day ORB のリテスト要求ロジックで初回ブレイク方向（buy/sell）を記録し、方向ごとにリテスト判定を分岐するよう更新。`tests/test_day_orb_retest.py` で売りブレイクが OR 安値へ戻らないケースの回帰を追加し、誤検知を防止。
 
 ## 2. EV 閾値ケーススタディ
 - ユーティリティ `scripts/generate_ev_case_study.py` を追加し、複数の `threshold_lcb` を一括比較可能。
