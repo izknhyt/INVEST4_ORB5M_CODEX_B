@@ -2,10 +2,14 @@ from __future__ import annotations
 
 """Strategy router helpers driven by manifest metadata."""
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional
 
 from configs.strategies.loader import StrategyManifest
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -109,8 +113,16 @@ def select_candidates(
 
         signal_ctx = (strategy_signals or {}).get(manifest.id, {})
         score = float(signal_ctx.get("score") or signal_ctx.get("ev_lcb") or 0.0)
-        if signal_ctx.get("ev_lcb") is not None and "ev_lcb" not in reasons:
-            reasons.append(f"ev_lcb={signal_ctx['ev_lcb']:.3f}")
+        ev_lcb_raw = signal_ctx.get("ev_lcb")
+        if ev_lcb_raw is not None and "ev_lcb" not in reasons:
+            try:
+                ev_lcb_value = float(ev_lcb_raw)
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Failed to convert ev_lcb=%r for manifest %s", ev_lcb_raw, manifest.id
+                )
+            else:
+                reasons.append(f"ev_lcb={ev_lcb_value:.3f}")
 
         results.append(SelectionResult(
             manifest_id=manifest.id,
