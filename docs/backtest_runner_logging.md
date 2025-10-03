@@ -50,6 +50,10 @@ Example: `runs/USDJPY_conservative_20250922_175708/records.csv` contains the app
 
 `--dump-daily` writes the aggregated daily counters from `metrics.daily`. Columns include `breakouts`, `gate_pass`, `gate_block`, `ev_pass`, `ev_reject`, `fills`, `wins`, and `pnl_pips`. See `reports/long_conservative_daily.csv` for a long-run example populated by the automation.【F:reports/long_conservative_daily.csv†L1-L5】
 
+## Equity curve baseline
+
+`Metrics` now seeds `equity_curve` with the runner's starting equity whenever `_reset_runtime_state` is invoked. The first element therefore reflects the CLI/runner `--equity` value (or constructor argument), and each subsequent trade appends the cumulative PnL delta. Clearing or reinitializing runtime state always restores the baseline before new trades are recorded so drawdown and Sharpe calculations reference the same starting point.
+
 ## Investigation workflow example (EV rejection)
 
 1. **Check counter deltas** – Start with the JSON summary or `--dump-daily` CSV to spot spikes in `ev_reject` or `gate_block`.

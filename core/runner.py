@@ -60,7 +60,9 @@ class Metrics:
         if hit:
             self.wins += 1
         self.trade_returns.append(pnl_val)
-        last_equity = self.equity_curve[-1] if self.equity_curve else float(self.starting_equity)
+        if not self.equity_curve:
+            self.equity_curve.append(float(self.starting_equity))
+        last_equity = self.equity_curve[-1]
         self.equity_curve.append(last_equity + pnl_val)
 
     def as_dict(self):
@@ -306,7 +308,7 @@ class BacktestRunner:
         self._apply_ev_profile()
 
     def _reset_runtime_state(self) -> None:
-        self.metrics = Metrics()
+        self.metrics = Metrics(starting_equity=self.equity)
         self.records: List[Dict[str, Any]] = []
         self.window: List[Dict[str, Any]] = []
         self.session_bars: List[Dict[str, Any]] = []
