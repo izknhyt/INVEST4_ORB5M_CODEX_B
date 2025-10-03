@@ -1324,18 +1324,20 @@ def main(argv=None) -> int:
             return exit_code
 
     if args.check_benchmark_freshness:
+        pipeline_max_age_hours = 6.0
         cmd = [
             sys.executable,
             str(ROOT / "scripts/check_benchmark_freshness.py"),
             "--snapshot",
             str(ROOT / "ops/runtime_snapshot.json"),
             "--max-age-hours",
-            str(
-                args.benchmark_freshness_max_age_hours
-                if args.benchmark_freshness_max_age_hours is not None
-                else 6.0
-            ),
+            str(pipeline_max_age_hours),
         ]
+        if args.benchmark_freshness_max_age_hours is not None:
+            cmd += [
+                "--benchmark-freshness-max-age-hours",
+                str(args.benchmark_freshness_max_age_hours),
+            ]
         if args.benchmark_freshness_targets:
             for raw_target in args.benchmark_freshness_targets.split(","):
                 target = raw_target.strip()
