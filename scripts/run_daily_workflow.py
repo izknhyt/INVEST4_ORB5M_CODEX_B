@@ -909,7 +909,15 @@ def main(argv=None) -> int:
 
             finish_now = _utcnow_naive()
             if isinstance(result, dict) and offer_side:
-                result.setdefault("dukascopy_offer_side", offer_side)
+                source_markers: List[str] = []
+                if source_name:
+                    source_markers.append(str(source_name))
+                source_value = result.get("source")
+                if source_value:
+                    source_markers.append(str(source_value))
+                normalized = [marker.lower() for marker in source_markers if marker]
+                if any("dukascopy" in marker for marker in normalized):
+                    result.setdefault("dukascopy_offer_side", offer_side)
             _persist_ingest_metadata(
                 symbol=symbol_upper,
                 tf=tf,
