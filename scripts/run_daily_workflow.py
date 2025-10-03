@@ -261,9 +261,17 @@ def _ingest_local_csv_backup(
 
     tf_minutes = _tf_to_minutes(tf)
 
-    candidate_path = backup_path
+    candidate_path = Path(backup_path) if backup_path is not None else None
     if candidate_path is None:
-        candidate_path = ROOT / pull_module.DEFAULT_SOURCE
+        default_relative = pull_module.default_source_for_symbol(symbol)
+        candidate_path = (ROOT / default_relative).resolve()
+        if not candidate_path.exists():
+            raise RuntimeError(
+                "local CSV backup not found for symbol "
+                f"{symbol}: expected {candidate_path} (override with --local-backup-csv)"
+            )
+    elif not candidate_path.is_absolute():
+        candidate_path = (ROOT / candidate_path).resolve()
 
     if not candidate_path.exists():
         raise RuntimeError(f"local CSV backup not found: {candidate_path}")

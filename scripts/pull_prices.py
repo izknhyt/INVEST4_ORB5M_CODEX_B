@@ -37,7 +37,10 @@ from core.feature_store import opening_range, realized_vol
 
 
 SNAPSHOT_PATH = Path("ops/runtime_snapshot.json")
-DEFAULT_SOURCE = Path("data/usdjpy_5m_2018-2024_utc.csv")
+DEFAULT_LOCAL_BACKUP_PATTERN = "data/{symbol_lower}_5m_2018-2024_utc.csv"
+DEFAULT_SOURCE = Path(
+    DEFAULT_LOCAL_BACKUP_PATTERN.format(symbol_lower="usdjpy")
+)
 RAW_ROOT = Path("raw")
 VALIDATED_ROOT = Path("validated")
 FEATURES_ROOT = Path("features")
@@ -46,6 +49,18 @@ ANOMALY_LOG = Path("ops/logs/ingest_anomalies.jsonl")
 RAW_HEADER = ["timestamp", "symbol", "tf", "o", "h", "l", "c", "v", "spread"]
 VALIDATED_HEADER = RAW_HEADER.copy()
 FEATURE_HEADER = RAW_HEADER + ["atr14", "adx14", "or_high", "or_low", "rv12"]
+
+
+def default_source_for_symbol(symbol: str) -> Path:
+    """Return the repository-relative CSV path for the given FX symbol."""
+
+    symbol_key = (symbol or "").strip().upper()
+    if not symbol_key:
+        raise ValueError("symbol is required to resolve default source path")
+
+    return Path(
+        DEFAULT_LOCAL_BACKUP_PATTERN.format(symbol_lower=symbol_key.lower())
+    )
 
 
 def _utcnow_iso() -> str:
@@ -366,6 +381,9 @@ def ingest_records(
                     "expected": symbol,
                     "actual": sym_val,
                     "timestamp": ts_raw,
+                    "message": (
+                        f"expected symbol {symbol} but received {sym_val or 'blank'}"
+                    ),
                 }
             )
             continue
