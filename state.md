@@ -4,6 +4,7 @@
 - Review this file before starting any task to confirm the latest context and checklist.
 - Update this file after completing work to record outcomes, blockers, and next steps.
 
+- 2025-12-16: `scripts/run_daily_workflow.py` に `_ingest_with_provider` ヘルパーを追加し、Dukascopy/yfinance/API 経路のフォールバック記録と `source_label` ログを共通化。`ProviderError` と `_log_ingest_summary` でエラー理由と完了ログを整理し、`python3 -m pytest tests/test_run_daily_workflow.py` を実行して 27 件パスを確認した。
 - 2025-12-15: `scripts/run_daily_workflow.py` のローカルCSV既定パスをシンボル別に検証し、存在しない場合は `--local-backup-csv` 指定を促すエラーを返すよう更新。`scripts/pull_prices.py` にデフォルトパターン関数を追加し、シンボル不一致アノマリーへ明示メッセージを含めた。`tests/test_run_daily_workflow.py` に EURUSD シナリオのフォールバック失敗/成功ケースを追加し、`python3 -m pytest tests/test_run_daily_workflow.py` を実行して 27 件パスを確認。README へローカルバックアップ命名規則と失敗時挙動を追記。
 - 2025-12-14: `scripts/live_ingest_worker.py` の Dukascopy 判定を `ingest_records` が返す `source` に合わせ、成功時のみ `dukascopy_offer_side` を永続化するよう修正。`tests/test_live_ingest_worker.py` と `tests/test_run_daily_workflow.py` を更新し、`python3 -m pytest tests/test_live_ingest_worker.py` を実行して 5 件パスを確認した。
 - 2025-12-13: `scripts/run_daily_workflow.py` に `IngestContext` を導入し、Dukascopy/yfinance/API それぞれのハンドラ関数へ分割。`python3 -m pytest tests/test_run_daily_workflow.py` を実行して 24 件パスを確認し、CLI ディスパッチを簡素化した。
