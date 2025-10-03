@@ -225,12 +225,16 @@ def _ingest_symbol(symbol: str, config: WorkerConfig, *, now: datetime) -> Optio
         print(f"[live-ingest] ingestion failed for {symbol}: {exc}")
         return None
 
-    if (
-        isinstance(result, dict)
-        and config.offer_side
-        and result.get("source_name") == "dukascopy"
-    ):
-        result.setdefault("dukascopy_offer_side", config.offer_side)
+    if isinstance(result, dict) and config.offer_side:
+        source_hints: List[str] = []
+        if source_name:
+            source_hints.append(str(source_name))
+        source_value = result.get("source")
+        if isinstance(source_value, str):
+            source_hints.append(source_value)
+        normalized = [hint.lower() for hint in source_hints if hint]
+        if any("dukascopy" in hint for hint in normalized):
+            result.setdefault("dukascopy_offer_side", config.offer_side)
 
     print(
         f"[live-ingest] {symbol} {source_name} rows={result['rows_validated']} "

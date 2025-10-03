@@ -817,6 +817,120 @@ def test_yfinance_ingest_accepts_short_suffix_symbol(tmp_path, monkeypatch):
     assert not anomaly_log_path.exists()
 
 
+def test_dukascopy_success_persists_offer_side_metadata(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    (repo_root / "ops/logs").mkdir(parents=True)
+    (repo_root / "raw").mkdir()
+    (repo_root / "validated/USDJPY").mkdir(parents=True)
+    (repo_root / "features/USDJPY").mkdir(parents=True)
+
+    snapshot_path = repo_root / "ops/runtime_snapshot.json"
+    snapshot_path.write_text(
+        json.dumps({"ingest": {"USDJPY_5m": "2025-10-01T03:55:00"}}),
+        encoding="utf-8",
+    )
+
+    validated_csv = repo_root / "validated/USDJPY/5m.csv"
+    validated_csv.write_text(
+        "timestamp,symbol,tf,o,h,l,c,v,spread\n"
+        "2025-10-01T03:55:00,USDJPY,5m,149.10,149.12,149.08,149.11,90,0\n",
+        encoding="utf-8",
+    )
+
+    from scripts import pull_prices
+
+    anomaly_log_path = repo_root / "ops/logs/ingest_anomalies.jsonl"
+    monkeypatch.setattr(pull_prices, "ANOMALY_LOG", anomaly_log_path)
+    monkeypatch.setattr(run_daily_workflow, "ROOT", repo_root)
+
+    fixed_now = datetime(2025, 10, 1, 4, 20)
+
+    class _FixedDatetime(datetime):
+        @classmethod
+        def utcnow(cls):
+            return fixed_now
+
+        @classmethod
+        def fromisoformat(cls, value):
+            return datetime.fromisoformat(value)
+
+    monkeypatch.setattr(run_daily_workflow, "datetime", _FixedDatetime)
+
+    fetch_calls = {}
+
+    def fake_fetch(symbol, tf, *, start, end, offer_side):
+        fetch_calls["symbol"] = symbol
+        fetch_calls["tf"] = tf
+        fetch_calls["start"] = start
+        fetch_calls["end"] = end
+        fetch_calls["offer_side"] = offer_side
+        return iter(
+            [
+                {
+                    "timestamp": "2025-10-01T04:00:00",
+                    "symbol": symbol,
+                    "tf": tf,
+                    "o": 149.30,
+                    "h": 149.35,
+                    "l": 149.25,
+                    "c": 149.32,
+                    "v": 105.0,
+                    "spread": 0.0,
+                },
+                {
+                    "timestamp": "2025-10-01T04:05:00",
+                    "symbol": symbol,
+                    "tf": tf,
+                    "o": 149.32,
+                    "h": 149.38,
+                    "l": 149.28,
+                    "c": 149.36,
+                    "v": 110.0,
+                    "spread": 0.0,
+                },
+            ]
+        )
+
+    monkeypatch.setattr(run_daily_workflow, "_load_dukascopy_fetch", lambda: fake_fetch)
+
+    exit_code = run_daily_workflow.main(
+        [
+            "--ingest",
+            "--use-dukascopy",
+            "--symbol",
+            "USDJPY",
+            "--mode",
+            "conservative",
+            "--dukascopy-lookback-minutes",
+            "30",
+            "--dukascopy-offer-side",
+            "ask",
+        ]
+    )
+
+    assert exit_code == 0
+    assert fetch_calls["symbol"] == "USDJPY"
+    assert fetch_calls["tf"] == "5m"
+    assert fetch_calls["offer_side"] == "ask"
+
+    csv_lines = validated_csv.read_text(encoding="utf-8").splitlines()
+    assert csv_lines[-1].startswith("2025-10-01T04:05:00")
+
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    assert snapshot["ingest"]["USDJPY_5m"] == "2025-10-01T04:05:00"
+
+    meta = snapshot["ingest_meta"]["USDJPY_5m"]
+    assert meta["primary_source"] == "dukascopy"
+    assert [entry["source"] for entry in meta["source_chain"]] == ["dukascopy"]
+    assert meta["dukascopy_offer_side"] == "ask"
+    assert meta["rows_validated"] >= 2
+    assert meta["freshness_minutes"] == pytest.approx(15.0)
+    assert meta.get("fallbacks") in (None, [])
+    assert meta["synthetic_extension"] is False
+    assert meta["last_ingest_at"] == fixed_now.replace(tzinfo=timezone.utc).isoformat()
+    assert not anomaly_log_path.exists()
+
+
 def test_dukascopy_failure_falls_back_to_yfinance(tmp_path, monkeypatch):
     repo_root = tmp_path / "repo"
     (repo_root / "ops/logs").mkdir(parents=True)
