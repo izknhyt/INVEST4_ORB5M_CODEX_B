@@ -47,6 +47,7 @@
 - 2025-11-26: `scripts/check_benchmark_freshness.py` で `ingest_meta.fallbacks` のステージ名を正規化し、CLI 出力からフォールバック連鎖を直接確認できるようにした。`tests/test_check_benchmark_freshness.py` に回帰を追加し、Sandbox の advisory ダウングレード仕様が維持されることを確認。
 - 2025-11-27: `scripts/run_daily_workflow.py` でベンチマーク鮮度チェックのパイプライン既定値を `pipeline_max_age_hours` に切り出し、`--benchmark-freshness-max-age-hours` を独立引数として `check_benchmark_freshness.py` へ伝播するよう更新。`tests/test_run_daily_workflow.py::test_check_benchmark_freshness_passes_pipeline_and_override` を追加し、両方のフラグがコマンドに含まれることを検証。
 - 2025-11-28: `run_daily_workflow.py --check-benchmark-freshness` に `--benchmark-freshness-base-max-age-hours` を追加し、`check_benchmark_freshness.py` へ渡す `--max-age-hours` を CLI から制御可能にした。README / docs/benchmark_runbook.md / docs/logic_overview.md / docs/checklists/p1-01.md / docs/task_backlog.md を更新し、`python3 -m pytest` で回帰テストを通過させた。
+- 2025-11-29: `run_daily_workflow.py --optimize` で `--symbol` / `--mode` / `--bars` の指定が `auto_optimize.py` へ伝播するよう更新し、`tests/test_run_daily_workflow.py` にシンボル・モード伝播の回帰を追加。README へ `--optimize` フローのデータセット差し替え手順を追記し、`python3 -m pytest tests/test_run_daily_workflow.py` を実行してパスを確認。
   - 2025-11-08: `run_daily_workflow.py --ingest --use-dukascopy` 実行時に `dukascopy_python` が未導入でも yfinance フォールバックで継続できるようにし、pytest (`tests/test_run_daily_workflow.py::test_dukascopy_missing_dependency_falls_back_to_yfinance`) で回帰確認。
   - 2025-11-09: yfinance フォールバック時に `--yfinance-lookback-minutes` を参照して再取得ウィンドウを決定するよう更新。冗長な再処理を抑えつつ長期停止後に手動調整できるよう、README / state runbook / 回帰テスト / backlog メモを同期。
 

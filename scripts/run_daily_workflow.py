@@ -209,6 +209,22 @@ def _merge_ingest_results(
     return merged
 
 
+def _resolve_optimize_csv_path(symbol: str, bars_override: Optional[str]) -> str:
+    """Return the CSV path for optimize runs, honoring overrides."""
+
+    if bars_override:
+        candidate = Path(bars_override).expanduser()
+        if not candidate.is_absolute():
+            candidate = (ROOT / candidate).resolve()
+        else:
+            candidate = candidate.resolve()
+        return str(candidate)
+
+    symbol_token = symbol.lower()
+    default_csv = ROOT / "data" / f"{symbol_token}_5m_2018-2024_utc.csv"
+    return str(default_csv)
+
+
 def _ingest_local_csv_backup(
     *,
     ingest_records_func,
@@ -1356,6 +1372,7 @@ def main(argv=None) -> int:
             return exit_code
 
     if args.optimize:
+        optimize_csv = _resolve_optimize_csv_path(args.symbol, args.bars)
         cmd = [
             sys.executable,
             str(ROOT / "scripts/auto_optimize.py"),
@@ -1366,11 +1383,11 @@ def main(argv=None) -> int:
             "300",
             "--rebuild-index",
             "--csv",
-            str(ROOT / "data/usdjpy_5m_2018-2024_utc.csv"),
+            optimize_csv,
             "--symbol",
-            "USDJPY",
+            args.symbol,
             "--mode",
-            "conservative",
+            args.mode,
             "--or-n",
             "4,6",
             "--k-tp",
