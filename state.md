@@ -4,6 +4,7 @@
 - Review this file before starting any task to confirm the latest context and checklist.
 - Update this file after completing work to record outcomes, blockers, and next steps.
 
+- 2025-12-05: `core/runner._build_ctx` で `realized_vol` が `NaN` を返しても RV バンド計算が破綻しないようにガードを追加。`python3 -m pytest tests/test_runner.py tests/test_run_daily_workflow.py` を実行して回帰が維持されることを確認。
 - [P1-04] 2025-10-16 価格インジェストAPI基盤整備 — DoD: [docs/task_backlog.md#p1-04-価格インジェストapi基盤整備](docs/task_backlog.md#p1-04-価格インジェストapi基盤整備) — Dukascopy ベースの自動インジェストを正式経路として仕上げ、REST/API ルートは保留ステータスで再開条件を整理する。
   - Backlog Anchor: [価格インジェストAPI基盤整備 (P1-04)](docs/task_backlog.md#p1-04-価格インジェストapi基盤整備)
   - Vision / Runbook References:

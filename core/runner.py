@@ -690,10 +690,22 @@ class BacktestRunner:
             or_ratio = (or_h - or_l) / (atr14)
 
         sess = self._session_of_ts(bar.get("timestamp", ""))
+        rv_val = realized_vol(self.window, n=12)
+        if rv_val is None:
+            rv_val = 0.0
+        else:
+            try:
+                rv_val = float(rv_val)
+            except (TypeError, ValueError):
+                rv_val = 0.0
+            else:
+                if math.isnan(rv_val):
+                    rv_val = 0.0
+
         ctx = {
             "session": sess,
             "spread_band": self._band_spread(spread_pips),
-            "rv_band": self._band_rv(realized_vol(self.window, n=12) or 0.0, sess),
+            "rv_band": self._band_rv(rv_val, sess),
             "slip_cap_pip": self.rcfg.slip_cap_pip,
             "threshold_lcb_pip": self.rcfg.threshold_lcb_pip,
             "or_atr_ratio": or_ratio,
