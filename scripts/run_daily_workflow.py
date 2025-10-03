@@ -225,6 +225,23 @@ def _resolve_optimize_csv_path(symbol: str, bars_override: Optional[str]) -> str
     return str(default_csv)
 
 
+def _tf_to_minutes(tf: str) -> int:
+    """Convert a timeframe string into minutes with defensive defaults."""
+
+    default_minutes = 5
+    if tf.endswith("m"):
+        try:
+            return max(1, int(tf[:-1] or default_minutes))
+        except ValueError:
+            return default_minutes
+    if tf.endswith("h"):
+        try:
+            return max(1, int(tf[:-1] or 1) * 60)
+        except ValueError:
+            return 60
+    return default_minutes
+
+
 def _ingest_local_csv_backup(
     *,
     ingest_records_func,
@@ -240,6 +257,8 @@ def _ingest_local_csv_backup(
     """Ingest bars from the bundled CSV backup for sandbox execution."""
 
     from scripts import pull_prices as pull_module
+
+    tf_minutes = _tf_to_minutes(tf)
 
     candidate_path = backup_path
     if candidate_path is None:
@@ -267,32 +286,14 @@ def _ingest_local_csv_backup(
     if not enable_synthetic:
         return result
 
-    tf_minutes = 5
-    if tf.endswith("m"):
-        try:
-            tf_minutes = max(1, int(tf[:-1] or 5))
-        except ValueError:
-            tf_minutes = 5
-    elif tf.endswith("h"):
-        try:
-            tf_minutes = max(1, int(tf[:-1] or 1) * 60)
-        except ValueError:
-            tf_minutes = 60
-    now = _utcnow_naive()
-    target_end = _compute_synthetic_target(now, tf_minutes=tf_minutes)
-
-    latest_ts = _parse_naive_utc(str(result.get("last_ts_now", "")))
-    if latest_ts is None:
-        last_entry = _load_last_validated_entry(validated_path)
-        if last_entry is None:
-            return result
-    else:
-        last_entry = _load_last_validated_entry(validated_path)
-
+    last_entry = _load_last_validated_entry(validated_path)
     if last_entry is None:
         return result
 
-    latest_ts = last_entry["timestamp"]
+    latest_ts = _parse_naive_utc(str(result.get("last_ts_now", ""))) or last_entry["timestamp"]
+    now = _utcnow_naive()
+    target_end = _compute_synthetic_target(now, tf_minutes=tf_minutes)
+
     if latest_ts >= target_end:
         return result
 
