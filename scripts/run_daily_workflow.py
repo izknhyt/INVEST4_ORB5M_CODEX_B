@@ -8,7 +8,7 @@ import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, NamedTuple, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -466,51 +466,37 @@ def _append_fallback(
     fallbacks.append(note)
 
 
-class LocalCsvFallbackParams(NamedTuple):
-    """Parameters required to execute the local CSV fallback ingest."""
-
-    ingest_records_func: Callable[..., Dict[str, object]]
-    symbol: str
-    tf: str
-    snapshot_path: Path
-    raw_path: Path
-    validated_path: Path
-    features_path: Path
-    backup_path: Optional[Path]
-    enable_synthetic: bool
-
-
 def _execute_local_csv_fallback(
     *,
-    params: LocalCsvFallbackParams,
+    stage: str,
+    reason: str,
     fallback_notes: List[Dict[str, str]],
-    trigger_reason: str,
-    local_stage: str,
-    local_reason: str,
-    trigger_stage: Optional[str] = None,
+    ingest_records_func: Callable[..., Dict[str, object]],
+    symbol: str,
+    tf: str,
+    snapshot_path: Path,
+    raw_path: Path,
+    validated_path: Path,
+    features_path: Path,
+    backup_path: Optional[Path],
+    enable_synthetic: bool,
+    trigger_reason: Optional[str] = None,
 ) -> Optional[Dict[str, object]]:
     """Run the local CSV fallback ingest and append structured notes."""
 
-    if trigger_stage:
-        _append_fallback(
-            fallback_notes,
-            stage=trigger_stage,
-            reason=trigger_reason,
-            next_source="local_csv",
-        )
-
-    print("[wf] local CSV fallback triggered:", trigger_reason)
+    message = trigger_reason or reason
+    print("[wf] local CSV fallback triggered:", message)
     try:
         result = _ingest_local_csv_backup(
-            ingest_records_func=params.ingest_records_func,
-            symbol=params.symbol,
-            tf=params.tf,
-            snapshot_path=params.snapshot_path,
-            raw_path=params.raw_path,
-            validated_path=params.validated_path,
-            features_path=params.features_path,
-            backup_path=params.backup_path,
-            enable_synthetic=params.enable_synthetic,
+            ingest_records_func=ingest_records_func,
+            symbol=symbol,
+            tf=tf,
+            snapshot_path=snapshot_path,
+            raw_path=raw_path,
+            validated_path=validated_path,
+            features_path=features_path,
+            backup_path=backup_path,
+            enable_synthetic=enable_synthetic,
         )
     except Exception as backup_exc:  # pragma: no cover - unexpected failure
         print(f"[wf] local CSV fallback unavailable: {backup_exc}")
@@ -528,8 +514,8 @@ def _execute_local_csv_fallback(
 
     _append_fallback(
         fallback_notes,
-        stage=local_stage,
-        reason=local_reason,
+        stage=stage,
+        reason=reason,
         next_source=next_source,
         detail=detail_path,
     )
@@ -756,7 +742,7 @@ def main(argv=None) -> int:
             raw_path = ROOT / "raw" / symbol_upper / f"{tf}.csv"
             features_path = ROOT / "features" / symbol_upper / f"{tf}.csv"
 
-            fallback_params = LocalCsvFallbackParams(
+            fallback_common = dict(
                 ingest_records_func=ingest_records,
                 symbol=symbol_upper,
                 tf=tf,
@@ -839,22 +825,6 @@ def main(argv=None) -> int:
             source_name = "dukascopy"
             result: Optional[Dict[str, object]] = None
 
-            def _run_local_csv_fallback(
-                reason: str,
-                *,
-                trigger_stage: Optional[str] = None,
-                local_stage: str = "local_csv",
-                local_reason: str = "local CSV fallback executed",
-            ) -> Optional[Dict[str, object]]:
-                return _execute_local_csv_fallback(
-                    params=fallback_params,
-                    fallback_notes=fallback_notes,
-                    trigger_reason=reason,
-                    local_stage=local_stage,
-                    local_reason=local_reason,
-                    trigger_stage=trigger_stage,
-                )
-
             if fallback_reason is not None:
                 _append_fallback(
                     fallback_notes,
@@ -870,11 +840,18 @@ def main(argv=None) -> int:
                     from scripts import yfinance_fetch as yfinance_module
                 except Exception as exc:  # pragma: no cover - optional dependency
                     reason = f"yfinance import failed: {exc}"
-                    result = _run_local_csv_fallback(
-                        reason,
-                        trigger_stage="yfinance",
-                        local_stage="local_csv",
-                        local_reason="local CSV fallback executed",
+                    _append_fallback(
+                        fallback_notes,
+                        stage="yfinance",
+                        reason=reason,
+                        next_source="local_csv",
+                    )
+                    result = _execute_local_csv_fallback(
+                        stage="local_csv",
+                        reason="local CSV fallback executed",
+                        fallback_notes=fallback_notes,
+                        trigger_reason=reason,
+                        **fallback_common,
                     )
                     if result is None:
                         return 1
@@ -915,11 +892,18 @@ def main(argv=None) -> int:
                         )
                     except Exception as exc:
                         reason = f"yfinance fallback failed: {exc}"
-                        result = _run_local_csv_fallback(
-                            reason,
-                            trigger_stage="yfinance",
-                            local_stage="local_csv",
-                            local_reason="local CSV fallback executed",
+                        _append_fallback(
+                            fallback_notes,
+                            stage="yfinance",
+                            reason=reason,
+                            next_source="local_csv",
+                        )
+                        result = _execute_local_csv_fallback(
+                            stage="local_csv",
+                            reason="local CSV fallback executed",
+                            fallback_notes=fallback_notes,
+                            trigger_reason=reason,
+                            **fallback_common,
                         )
                         if result is None:
                             return 1
@@ -928,11 +912,18 @@ def main(argv=None) -> int:
                     else:
                         if not yfinance_records:
                             reason = "yfinance fallback returned no rows"
-                            result = _run_local_csv_fallback(
-                                reason,
-                                trigger_stage="yfinance",
-                                local_stage="local_csv",
-                                local_reason="local CSV fallback executed",
+                            _append_fallback(
+                                fallback_notes,
+                                stage="yfinance",
+                                reason=reason,
+                                next_source="local_csv",
+                            )
+                            result = _execute_local_csv_fallback(
+                                stage="local_csv",
+                                reason="local CSV fallback executed",
+                                fallback_notes=fallback_notes,
+                                trigger_reason=reason,
+                                **fallback_common,
                             )
                             if result is None:
                                 return 1
@@ -1005,7 +996,7 @@ def main(argv=None) -> int:
             features_path = ROOT / "features" / symbol_upper / f"{tf}.csv"
 
             fallback_notes: List[Dict[str, str]] = []
-            fallback_params = LocalCsvFallbackParams(
+            fallback_common = dict(
                 ingest_records_func=ingest_records,
                 symbol=symbol_upper,
                 tf=tf,
@@ -1017,26 +1008,17 @@ def main(argv=None) -> int:
                 enable_synthetic=synthetic_allowed,
             )
 
-            def _run_local_csv_fallback(
-                reason: str,
-                *,
-                trigger_stage: Optional[str] = None,
-                local_stage: str = "local_csv",
-                local_reason: str = "local CSV fallback executed",
-            ) -> Optional[Dict[str, object]]:
-                return _execute_local_csv_fallback(
-                    params=fallback_params,
-                    fallback_notes=fallback_notes,
-                    trigger_reason=reason,
-                    local_stage=local_stage,
-                    local_reason=local_reason,
-                    trigger_stage=trigger_stage,
-                )
-
             try:
                 from scripts.yfinance_fetch import fetch_bars, resolve_ticker
             except Exception as exc:
-                result = _run_local_csv_fallback(f"yfinance module unavailable: {exc}")
+                reason = f"yfinance module unavailable: {exc}"
+                result = _execute_local_csv_fallback(
+                    stage="local_csv",
+                    reason="local CSV fallback executed",
+                    fallback_notes=fallback_notes,
+                    trigger_reason=reason,
+                    **fallback_common,
+                )
                 if result is None:
                     return 1
                 label = "local_csv"
@@ -1075,11 +1057,18 @@ def main(argv=None) -> int:
                         )
                 except Exception as exc:
                     reason = f"yfinance ingestion failed: {exc}"
-                    result = _run_local_csv_fallback(
-                        reason,
-                        trigger_stage="yfinance",
-                        local_stage="local_csv",
-                        local_reason="local CSV fallback executed",
+                    _append_fallback(
+                        fallback_notes,
+                        stage="yfinance",
+                        reason=reason,
+                        next_source="local_csv",
+                    )
+                    result = _execute_local_csv_fallback(
+                        stage="local_csv",
+                        reason="local CSV fallback executed",
+                        fallback_notes=fallback_notes,
+                        trigger_reason=reason,
+                        **fallback_common,
                     )
                     if result is None:
                         return 1
@@ -1087,11 +1076,18 @@ def main(argv=None) -> int:
                 else:
                     if not records_list:
                         reason = "yfinance ingestion returned no rows"
-                        result = _run_local_csv_fallback(
-                            reason,
-                            trigger_stage="yfinance",
-                            local_stage="local_csv",
-                            local_reason="local CSV fallback executed",
+                        _append_fallback(
+                            fallback_notes,
+                            stage="yfinance",
+                            reason=reason,
+                            next_source="local_csv",
+                        )
+                        result = _execute_local_csv_fallback(
+                            stage="local_csv",
+                            reason="local CSV fallback executed",
+                            fallback_notes=fallback_notes,
+                            trigger_reason=reason,
+                            **fallback_common,
                         )
                         if result is None:
                             return 1
@@ -1112,11 +1108,18 @@ def main(argv=None) -> int:
                             reason = (
                                 f"yfinance ingestion failed during ingest: {exc}"
                             )
-                            result = _run_local_csv_fallback(
-                                reason,
-                                trigger_stage="yfinance",
-                                local_stage="local_csv",
-                                local_reason="local CSV fallback executed",
+                            _append_fallback(
+                                fallback_notes,
+                                stage="yfinance",
+                                reason=reason,
+                                next_source="local_csv",
+                            )
+                            result = _execute_local_csv_fallback(
+                                stage="local_csv",
+                                reason="local CSV fallback executed",
+                                fallback_notes=fallback_notes,
+                                trigger_reason=reason,
+                                **fallback_common,
                             )
                             if result is None:
                                 return 1
@@ -1157,7 +1160,7 @@ def main(argv=None) -> int:
             raw_path = ROOT / "raw" / symbol_upper / f"{tf}.csv"
             features_path = ROOT / "features" / symbol_upper / f"{tf}.csv"
             fallback_notes: List[Dict[str, str]] = []
-            fallback_params = LocalCsvFallbackParams(
+            fallback_common = dict(
                 ingest_records_func=ingest_records,
                 symbol=symbol_upper,
                 tf=tf,
@@ -1168,22 +1171,6 @@ def main(argv=None) -> int:
                 backup_path=local_backup_path,
                 enable_synthetic=synthetic_allowed,
             )
-
-            def _run_local_csv_fallback(
-                reason: str,
-                *,
-                trigger_stage: Optional[str] = None,
-                local_stage: str = "local_csv",
-                local_reason: str = "local CSV fallback executed",
-            ) -> Optional[Dict[str, object]]:
-                return _execute_local_csv_fallback(
-                    params=fallback_params,
-                    fallback_notes=fallback_notes,
-                    trigger_reason=reason,
-                    local_stage=local_stage,
-                    local_reason=local_reason,
-                    trigger_stage=trigger_stage,
-                )
 
             last_ts = get_last_processed_ts(
                 symbol_upper,
@@ -1243,10 +1230,12 @@ def main(argv=None) -> int:
                     reason=reason,
                     next_source="local_csv",
                 )
-                result = _run_local_csv_fallback(
-                    reason,
-                    local_stage="local_csv",
-                    local_reason="local CSV fallback executed",
+                result = _execute_local_csv_fallback(
+                    stage="local_csv",
+                    reason="local CSV fallback executed",
+                    fallback_notes=fallback_notes,
+                    trigger_reason=reason,
+                    **fallback_common,
                 )
                 if result is None:
                     return 1
@@ -1260,10 +1249,12 @@ def main(argv=None) -> int:
                         reason=reason,
                         next_source="local_csv",
                     )
-                    result = _run_local_csv_fallback(
-                        reason,
-                        local_stage="local_csv",
-                        local_reason="local CSV fallback executed",
+                    result = _execute_local_csv_fallback(
+                        stage="local_csv",
+                        reason="local CSV fallback executed",
+                        fallback_notes=fallback_notes,
+                        trigger_reason=reason,
+                        **fallback_common,
                     )
                     if result is None:
                         return 1
@@ -1288,10 +1279,12 @@ def main(argv=None) -> int:
                             reason=reason,
                             next_source="local_csv",
                         )
-                        result = _run_local_csv_fallback(
-                            reason,
-                            local_stage="local_csv",
-                            local_reason="local CSV fallback executed",
+                        result = _execute_local_csv_fallback(
+                            stage="local_csv",
+                            reason="local CSV fallback executed",
+                            fallback_notes=fallback_notes,
+                            trigger_reason=reason,
+                            **fallback_common,
                         )
                         if result is None:
                             return 1
