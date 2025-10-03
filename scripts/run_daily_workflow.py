@@ -15,6 +15,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.utils import yaml_compat as yaml
+from scripts._time_utils import utcnow_naive as _shared_utcnow_naive
 
 
 def _load_dukascopy_fetch() -> Callable[..., object]:
@@ -47,6 +48,12 @@ def _parse_naive_utc(timestamp: str) -> Optional[datetime]:
         parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
 
     return parsed
+
+
+def _utcnow_naive() -> datetime:
+    """Return the current UTC time as a naive ``datetime``."""
+
+    return _shared_utcnow_naive(dt_cls=datetime)
 
 
 def _format_utc_iso(dt_value: datetime) -> str:
@@ -255,7 +262,7 @@ def _ingest_local_csv_backup(
             tf_minutes = max(1, int(tf[:-1] or 1) * 60)
         except ValueError:
             tf_minutes = 60
-    now = datetime.utcnow()
+    now = _utcnow_naive()
     target_end = _compute_synthetic_target(now, tf_minutes=tf_minutes)
 
     latest_ts = _parse_naive_utc(str(result.get("last_ts_now", "")))
@@ -661,7 +668,7 @@ def main(argv=None) -> int:
                 snapshot_path=snapshot_path,
                 validated_path=validated_path,
             )
-            now = datetime.utcnow()
+            now = _utcnow_naive()
             lookback = max(5, args.dukascopy_lookback_minutes)
             if last_ts is not None:
                 start = last_ts - timedelta(minutes=lookback)
@@ -877,7 +884,7 @@ def main(argv=None) -> int:
                 f"last_ts={result['last_ts_now']}",
             )
 
-            finish_now = datetime.utcnow()
+            finish_now = _utcnow_naive()
             if isinstance(result, dict) and offer_side:
                 result.setdefault("dukascopy_offer_side", offer_side)
             _persist_ingest_metadata(
@@ -965,7 +972,7 @@ def main(argv=None) -> int:
                     validated_path=validated_path,
                 )
                 lookback = max(5, args.yfinance_lookback_minutes)
-                now = datetime.utcnow()
+                now = _utcnow_naive()
                 if last_ts is not None:
                     start = last_ts - timedelta(minutes=lookback)
                 else:
@@ -1034,7 +1041,7 @@ def main(argv=None) -> int:
                 f"last_ts={result['last_ts_now']}",
             )
 
-            finish_now = datetime.utcnow()
+            finish_now = _utcnow_naive()
             _persist_ingest_metadata(
                 symbol=symbol_upper,
                 tf=tf,
@@ -1103,7 +1110,7 @@ def main(argv=None) -> int:
                 snapshot_path=snapshot_path,
                 validated_path=validated_path,
             )
-            now = datetime.utcnow()
+            now = _utcnow_naive()
             lookback_default = args.api_lookback_minutes
             if lookback_default is None:
                 try:
@@ -1209,7 +1216,7 @@ def main(argv=None) -> int:
                 f"last_ts={result['last_ts_now']}",
             )
 
-            finish_now = datetime.utcnow()
+            finish_now = _utcnow_naive()
             _persist_ingest_metadata(
                 symbol=symbol_upper,
                 tf=tf,

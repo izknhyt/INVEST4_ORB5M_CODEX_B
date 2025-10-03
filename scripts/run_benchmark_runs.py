@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scripts._time_utils import utcnow_aware
 from scripts._ts_utils import parse_naive_utc_timestamp
 
 
@@ -330,7 +331,7 @@ def main(argv=None) -> int:
                 "event": "benchmark_shift",
                 "symbol": args.symbol,
                 "mode": args.mode,
-                "timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "timestamp": utcnow_aware(dt_cls=datetime).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "thresholds": {
                     "total_pips": args.alert_pips,
                     "win_rate": args.alert_winrate,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 import argparse
 import json
-from datetime import datetime
+from scripts._time_utils import utcnow_aware
 from pathlib import Path
 
 
@@ -16,7 +16,7 @@ def parse_args(argv=None):
 
 def archive(runs_dir: Path, output_dir: Path) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
-    now = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    now = utcnow_aware().strftime("%Y%m%d_%H%M%S")
     archives = 0
     for state_file in runs_dir.glob("**/state.json"):
         try:
