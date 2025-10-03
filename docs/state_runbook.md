@@ -65,6 +65,35 @@ python3 scripts/run_daily_workflow.py --ingest --update-state --benchmarks --sta
   - CLI で `--shutdown-file` を渡すと監視先を変更できる。Cron など外部から停止させる場合に指定。
   - SIGINT/SIGTERM 受信時は進行中のシンボル処理を完了してから停止する。
 
+## インシデントリプレイワークフロー
+- **対象:** `ops/incidents/<incident_id>/` に格納した本番障害・大幅ドローダウン案件の事後検証。
+- **目的:** `analysis/incident_review.ipynb` で当時の相場条件を再現し、再発防止に向けた対応策とインシデント指標を整理する。
+
+### 1. ディレクトリ準備
+1. `ops/incidents/<incident_id>/` を作成し、以下のテンプレ構成をそろえる。
+   ```
+   ops/incidents/<incident_id>/
+     ├─ incident.json      # 発生日・シンボル・損益・一次報告メモ
+     ├─ replay_params.json # Notebook/CLI で使用したパラメータ控え
+     ├─ replay_notes.md    # 詳細な原因分析・対応方針・TODO
+     └─ artifacts/         # 画像・CSV・ログなどの補助資料（任意）
+   ```
+2. `incident.json` には `start_ts` / `end_ts` / `mode` / `severity` / `trigger` を記録し、Notebook 側で読み込めるよう ISO8601 (UTC) 形式を使用する。
+
+### 2. Notebook での再現
+- `analysis/incident_review.ipynb` を開き、`INCIDENT_ID` 変数に対象フォルダを設定する。
+- Notebook の再現セルで `scripts/run_sim.py --start-ts --end-ts --no-auto-state --no-aggregate-ev` を呼び出し、`replay_params.json` に CLI 引数を保存するセルを実行する。
+- 実行後は Notebook が生成する `metrics.json` / `daily.csv` / `source_with_header.csv` を `runs/incidents/<incident_id>/`（例: `runs/incidents/USDJPY_conservative_20251002_230924/`）へ移動またはシンボリックリンクし、追跡しやすくする。
+
+### 3. 出力整理と共有
+- `replay_notes.md` には以下の章立てを最低限用意する。
+  - `## Summary`: 再現結果サマリ（損益 / 再現可否 / 主要因）。
+  - `## Findings`: 原因分析・再発条件・必要な追加データ。
+  - `## Actions`: 即時対応 / 恒久対策 / 未解決課題。
+- `replay_params.json` は Notebook から自動保存した引数ログをそのままコミットし、再実行の正確な CLI を残す。
+- Notebook 生成物や追加ログは `artifacts/` 以下に配置し、巨大ファイルは Git LFS または外部ストレージ参照を記載する。
+- ステークホルダー向け要約は `replay_notes.md` の `## Summary` 冒頭に 3 行以内のダイジェストを追加し、同じ文面を `docs/task_backlog.md#p1-02-インシデントリプレイテンプレート` の進捗メモと `state.md` の `## Log` に転記する。必要に応じて #ops チャネルや週次レポートへリンクを共有する。
+
 ## 推奨運用
 - **バックアップ:** 自動アーカイブされた最新ファイル（例: `ops/state_archive/.../<timestamp>_runid.json`）を基準に、必要に応じて別途バックアップを取得する。
 - **互換性:** RunnerConfig（特にゲート設定・戦略パラメータ）を大幅に変更した際は、古い state がバイアスになる場合がある。必要に応じてリセット（初期化）を検討する。

@@ -68,6 +68,11 @@ python3 scripts/manage_task_cycle.py --dry-run finish-task \
 
 `start-task` は `sync_task_docs.py record` → `promote` を順番に呼び出し、既存アンカーを検出した場合は重複登録を避けます。`finish-task` は `complete` をラップし、完了ログとアーカイブ更新を一括実行します。`--dry-run` を外すと実際に `state.md` / `docs/todo_next.md` が更新され、コマンドは実行前にエコーされるので内容を確認してから Enter できます。
 
+### インシデントリプレイガイド
+- インシデントごとの作業フォルダは `ops/incidents/<incident_id>/` に配置し、`incident.json`（メタデータ）、`replay_params.json`（Notebook/CLI 引数のスナップショット）、`replay_notes.md`（原因分析と対策メモ）、`artifacts/`（スクリーンショットや追加ログ）をそろえる。
+- `analysis/incident_review.ipynb` から `scripts/run_sim.py --start-ts --end-ts --no-auto-state --no-aggregate-ev` を実行し、Notebook が生成する `metrics.json` / `daily.csv` / `source_with_header.csv` は `runs/incidents/<incident_id>/` へ移動またはシンボリックリンクする。
+- `replay_notes.md` には `## Summary` / `## Findings` / `## Actions` を設け、`Summary` 冒頭の 3 行要約を `docs/task_backlog.md#p1-02-インシデントリプレイテンプレート` の進捗メモと `state.md` の `## Log` に転記してステークホルダーへ共有する。詳細手順は [docs/state_runbook.md#インシデントリプレイワークフロー](docs/state_runbook.md#インシデントリプレイワークフロー) を参照。
+
 1. **新規タスクの登録**
    ```bash
    python3 scripts/sync_task_docs.py record \

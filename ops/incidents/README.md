@@ -10,6 +10,8 @@ ops/incidents/<incident_id>/
   └─ artifacts/         # スクリーンショット、チャート、CSV 等（任意）
 ```
 
+運用全体の手順は [docs/state_runbook.md#インシデントリプレイワークフロー](../../docs/state_runbook.md#インシデントリプレイワークフロー) を参照してください。
+
 ## incident.json テンプレ
 - `incident_id`: `YYYYMMDD-HHMM_<symbol>_<short_desc>`
 - `symbol`, `mode`, `start_ts`, `end_ts`: リプレイ対象期間（UTC）
