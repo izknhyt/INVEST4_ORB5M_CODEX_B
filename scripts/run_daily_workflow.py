@@ -602,7 +602,7 @@ def main(argv=None) -> int:
 
     local_backup_path: Optional[Path] = None
     if args.local_backup_csv:
-        candidate = Path(args.local_backup_csv)
+        candidate = Path(args.local_backup_csv).expanduser()
         if not candidate.is_absolute():
             candidate = (ROOT / candidate).resolve()
         else:
