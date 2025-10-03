@@ -186,6 +186,24 @@ def test_optimize_uses_absolute_paths(monkeypatch):
     _assert_path_arg(cmd, "--report", root / "reports/auto_optimize.json")
 
 
+def test_optimize_propagates_symbol_mode_and_csv(monkeypatch):
+    captured = _capture_run_cmd(monkeypatch)
+
+    exit_code = run_daily_workflow.main([
+        "--optimize",
+        "--symbol", "GBPJPY",
+        "--mode", "bridge",
+    ])
+
+    assert exit_code == 0
+    assert captured, "run_cmd should be invoked"
+    cmd = captured[0]
+    assert cmd[cmd.index("--symbol") + 1] == "GBPJPY"
+    assert cmd[cmd.index("--mode") + 1] == "bridge"
+    root = run_daily_workflow.ROOT
+    _assert_path_arg(cmd, "--csv", root / "data/gbpjpy_5m_2018-2024_utc.csv")
+
+
 def test_analyze_latency_uses_absolute_paths(monkeypatch):
     captured = _capture_run_cmd(monkeypatch)
 

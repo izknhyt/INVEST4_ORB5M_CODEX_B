@@ -284,6 +284,8 @@ python3 scripts/report_benchmark_summary.py --symbol USDJPY --mode conservative 
   --min-win-rate 0.55 --min-sharpe 0.5 --max-drawdown 200
 ```
 
+`--optimize` フラグを付けると `scripts/auto_optimize.py` を呼び出し、指定した `--symbol` / `--mode` をそのまま最適化コマンドへ渡します。デフォルトでは `data/<symbol_lower>_5m_2018-2024_utc.csv`（例: `data/gbpjpy_5m_2018-2024_utc.csv`）を参照し、別データセットを使いたい場合は `--bars validated/GBPJPY/5m.csv` のように明示してください。
+
 開発時は、実行側で以下のような`ctx`辞書を戦略へ提供してください（例）:
 
 ```python
