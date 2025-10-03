@@ -7,6 +7,7 @@ This guide summarizes the routine Codex agents should follow to keep tasks movin
 - **docs/task_backlog.md** — Lists priorities and definitions of done. Use its anchors from `state.md`/`docs/todo_next.md` to share progress links.
 - **docs/todo_next.md** — Organizes practical next actions across In Progress, Ready, Pending Review, and Archive.
 - **docs/templates/** — Home of reusable templates such as `next_task_entry.md` and `dod_checklist.md` that Codex applies automatically.
+- **docs/checklists/p1-07_phase1_bug_refactor.md** — Checklist and tracking templates dedicated to Phase 1 bug investigations and refactoring planning. Use it to record module-level coverage, refactor candidates, and follow-up notes.
 - **docs/state_runbook.md** — Baseline operational runbook for state synchronization and archive handling.
 - **docs/codex_cloud_notes.md** — Additional guardrails when running in read-only or network-restricted cloud sandboxes.
 
@@ -46,6 +47,7 @@ This guide summarizes the routine Codex agents should follow to keep tasks movin
 - Check the `AGENTS.md` file in each directory before editing to respect style and testing requirements.
 - Record insights or unresolved issues in the active task memo inside `state.md`, or in the relevant entry within `docs/todo_next.md`.
 - After significant changes, run `python3 -m pytest` or the appropriate CLI command. Capture the executed commands in your notes so the next session can reproduce them.
+- For broad bug-review or refactoring sweeps, mirror your progress in `docs/checklists/p1-07_phase1_bug_refactor.md` so each session inherits the latest checklist status and candidate list.
 
 ### 3. Closing the task
 1. Run `python3 scripts/manage_task_cycle.py --dry-run finish-task ...` to preview what will be moved into the log.
