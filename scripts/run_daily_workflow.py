@@ -639,10 +639,11 @@ def main(argv=None) -> int:
         local_backup_path = candidate
 
     symbol_input = args.symbol.upper()
+    symbol_upper = symbol_input
     if symbol_input.endswith("=X"):
-        symbol_upper = symbol_input[:-2]
-    else:
-        symbol_upper = symbol_input
+        fx_candidate = symbol_input[:-2]
+        if len(fx_candidate) == 6 and fx_candidate.isalpha():
+            symbol_upper = fx_candidate
     args.symbol = symbol_upper
 
     bars_csv = args.bars or str(ROOT / f"validated/{symbol_upper}/5m.csv")
