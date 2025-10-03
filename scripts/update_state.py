@@ -17,6 +17,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.runner import BacktestRunner
+from scripts._time_utils import utcnow_aware
 from scripts.config_utils import build_runner_config
 from scripts.pull_prices import _parse_ts as _parse_ingest_ts
 
@@ -246,7 +247,7 @@ def main(argv=None) -> int:
         archive_root = Path(args.archive_dir)
         archive_dir = archive_root / strategy_key / args.symbol / args.mode
         archive_dir.mkdir(parents=True, exist_ok=True)
-        stamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        stamp = utcnow_aware(dt_cls=datetime).strftime("%Y%m%d_%H%M%S")
         archive_file = archive_dir / f"{stamp}_state.json"
         with archive_file.open("w") as f:
             json.dump(new_state, f, ensure_ascii=False, indent=2)

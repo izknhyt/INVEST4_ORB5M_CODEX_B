@@ -7,7 +7,7 @@ import json
 import math
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
@@ -22,6 +22,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
+from scripts._time_utils import utcnow_aware
 from scripts.ev_vs_actual_pnl import _collect_record_paths, _load_records
 
 
@@ -149,7 +150,7 @@ def build_profile(
             "strategy": strategy,
             "symbol": symbol,
             "mode": mode,
-            "generated_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "generated_at": utcnow_aware(dt_cls=datetime).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "runs_used": runs_count,
             "total_trades": total_trades,
             "alpha_prior": alpha_prior,

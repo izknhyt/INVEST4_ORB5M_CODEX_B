@@ -7,9 +7,10 @@ import json
 import logging
 import urllib.error
 import urllib.request
-from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+from scripts._time_utils import utcnow_iso
 
 
 LOGGER = logging.getLogger(__name__)
@@ -222,8 +223,10 @@ def main(argv=None) -> int:
         warnings.append(f"baseline total_pips negative: {baseline_summary['total_pips']:.2f}")
     _apply_threshold_checks("baseline", baseline_summary)
 
+    generated_at = utcnow_iso()
+
     payload: Dict[str, object] = {
-        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "generated_at": generated_at,
         "symbol": args.symbol,
         "mode": args.mode,
         "baseline": baseline_summary,
@@ -295,7 +298,6 @@ def main(argv=None) -> int:
 
     print(json.dumps(payload, ensure_ascii=False))
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

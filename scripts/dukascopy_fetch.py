@@ -6,6 +6,7 @@ import argparse
 import csv
 import sys
 from datetime import datetime, timedelta, timezone
+from scripts._time_utils import utcnow_naive
 from typing import Dict, Iterable, Iterator
 
 
@@ -152,7 +153,7 @@ def _cli(argv=None) -> int:
     parser.add_argument("--out", default="-")
     args = parser.parse_args(argv)
 
-    now = datetime.utcnow()
+    now = utcnow_naive(dt_cls=datetime)
     end = _parse_dt(args.end_ts) if args.end_ts else now
     start = (
         _parse_dt(args.start_ts)

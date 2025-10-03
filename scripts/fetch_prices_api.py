@@ -15,6 +15,7 @@ from typing import Dict, Iterable, List, Mapping, Optional, Sequence
 from core.utils import yaml_compat as yaml
 
 from scripts._secrets import load_api_credentials
+from scripts._time_utils import utcnow_naive
 from scripts._ts_utils import parse_naive_utc_timestamp
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -551,7 +552,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
-    now = datetime.utcnow()
+    now = utcnow_naive(dt_cls=datetime)
     config = _load_config(args.config)
     provider_cfg = _select_provider(config, args.provider)
     lookback_cfg = provider_cfg.get("lookback_minutes") or config.get("lookback_minutes", 60)

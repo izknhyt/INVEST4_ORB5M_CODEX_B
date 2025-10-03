@@ -59,6 +59,8 @@
     - [ ] 追加が必要な回帰テストセットの優先順位付けを決める。
   - Docs note: Ready エントリを [docs/todo_next.md](docs/todo_next.md#ready) に追加済み。チェックリストのテーブルを埋めながら `scripts/manage_task_cycle.py` のドライラン出力を共有すること。
   - 2025-12-05: チェックリスト初版とテンプレート説明を `docs/checklists/p1-07_phase1_bug_refactor.md` に作成し、`docs/codex_workflow.md` へ参照導線を追加。バックログ/Ready/State を同期して、次セッションがチェックボードを更新するだけで継続できるようにした。
+    - 2025-12-06: フェーズ1 スクリプトで `datetime.utcnow()` を廃止し、`scripts/_time_utils.py` を介した `datetime.now(timezone.utc)` 起点のヘルパーに統一。`run_daily_workflow.py` / `yfinance_fetch.py` / `fetch_prices_api.py` などの鮮度判定がモンキーパッチにも追従するよう調整し、`python3 -m pytest` で DeprecationWarning が消えたことを確認。
+    - 2025-12-07: `scripts/report_benchmark_summary.py` が `main()` 内で `utcnow_iso` を参照する際に import が未解決で NameError になる退行を修正。ヘルパー import をモジュール先頭へ移して CLI 実行時に `generated_at` が確実に設定されることを再確認し、バグチェックログへ反映。
 
 ### 運用メモ
 - バックログから着手するタスクは先にこのリストへ追加し、ID・着手予定日・DoD リンクを明示する。
