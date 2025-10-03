@@ -51,5 +51,5 @@
 - ~~**絶対パス整備と CLI テスト強化**~~ ✅ — `state.md` 2024-06-14 <!-- anchor: docs/task_backlog.md#絶対パス整備と-cli-テスト強化 -->
   - `run_daily_workflow.py` 最適化/状態アーカイブコマンドで絶対パスを使用するよう更新し、pytest で検証。
 
-- ~~**インシデントリプレイテンプレート**~~（バックログ: `docs/task_backlog.md` → P1「インシデントリプレイテンプレート」） — `state.md` 2024-06-14, 2024-06-15, 2024-06-21 ✅ <!-- anchor: docs/task_backlog.md#p1-02-インシデントリプレイテンプレート -->
-  - 期間指定リプレイ CLI の拡張は完了。Notebook (`analysis/incident_review.ipynb`) と `ops/incidents/` へのテンプレ整備を次イテレーションで着手可能。
+- ~~**インシデントリプレイテンプレート**~~（バックログ: `docs/task_backlog.md` → P1「インシデントリプレイテンプレート」） — `state.md` 2024-06-14, 2024-06-15, 2024-06-21, 2025-12-01 ✅ <!-- anchor: docs/task_backlog.md#p1-02-インシデントリプレイテンプレート -->
+  - 期間指定リプレイ CLI の拡張と Notebook (`analysis/incident_review.ipynb`) のテンプレ整備を完了。`docs/state_runbook.md#インシデントリプレイワークフロー` と README に再現フロー/成果物の整理手順を追記し、`ops/incidents/<incident_id>/` の出力ファイル（`replay_notes.md`・`replay_params.json`・`runs/incidents/...`）掲載先とステークホルダー共有ルールを明文化した。

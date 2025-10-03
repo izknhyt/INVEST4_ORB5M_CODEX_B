@@ -55,6 +55,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - リプレイ結果と対策メモを共有する記録先（README や ops runbook）が更新され、再発防止の参照場所が明示されていること。
 
 **進捗メモ**
+- 2025-12-01: Documented the replay workflow in `docs/state_runbook.md` and README, clarified `ops/incidents/<incident_id>/` output expectations (`replay_notes.md` / `replay_params.json` / `runs/incidents/...`), and linked the guidance from `ops/incidents/README.md`. Archived the task in `docs/todo_next.md` / `state.md` with stakeholder sharing steps.
 - 2025-11-27: `python3 scripts/run_benchmark_pipeline.py --windows 365,180,90 --disable-plot` と `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6 --benchmark-freshness-max-age-hours 6` を実行し、ローリング JSON / ベンチマークサマリーの勝率・Sharpe・最大DDを更新。`ops/runtime_snapshot.json` の `benchmark_pipeline` を `ok:true`・`errors:[]` で揃え、README / docs/benchmark_runbook.md / チェックリスト / todo_next / state ログを同期してタスクをクローズ。
 - 2024-06-14: `scripts/run_sim.py` に `--start-ts` / `--end-ts` を追加し、README と pytest を更新。部分期間リプレイの準備が整った。
 
