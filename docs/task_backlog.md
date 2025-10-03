@@ -140,6 +140,19 @@ REST/Streaming API と `scripts/pull_prices.py` を連携させ、手動CSV投�
 - 2025-11-27: `python3 scripts/run_benchmark_pipeline.py --windows 365,180,90 --disable-plot` と `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6 --benchmark-freshness-max-age-hours 6` を実行し、ローリング JSON / ベンチマークサマリーの勝率・Sharpe・最大DDを更新。`ops/runtime_snapshot.json` の `benchmark_pipeline` を `ok:true`・`errors:[]` で揃え、README / docs/benchmark_runbook.md / チェックリスト / todo_next / state ログを同期してタスクをクローズ。
 - 2025-10-10: Broker OCO matrix updated (OANDA / IG / SBI)、`analysis/broker_fills_cli.py` で Conservative / Bridge 差分を出力、`core/fill_engine.py` に `SameBarPolicy` / トレール処理を追加、`tests/test_fill_engine.py` で Tick 優先 / 保護優先 / トレール更新を固定。`docs/progress_phase1.md` / `docs/benchmark_runbook.md` へ再実行フローを反映。
 
+### P1-07 フェーズ1 バグチェック & リファクタリング運用整備
+フェーズ1 の実装資産に対して継続的なバグチェックとリファクタリングを進めるため、調査観点・進捗ログ・タスク連携を統一するドキュメント群を整える。チェックリストとテンプレートを整備し、次セッションのエージェントが「どこまで確認済みか」「何を優先すべきか」を即座に把握できる状態を目指す。
+
+**DoD**
+- `docs/checklists/p1-07_phase1_bug_refactor.md` に Ready チェック・バグ観点リスト・リファクタリング計画テンプレート・運用連携手順を追加する。
+- 調査対象の進捗トラッキング方法（Markdown テーブル / チェックボックス）と `scripts/manage_task_cycle.py` を使ったログ更新手順を文書化する。
+- リファクタリング候補の優先度付け・リスク評価・必要テストを記録するフォーマットを提供し、ドキュメント更新対象を明示する。
+- `docs/todo_next.md` の Ready セクションに本タスクの活用メモを追加し、`state.md` へ参照ノートを追記する。
+- 既存 runbook (`docs/codex_workflow.md` など) に新チェックリストを参照する導線を追加し、セッション開始時に確認すべき資料へ統合する。
+
+**進捗メモ**
+- 2025-12-05: チェックリスト初版 (`docs/checklists/p1-07_phase1_bug_refactor.md`) を作成し、`docs/task_backlog.md` / `docs/todo_next.md` / `docs/codex_workflow.md` / `state.md` へ参照リンクと運用メモを追記。フェーズ1 バグチェックとリファクタリングのテンプレート化を Ready 状態に引き上げた。
+
 ## P2: マルチ戦略ポートフォリオ化
 - **戦略マニフェスト整備**: スキャル/デイ/スイングの候補戦略ごとに、依存特徴量・セッション・リスク上限を YAML で定義し、ルーターが参照できるようにする (`configs/strategies/*.yaml`)。
   - 2025-10-09: `configs/strategies/templates/base_strategy.yaml` に共通テンプレートと記述ガイドを追加し、新規戦略のマニフェスト整備を着手しやすくした。

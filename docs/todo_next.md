@@ -18,6 +18,10 @@
 
 ### Ready
 
+- **フェーズ1 バグチェック & リファクタリング運用整備** (Backlog: `docs/task_backlog.md` → [P1-07](docs/task_backlog.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備)) — `state.md` 2025-12-05 <!-- anchor: docs/task_backlog.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備 -->
+  - `docs/checklists/p1-07_phase1_bug_refactor.md` を活用し、バグ調査観点とリファクタリング計画テンプレを更新する。進捗ログはチェックリストのテーブル/チェックボックスへ反映し、必要に応じて `scripts/manage_task_cycle.py --dry-run start-task` / `finish-task` の例を追記。
+  - 調査で判明したフォローアップは `Pending Questions` または `Archive` へ移動する前に `docs/todo_next.md` と `state.md` に同期し、次セッションで参照しやすいよう関連 CLI/pytest コマンドをメモする。
+
 ### Pending Review
 - **Workflow Integration Guide** (Backlog: `docs/task_backlog.md` → "ワークフロー統合" section) — `state.md` 2024-06-18, 2025-09-29 <!-- anchor: docs/task_backlog.md#codex-session-operations-guide -->
   - Updated the synchronization rules between `docs/todo_next.md` and `state.md`. Added `docs/codex_workflow.md` to capture Codex session procedures. Confirm readiness for adoption before moving to Archive.
