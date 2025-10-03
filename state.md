@@ -4,6 +4,9 @@
 - Review this file before starting any task to confirm the latest context and checklist.
 - Update this file after completing work to record outcomes, blockers, and next steps.
 
+- 2025-12-10: live ingest worker `_ingest_symbol` で `result.source_name` を確認して `ingest_meta.dukascopy_offer_side` を保存する条件を
+  Dukascopy 経路のみに限定。`tests/test_live_ingest_worker.py` に yfinance フォールバックでフィールドが追加されないことを検証
+  するケースを追加し、`python3 -m pytest` を実行して全件パスを確認。
 - 2025-12-09: Dukascopy 経路のフォールバック結果で `ingest_meta.dukascopy_offer_side` が誤って残らないように、`scripts/run_daily_workflow.py`
   でソース判定ガードを追加。`tests/test_run_daily_workflow.py` にフォールバック時のメタデータ検証ケースを追加し、`python3 -m pytest`
   を完走して既存回帰を確認。
