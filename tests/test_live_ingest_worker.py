@@ -225,7 +225,7 @@ def test_ingest_symbol_yfinance_fallback_excludes_offer_side(monkeypatch, tmp_pa
             "rows_validated": len(records_list),
             "anomalies_logged": 0,
             "last_ts_now": "2024-01-01T00:10:00",
-            "source_name": source_name,
+            "source": source_name,
         }
 
     monkeypatch.setattr(worker, "ingest_records", fake_ingest)
@@ -250,9 +250,86 @@ def test_ingest_symbol_yfinance_fallback_excludes_offer_side(monkeypatch, tmp_pa
     result = worker._ingest_symbol("USDJPY", config, now=datetime(2024, 1, 1, 0, 15, 0))
 
     assert result is not None
-    assert result.get("source_name") == "yfinance"
+    assert result.get("source") == "yfinance"
     assert "dukascopy_offer_side" not in result
     assert ingests and ingests[0]["source_name"] == "yfinance"
+
+
+def test_ingest_symbol_dukascopy_attaches_offer_side(monkeypatch, tmp_path):
+    rows = [
+        {
+            "timestamp": "2024-01-01T00:10:00",
+            "symbol": "USDJPY",
+            "tf": "5m",
+            "o": 150.0,
+            "h": 150.2,
+            "l": 149.9,
+            "c": 150.1,
+            "v": 1200.0,
+            "spread": 0.1,
+        },
+        {
+            "timestamp": "2024-01-01T00:15:00",
+            "symbol": "USDJPY",
+            "tf": "5m",
+            "o": 150.1,
+            "h": 150.3,
+            "l": 149.8,
+            "c": 150.0,
+            "v": 900.0,
+            "spread": 0.1,
+        },
+    ]
+
+    monkeypatch.setattr(worker, "_load_dukascopy_records", lambda *a, **k: list(rows))
+    monkeypatch.setattr(worker, "get_last_processed_ts", lambda *a, **k: None)
+
+    ingests = []
+
+    def fake_ingest(records, *, symbol, tf, snapshot_path, raw_path, validated_path, features_path, or_n, source_name):
+        records_list = list(records)
+        ingests.append({
+            "symbol": symbol,
+            "tf": tf,
+            "records": records_list,
+            "source_name": source_name,
+        })
+        return {
+            "rows_validated": len(records_list),
+            "anomalies_logged": 0,
+            "gaps_detected": 0,
+            "rows_raw": len(records_list),
+            "rows_featured": len(records_list),
+            "last_ts_now": rows[-1]["timestamp"],
+            "source": source_name,
+        }
+
+    monkeypatch.setattr(worker, "ingest_records", fake_ingest)
+
+    config = worker.WorkerConfig(
+        symbols=["USDJPY"],
+        modes=["conservative"],
+        tf="5m",
+        interval=0.0,
+        lookback_minutes=5,
+        freshness_threshold=90,
+        offer_side="ask",
+        snapshot_path=tmp_path / "ops/runtime_snapshot.json",
+        raw_root=tmp_path / "raw",
+        validated_root=tmp_path / "validated",
+        features_root=tmp_path / "features",
+        shutdown_file=None,
+        max_iterations=None,
+        or_n=6,
+    )
+
+    result = worker._ingest_symbol("USDJPY", config, now=datetime(2024, 1, 1, 0, 20, 0))
+
+    assert result is not None
+    assert result.get("source") == "dukascopy"
+    assert result.get("dukascopy_offer_side") == "ask"
+    assert "source_name" not in result
+    assert ingests and ingests[0]["source_name"] == "dukascopy"
 
 
 def test_run_update_state_passes_lowercase_mode(monkeypatch, tmp_path):

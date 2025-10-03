@@ -4,6 +4,7 @@
 - Review this file before starting any task to confirm the latest context and checklist.
 - Update this file after completing work to record outcomes, blockers, and next steps.
 
+- 2025-12-14: `scripts/live_ingest_worker.py` の Dukascopy 判定を `ingest_records` が返す `source` に合わせ、成功時のみ `dukascopy_offer_side` を永続化するよう修正。`tests/test_live_ingest_worker.py` と `tests/test_run_daily_workflow.py` を更新し、`python3 -m pytest tests/test_live_ingest_worker.py` を実行して 5 件パスを確認した。
 - 2025-12-13: `scripts/run_daily_workflow.py` に `IngestContext` を導入し、Dukascopy/yfinance/API それぞれのハンドラ関数へ分割。`python3 -m pytest tests/test_run_daily_workflow.py` を実行して 24 件パスを確認し、CLI ディスパッチを簡素化した。
 - 2025-12-12: `scripts/run_daily_workflow.py` のローカルCSVフォールバック合成バー経路をリファクタし、`_tf_to_minutes` ヘルパーを
   追加。`tests/test_run_daily_workflow.py` を実行して 24 件グリーンを確認し、`result.get("last_ts_now")` の有無を問わずバリデー
