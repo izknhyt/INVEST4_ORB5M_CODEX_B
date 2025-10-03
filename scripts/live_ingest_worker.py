@@ -57,16 +57,27 @@ class StopSignal:
         return self._stop
 
 
-def _parse_csv_list(value: Optional[str], *, default: Sequence[str]) -> List[str]:
+def _parse_csv_list(
+    value: Optional[str], *, default: Sequence[str], case: Optional[str] = "upper"
+) -> List[str]:
+    def _apply_case(items: Sequence[str]) -> List[str]:
+        if case == "upper":
+            return [item.upper() for item in items]
+        if case == "lower":
+            return [item.lower() for item in items]
+        return [str(item) for item in items]
+
     if not value:
-        return [item.upper() for item in default]
+        return _apply_case(default)
     items = []
     for part in value.split(","):
         item = part.strip()
         if not item:
             continue
-        items.append(item.upper())
-    return items or [item.upper() for item in default]
+        items.append(item)
+    if not items:
+        return _apply_case(default)
+    return _apply_case(items)
 
 
 def _parse_timestamp(value: str) -> Optional[datetime]:
@@ -328,6 +339,7 @@ def _build_config(args) -> WorkerConfig:
     modes = _parse_csv_list(
         args.modes or args.mode,
         default=["conservative"],
+        case="lower",
     )
 
     shutdown_file = Path(args.shutdown_file).resolve() if args.shutdown_file else None
