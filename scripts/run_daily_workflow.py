@@ -533,6 +533,108 @@ def _execute_local_csv_fallback(
     return result
 
 
+class ProviderError(RuntimeError):
+    """Error type carrying a preformatted reason string for provider failures."""
+
+    def __init__(self, reason: str):
+        super().__init__(reason)
+        self.reason = reason
+
+
+def _log_ingest_summary(result: Dict[str, object], label: str) -> None:
+    """Emit a standardized ingest completion log line."""
+
+    detail = result.get("source") if isinstance(result, dict) else None
+    suffix = f" ({detail})" if detail and detail != label else ""
+    print(
+        f"[wf] {label}_ingest{suffix}",
+        f"rows={result['rows_validated']}",
+        f"last_ts={result['last_ts_now']}",
+    )
+
+
+def _ingest_with_provider(
+    ctx: "IngestContext",
+    *,
+    stage: str,
+    source_label: str,
+    next_source: Optional[str],
+    fetch_records: Callable[[], Iterable[Dict[str, object]]],
+    fetch_error_prefix: Optional[str] = None,
+    empty_result_reason: Optional[str] = None,
+    ingest_error_prefix: Optional[str] = None,
+    fallback_runner: Optional[
+        Callable[[str], tuple[Optional[Dict[str, object]], Optional[str]]]
+    ] = None,
+    result_mutator: Optional[Callable[[Dict[str, object]], None]] = None,
+    ingest_kwargs: Optional[Dict[str, Any]] = None,
+) -> tuple[Optional[Dict[str, object]], Optional[str]]:
+    """Execute provider fetch + ingest with shared fallback/error handling."""
+
+    fetch_error_prefix = fetch_error_prefix or f"{stage} fetch failed"
+    ingest_error_prefix = ingest_error_prefix or f"{stage} ingestion failed"
+    empty_result_reason = empty_result_reason or f"{stage} fetch returned no rows"
+    ingest_kwargs = ingest_kwargs or {}
+
+    reason: Optional[str] = None
+    records_list: Optional[List[Dict[str, object]]] = None
+
+    try:
+        fetched = fetch_records()
+        records_list = list(fetched)
+    except Exception as exc:  # pragma: no cover - defensive surface
+        reason = getattr(exc, "reason", None) or f"{fetch_error_prefix}: {exc}"
+
+    if reason is None and records_list is not None:
+        if not records_list:
+            reason = empty_result_reason
+
+    if reason is None and records_list is not None:
+        try:
+            result = ctx.ingest_records(
+                records_list,
+                symbol=ctx.symbol,
+                tf=ctx.tf,
+                snapshot_path=ctx.snapshot_path,
+                raw_path=ctx.raw_path,
+                validated_path=ctx.validated_path,
+                features_path=ctx.features_path,
+                source_name=source_label,
+                **ingest_kwargs,
+            )
+        except Exception as exc:
+            reason = getattr(exc, "reason", None) or f"{ingest_error_prefix}: {exc}"
+        else:
+            if isinstance(result, dict) and result_mutator is not None:
+                result_mutator(result)
+            return result, source_label
+
+    if reason is None:
+        reason = f"{stage} ingestion failed"
+
+    _append_fallback(
+        ctx.fallback_notes,
+        stage=stage,
+        reason=reason,
+        next_source=next_source,
+    )
+
+    if fallback_runner is not None:
+        return fallback_runner(reason)
+
+    fallback_result = _execute_local_csv_fallback(
+        stage="local_csv",
+        reason="local CSV fallback executed",
+        fallback_notes=ctx.fallback_notes,
+        trigger_reason=reason,
+        **ctx.fallback_kwargs(),
+    )
+    if fallback_result is None:
+        return None, None
+
+    return fallback_result, "local_csv"
+
+
 @dataclass
 class IngestContext:
     """Container for shared ingest inputs and mutable fallback notes."""
@@ -598,17 +700,18 @@ def _build_ingest_context(
     )
 
 
+
 def _run_dukascopy_ingest(
     ctx: IngestContext,
     args: argparse.Namespace,
 ) -> tuple[Optional[Dict[str, object]], int]:
-    fetch_bars: Optional[Callable[..., Iterable[Dict[str, object]]]] = None
-    fallback_reason: Optional[str] = None
-
     try:
-        fetch_bars = _load_dukascopy_fetch()
+        fetch_impl = _load_dukascopy_fetch()
     except Exception as exc:  # pragma: no cover - optional dependency
-        fallback_reason = f"initialization error: {exc}"
+        fetch_impl = None
+        init_error = exc
+    else:
+        init_error = None
 
     last_ts = ctx.load_last_processed_ts()
     now = _utcnow_naive()
@@ -625,218 +728,137 @@ def _run_dukascopy_ingest(
         f"offer_side={offer_side}",
     )
 
-    dukascopy_records: List[Dict[str, object]] = []
-    if fallback_reason is None and fetch_bars is not None:
-        try:
-            dukascopy_records = list(
-                fetch_bars(
-                    args.symbol,
-                    ctx.tf,
-                    start=start,
-                    end=now,
-                    offer_side=offer_side,
-                )
+    def _dukascopy_fetch() -> Iterable[Dict[str, object]]:
+        if fetch_impl is None:
+            raise ProviderError(f"initialization error: {init_error}")
+
+        records = list(
+            fetch_impl(
+                args.symbol,
+                ctx.tf,
+                start=start,
+                end=now,
+                offer_side=offer_side,
             )
-        except Exception as exc:
-            fallback_reason = f"fetch error: {exc}"
-
-    freshness_threshold = args.dukascopy_freshness_threshold_minutes
-    if fallback_reason is None:
-        if not dukascopy_records:
-            fallback_reason = "no rows returned"
-        else:
-            last_record_ts = str(dukascopy_records[-1].get("timestamp", ""))
-            try:
-                parsed_last = datetime.fromisoformat(last_record_ts.replace("Z", "+00:00"))
-                if parsed_last.tzinfo is not None:
-                    parsed_last = parsed_last.astimezone(timezone.utc).replace(tzinfo=None)
-            except Exception:
-                parsed_last = None
-
-            if parsed_last is None:
-                fallback_reason = "could not parse last timestamp"
-            elif freshness_threshold and freshness_threshold > 0:
-                max_age = timedelta(minutes=freshness_threshold)
-                if now - parsed_last > max_age:
-                    fallback_reason = (
-                        "stale data: "
-                        f"last_ts={parsed_last.isoformat(timespec='seconds')}"
-                    )
-
-    result: Optional[Dict[str, object]] = None
-    source_label = "dukascopy"
-
-    if fallback_reason is not None:
-        _append_fallback(
-            ctx.fallback_notes,
-            stage="dukascopy",
-            reason=fallback_reason,
-            next_source="yfinance",
         )
+
+        if not records:
+            raise ProviderError("no rows returned")
+
+        last_record_ts = str(records[-1].get("timestamp", ""))
+        parsed_last = _parse_naive_utc(last_record_ts)
+        if parsed_last is None:
+            raise ProviderError("could not parse last timestamp")
+
+        freshness_threshold = args.dukascopy_freshness_threshold_minutes
+        if freshness_threshold and freshness_threshold > 0:
+            max_age = timedelta(minutes=freshness_threshold)
+            if now - parsed_last > max_age:
+                raise ProviderError(
+                    "stale data: "
+                    f"last_ts={parsed_last.isoformat(timespec='seconds')}"
+                )
+
+        return records
+
+    def _fallback_to_yfinance(reason: str) -> tuple[Optional[Dict[str, object]], Optional[str]]:
         print(
             "[wf] Dukascopy unavailable, switching to yfinance fallback:",
-            fallback_reason,
+            reason,
         )
+
         try:
             from scripts import yfinance_fetch as yfinance_module
         except Exception as exc:  # pragma: no cover - optional dependency
-            reason = f"yfinance import failed: {exc}"
-            _append_fallback(
-                ctx.fallback_notes,
+            def _missing_module() -> Iterable[Dict[str, object]]:
+                raise ProviderError(f"yfinance import failed: {exc}")
+
+            return _ingest_with_provider(
+                ctx,
                 stage="yfinance",
-                reason=reason,
+                source_label="yfinance",
                 next_source="local_csv",
+                fetch_records=_missing_module,
+                fetch_error_prefix="yfinance ingestion failed",
+                empty_result_reason="yfinance ingestion returned no rows",
+                ingest_error_prefix="yfinance ingestion failed during ingest",
             )
-            result = _execute_local_csv_fallback(
-                stage="local_csv",
-                reason="local CSV fallback executed",
-                fallback_notes=ctx.fallback_notes,
-                trigger_reason=reason,
-                **ctx.fallback_kwargs(),
-            )
-            if result is None:
-                return None, 1
-            source_label = "local_csv"
+
+        fallback_window_days = 7
+        fallback_window = timedelta(days=fallback_window_days)
+        yf_lookback_minutes = max(5, args.yfinance_lookback_minutes or 0)
+        if last_ts is not None:
+            fallback_start = last_ts - timedelta(minutes=yf_lookback_minutes)
         else:
-            fallback_window_days = 7
-            fallback_window = timedelta(days=fallback_window_days)
-            yf_lookback_minutes = max(5, args.yfinance_lookback_minutes or 0)
-            if last_ts is not None:
-                fallback_start = last_ts - timedelta(minutes=yf_lookback_minutes)
-            else:
-                minutes = max(yf_lookback_minutes, fallback_window_days * 24 * 60)
-                fallback_start = now - timedelta(minutes=minutes)
-            fallback_start = max(fallback_start, now - fallback_window)
-            if fallback_start > now:
-                fallback_start = now
+            minutes = max(yf_lookback_minutes, fallback_window_days * 24 * 60)
+            fallback_start = now - timedelta(minutes=minutes)
+        fallback_start = max(fallback_start, now - fallback_window)
+        if fallback_start > now:
+            fallback_start = now
 
-            fetch_symbol = yfinance_module.resolve_ticker(ctx.symbol)
-            print(
-                "[wf] fetching yfinance bars",
-                fetch_symbol,
-                f"(fallback for {ctx.symbol})",
-                ctx.tf,
-                fallback_start.isoformat(timespec="seconds"),
-                now.isoformat(timespec="seconds"),
+        fetch_symbol = yfinance_module.resolve_ticker(ctx.symbol)
+        print(
+            "[wf] fetching yfinance bars",
+            fetch_symbol,
+            f"(fallback for {ctx.symbol})",
+            ctx.tf,
+            fallback_start.isoformat(timespec="seconds"),
+            now.isoformat(timespec="seconds"),
+        )
+
+        def _yfinance_fetch() -> Iterable[Dict[str, object]]:
+            records = list(
+                yfinance_module.fetch_bars(
+                    args.symbol,
+                    ctx.tf,
+                    start=fallback_start,
+                    end=now,
+                )
             )
+            if not records:
+                raise ProviderError("yfinance fallback returned no rows")
+            return records
 
-            try:
-                yfinance_records = list(
-                    yfinance_module.fetch_bars(
-                        args.symbol,
-                        ctx.tf,
-                        start=fallback_start,
-                        end=now,
-                    )
-                )
-            except Exception as exc:
-                reason = f"yfinance fallback failed: {exc}"
-                _append_fallback(
-                    ctx.fallback_notes,
-                    stage="yfinance",
-                    reason=reason,
-                    next_source="local_csv",
-                )
-                result = _execute_local_csv_fallback(
-                    stage="local_csv",
-                    reason="local CSV fallback executed",
-                    fallback_notes=ctx.fallback_notes,
-                    trigger_reason=reason,
-                    **ctx.fallback_kwargs(),
-                )
-                if result is None:
-                    return None, 1
-                source_label = "local_csv"
-            else:
-                if not yfinance_records:
-                    reason = "yfinance fallback returned no rows"
-                    _append_fallback(
-                        ctx.fallback_notes,
-                        stage="yfinance",
-                        reason=reason,
-                        next_source="local_csv",
-                    )
-                    result = _execute_local_csv_fallback(
-                        stage="local_csv",
-                        reason="local CSV fallback executed",
-                        fallback_notes=ctx.fallback_notes,
-                        trigger_reason=reason,
-                        **ctx.fallback_kwargs(),
-                    )
-                    if result is None:
-                        return None, 1
-                    source_label = "local_csv"
-                else:
-                    try:
-                        result = ctx.ingest_records(
-                            yfinance_records,
-                            symbol=ctx.symbol,
-                            tf=ctx.tf,
-                            snapshot_path=ctx.snapshot_path,
-                            raw_path=ctx.raw_path,
-                            validated_path=ctx.validated_path,
-                            features_path=ctx.features_path,
-                            source_name="yfinance",
-                        )
-                    except Exception as exc:
-                        reason = f"yfinance ingestion failed during ingest: {exc}"
-                        _append_fallback(
-                            ctx.fallback_notes,
-                            stage="yfinance",
-                            reason=reason,
-                            next_source="local_csv",
-                        )
-                        result = _execute_local_csv_fallback(
-                            stage="local_csv",
-                            reason="local CSV fallback executed",
-                            fallback_notes=ctx.fallback_notes,
-                            trigger_reason=reason,
-                            **ctx.fallback_kwargs(),
-                        )
-                        if result is None:
-                            return None, 1
-                        source_label = "local_csv"
-                    else:
-                        source_label = "yfinance"
-    else:
-        try:
-            result = ctx.ingest_records(
-                dukascopy_records,
-                symbol=ctx.symbol,
-                tf=ctx.tf,
-                snapshot_path=ctx.snapshot_path,
-                raw_path=ctx.raw_path,
-                validated_path=ctx.validated_path,
-                features_path=ctx.features_path,
-                source_name=source_label,
-            )
-        except Exception as exc:
-            print(f"[wf] ingestion failed: {exc}")
-            return None, 1
+        return _ingest_with_provider(
+            ctx,
+            stage="yfinance",
+            source_label="yfinance",
+            next_source="local_csv",
+            fetch_records=_yfinance_fetch,
+            fetch_error_prefix="yfinance ingestion failed",
+            empty_result_reason="yfinance ingestion returned no rows",
+            ingest_error_prefix="yfinance ingestion failed during ingest",
+        )
 
-    if result is None:
-        print("[wf] Dukascopy ingestion produced no result")
-        return None, 1
-
-    detail = result.get("source") if isinstance(result, dict) else None
-    suffix = f" ({detail})" if detail and detail != source_label else ""
-    print(
-        f"[wf] {source_label}_ingest{suffix}",
-        f"rows={result['rows_validated']}",
-        f"last_ts={result['last_ts_now']}",
-    )
-
-    finish_now = _utcnow_naive()
-    if isinstance(result, dict) and offer_side:
-        source_markers: List[str] = []
-        if source_label:
-            source_markers.append(str(source_label))
-        source_value = result.get("source")
+    def _mark_offer_side(result_dict: Dict[str, object]) -> None:
+        source_markers: List[str] = ["dukascopy"]
+        source_value = result_dict.get("source")
         if source_value:
             source_markers.append(str(source_value))
         normalized = [marker.lower() for marker in source_markers if marker]
         if any("dukascopy" in marker for marker in normalized):
-            result.setdefault("dukascopy_offer_side", offer_side)
+            result_dict.setdefault("dukascopy_offer_side", offer_side)
+
+    result, source_label = _ingest_with_provider(
+        ctx,
+        stage="dukascopy",
+        source_label="dukascopy",
+        next_source="yfinance",
+        fetch_records=_dukascopy_fetch,
+        fetch_error_prefix="fetch error",
+        empty_result_reason="no rows returned",
+        ingest_error_prefix="ingestion failed",
+        fallback_runner=_fallback_to_yfinance,
+        result_mutator=_mark_offer_side,
+    )
+
+    if result is None or not source_label:
+        print("[wf] Dukascopy ingestion produced no result")
+        return None, 1
+
+    _log_ingest_summary(result, source_label)
+
+    finish_now = _utcnow_naive()
 
     _persist_ingest_metadata(
         symbol=ctx.symbol,
@@ -855,24 +877,18 @@ def _run_yfinance_ingest(
     ctx: IngestContext,
     args: argparse.Namespace,
 ) -> tuple[Optional[Dict[str, object]], int]:
+    last_ts = ctx.load_last_processed_ts()
+    now = _utcnow_naive()
+
     try:
         from scripts.yfinance_fetch import fetch_bars, resolve_ticker
     except Exception as exc:
-        reason = f"yfinance module unavailable: {exc}"
-        result = _execute_local_csv_fallback(
-            stage="local_csv",
-            reason="local CSV fallback executed",
-            fallback_notes=ctx.fallback_notes,
-            trigger_reason=reason,
-            **ctx.fallback_kwargs(),
-        )
-        if result is None:
-            return None, 1
-        label = "local_csv"
+        def _missing_module() -> Iterable[Dict[str, object]]:
+            raise ProviderError(f"yfinance module unavailable: {exc}")
+
+        fetch_callable = _missing_module
     else:
-        last_ts = ctx.load_last_processed_ts()
         lookback = max(5, args.yfinance_lookback_minutes)
-        now = _utcnow_naive()
         start = last_ts - timedelta(minutes=lookback) if last_ts else now - timedelta(minutes=lookback)
 
         fetch_symbol = resolve_ticker(ctx.symbol)
@@ -885,8 +901,8 @@ def _run_yfinance_ingest(
             now.isoformat(timespec="seconds"),
         )
 
-        try:
-            records_list = list(
+        def _yfinance_fetch() -> Iterable[Dict[str, object]]:
+            records = list(
                 fetch_bars(
                     args.symbol,
                     ctx.tf,
@@ -894,83 +910,28 @@ def _run_yfinance_ingest(
                     end=now,
                 )
             )
-        except Exception as exc:
-            reason = f"yfinance ingestion failed: {exc}"
-            _append_fallback(
-                ctx.fallback_notes,
-                stage="yfinance",
-                reason=reason,
-                next_source="local_csv",
-            )
-            result = _execute_local_csv_fallback(
-                stage="local_csv",
-                reason="local CSV fallback executed",
-                fallback_notes=ctx.fallback_notes,
-                trigger_reason=reason,
-                **ctx.fallback_kwargs(),
-            )
-            if result is None:
-                return None, 1
-            label = "local_csv"
-        else:
-            if not records_list:
-                reason = "yfinance ingestion returned no rows"
-                _append_fallback(
-                    ctx.fallback_notes,
-                    stage="yfinance",
-                    reason=reason,
-                    next_source="local_csv",
-                )
-                result = _execute_local_csv_fallback(
-                    stage="local_csv",
-                    reason="local CSV fallback executed",
-                    fallback_notes=ctx.fallback_notes,
-                    trigger_reason=reason,
-                    **ctx.fallback_kwargs(),
-                )
-                if result is None:
-                    return None, 1
-                label = "local_csv"
-            else:
-                try:
-                    result = ctx.ingest_records(
-                        records_list,
-                        symbol=ctx.symbol,
-                        tf=ctx.tf,
-                        snapshot_path=ctx.snapshot_path,
-                        raw_path=ctx.raw_path,
-                        validated_path=ctx.validated_path,
-                        features_path=ctx.features_path,
-                        source_name="yfinance",
-                    )
-                except Exception as exc:
-                    reason = f"yfinance ingestion failed during ingest: {exc}"
-                    _append_fallback(
-                        ctx.fallback_notes,
-                        stage="yfinance",
-                        reason=reason,
-                        next_source="local_csv",
-                    )
-                    result = _execute_local_csv_fallback(
-                        stage="local_csv",
-                        reason="local CSV fallback executed",
-                        fallback_notes=ctx.fallback_notes,
-                        trigger_reason=reason,
-                        **ctx.fallback_kwargs(),
-                    )
-                    if result is None:
-                        return None, 1
-                    label = "local_csv"
-                else:
-                    label = "yfinance"
+            if not records:
+                raise ProviderError("yfinance ingestion returned no rows")
+            return records
 
-    detail = result.get("source") if isinstance(result, dict) else None
-    suffix = f" ({detail})" if detail and detail != label else ""
-    print(
-        f"[wf] {label}_ingest{suffix}",
-        f"rows={result['rows_validated']}",
-        f"last_ts={result['last_ts_now']}",
+        fetch_callable = _yfinance_fetch
+
+    result, source_label = _ingest_with_provider(
+        ctx,
+        stage="yfinance",
+        source_label="yfinance",
+        next_source="local_csv",
+        fetch_records=fetch_callable,
+        fetch_error_prefix="yfinance ingestion failed",
+        empty_result_reason="yfinance ingestion returned no rows",
+        ingest_error_prefix="yfinance ingestion failed during ingest",
     )
+
+    if result is None or not source_label:
+        print("[wf] yfinance ingestion produced no result")
+        return None, 1
+
+    _log_ingest_summary(result, source_label)
 
     finish_now = _utcnow_naive()
     _persist_ingest_metadata(
@@ -990,12 +951,6 @@ def _run_api_ingest(
     ctx: IngestContext,
     args: argparse.Namespace,
 ) -> tuple[Optional[Dict[str, object]], int]:
-    try:
-        from scripts.fetch_prices_api import fetch_prices
-    except Exception as exc:  # pragma: no cover - import failure
-        print(f"[wf] API ingestion unavailable: {exc}")
-        return None, 1
-
     last_ts = ctx.load_last_processed_ts()
     now = _utcnow_naive()
     lookback_default = args.api_lookback_minutes
@@ -1025,98 +980,48 @@ def _run_api_ingest(
         now.isoformat(timespec="seconds"),
     )
 
-    label = "api"
-    result: Optional[Dict[str, object]] = None
-
     try:
-        records = fetch_prices(
-            ctx.symbol,
-            ctx.tf,
-            start=start,
-            end=now,
-            provider=args.api_provider,
-            config_path=args.api_config,
-            credentials_path=args.api_credentials,
-        )
-    except Exception as exc:
-        reason = f"api ingestion failed: {exc}"
-        _append_fallback(
-            ctx.fallback_notes,
-            stage="api",
-            reason=reason,
-            next_source="local_csv",
-        )
-        result = _execute_local_csv_fallback(
-            stage="local_csv",
-            reason="local CSV fallback executed",
-            fallback_notes=ctx.fallback_notes,
-            trigger_reason=reason,
-            **ctx.fallback_kwargs(),
-        )
-        if result is None:
-            return None, 1
-        label = "local_csv"
-    else:
-        if not records:
-            reason = "api ingestion returned no rows"
-            _append_fallback(
-                ctx.fallback_notes,
-                stage="api",
-                reason=reason,
-                next_source="local_csv",
-            )
-            result = _execute_local_csv_fallback(
-                stage="local_csv",
-                reason="local CSV fallback executed",
-                fallback_notes=ctx.fallback_notes,
-                trigger_reason=reason,
-                **ctx.fallback_kwargs(),
-            )
-            if result is None:
-                return None, 1
-            label = "local_csv"
-        else:
-            try:
-                result = ctx.ingest_records(
-                    records,
-                    symbol=ctx.symbol,
-                    tf=ctx.tf,
-                    snapshot_path=ctx.snapshot_path,
-                    raw_path=ctx.raw_path,
-                    validated_path=ctx.validated_path,
-                    features_path=ctx.features_path,
-                    source_name="api",
-                )
-            except Exception as exc:
-                reason = f"api ingestion failed during ingest: {exc}"
-                _append_fallback(
-                    ctx.fallback_notes,
-                    stage="api",
-                    reason=reason,
-                    next_source="local_csv",
-                )
-                result = _execute_local_csv_fallback(
-                    stage="local_csv",
-                    reason="local CSV fallback executed",
-                    fallback_notes=ctx.fallback_notes,
-                    trigger_reason=reason,
-                    **ctx.fallback_kwargs(),
-                )
-                if result is None:
-                    return None, 1
-                label = "local_csv"
+        from scripts.fetch_prices_api import fetch_prices
+    except Exception as exc:  # pragma: no cover - import failure
+        def _missing_api() -> Iterable[Dict[str, object]]:
+            raise ProviderError(f"api ingestion failed: {exc}")
 
-    if result is None:
+        fetch_callable = _missing_api
+    else:
+        def _api_fetch() -> Iterable[Dict[str, object]]:
+            records = list(
+                fetch_prices(
+                    ctx.symbol,
+                    ctx.tf,
+                    start=start,
+                    end=now,
+                    provider=args.api_provider,
+                    config_path=args.api_config,
+                    credentials_path=args.api_credentials,
+                )
+            )
+            if not records:
+                raise ProviderError("api ingestion returned no rows")
+            return records
+
+        fetch_callable = _api_fetch
+
+    result, source_label = _ingest_with_provider(
+        ctx,
+        stage="api",
+        source_label="api",
+        next_source="local_csv",
+        fetch_records=fetch_callable,
+        fetch_error_prefix="api ingestion failed",
+        empty_result_reason="api ingestion returned no rows",
+        ingest_error_prefix="api ingestion failed during ingest",
+    )
+
+    if result is None or not source_label:
         print("[wf] API ingestion produced no result")
         return None, 1
 
-    detail = result.get("source") if isinstance(result, dict) else None
-    suffix = f" ({detail})" if detail and detail != label else ""
-    print(
-        f"[wf] {label}_ingest{suffix}",
-        f"rows={result['rows_validated']}",
-        f"last_ts={result['last_ts_now']}",
-    )
+    _log_ingest_summary(result, source_label)
 
     finish_now = _utcnow_naive()
     _persist_ingest_metadata(
@@ -1130,7 +1035,6 @@ def _run_api_ingest(
     )
 
     return result, 0
-
 
 def run_cmd(cmd):
     print(f"[wf] running: {' '.join(cmd)}")
