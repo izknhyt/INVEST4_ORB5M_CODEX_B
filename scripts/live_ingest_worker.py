@@ -225,7 +225,11 @@ def _ingest_symbol(symbol: str, config: WorkerConfig, *, now: datetime) -> Optio
         print(f"[live-ingest] ingestion failed for {symbol}: {exc}")
         return None
 
-    if isinstance(result, dict) and config.offer_side:
+    if (
+        isinstance(result, dict)
+        and config.offer_side
+        and result.get("source_name") == "dukascopy"
+    ):
         result.setdefault("dukascopy_offer_side", config.offer_side)
 
     print(
