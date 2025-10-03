@@ -1,6 +1,6 @@
 {
   "meta": {
-    "strategy_key": "reversion_stub.MeanReversionStrategy",
+    "strategy_key": "mean_reversion.MeanReversionStrategy",
     "symbol": "USDJPY",
     "mode": "conservative",
     "generated_at": "2025-09-29T00:00:40Z",

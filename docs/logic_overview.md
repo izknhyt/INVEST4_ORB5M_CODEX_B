@@ -3,6 +3,7 @@
 ## 戦略・ゲート
 - **DayORB5m**: ORブレイクアウトを基軸に、`strategy_gate` で OR/ATR や RV を判定。`ev_threshold` でシグナルごとの EV 閾値調整を実装。
 - **再現用サンプル**: `strategies/reversion_stub.py` を追加し、共通ゲート上で別戦略を動作させるテンプレートを整備。
+- **Mean Reversion**: `strategies/mean_reversion.py` が RV/ADX フィルタ・ATR ベースのリスクリワード計算・EV プロファイル補正を備えた本実装。`configs/strategies/mean_reversion.yaml` でパラメータを管理し、`tests/test_mean_reversion_strategy.py` で挙動を回帰。
 - **共通設定**: `RunnerConfig` と `StrategyConfig` で構成。`scripts/config_utils.py` を通じて CLI の上書き処理を共通化。
 
 ### Day ORB パラメータ依存マトリクス

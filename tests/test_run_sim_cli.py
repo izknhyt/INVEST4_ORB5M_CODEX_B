@@ -9,7 +9,7 @@ import unittest
 from unittest import mock
 
 from scripts.run_sim import load_bars_csv, main as run_sim_main
-from strategies.reversion_stub import MeanReversionStrategy
+from strategies.mean_reversion import MeanReversionStrategy
 
 
 CSV_CONTENT = """timestamp,symbol,tf,o,h,l,c,v,spread,zscore
@@ -106,23 +106,29 @@ class TestRunSimCLI(unittest.TestCase):
         manifest_yaml = textwrap.dedent(
             """
             meta:
-              id: mean_reversion_stub_v1
-              name: Mean Reversion Stub
+              id: mean_reversion_v1
+              name: Mean Reversion (USDJPY)
               version: "1.0"
               category: day
             strategy:
-              class_path: strategies.reversion_stub.MeanReversionStrategy
+              class_path: strategies.mean_reversion.MeanReversionStrategy
               instruments:
                 - symbol: USDJPY
                   timeframe: 5m
                   mode: conservative
               parameters:
                 or_n: 2
-                k_tp: 0.5
-                k_sl: 0.7
                 cooldown_bars: 1
-                zscore_threshold: 0.5
+                zscore_threshold: 1.0
+                tp_atr_mult: 0.8
+                sl_atr_mult: 1.0
+                min_tp_pips: 4.0
+                min_sl_pips: 8.0
+                sl_over_tp: 1.1
                 allow_high_rv: true
+                allow_mid_rv: true
+                allow_low_rv: true
+                max_adx: 28.0
             router:
               allowed_sessions: [LDN, NY]
             risk:
@@ -143,7 +149,7 @@ class TestRunSimCLI(unittest.TestCase):
                   wide: 99.0
                 warmup_trades: 0
             state:
-              archive_namespace: strategies.reversion_stub.MeanReversionStrategy/USDJPY/conservative
+              archive_namespace: strategies.mean_reversion.MeanReversionStrategy/USDJPY/conservative
             """
         )
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -192,7 +198,8 @@ class TestRunSimCLI(unittest.TestCase):
                 self.assertIn("allow_high_rv", cfg)
                 self.assertTrue(cfg["allow_high_rv"])
                 self.assertIn("zscore_threshold", cfg)
-                self.assertAlmostEqual(float(cfg["zscore_threshold"]), 0.5)
+                self.assertAlmostEqual(float(cfg["zscore_threshold"]), 1.0)
+                self.assertIn("tp_atr_mult", cfg)
             with open(json_out, "r", encoding="utf-8") as f:
                 data = json.load(f)
             self.assertIn("sharpe", data)

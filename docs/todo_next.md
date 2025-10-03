@@ -24,6 +24,7 @@
 - **マルチ戦略比較バリデーション** (Backlog: `docs/task_backlog.md` → P2「マルチ戦略ポートフォリオ化」) — `state.md` 2025-09-29 <!-- anchor: docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化 -->
   - Day ORB (63 trades, EV reject 1,544) と Mean Reversion (40 trades, gate_block 402, EV reject 0) を `data/sample_orb.csv` で比較し、`docs/checklists/multi_strategy_validation.md` の表を実測値で更新。
   - Mean Reversion は `zscore` カラムの追加でトレード生成が確認でき、EV プロファイル有無で `ev_reject` 差分が無いことを再現。日次 CSV にゲート/EV カウントを保存済み。次は RV High ブロック条件とウォームアップ回数の調整案を検討。
+  - 2025-12-02: `strategies/mean_reversion.py` へ本実装を移行し、`configs/strategies/mean_reversion.yaml` / `configs/ev_profiles/mean_reversion.yaml` を刷新。`analysis/broker_fills.ipynb` を公開してブローカー比較のレビュー手段を統一し、pytest で回帰を追加済み。レビュー完了後に Archive へ移動予定。
 
 ## Archive（達成済み）
 - ~~**価格インジェストAPI基盤整備**~~ ✅ — `state.md` 2025-10-16, 2025-11-05, 2025-11-06, 2025-11-28 <!-- anchor: docs/task_backlog.md#p1-04-価格インジェストapi基盤整備 -->

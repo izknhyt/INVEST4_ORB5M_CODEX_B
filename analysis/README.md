@@ -1,6 +1,6 @@
 # Analysis Notes
 
-- `broker_fills.ipynb`: ブローカー約定履歴とシミュレーション結果の差分を可視化するノートブックを配置予定。
+- `broker_fills.ipynb`: ブローカー約定履歴とシミュレーション結果の差分を可視化するノートブック。`analysis/broker_fills_cli.py` の比較テーブルを読み込み、CLI/Notebook 双方で同じレビューが可能。
 - `ops/signal_latency.csv`: `notifications/emit_signal.py` がレイテンシログを追記する想定。SLO: `p95 <= 5s` を目標。
 
 今後の作業
