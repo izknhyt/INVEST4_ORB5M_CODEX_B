@@ -101,6 +101,8 @@ def test_check_benchmark_freshness_passes_pipeline_and_override(monkeypatch):
 
     exit_code = run_daily_workflow.main([
         "--check-benchmark-freshness",
+        "--benchmark-freshness-base-max-age-hours",
+        "9.25",
         "--benchmark-freshness-max-age-hours",
         "8.5",
         "--benchmark-freshness-targets",
@@ -111,9 +113,27 @@ def test_check_benchmark_freshness_passes_pipeline_and_override(monkeypatch):
     assert captured, "run_cmd should be invoked"
     cmd = captured[0]
     assert "--max-age-hours" in cmd
-    assert float(cmd[cmd.index("--max-age-hours") + 1]) == pytest.approx(6.0)
+    assert float(cmd[cmd.index("--max-age-hours") + 1]) == pytest.approx(9.25)
+    assert "--benchmark-freshness-base-max-age-hours" not in cmd
     assert "--benchmark-freshness-max-age-hours" in cmd
     assert cmd[cmd.index("--benchmark-freshness-max-age-hours") + 1] == "8.5"
+
+
+def test_check_benchmark_freshness_defaults_pipeline_threshold(monkeypatch):
+    captured = _capture_run_cmd(monkeypatch)
+
+    exit_code = run_daily_workflow.main([
+        "--check-benchmark-freshness",
+        "--benchmark-freshness-targets",
+        "USDJPY:conservative",
+    ])
+
+    assert exit_code == 0
+    assert captured, "run_cmd should be invoked"
+    cmd = captured[0]
+    assert "--benchmark-freshness-base-max-age-hours" not in cmd
+    assert "--max-age-hours" in cmd
+    assert float(cmd[cmd.index("--max-age-hours") + 1]) == pytest.approx(6.0)
 
 
 def test_benchmarks_pipeline_arguments(monkeypatch):

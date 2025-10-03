@@ -595,6 +595,12 @@ def main(argv=None) -> int:
     parser.add_argument("--bars", default=None, help="Override bars CSV path (default: validated/<symbol>/5m.csv)")
     parser.add_argument("--webhook", default=None)
     parser.add_argument(
+        "--benchmark-freshness-base-max-age-hours",
+        type=float,
+        default=6.0,
+        help="Max age threshold (hours) for benchmark pipeline freshness checks",
+    )
+    parser.add_argument(
         "--benchmark-freshness-max-age-hours",
         type=float,
         default=None,
@@ -1324,7 +1330,7 @@ def main(argv=None) -> int:
             return exit_code
 
     if args.check_benchmark_freshness:
-        pipeline_max_age_hours = 6.0
+        pipeline_max_age_hours = args.benchmark_freshness_base_max_age_hours
         cmd = [
             sys.executable,
             str(ROOT / "scripts/check_benchmark_freshness.py"),
