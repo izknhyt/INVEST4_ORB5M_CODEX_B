@@ -212,6 +212,63 @@ class TestRunner(unittest.TestCase):
         self.assertAlmostEqual(result["max_drawdown"], -10.0)
         self.assertAlmostEqual(result["win_rate"], 0.5)
 
+    def test_check_slip_and_sizing_zero_qty_uses_helpers(self):
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
+        ctx_dbg = {
+            "slip_cap_pip": 1.5,
+            "expected_slip_pip": 0.1,
+            "pip_value": 10.0,
+            "sizing_cfg": {
+                "risk_per_trade_pct": 0.25,
+                "kelly_fraction": 0.25,
+                "units_cap": 5.0,
+                "max_trade_loss_pct": 0.5,
+            },
+        }
+        pending = {"side": "BUY", "tp_pips": 2.0, "sl_pips": 1.0}
+        ev_mgr = self.DummyEV(ev_lcb=0.0, p_lcb=0.3)
+
+        allowed = runner._check_slip_and_sizing(
+            ctx_dbg=ctx_dbg,
+            pending=pending,
+            ev_mgr=ev_mgr,
+            calibrating=False,
+            ev_bypass=False,
+            timestamp="2024-01-01T00:00:00Z",
+        )
+
+        self.assertFalse(allowed)
+        self.assertEqual(runner.debug_counts["zero_qty"], 1)
+
+    def test_check_slip_and_sizing_slip_guard_blocks(self):
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
+        ctx_dbg = {
+            "slip_cap_pip": 0.5,
+            "expected_slip_pip": 1.0,
+            "pip_value": 10.0,
+            "sizing_cfg": {
+                "risk_per_trade_pct": 0.25,
+                "kelly_fraction": 0.25,
+                "units_cap": 5.0,
+                "max_trade_loss_pct": 0.5,
+            },
+        }
+        pending = {"side": "SELL", "tp_pips": 2.0, "sl_pips": 1.0}
+        ev_mgr = self.DummyEV(ev_lcb=0.0, p_lcb=0.6)
+
+        allowed = runner._check_slip_and_sizing(
+            ctx_dbg=ctx_dbg,
+            pending=pending,
+            ev_mgr=ev_mgr,
+            calibrating=False,
+            ev_bypass=False,
+            timestamp="2024-01-01T00:05:00Z",
+        )
+
+        self.assertFalse(allowed)
+        self.assertEqual(runner.debug_counts["gate_block"], 1)
+        self.assertEqual(runner.debug_counts["zero_qty"], 0)
+
     def test_slip_learning_helper_updates_coefficients(self):
         cfg = RunnerConfig(include_expected_slip=True, slip_learn=True)
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY", runner_cfg=cfg)
