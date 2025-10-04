@@ -1044,6 +1044,203 @@ def run_cmd(cmd):
     return result.returncode
 
 
+def _apply_alert_threshold_args(cmd, args):
+    """Append alert threshold arguments if provided."""
+
+    if args.alert_pips is not None:
+        cmd += ["--alert-pips", str(args.alert_pips)]
+    if args.alert_winrate is not None:
+        cmd += ["--alert-winrate", str(args.alert_winrate)]
+    if args.alert_sharpe is not None:
+        cmd += ["--alert-sharpe", str(args.alert_sharpe)]
+    if args.alert_max_drawdown is not None:
+        cmd += ["--alert-max-drawdown", str(args.alert_max_drawdown)]
+
+
+def _apply_benchmark_threshold_args(cmd, args):
+    """Append benchmark performance threshold arguments if provided."""
+
+    if args.min_sharpe is not None:
+        cmd += ["--min-sharpe", str(args.min_sharpe)]
+    if args.min_win_rate is not None:
+        cmd += ["--min-win-rate", str(args.min_win_rate)]
+    if args.max_drawdown is not None:
+        cmd += ["--max-drawdown", str(args.max_drawdown)]
+
+
+def _build_benchmark_pipeline_cmd(args, bars_csv):
+    cmd = [
+        sys.executable,
+        str(ROOT / "scripts/run_benchmark_pipeline.py"),
+        "--bars",
+        bars_csv,
+        "--symbol",
+        args.symbol,
+        "--mode",
+        args.mode,
+        "--equity",
+        str(args.equity),
+        "--windows",
+        args.benchmark_windows,
+    ]
+    _apply_alert_threshold_args(cmd, args)
+    _apply_benchmark_threshold_args(cmd, args)
+    if args.webhook:
+        cmd += ["--webhook", args.webhook]
+    return cmd
+
+
+def _build_benchmark_summary_cmd(args):
+    cmd = [
+        sys.executable,
+        str(ROOT / "scripts/report_benchmark_summary.py"),
+        "--symbol",
+        args.symbol,
+        "--mode",
+        args.mode,
+        "--reports-dir",
+        str(ROOT / "reports"),
+        "--json-out",
+        str(ROOT / "reports/benchmark_summary.json"),
+        "--plot-out",
+        str(ROOT / "reports/benchmark_summary.png"),
+        "--windows",
+        args.benchmark_windows,
+    ]
+    _apply_benchmark_threshold_args(cmd, args)
+    if args.webhook:
+        cmd += ["--webhook", args.webhook]
+    return cmd
+
+
+def _build_benchmark_freshness_cmd(args):
+    cmd = [
+        sys.executable,
+        str(ROOT / "scripts/check_benchmark_freshness.py"),
+        "--snapshot",
+        str(ROOT / "ops/runtime_snapshot.json"),
+        "--max-age-hours",
+        str(args.benchmark_freshness_base_max_age_hours),
+    ]
+    if args.benchmark_freshness_max_age_hours is not None:
+        cmd += [
+            "--benchmark-freshness-max-age-hours",
+            str(args.benchmark_freshness_max_age_hours),
+        ]
+    if args.benchmark_freshness_targets:
+        targets = [
+            target.strip()
+            for target in args.benchmark_freshness_targets.split(",")
+            if target.strip()
+        ]
+    else:
+        targets = [f"{args.symbol}:{args.mode}"]
+    for target in targets:
+        cmd += ["--target", target]
+    return cmd
+
+
+def _build_update_state_cmd(args, bars_csv):
+    return [
+        sys.executable,
+        str(ROOT / "scripts/update_state.py"),
+        "--bars",
+        bars_csv,
+        "--symbol",
+        args.symbol,
+        "--mode",
+        args.mode,
+        "--equity",
+        str(args.equity),
+        "--state-out",
+        str(ROOT / "runs/active/state.json"),
+    ]
+
+
+def _build_optimize_cmd(args):
+    optimize_csv = _resolve_optimize_csv_path(args.symbol, args.bars)
+    cmd = [
+        sys.executable,
+        str(ROOT / "scripts/auto_optimize.py"),
+        "--opt-args",
+        "--top-k",
+        "5",
+        "--min-trades",
+        "300",
+        "--rebuild-index",
+        "--csv",
+        optimize_csv,
+        "--symbol",
+        args.symbol,
+        "--mode",
+        args.mode,
+        "--or-n",
+        "4,6",
+        "--k-tp",
+        "0.8,1.0",
+        "--k-sl",
+        "0.4,0.6",
+        "--threshold-lcb",
+        "0.3",
+        "--allowed-sessions",
+        "LDN,NY",
+        "--warmup",
+        "10",
+        "--include-expected-slip",
+        "--report",
+        str(ROOT / "reports/auto_optimize.json"),
+    ]
+    if args.webhook:
+        cmd += ["--webhook", args.webhook]
+    return cmd
+
+
+def _build_analyze_latency_cmd():
+    return [
+        sys.executable,
+        str(ROOT / "scripts/analyze_signal_latency.py"),
+        "--input",
+        str(ROOT / "ops/signal_latency.csv"),
+        "--slo-threshold",
+        "5",
+        "--json-out",
+        str(ROOT / "reports/signal_latency.json"),
+    ]
+
+
+def _build_archive_state_cmd():
+    return [
+        sys.executable,
+        str(ROOT / "scripts/archive_state.py"),
+        "--runs-dir",
+        str(ROOT / "runs"),
+        "--output",
+        str(ROOT / "ops/state_archive"),
+    ]
+
+
+def _build_state_health_cmd():
+    return [
+        sys.executable,
+        str(ROOT / "scripts/check_state_health.py"),
+        "--state",
+        str(ROOT / "runs/active/state.json"),
+        "--json-out",
+        str(ROOT / "ops/health/state_checks.json"),
+    ]
+
+
+def _build_pull_prices_cmd(args):
+    return [
+        sys.executable,
+        str(ROOT / "scripts/pull_prices.py"),
+        "--source",
+        str(ROOT / "data/usdjpy_5m_2018-2024_utc.csv"),
+        "--symbol",
+        args.symbol,
+    ]
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Daily workflow orchestrator")
     parser.add_argument("--symbol", default="USDJPY")
@@ -1281,190 +1478,24 @@ def main(argv=None) -> int:
                 return exit_code
 
         else:
-            cmd = [
-                sys.executable,
-                str(ROOT / "scripts/pull_prices.py"),
-                "--source",
-                str(ROOT / "data/usdjpy_5m_2018-2024_utc.csv"),
-                "--symbol",
-                args.symbol,
-            ]
-            exit_code = run_cmd(cmd)
+            exit_code = run_cmd(_build_pull_prices_cmd(args))
             if exit_code:
                 return exit_code
-    if args.update_state:
-        cmd = [sys.executable, str(ROOT / "scripts/update_state.py"),
-               "--bars", bars_csv,
-               "--symbol", args.symbol,
-               "--mode", args.mode,
-               "--equity", args.equity,
-               "--state-out", str(ROOT / "runs/active/state.json")]
-        exit_code = run_cmd(cmd)
-        if exit_code:
-            return exit_code
+    mode_builders = [
+        (args.update_state, lambda: _build_update_state_cmd(args, bars_csv)),
+        (args.benchmarks, lambda: _build_benchmark_pipeline_cmd(args, bars_csv)),
+        (args.state_health, _build_state_health_cmd),
+        (args.benchmark_summary, lambda: _build_benchmark_summary_cmd(args)),
+        (args.check_benchmark_freshness, lambda: _build_benchmark_freshness_cmd(args)),
+        (args.optimize, lambda: _build_optimize_cmd(args)),
+        (args.analyze_latency, _build_analyze_latency_cmd),
+        (args.archive_state, _build_archive_state_cmd),
+    ]
 
-    if args.benchmarks:
-        # Use the pipeline script which orchestrates runs and summary
-        cmd = [
-            sys.executable,
-            str(ROOT / "scripts/run_benchmark_pipeline.py"),
-            "--bars",
-            bars_csv,
-            "--symbol",
-            args.symbol,
-            "--mode",
-            args.mode,
-            "--equity",
-            str(args.equity),
-            "--windows",
-            args.benchmark_windows,
-        ]
-        if args.alert_pips is not None:
-            cmd += ["--alert-pips", str(args.alert_pips)]
-        if args.alert_winrate is not None:
-            cmd += ["--alert-winrate", str(args.alert_winrate)]
-        if args.alert_sharpe is not None:
-            cmd += ["--alert-sharpe", str(args.alert_sharpe)]
-        if args.alert_max_drawdown is not None:
-            cmd += ["--alert-max-drawdown", str(args.alert_max_drawdown)]
-        if args.min_sharpe is not None:
-            cmd += ["--min-sharpe", str(args.min_sharpe)]
-        if args.min_win_rate is not None:
-            cmd += ["--min-win-rate", str(args.min_win_rate)]
-        if args.max_drawdown is not None:
-            cmd += ["--max-drawdown", str(args.max_drawdown)]
-        if args.webhook:
-            cmd += ["--webhook", args.webhook]
-        exit_code = run_cmd(cmd)
-        if exit_code:
-            return exit_code
-
-    if args.state_health:
-        cmd = [sys.executable, str(ROOT / "scripts/check_state_health.py"),
-               "--state", str(ROOT / "runs/active/state.json"),
-               "--json-out", str(ROOT / "ops/health/state_checks.json")]
-        exit_code = run_cmd(cmd)
-        if exit_code:
-            return exit_code
-
-    if args.benchmark_summary:
-        cmd = [
-            sys.executable,
-            str(ROOT / "scripts/report_benchmark_summary.py"),
-            "--symbol",
-            args.symbol,
-            "--mode",
-            args.mode,
-            "--reports-dir",
-            str(ROOT / "reports"),
-            "--json-out",
-            str(ROOT / "reports/benchmark_summary.json"),
-            "--plot-out",
-            str(ROOT / "reports/benchmark_summary.png"),
-            "--windows",
-            args.benchmark_windows,
-        ]
-        if args.min_sharpe is not None:
-            cmd += ["--min-sharpe", str(args.min_sharpe)]
-        if args.min_win_rate is not None:
-            cmd += ["--min-win-rate", str(args.min_win_rate)]
-        if args.max_drawdown is not None:
-            cmd += ["--max-drawdown", str(args.max_drawdown)]
-        if args.webhook:
-            cmd += ["--webhook", args.webhook]
-        exit_code = run_cmd(cmd)
-        if exit_code:
-            return exit_code
-
-    if args.check_benchmark_freshness:
-        pipeline_max_age_hours = args.benchmark_freshness_base_max_age_hours
-        cmd = [
-            sys.executable,
-            str(ROOT / "scripts/check_benchmark_freshness.py"),
-            "--snapshot",
-            str(ROOT / "ops/runtime_snapshot.json"),
-            "--max-age-hours",
-            str(pipeline_max_age_hours),
-        ]
-        if args.benchmark_freshness_max_age_hours is not None:
-            cmd += [
-                "--benchmark-freshness-max-age-hours",
-                str(args.benchmark_freshness_max_age_hours),
-            ]
-        if args.benchmark_freshness_targets:
-            for raw_target in args.benchmark_freshness_targets.split(","):
-                target = raw_target.strip()
-                if target:
-                    cmd += ["--target", target]
-        else:
-            cmd += ["--target", f"{args.symbol}:{args.mode}"]
-        exit_code = run_cmd(cmd)
-        if exit_code:
-            return exit_code
-
-    if args.optimize:
-        optimize_csv = _resolve_optimize_csv_path(args.symbol, args.bars)
-        cmd = [
-            sys.executable,
-            str(ROOT / "scripts/auto_optimize.py"),
-            "--opt-args",
-            "--top-k",
-            "5",
-            "--min-trades",
-            "300",
-            "--rebuild-index",
-            "--csv",
-            optimize_csv,
-            "--symbol",
-            args.symbol,
-            "--mode",
-            args.mode,
-            "--or-n",
-            "4,6",
-            "--k-tp",
-            "0.8,1.0",
-            "--k-sl",
-            "0.4,0.6",
-            "--threshold-lcb",
-            "0.3",
-            "--allowed-sessions",
-            "LDN,NY",
-            "--warmup",
-            "10",
-            "--include-expected-slip",
-            "--report",
-            str(ROOT / "reports/auto_optimize.json"),
-        ]
-        if args.webhook:
-            cmd += ["--webhook", args.webhook]
-        exit_code = run_cmd(cmd)
-        if exit_code:
-            return exit_code
-
-    if args.analyze_latency:
-        cmd = [
-            sys.executable,
-            str(ROOT / "scripts/analyze_signal_latency.py"),
-            "--input",
-            str(ROOT / "ops/signal_latency.csv"),
-            "--slo-threshold",
-            "5",
-            "--json-out",
-            str(ROOT / "reports/signal_latency.json"),
-        ]
-        exit_code = run_cmd(cmd)
-        if exit_code:
-            return exit_code
-
-    if args.archive_state:
-        cmd = [
-            sys.executable,
-            str(ROOT / "scripts/archive_state.py"),
-            "--runs-dir",
-            str(ROOT / "runs"),
-            "--output",
-            str(ROOT / "ops/state_archive"),
-        ]
+    for enabled, builder in mode_builders:
+        if not enabled:
+            continue
+        cmd = builder()
         exit_code = run_cmd(cmd)
         if exit_code:
             return exit_code
