@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-01-06: `core/runner._extract_pending_fields` で `.oco` からの TP/SL も float へ正規化して抽出し、`tests/test_runner.py` に OrderIntent の `.oco` 参照のみで EV リジェクト/サイジングガードが動作する回帰テストを追加。`python3 -m pytest tests/test_runner.py` を実行し 21 件パスを確認。
 - 2026-01-05: `router/router_v1._check_category_cap` で `category_cap_pct` が `None` の場合のみポートフォリオ定義の上限へフォールバックするよう修正し、`category_cap_pct=0.0` を尊重する回帰テストを追加。`python3 -m pytest tests/test_router_v1.py` を実行して 4 件パスを確認。
 - 2026-01-04: `core/runner._build_ctx` で `pip_value_override` / `base_notional` の float キャストに失敗した場合でも 10.0 へフォールバックするよう調整し、数値文字列を許容するテストを追加。`python3 -m pytest tests/test_runner.py` を実行して 20 件パスを確認。
 - 2026-01-03: `RunnerConfig.build_sizing_cfg` で `risk_per_trade_pct` を `float(...)` キャスト後に >0 判定するよう更新し、`_build_ctx` がヘルパー経由のサイジング設定を利用するよう整備。`tests/test_runner.py` に文字列入力を許容する回帰テストを追加し、`python3 -m pytest tests/test_runner.py` を実行して 18 件パスを再確認。

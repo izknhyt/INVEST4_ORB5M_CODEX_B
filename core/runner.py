@@ -480,15 +480,40 @@ class BacktestRunner:
     def _extract_pending_fields(
         pending: Any,
     ) -> Tuple[Optional[str], Optional[float], Optional[float]]:
+        def _coerce(value: Any) -> Optional[float]:
+            if value is None:
+                return None
+            try:
+                coerced = float(value)
+            except (TypeError, ValueError):
+                return None
+            if not math.isfinite(coerced):
+                return None
+            return coerced
+
         if isinstance(pending, Mapping):
             pending_side = pending.get("side")
             tp_pips = pending.get("tp_pips")
             sl_pips = pending.get("sl_pips")
+            oco = pending.get("oco")
         else:
             pending_side = getattr(pending, "side", None)
             tp_pips = getattr(pending, "tp_pips", None)
             sl_pips = getattr(pending, "sl_pips", None)
-        return pending_side, tp_pips, sl_pips
+            oco = getattr(pending, "oco", None)
+
+        if tp_pips is None and oco is not None:
+            if isinstance(oco, Mapping):
+                tp_pips = oco.get("tp_pips")
+            else:
+                tp_pips = getattr(oco, "tp_pips", None)
+        if sl_pips is None and oco is not None:
+            if isinstance(oco, Mapping):
+                sl_pips = oco.get("sl_pips")
+            else:
+                sl_pips = getattr(oco, "sl_pips", None)
+
+        return pending_side, _coerce(tp_pips), _coerce(sl_pips)
 
     def _call_ev_threshold(
         self,

@@ -3,11 +3,12 @@ from pathlib import Path
 from typing import List
 import unittest
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from core.runner import BacktestRunner, Metrics, RunnerConfig
 from core.pips import pip_size, price_to_pips
 from core.sizing import compute_qty_from_ctx
+from core.strategy_api import OrderIntent
 
 
 def make_bar(ts, symbol, o, h, l, c, spread):
@@ -443,6 +444,50 @@ class TestRunner(unittest.TestCase):
         )
         self.assertIsNone(ev_eval)
         self.assertEqual(runner.debug_counts["ev_reject"], 1)
+
+    def test_order_intent_with_oco_fields_supports_ev_and_sizing_guards(self):
+        runner, _, breakout, features, calibrating = self._prepare_breakout_environment(
+            warmup_left=0
+        )
+        intent = OrderIntent(
+            side="BUY",
+            qty=1.0,
+            price=breakout["c"],
+            oco={"tp_pips": 2.0, "sl_pips": 1.0},
+        )
+        runner.stg._pending_signal = intent
+        stub_ev = self.DummyEV(ev_lcb=0.05, p_lcb=0.55)
+        runner._get_ev_manager = lambda key: stub_ev
+        ctx_dbg = runner._evaluate_entry_conditions(
+            pending=intent,
+            features=features,
+        )
+        self.assertIsNotNone(ctx_dbg)
+        ev_eval = runner._evaluate_ev_threshold(
+            ctx_dbg=ctx_dbg,
+            pending=intent,
+            calibrating=calibrating,
+            timestamp=runner._last_timestamp,
+        )
+        self.assertIsNone(ev_eval)
+        self.assertEqual(runner.debug_counts["ev_reject"], 1)
+        ctx_dbg.setdefault("expected_slip_pip", 0.0)
+        ctx_dbg.setdefault("slip_cap_pip", runner.rcfg.slip_cap_pip)
+        ctx_dbg.setdefault("cost_pips", 0.0)
+        with patch("core.runner.compute_qty_from_ctx", return_value=1.0) as mock_compute:
+            slip_ok = runner._check_slip_and_sizing(
+                ctx_dbg=ctx_dbg,
+                pending=intent,
+                ev_mgr=stub_ev,
+                calibrating=False,
+                ev_bypass=False,
+                timestamp=runner._last_timestamp,
+            )
+        self.assertTrue(slip_ok)
+        mock_compute.assert_called_once()
+        args, kwargs = mock_compute.call_args
+        self.assertEqual(args[1], 1.0)
+        self.assertEqual(kwargs.get("tp_pips"), 2.0)
 
     def test_warmup_bypass_allows_low_ev_signal(self):
         runner, pending, breakout, features, calibrating = self._prepare_breakout_environment(
