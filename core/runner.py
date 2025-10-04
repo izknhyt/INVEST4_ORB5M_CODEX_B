@@ -118,6 +118,17 @@ class ExitDecision:
 
 
 @dataclass
+class FeatureBundle:
+    bar_input: Dict[str, Any]
+    ctx: Dict[str, Any]
+    atr14: float
+    adx14: float
+    or_high: Optional[float]
+    or_low: Optional[float]
+    realized_vol: float
+
+
+@dataclass
 class StrategyConfig:
     """Container for strategy-specific parameters.
 
@@ -701,23 +712,25 @@ class BacktestRunner:
         session: str,
         new_session: bool,
         calibrating: bool,
-    ) -> Tuple[
-        Dict[str, Any],
-        Dict[str, Any],
-        float,
-        float,
-        Optional[float],
-        Optional[float],
-    ]:
+    ) -> FeatureBundle:
         self.window.append({k: bar[k] for k in ("o", "h", "l", "c")})
         if len(self.window) > 200:
             self.window.pop(0)
         if new_session:
             self.session_bars = []
         self.session_bars.append({k: bar[k] for k in ("o", "h", "l", "c")})
+        rv_hist_value = 0.0
         try:
-            rv_val = realized_vol(self.window, n=12) or 0.0
-            self.rv_hist[session].append(rv_val)
+            rv_computed = realized_vol(self.window, n=12)
+        except Exception:
+            rv_computed = None
+        if rv_computed is not None:
+            try:
+                rv_hist_value = float(rv_computed)
+            except (TypeError, ValueError):
+                rv_hist_value = 0.0
+        try:
+            self.rv_hist[session].append(rv_hist_value)
         except Exception:
             pass
         atr14 = calc_atr(self.window[-15:]) if len(self.window) >= 15 else float("nan")
@@ -739,18 +752,30 @@ class BacktestRunner:
             except (TypeError, ValueError):
                 pass
             bar_input["zscore"] = zscore_val
+        rv_for_ctx = rv_hist_value
+        if math.isnan(rv_for_ctx):
+            rv_for_ctx = 0.0
         ctx = self._build_ctx(
-            bar,
-            bar_input["atr14"],
-            adx14,
-            or_h if or_h == or_h else None,
-            or_l if or_l == or_l else None,
+            bar=bar,
+            session=session,
+            atr14=bar_input["atr14"],
+            or_h=or_h if or_h == or_h else None,
+            or_l=or_l if or_l == or_l else None,
+            realized_vol_value=rv_for_ctx,
         )
         if calibrating:
             ctx["threshold_lcb_pip"] = -1e9
             ctx["calibrating"] = True
-        self.stg.cfg["ctx"] = ctx
-        return bar_input, ctx, atr14, adx14, or_h, or_l
+        self.stg.cfg["ctx"] = dict(ctx)
+        return FeatureBundle(
+            bar_input=bar_input,
+            ctx=ctx,
+            atr14=atr14,
+            adx14=adx14,
+            or_high=or_h if or_h == or_h else None,
+            or_low=or_l if or_l == or_l else None,
+            realized_vol=rv_for_ctx,
+        )
 
     def _compute_exit_decision(
         self,
@@ -927,17 +952,12 @@ class BacktestRunner:
         self,
         *,
         bar: Dict[str, Any],
-        bar_input: Dict[str, Any],
-        ctx: Dict[str, Any],
-        atr14: float,
-        adx14: float,
-        or_h: Optional[float],
-        or_l: Optional[float],
+        features: FeatureBundle,
         mode: str,
         pip_size_value: float,
         calibrating: bool,
     ) -> None:
-        self.stg.on_bar(bar_input)
+        self.stg.on_bar(features.bar_input)
         pending = getattr(self.stg, "_pending_signal", None)
         if pending is None:
             self.debug_counts["no_breakout"] += 1
@@ -946,12 +966,7 @@ class BacktestRunner:
         self._increment_daily("breakouts")
         ctx_dbg = self._evaluate_entry_conditions(
             pending=pending,
-            bar=bar,
-            bar_input=bar_input,
-            atr14=bar_input["atr14"],
-            adx14=adx14,
-            or_h=or_h if or_h == or_h else None,
-            or_l=or_l if or_l == or_l else None,
+            features=features,
         )
         if ctx_dbg is None:
             return
@@ -986,7 +1001,7 @@ class BacktestRunner:
             tp_pips=intent.oco["tp_pips"],
             sl_pips=intent.oco["sl_pips"],
             trail_pips=intent.oco.get("trail_pips", 0.0),
-            slip_cap_pip=ctx["slip_cap_pip"],
+            slip_cap_pip=features.ctx["slip_cap_pip"],
         )
         fill_engine = self.fill_engine_c if mode == "conservative" else self.fill_engine_b
         result = fill_engine.simulate(
@@ -1003,25 +1018,27 @@ class BacktestRunner:
         if not result.get("fill"):
             return
         trade_ctx_snapshot: Dict[str, Any] = {
-            "session": ctx_dbg.get("session", ctx.get("session")),
-            "rv_band": ctx_dbg.get("rv_band", ctx.get("rv_band")),
-            "spread_band": ctx_dbg.get("spread_band", ctx.get("spread_band")),
-            "or_atr_ratio": ctx_dbg.get("or_atr_ratio", ctx.get("or_atr_ratio")),
-            "min_or_atr_ratio": ctx_dbg.get("min_or_atr_ratio", ctx.get("min_or_atr_ratio")),
+            "session": ctx_dbg.get("session", features.ctx.get("session")),
+            "rv_band": ctx_dbg.get("rv_band", features.ctx.get("rv_band")),
+            "spread_band": ctx_dbg.get("spread_band", features.ctx.get("spread_band")),
+            "or_atr_ratio": ctx_dbg.get("or_atr_ratio", features.ctx.get("or_atr_ratio")),
+            "min_or_atr_ratio": ctx_dbg.get("min_or_atr_ratio", features.ctx.get("min_or_atr_ratio")),
             "ev_lcb": ctx_dbg.get("ev_lcb"),
             "threshold_lcb": ctx_dbg.get("threshold_lcb"),
             "ev_pass": ctx_dbg.get("ev_pass"),
-            "expected_slip_pip": ctx.get("expected_slip_pip", 0.0),
-            "cost_base": ctx.get("base_cost_pips", ctx.get("cost_pips", 0.0)),
+            "expected_slip_pip": features.ctx.get("expected_slip_pip", 0.0),
+            "cost_base": features.ctx.get(
+                "base_cost_pips", features.ctx.get("cost_pips", 0.0)
+            ),
         }
-        if "zscore" in bar_input:
-            trade_ctx_snapshot["zscore"] = bar_input["zscore"]
+        if "zscore" in features.bar_input:
+            trade_ctx_snapshot["zscore"] = features.bar_input["zscore"]
         self._process_fill_result(
             intent=intent,
             spec=spec,
             result=result,
             bar=bar,
-            ctx=ctx,
+            ctx=features.ctx,
             ctx_dbg=ctx_dbg,
             trade_ctx_snapshot=trade_ctx_snapshot,
             calibrating=calibrating,
@@ -1033,14 +1050,9 @@ class BacktestRunner:
         self,
         *,
         pending: Any,
-        bar: Mapping[str, Any],
-        bar_input: Mapping[str, Any],
-        atr14: float,
-        adx14: float,
-        or_h: Optional[float],
-        or_l: Optional[float],
+        features: FeatureBundle,
     ) -> Optional[Dict[str, Any]]:
-        ctx_dbg = self._build_ctx(bar, atr14, adx14, or_h, or_l)
+        ctx_dbg = dict(features.ctx)
         if isinstance(pending, Mapping):
             pending_side = pending.get("side")
         else:
@@ -1535,31 +1547,26 @@ class BacktestRunner:
                 "recent": recent,
             }
 
-    def _build_ctx(self, bar: Dict[str, Any], atr14: float, adx14: float, or_h: Optional[float], or_l: Optional[float]) -> Dict[str, Any]:
+    def _build_ctx(
+        self,
+        *,
+        bar: Mapping[str, Any],
+        session: str,
+        atr14: float,
+        or_h: Optional[float],
+        or_l: Optional[float],
+        realized_vol_value: float,
+    ) -> Dict[str, Any]:
         ps = pip_size(self.symbol)
         spread_pips = bar["spread"] / ps  # assume spread is price units; convert to pips
-        # OR quality
         or_ratio = 0.0
         if or_h is not None and or_l is not None and atr14 and atr14 > 0:
-            or_ratio = (or_h - or_l) / (atr14)
-
-        sess = self._session_of_ts(bar.get("timestamp", ""))
-        rv_val = realized_vol(self.window, n=12)
-        if rv_val is None:
-            rv_val = 0.0
-        else:
-            try:
-                rv_val = float(rv_val)
-            except (TypeError, ValueError):
-                rv_val = 0.0
-            else:
-                if math.isnan(rv_val):
-                    rv_val = 0.0
+            or_ratio = (or_h - or_l) / atr14
 
         ctx = {
-            "session": sess,
+            "session": session,
             "spread_band": self._band_spread(spread_pips),
-            "rv_band": self._band_rv(rv_val, sess),
+            "rv_band": self._band_rv(realized_vol_value, session),
             "slip_cap_pip": self.rcfg.slip_cap_pip,
             "threshold_lcb_pip": self.rcfg.threshold_lcb_pip,
             "or_atr_ratio": or_ratio,
@@ -1623,7 +1630,7 @@ class BacktestRunner:
             if not validate_bar(bar):
                 continue
             new_session, session, calibrating = self._update_daily_state(bar)
-            bar_input, ctx, atr14, adx14, or_h, or_l = self._compute_features(
+            features = self._compute_features(
                 bar,
                 session=session,
                 new_session=new_session,
@@ -1631,7 +1638,7 @@ class BacktestRunner:
             )
             if self._handle_active_position(
                 bar=bar,
-                ctx=ctx,
+                ctx=features.ctx,
                 mode=mode,
                 pip_size_value=ps,
                 new_session=new_session,
@@ -1639,7 +1646,7 @@ class BacktestRunner:
                 continue
             self._resolve_calibration_positions(
                 bar=bar,
-                ctx=ctx,
+                ctx=features.ctx,
                 new_session=new_session,
                 calibrating=calibrating,
                 mode=mode,
@@ -1647,12 +1654,7 @@ class BacktestRunner:
             )
             self._maybe_enter_trade(
                 bar=bar,
-                bar_input=bar_input,
-                ctx=ctx,
-                atr14=atr14,
-                adx14=adx14,
-                or_h=or_h,
-                or_l=or_l,
+                features=features,
                 mode=mode,
                 pip_size_value=ps,
                 calibrating=calibrating,
