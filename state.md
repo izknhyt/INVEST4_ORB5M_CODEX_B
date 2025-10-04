@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2025-12-20: `scripts/run_daily_workflow.py` の `_run_dukascopy_ingest` をフェッチ処理・yfinance フォールバック・結果永続化ヘルパーへ分離し、`_fetch_dukascopy_records` / `_YFinanceFallbackRunner` / `_finalize_ingest_result` を導入。`_run_yfinance_ingest` と共通ロジックを共有し、`python3 -m pytest tests/test_run_daily_workflow.py` で 27 件パスを確認。
 - 2025-12-19: `core/runner.py` の `run_partial` をヘルパー関数へ分解し、日次状態更新・特徴量計算・ポジション決済・トレードエントリー処理を整理。`_finalize_trade` でスリップ/決済共通処理を集約し、`tests/test_runner.py` を実行して回帰を確認。
 - Update this file after completing work to record outcomes, blockers, and next steps.
 
