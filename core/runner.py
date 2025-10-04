@@ -22,6 +22,7 @@ from core.feature_store import atr as calc_atr, adx as calc_adx, opening_range, 
 from core.fill_engine import ConservativeFill, BridgeFill, OrderSpec
 from core.ev_gate import BetaBinomialEV, TLowerEV
 from core.pips import pip_size, price_to_pips
+from core.sizing import SizingConfig, base_units, kelly_multiplier_oco, apply_guards
 from router.router_v0 import pass_gates
 
 
@@ -1151,21 +1152,32 @@ class BacktestRunner:
             )
             return False
         if not ev_bypass and not calibrating and tp_pips is not None and sl_pips is not None:
+            sizing_cfg_data = ctx_dbg.get("sizing_cfg")
+            sizing_cfg = SizingConfig()
+            if isinstance(sizing_cfg_data, Mapping):
+                risk_pct = sizing_cfg_data.get("risk_per_trade_pct")
+                if risk_pct is not None:
+                    sizing_cfg.risk_per_trade_pct = float(risk_pct)
+                kelly_fraction = sizing_cfg_data.get("kelly_fraction")
+                if kelly_fraction is not None:
+                    sizing_cfg.kelly_fraction = float(kelly_fraction)
+                units_cap = sizing_cfg_data.get("units_cap")
+                if units_cap is not None:
+                    sizing_cfg.units_cap = float(units_cap)
+                max_trade_loss_pct = sizing_cfg_data.get("max_trade_loss_pct")
+                if max_trade_loss_pct is not None:
+                    sizing_cfg.max_trade_loss_pct = float(max_trade_loss_pct)
+            pip_value_raw = ctx_dbg.get("pip_value", 0.0)
+            try:
+                pip_value = float(pip_value_raw)
+            except (TypeError, ValueError):
+                pip_value = 0.0
+            tp_val = float(tp_pips)
+            sl_val = float(sl_pips)
             p_lcb = ev_mgr.p_lcb()
-            b = float(tp_pips) / max(float(sl_pips), 1e-9)
-            f_star = max(0.0, p_lcb - (1.0 - p_lcb) / b)
-            kelly_fraction = 0.25
-            mult = min(5.0, kelly_fraction * f_star)
-            risk_amt = self.equity * (0.25 / 100.0)
-            base = max(0.0, risk_amt / max(10.0 * float(sl_pips), 1e-9))
-            qty_dbg = max(
-                0.0,
-                min(
-                    base * mult,
-                    (self.equity * (0.5 / 100.0)) / (10.0 * float(sl_pips)),
-                    5.0,
-                ),
-            )
+            base = base_units(self.equity, pip_value, sl_val, sizing_cfg)
+            mult = kelly_multiplier_oco(p_lcb, tp_val, sl_val, sizing_cfg)
+            qty_dbg = apply_guards(base * mult, self.equity, pip_value, sl_val, sizing_cfg)
             if qty_dbg <= 0:
                 self.debug_counts["zero_qty"] += 1
                 return False
