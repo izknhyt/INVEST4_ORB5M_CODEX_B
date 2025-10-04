@@ -8,6 +8,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
@@ -700,23 +701,275 @@ def _build_ingest_context(
     )
 
 
+def _resolve_dukascopy_fetch() -> tuple[Optional[Callable[..., object]], Optional[Exception]]:
+    """Return the Dukascopy fetch implementation and any initialization error."""
+
+    try:
+        return _load_dukascopy_fetch(), None
+    except Exception as exc:  # pragma: no cover - optional dependency
+        return None, exc
+
+
+def _compute_dukascopy_start(
+    *,
+    last_ts: Optional[datetime],
+    lookback_minutes: int,
+    now: datetime,
+) -> datetime:
+    """Derive the fetch start timestamp for Dukascopy ingestion."""
+
+    lookback = max(5, lookback_minutes)
+    if last_ts:
+        return last_ts - timedelta(minutes=lookback)
+    return now - timedelta(minutes=lookback)
+
+
+def _fetch_dukascopy_records(
+    fetch_impl: Optional[Callable[..., Iterable[Dict[str, object]]]],
+    symbol: str,
+    tf: str,
+    *,
+    start: datetime,
+    end: datetime,
+    offer_side: str,
+    init_error: Optional[Exception],
+    freshness_threshold: Optional[int],
+) -> Iterable[Dict[str, object]]:
+    """Fetch Dukascopy records and validate freshness."""
+
+    if fetch_impl is None:
+        raise ProviderError(f"initialization error: {init_error}")
+
+    records = list(
+        fetch_impl(
+            symbol,
+            tf,
+            start=start,
+            end=end,
+            offer_side=offer_side,
+        )
+    )
+
+    if not records:
+        raise ProviderError("no rows returned")
+
+    last_record_ts = str(records[-1].get("timestamp", ""))
+    parsed_last = _parse_naive_utc(last_record_ts)
+    if parsed_last is None:
+        raise ProviderError("could not parse last timestamp")
+
+    if freshness_threshold and freshness_threshold > 0:
+        max_age = timedelta(minutes=freshness_threshold)
+        if end - parsed_last > max_age:
+            raise ProviderError(
+                "stale data: "
+                f"last_ts={parsed_last.isoformat(timespec='seconds')}"
+            )
+
+    return records
+
+
+def _compute_yfinance_fallback_start(
+    *,
+    last_ts: Optional[datetime],
+    lookback_minutes: Optional[int],
+    now: datetime,
+) -> datetime:
+    """Return the fallback start time for yfinance ingestion."""
+
+    fallback_window_days = 7
+    fallback_window = timedelta(days=fallback_window_days)
+    yf_lookback_minutes = max(5, lookback_minutes or 0)
+    if last_ts is not None:
+        fallback_start = last_ts - timedelta(minutes=yf_lookback_minutes)
+    else:
+        minutes = max(yf_lookback_minutes, fallback_window_days * 24 * 60)
+        fallback_start = now - timedelta(minutes=minutes)
+    fallback_start = max(fallback_start, now - fallback_window)
+    if fallback_start > now:
+        return now
+    return fallback_start
+
+
+def _raise_provider_error(message: str) -> Iterable[Dict[str, object]]:
+    """Helper that raises a ``ProviderError`` when invoked by ingest wrappers."""
+
+    raise ProviderError(message)
+
+
+def _fetch_yfinance_records(
+    fetch_bars: Callable[..., Iterable[Dict[str, object]]],
+    symbol: str,
+    tf: str,
+    *,
+    start: datetime,
+    end: datetime,
+    empty_reason: str,
+) -> Iterable[Dict[str, object]]:
+    """Fetch yfinance records and ensure the response is non-empty."""
+
+    records = list(
+        fetch_bars(
+            symbol,
+            tf,
+            start=start,
+            end=end,
+        )
+    )
+    if not records:
+        raise ProviderError(empty_reason)
+    return records
+
+
+def _mark_dukascopy_offer_side(
+    result_dict: Dict[str, object],
+    *,
+    offer_side: str,
+) -> None:
+    """Annotate ingest result metadata with the Dukascopy offer side when applicable."""
+
+    source_markers: List[str] = ["dukascopy"]
+    source_value = result_dict.get("source")
+    if source_value:
+        source_markers.append(str(source_value))
+    normalized = [marker.lower() for marker in source_markers if marker]
+    if any("dukascopy" in marker for marker in normalized):
+        result_dict.setdefault("dukascopy_offer_side", offer_side)
+
+
+class _YFinanceFallbackRunner:
+    """Callable wrapper that executes the yfinance fallback ingest flow."""
+
+    def __init__(
+        self,
+        ctx: IngestContext,
+        args: argparse.Namespace,
+        *,
+        now: datetime,
+        last_ts: Optional[datetime],
+    ) -> None:
+        self._ctx = ctx
+        self._args = args
+        self._now = now
+        self._last_ts = last_ts
+
+    def __call__(self, reason: str) -> tuple[Optional[Dict[str, object]], Optional[str]]:
+        print(
+            "[wf] Dukascopy unavailable, switching to yfinance fallback:",
+            reason,
+        )
+
+        try:
+            from scripts import yfinance_fetch as yfinance_module
+        except Exception as exc:  # pragma: no cover - optional dependency
+            fetch_callable = partial(
+                _raise_provider_error,
+                f"yfinance import failed: {exc}",
+            )
+            return _ingest_with_provider(
+                self._ctx,
+                stage="yfinance",
+                source_label="yfinance",
+                next_source="local_csv",
+                fetch_records=fetch_callable,
+                fetch_error_prefix="yfinance ingestion failed",
+                empty_result_reason="yfinance ingestion returned no rows",
+                ingest_error_prefix="yfinance ingestion failed during ingest",
+            )
+
+        fallback_start = _compute_yfinance_fallback_start(
+            last_ts=self._last_ts,
+            lookback_minutes=self._args.yfinance_lookback_minutes,
+            now=self._now,
+        )
+
+        fetch_symbol = yfinance_module.resolve_ticker(self._ctx.symbol)
+        print(
+            "[wf] fetching yfinance bars",
+            fetch_symbol,
+            f"(fallback for {self._ctx.symbol})",
+            self._ctx.tf,
+            fallback_start.isoformat(timespec="seconds"),
+            self._now.isoformat(timespec="seconds"),
+        )
+
+        fetch_callable = partial(
+            _fetch_yfinance_records,
+            yfinance_module.fetch_bars,
+            self._args.symbol,
+            self._ctx.tf,
+            start=fallback_start,
+            end=self._now,
+            empty_reason="yfinance fallback returned no rows",
+        )
+
+        return _ingest_with_provider(
+            self._ctx,
+            stage="yfinance",
+            source_label="yfinance",
+            next_source="local_csv",
+            fetch_records=fetch_callable,
+            fetch_error_prefix="yfinance ingestion failed",
+            empty_result_reason="yfinance ingestion returned no rows",
+            ingest_error_prefix="yfinance ingestion failed during ingest",
+        )
+
+
+def _build_yfinance_fallback(
+    ctx: IngestContext,
+    args: argparse.Namespace,
+    *,
+    now: datetime,
+    last_ts: Optional[datetime],
+) -> Callable[[str], tuple[Optional[Dict[str, object]], Optional[str]]]:
+    """Construct the yfinance fallback runner used by Dukascopy ingestion."""
+
+    return _YFinanceFallbackRunner(ctx, args, now=now, last_ts=last_ts)
+
+
+def _finalize_ingest_result(
+    ctx: IngestContext,
+    result: Optional[Dict[str, object]],
+    source_label: Optional[str],
+    *,
+    primary_source: str,
+    empty_message: str,
+) -> tuple[Optional[Dict[str, object]], int]:
+    """Finalize ingest result logging and metadata persistence."""
+
+    if result is None or not source_label:
+        print(empty_message)
+        return None, 1
+
+    _log_ingest_summary(result, source_label)
+
+    finish_now = _utcnow_naive()
+    _persist_ingest_metadata(
+        symbol=ctx.symbol,
+        tf=ctx.tf,
+        snapshot_path=ctx.snapshot_path,
+        result=result,
+        fallback_notes=ctx.fallback_notes,
+        primary_source=primary_source,
+        now=finish_now,
+    )
+
+    return result, 0
+
 
 def _run_dukascopy_ingest(
     ctx: IngestContext,
     args: argparse.Namespace,
 ) -> tuple[Optional[Dict[str, object]], int]:
-    try:
-        fetch_impl = _load_dukascopy_fetch()
-    except Exception as exc:  # pragma: no cover - optional dependency
-        fetch_impl = None
-        init_error = exc
-    else:
-        init_error = None
+    fetch_impl, init_error = _resolve_dukascopy_fetch()
 
     last_ts = ctx.load_last_processed_ts()
     now = _utcnow_naive()
-    lookback = max(5, args.dukascopy_lookback_minutes)
-    start = last_ts - timedelta(minutes=lookback) if last_ts else now - timedelta(minutes=lookback)
+    start = _compute_dukascopy_start(
+        last_ts=last_ts,
+        lookback_minutes=args.dukascopy_lookback_minutes,
+        now=now,
+    )
 
     offer_side = (args.dukascopy_offer_side or "bid").lower()
     print(
@@ -728,149 +981,48 @@ def _run_dukascopy_ingest(
         f"offer_side={offer_side}",
     )
 
-    def _dukascopy_fetch() -> Iterable[Dict[str, object]]:
-        if fetch_impl is None:
-            raise ProviderError(f"initialization error: {init_error}")
+    dukascopy_fetch = partial(
+        _fetch_dukascopy_records,
+        fetch_impl,
+        args.symbol,
+        ctx.tf,
+        start=start,
+        end=now,
+        offer_side=offer_side,
+        init_error=init_error,
+        freshness_threshold=args.dukascopy_freshness_threshold_minutes,
+    )
 
-        records = list(
-            fetch_impl(
-                args.symbol,
-                ctx.tf,
-                start=start,
-                end=now,
-                offer_side=offer_side,
-            )
-        )
-
-        if not records:
-            raise ProviderError("no rows returned")
-
-        last_record_ts = str(records[-1].get("timestamp", ""))
-        parsed_last = _parse_naive_utc(last_record_ts)
-        if parsed_last is None:
-            raise ProviderError("could not parse last timestamp")
-
-        freshness_threshold = args.dukascopy_freshness_threshold_minutes
-        if freshness_threshold and freshness_threshold > 0:
-            max_age = timedelta(minutes=freshness_threshold)
-            if now - parsed_last > max_age:
-                raise ProviderError(
-                    "stale data: "
-                    f"last_ts={parsed_last.isoformat(timespec='seconds')}"
-                )
-
-        return records
-
-    def _fallback_to_yfinance(reason: str) -> tuple[Optional[Dict[str, object]], Optional[str]]:
-        print(
-            "[wf] Dukascopy unavailable, switching to yfinance fallback:",
-            reason,
-        )
-
-        try:
-            from scripts import yfinance_fetch as yfinance_module
-        except Exception as exc:  # pragma: no cover - optional dependency
-            def _missing_module() -> Iterable[Dict[str, object]]:
-                raise ProviderError(f"yfinance import failed: {exc}")
-
-            return _ingest_with_provider(
-                ctx,
-                stage="yfinance",
-                source_label="yfinance",
-                next_source="local_csv",
-                fetch_records=_missing_module,
-                fetch_error_prefix="yfinance ingestion failed",
-                empty_result_reason="yfinance ingestion returned no rows",
-                ingest_error_prefix="yfinance ingestion failed during ingest",
-            )
-
-        fallback_window_days = 7
-        fallback_window = timedelta(days=fallback_window_days)
-        yf_lookback_minutes = max(5, args.yfinance_lookback_minutes or 0)
-        if last_ts is not None:
-            fallback_start = last_ts - timedelta(minutes=yf_lookback_minutes)
-        else:
-            minutes = max(yf_lookback_minutes, fallback_window_days * 24 * 60)
-            fallback_start = now - timedelta(minutes=minutes)
-        fallback_start = max(fallback_start, now - fallback_window)
-        if fallback_start > now:
-            fallback_start = now
-
-        fetch_symbol = yfinance_module.resolve_ticker(ctx.symbol)
-        print(
-            "[wf] fetching yfinance bars",
-            fetch_symbol,
-            f"(fallback for {ctx.symbol})",
-            ctx.tf,
-            fallback_start.isoformat(timespec="seconds"),
-            now.isoformat(timespec="seconds"),
-        )
-
-        def _yfinance_fetch() -> Iterable[Dict[str, object]]:
-            records = list(
-                yfinance_module.fetch_bars(
-                    args.symbol,
-                    ctx.tf,
-                    start=fallback_start,
-                    end=now,
-                )
-            )
-            if not records:
-                raise ProviderError("yfinance fallback returned no rows")
-            return records
-
-        return _ingest_with_provider(
-            ctx,
-            stage="yfinance",
-            source_label="yfinance",
-            next_source="local_csv",
-            fetch_records=_yfinance_fetch,
-            fetch_error_prefix="yfinance ingestion failed",
-            empty_result_reason="yfinance ingestion returned no rows",
-            ingest_error_prefix="yfinance ingestion failed during ingest",
-        )
-
-    def _mark_offer_side(result_dict: Dict[str, object]) -> None:
-        source_markers: List[str] = ["dukascopy"]
-        source_value = result_dict.get("source")
-        if source_value:
-            source_markers.append(str(source_value))
-        normalized = [marker.lower() for marker in source_markers if marker]
-        if any("dukascopy" in marker for marker in normalized):
-            result_dict.setdefault("dukascopy_offer_side", offer_side)
+    fallback_runner = _build_yfinance_fallback(
+        ctx,
+        args,
+        now=now,
+        last_ts=last_ts,
+    )
 
     result, source_label = _ingest_with_provider(
         ctx,
         stage="dukascopy",
         source_label="dukascopy",
         next_source="yfinance",
-        fetch_records=_dukascopy_fetch,
+        fetch_records=dukascopy_fetch,
         fetch_error_prefix="fetch error",
         empty_result_reason="no rows returned",
         ingest_error_prefix="ingestion failed",
-        fallback_runner=_fallback_to_yfinance,
-        result_mutator=_mark_offer_side,
+        fallback_runner=fallback_runner,
+        result_mutator=partial(
+            _mark_dukascopy_offer_side,
+            offer_side=offer_side,
+        ),
     )
 
-    if result is None or not source_label:
-        print("[wf] Dukascopy ingestion produced no result")
-        return None, 1
-
-    _log_ingest_summary(result, source_label)
-
-    finish_now = _utcnow_naive()
-
-    _persist_ingest_metadata(
-        symbol=ctx.symbol,
-        tf=ctx.tf,
-        snapshot_path=ctx.snapshot_path,
-        result=result,
-        fallback_notes=ctx.fallback_notes,
+    return _finalize_ingest_result(
+        ctx,
+        result,
+        source_label,
         primary_source="dukascopy",
-        now=finish_now,
+        empty_message="[wf] Dukascopy ingestion produced no result",
     )
-
-    return result, 0
 
 
 def _run_yfinance_ingest(
@@ -883,10 +1035,10 @@ def _run_yfinance_ingest(
     try:
         from scripts.yfinance_fetch import fetch_bars, resolve_ticker
     except Exception as exc:
-        def _missing_module() -> Iterable[Dict[str, object]]:
-            raise ProviderError(f"yfinance module unavailable: {exc}")
-
-        fetch_callable = _missing_module
+        fetch_callable = partial(
+            _raise_provider_error,
+            f"yfinance module unavailable: {exc}",
+        )
     else:
         lookback = max(5, args.yfinance_lookback_minutes)
         start = last_ts - timedelta(minutes=lookback) if last_ts else now - timedelta(minutes=lookback)
@@ -901,20 +1053,15 @@ def _run_yfinance_ingest(
             now.isoformat(timespec="seconds"),
         )
 
-        def _yfinance_fetch() -> Iterable[Dict[str, object]]:
-            records = list(
-                fetch_bars(
-                    args.symbol,
-                    ctx.tf,
-                    start=start,
-                    end=now,
-                )
-            )
-            if not records:
-                raise ProviderError("yfinance ingestion returned no rows")
-            return records
-
-        fetch_callable = _yfinance_fetch
+        fetch_callable = partial(
+            _fetch_yfinance_records,
+            fetch_bars,
+            args.symbol,
+            ctx.tf,
+            start=start,
+            end=now,
+            empty_reason="yfinance ingestion returned no rows",
+        )
 
     result, source_label = _ingest_with_provider(
         ctx,
@@ -927,24 +1074,13 @@ def _run_yfinance_ingest(
         ingest_error_prefix="yfinance ingestion failed during ingest",
     )
 
-    if result is None or not source_label:
-        print("[wf] yfinance ingestion produced no result")
-        return None, 1
-
-    _log_ingest_summary(result, source_label)
-
-    finish_now = _utcnow_naive()
-    _persist_ingest_metadata(
-        symbol=ctx.symbol,
-        tf=ctx.tf,
-        snapshot_path=ctx.snapshot_path,
-        result=result,
-        fallback_notes=ctx.fallback_notes,
+    return _finalize_ingest_result(
+        ctx,
+        result,
+        source_label,
         primary_source="yfinance",
-        now=finish_now,
+        empty_message="[wf] yfinance ingestion produced no result",
     )
-
-    return result, 0
 
 
 def _run_api_ingest(
