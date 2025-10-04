@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-01-14: `core/router_pipeline.py` を新設して manifest リスク/ランナー指標から `PortfolioState` を構築し、`scripts/run_sim.py` が manifest 経由起動時に `router_v1.select_candidates` を呼び出すよう更新。`core/runner.Metrics` に runtime 集計（reject_rate / slippage）を追加し、`tests/test_router_pipeline.py` を新設。`python3 -m pytest tests/test_router_v1.py tests/test_router_pipeline.py` を実行して 9 件パスを確認。
 - 2026-01-13: `core/fill_engine._simulate_bar` を新設して Conservative/Bridge の BUY/SELL 共通処理を集約し、Bridge 固有の `p_tp` 付与をフック関数で調整。`tests/test_fill_engine.py` に SELL ケースを追加して同バー・トレール挙動を確認し、`python3 -m pytest tests/test_fill_engine.py` を実行して 7 件グリーンを確認。
 - 2026-01-12: `scripts/ev_vs_actual_pnl._normalize_path` を新設して CLI/保存系の引数正規化を共通化し、`tests/test_ev_vs_actual_pnl.py` で Path 展開ヘルパー共有をモック検証。`python3 -m pytest tests/test_ev_vs_actual_pnl.py` を実行して 1 件パスを確認。
 - 2026-01-11: `_run_yfinance_ingest` を `compute_yfinance_fallback_start` で共通化し、`last_ts` 欠損/陳腐化時のルックバックをヘルパーと同じクランプに合わせるテストを追加。`python3 -m pytest tests/test_run_daily_workflow.py` を実行して 37 件パスを確認。
