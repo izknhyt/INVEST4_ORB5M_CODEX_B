@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-01-10: `scripts/run_daily_workflow.run_cmd` に `cwd=ROOT` 既定を追加し、`tests/test_run_daily_workflow.py::test_run_cmd_executes_with_repo_root` でサブプロセスがリポジトリ直下から起動されることを検証。`python3 -m pytest tests/test_run_daily_workflow.py` を実行して 35 件パスを再確認。
 - 2026-01-09: Day ORB 5m strategy updated so calibration/warmup signals stamp `last_signal_bar` and mark sessions as broken, preventing immediate re-entries. Added regression tests ensuring warmup cooldown is honored, and ran `python3 -m pytest tests/test_runner.py` to verify 23 passing cases.
 - 2026-01-07: `scripts/run_daily_workflow._build_pull_prices_cmd` をシンボル固有の既定 CSV に合わせて修正し、`tests/test_run_daily_workflow.py::test_ingest_pull_prices_uses_symbol_specific_source` を追加。`python3 -m pytest` を実行したところ、`tests/test_fetch_prices_api.py` がサンドボックスのソケット制限でローカル HTTP サーバをバインドできず 8 件エラーとなった（他テストはパス）。
 - 2026-01-06: `core/runner._extract_pending_fields` で `.oco` からの TP/SL も float へ正規化して抽出し、`tests/test_runner.py` に OrderIntent の `.oco` 参照のみで EV リジェクト/サイジングガードが動作する回帰テストを追加。`python3 -m pytest tests/test_runner.py` を実行し 21 件パスを確認。

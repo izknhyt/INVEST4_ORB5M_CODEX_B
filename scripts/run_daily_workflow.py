@@ -1024,9 +1024,9 @@ def _run_api_ingest(
         empty_message="[wf] API ingestion produced no result",
     )
 
-def run_cmd(cmd):
+def run_cmd(cmd, *, cwd: Path = ROOT):
     print(f"[wf] running: {' '.join(cmd)}")
-    result = subprocess.run(cmd, check=False)
+    result = subprocess.run(cmd, check=False, cwd=cwd)
     if result.returncode != 0:
         print(f"[wf] command failed with exit code {result.returncode}")
     return result.returncode

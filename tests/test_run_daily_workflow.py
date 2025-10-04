@@ -28,6 +28,25 @@ def _capture_run_cmd(monkeypatch):
     return captured
 
 
+def test_run_cmd_executes_with_repo_root(monkeypatch):
+    called = {}
+
+    def fake_run(cmd, *, check, cwd):
+        called["cmd"] = cmd
+        called["check"] = check
+        called["cwd"] = cwd
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(run_daily_workflow.subprocess, "run", fake_run)
+
+    exit_code = run_daily_workflow.run_cmd(["echo", "hello"])
+
+    assert exit_code == 0
+    assert called["cmd"] == ["echo", "hello"]
+    assert called["check"] is False
+    assert called["cwd"] == run_daily_workflow.ROOT
+
+
 def _assert_path_arg(cmd, flag, expected_path):
     value = cmd[cmd.index(flag) + 1]
     assert Path(value) == Path(expected_path)
