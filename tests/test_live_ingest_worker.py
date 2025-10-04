@@ -5,7 +5,7 @@ from typing import List
 
 import pytest
 
-from scripts import live_ingest_worker as worker
+from scripts import ingest_providers, live_ingest_worker as worker
 
 
 @pytest.fixture(autouse=True)
@@ -76,7 +76,7 @@ def test_live_worker_ingests_without_duplicates(monkeypatch, tmp_path):
     ]
     duk_calls = []
 
-    def fake_dukascopy(symbol, tf, *, start, end, offer_side):
+    def fake_dukascopy(symbol, tf, *, start, end, offer_side, freshness_threshold=None):
         idx = min(len(duk_calls), len(records_seq) - 1)
         duk_calls.append((symbol, start, end, offer_side))
         return list(records_seq[idx])
@@ -132,7 +132,10 @@ def test_live_worker_ingests_without_duplicates(monkeypatch, tmp_path):
 
 
 def test_live_worker_fallback_to_yfinance(monkeypatch, tmp_path):
-    monkeypatch.setattr(worker, "_load_dukascopy_records", lambda *a, **k: [])
+    def fail_fetch(*_args, **_kwargs):
+        raise ingest_providers.ProviderError("no rows returned")
+
+    monkeypatch.setattr(worker, "_load_dukascopy_records", fail_fetch)
 
     def fake_yfinance(symbol, tf, start, end):
         ts = (end - worker.timedelta(minutes=5)).replace(microsecond=0)
@@ -193,8 +196,95 @@ def test_live_worker_fallback_to_yfinance(monkeypatch, tmp_path):
     assert updates == [("USDJPY", "conservative", validated_path)]
 
 
+def test_ingest_symbol_stale_triggers_yfinance(monkeypatch, tmp_path):
+    stale_reason = "stale data: last_ts=2024-01-01T00:20:00"
+
+    def stale_fetch(*args, **kwargs):
+        raise ingest_providers.ProviderError(stale_reason)
+
+    monkeypatch.setattr(worker, "_load_dukascopy_records", stale_fetch)
+
+    fallback_calls = {}
+
+    def fake_yfinance(symbol, tf, start, end):
+        fallback_calls.update({
+            "symbol": symbol,
+            "tf": tf,
+            "start": start,
+            "end": end,
+        })
+        ts = (end - worker.timedelta(minutes=5)).replace(microsecond=0)
+        return [
+            {
+                "timestamp": ts.strftime("%Y-%m-%dT%H:%M:%S"),
+                "symbol": symbol,
+                "tf": tf,
+                "o": 151.0,
+                "h": 151.2,
+                "l": 150.8,
+                "c": 151.1,
+                "v": 700.0,
+                "spread": 0.1,
+            }
+        ]
+
+    monkeypatch.setattr(worker, "_load_yfinance_records", fake_yfinance)
+    last_processed = datetime(2024, 1, 1, 0, 15)
+    monkeypatch.setattr(worker, "get_last_processed_ts", lambda *a, **k: last_processed)
+
+    ingests = []
+
+    def fake_ingest(records, **kwargs):
+        rows = list(records)
+        ingests.append({
+            "rows": rows,
+            "source_name": kwargs.get("source_name"),
+        })
+        return {
+            "rows_validated": len(rows),
+            "anomalies_logged": 0,
+            "last_ts_now": rows[-1]["timestamp"],
+            "source": kwargs.get("source_name"),
+        }
+
+    monkeypatch.setattr(worker, "ingest_records", fake_ingest)
+
+    config = worker.WorkerConfig(
+        symbols=["USDJPY"],
+        modes=["conservative"],
+        tf="5m",
+        interval=0.0,
+        lookback_minutes=5,
+        freshness_threshold=30,
+        offer_side="bid",
+        snapshot_path=tmp_path / "ops/runtime_snapshot.json",
+        raw_root=tmp_path / "raw",
+        validated_root=tmp_path / "validated",
+        features_root=tmp_path / "features",
+        shutdown_file=None,
+        max_iterations=None,
+        or_n=6,
+    )
+
+    now = datetime(2024, 1, 1, 0, 30)
+    result = worker._ingest_symbol("USDJPY", config, now=now)
+
+    assert result is not None
+    assert result.get("source") == "yfinance"
+    expected_start = ingest_providers.compute_yfinance_fallback_start(
+        last_ts=last_processed,
+        lookback_minutes=config.lookback_minutes,
+        now=now,
+    )
+    assert fallback_calls["start"] == expected_start
+    assert ingests and ingests[0]["source_name"] == "yfinance"
+
+
 def test_ingest_symbol_yfinance_fallback_excludes_offer_side(monkeypatch, tmp_path):
-    monkeypatch.setattr(worker, "_load_dukascopy_records", lambda *a, **k: [])
+    def fail_fetch(*_args, **_kwargs):
+        raise ingest_providers.ProviderError("no rows returned")
+
+    monkeypatch.setattr(worker, "_load_dukascopy_records", fail_fetch)
     fallback_rows = [
         {
             "timestamp": "2024-01-01T00:10:00",
