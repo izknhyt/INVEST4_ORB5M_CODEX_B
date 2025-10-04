@@ -38,6 +38,19 @@ def test_category_cap_and_concurrency():
     assert "active positions" in reasons
 
 
+def test_manifest_category_cap_zero_blocks_positive_usage():
+    manifest = load_day_manifest()
+    manifest.router.category_cap_pct = 0.0
+    portfolio = PortfolioState(
+        category_utilisation_pct={manifest.category: 5.0},
+        category_caps_pct={manifest.category: 40.0},
+    )
+    ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "high"}
+    res = select_candidates(ctx, [manifest], portfolio=portfolio)
+    assert res[0].eligible is False
+    assert any("category utilisation" in reason for reason in res[0].reasons)
+
+
 def test_scoring_sorting():
     manifest = load_day_manifest()
     ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "mid"}
