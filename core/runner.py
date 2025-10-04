@@ -8,7 +8,7 @@ Backtest/Replay Runner (skeleton)
 NOTE: Placeholder thresholds and simplified assumptions to keep dependencies minimal.
 """
 from __future__ import annotations
-from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Callable, ClassVar, Dict, List, Mapping, Optional, Tuple, Set, Union
 from collections import deque
 import json
 import hashlib
@@ -279,6 +279,21 @@ class BacktestRunner:
         "trade": ("ts", "side", "tp_pips", "sl_pips", "cost_pips", "slip_est", "slip_real", "exit", "pnl_pips"),
         "trade_exit": ("ts", "side", "cost_pips", "slip_est", "slip_real", "exit", "pnl_pips"),
     }
+    DAILY_COUNT_FIELDS: ClassVar[Tuple[str, ...]] = (
+        "breakouts",
+        "gate_pass",
+        "gate_block",
+        "ev_pass",
+        "ev_reject",
+        "fills",
+        "wins",
+    )
+    DAILY_FLOAT_FIELDS: ClassVar[Tuple[str, ...]] = (
+        "pnl_pips",
+        "slip_est",
+        "slip_real",
+    )
+    _DAILY_FLOAT_FIELD_SET: ClassVar[Set[str]] = set(DAILY_FLOAT_FIELDS)
 
     def __init__(self, equity: float, symbol: str, runner_cfg: Optional[RunnerConfig] = None,
                  debug: bool = False, debug_sample_limit: int = 0,
@@ -324,6 +339,7 @@ class BacktestRunner:
         self.debug_counts: Dict[str, int] = {key: 0 for key in self.DEBUG_COUNT_KEYS}
         self.debug_records: List[Dict[str, Any]] = []
         self.daily: Dict[str, Dict[str, Any]] = {}
+        self._current_daily_entry: Optional[Dict[str, Union[int, float]]] = None
         self.rv_hist: Dict[str, Any] = {
             "TOK": deque(maxlen=self.rcfg.rv_q_lookback_bars),
             "LDN": deque(maxlen=self.rcfg.rv_q_lookback_bars),
@@ -368,6 +384,49 @@ class BacktestRunner:
                     continue
                 record[key] = value
         self.debug_records.append(record)
+
+    @classmethod
+    def _create_daily_entry(cls) -> Dict[str, Union[int, float]]:
+        entry: Dict[str, Union[int, float]] = {
+            key: 0 for key in cls.DAILY_COUNT_FIELDS
+        }
+        entry.update({key: 0.0 for key in cls.DAILY_FLOAT_FIELDS})
+        return entry
+
+    def _ensure_daily_entry(self, date_str: str) -> Dict[str, Union[int, float]]:
+        entry = self.daily.get(date_str)
+        if entry is None:
+            entry = self._create_daily_entry()
+            self.daily[date_str] = entry
+        return entry
+
+    def _increment_daily(self, key: str, amount: float = 1.0) -> None:
+        entry = getattr(self, "_current_daily_entry", None)
+        if entry is None:
+            return
+        if key in self._DAILY_FLOAT_FIELD_SET:
+            entry[key] = float(entry.get(key, 0.0)) + float(amount)
+        else:
+            entry[key] = int(entry.get(key, 0)) + int(amount)
+
+    @staticmethod
+    def _quantile(values: List[float], q: float) -> Optional[float]:
+        if not values:
+            return None
+        idx = max(0, min(len(values) - 1, int(q * (len(values) - 1))))
+        return values[idx]
+
+    def _update_rv_thresholds(self) -> None:
+        minimum = max(100, int(self.rcfg.rv_q_lookback_bars * 0.2))
+        for session_name in ("TOK", "LDN", "NY"):
+            hist = list(self.rv_hist[session_name])
+            if len(hist) < minimum:
+                continue
+            hist_sorted = sorted(hist)
+            low = self._quantile(hist_sorted, self.rcfg.rv_q_low)
+            high = self._quantile(hist_sorted, self.rcfg.rv_q_high)
+            if low is not None and high is not None and low <= high:
+                self.rv_thresh[session_name] = (low, high)
 
     def _call_strategy_gate(
         self,
@@ -545,14 +604,12 @@ class BacktestRunner:
         pnl_pips = price_to_pips(pnl_px, self.symbol) - cost
         hit = exit_reason == "tp"
         self._record_trade_metrics(pnl_pips, hit)
-        if self._current_date and self._current_date in self.daily:
-            daily = self.daily[self._current_date]
-            daily["fills"] += 1
-            if hit:
-                daily["wins"] += 1
-            daily["pnl_pips"] += pnl_pips
-            daily["slip_est"] += est_slip_used
-            daily["slip_real"] += slip_actual
+        self._increment_daily("fills")
+        if hit:
+            self._increment_daily("wins")
+        self._increment_daily("pnl_pips", pnl_pips)
+        self._increment_daily("slip_est", est_slip_used)
+        self._increment_daily("slip_real", slip_actual)
         self._log_trade_record(
             exit_ts=exit_ts,
             entry_ts=entry_ts,
@@ -620,38 +677,17 @@ class BacktestRunner:
                 self._last_day = day
             elif day != self._last_day:
                 self._last_day = day
-        if isinstance(date_str, str) and date_str != self._current_date:
+        if isinstance(date_str, str):
+            new_day = date_str != self._current_date
             self._current_date = date_str
-            self._day_count += 1
-            if self._current_date not in self.daily:
-                self.daily[self._current_date] = {
-                    "breakouts": 0,
-                    "gate_pass": 0,
-                    "gate_block": 0,
-                    "ev_pass": 0,
-                    "ev_reject": 0,
-                    "fills": 0,
-                    "wins": 0,
-                    "pnl_pips": 0.0,
-                    "slip_est": 0.0,
-                    "slip_real": 0.0,
-                }
-            if self.rcfg.rv_qcalib_enabled:
-                for session_name in ("TOK", "LDN", "NY"):
-                    hist = list(self.rv_hist[session_name])
-                    if len(hist) >= max(100, int(self.rcfg.rv_q_lookback_bars * 0.2)):
-                        hist_sorted = sorted(hist)
-
-                        def quantile(arr: List[float], q: float) -> Optional[float]:
-                            if not arr:
-                                return None
-                            k = max(0, min(len(arr) - 1, int(q * (len(arr) - 1))))
-                            return arr[k]
-
-                        c1 = quantile(hist_sorted, self.rcfg.rv_q_low)
-                        c2 = quantile(hist_sorted, self.rcfg.rv_q_high)
-                        if c1 is not None and c2 is not None and c1 <= c2:
-                            self.rv_thresh[session_name] = (c1, c2)
+            if new_day:
+                self._day_count += 1
+            self._current_daily_entry = self._ensure_daily_entry(date_str)
+            if new_day and self.rcfg.rv_qcalib_enabled:
+                self._update_rv_thresholds()
+        else:
+            self._current_date = None
+            self._current_daily_entry = None
         calibrating = (
             self.rcfg.calibrate_days > 0
             and self._day_count <= self.rcfg.calibrate_days
@@ -907,8 +943,7 @@ class BacktestRunner:
             self.debug_counts["no_breakout"] += 1
             self._append_debug_record("no_breakout", ts=self._last_timestamp)
             return
-        if self._current_date and self._current_date in self.daily:
-            self.daily[self._current_date]["breakouts"] += 1
+        self._increment_daily("breakouts")
         ctx_dbg = self._evaluate_entry_conditions(
             pending=pending,
             bar=bar,
@@ -1018,8 +1053,7 @@ class BacktestRunner:
         )
         if not gate_allowed:
             self.debug_counts["gate_block"] += 1
-            if self._current_date and self._current_date in self.daily:
-                self.daily[self._current_date]["gate_block"] += 1
+            self._increment_daily("gate_block")
             reason_stage = None
             or_ratio = None
             min_or_ratio = None
@@ -1042,8 +1076,7 @@ class BacktestRunner:
             return None
         if not pass_gates(ctx_dbg):
             self.debug_counts["gate_block"] += 1
-            if self._current_date and self._current_date in self.daily:
-                self.daily[self._current_date]["gate_block"] += 1
+            self._increment_daily("gate_block")
             self._append_debug_record(
                 "gate_block",
                 ts=self._last_timestamp,
@@ -1054,8 +1087,7 @@ class BacktestRunner:
                 reason="router_gate",
             )
             return None
-        if self._current_date and self._current_date in self.daily:
-            self.daily[self._current_date]["gate_pass"] += 1
+        self._increment_daily("gate_pass")
         return ctx_dbg
 
     def _evaluate_ev_threshold(
@@ -1107,8 +1139,7 @@ class BacktestRunner:
                 self.debug_counts["ev_bypass"] += 1
             else:
                 self.debug_counts["ev_reject"] += 1
-                if self._current_date and self._current_date in self.daily:
-                    self.daily[self._current_date]["ev_reject"] += 1
+                self._increment_daily("ev_reject")
                 self._append_debug_record(
                     "ev_reject",
                     ts=timestamp,
@@ -1121,8 +1152,7 @@ class BacktestRunner:
                 )
                 return None
         else:
-            if self._current_date and self._current_date in self.daily:
-                self.daily[self._current_date]["ev_pass"] += 1
+            self._increment_daily("ev_pass")
         ctx_dbg["ev_lcb"] = ev_lcb
         ctx_dbg["threshold_lcb"] = threshold_lcb
         ctx_dbg["ev_pass"] = not ev_bypass
@@ -1150,8 +1180,7 @@ class BacktestRunner:
         expected_slip = ctx_dbg.get("expected_slip_pip", 0.0)
         if expected_slip > slip_cap:
             self.debug_counts["gate_block"] += 1
-            if self._current_date and self._current_date in self.daily:
-                self.daily[self._current_date]["gate_block"] += 1
+            self._increment_daily("gate_block")
             self._append_debug_record(
                 "slip_cap",
                 ts=timestamp,
