@@ -5,12 +5,7 @@ import math
 from typing import Any, Dict, Iterable, List, Optional
 
 from core.pips import pip_size
-from core.sizing import (
-    SizingConfig,
-    apply_guards,
-    base_units,
-    kelly_multiplier_oco,
-)
+from core.sizing import compute_qty_from_ctx
 from core.strategy_api import OrderIntent, Strategy
 from router.router_v0 import pass_gates
 
@@ -162,21 +157,9 @@ class MeanReversionStrategy(Strategy):
             return []
 
         if ctx.get("calibrating") or ctx.get("ev_mode") == "off":
-            qty = 1.0
-            if ctx.get("ev_mode") == "off":
-                equity = float(ctx.get("equity", 0.0))
-                pip_value = float(ctx.get("pip_value", 0.0))
-                sizing_cfg_dict = ctx.get("sizing_cfg", {})
-                sz_cfg = SizingConfig(
-                    risk_per_trade_pct=sizing_cfg_dict.get("risk_per_trade_pct", 0.25),
-                    kelly_fraction=sizing_cfg_dict.get("kelly_fraction", 0.25),
-                    units_cap=sizing_cfg_dict.get("units_cap", 5.0),
-                    max_trade_loss_pct=sizing_cfg_dict.get("max_trade_loss_pct", 0.5),
-                )
-                base = base_units(equity, pip_value, sig["sl_pips"], sz_cfg)
-                qty = apply_guards(base * float(ctx.get("size_floor_mult", 0.01)), equity, pip_value, sig["sl_pips"], sz_cfg)
-                if qty <= 0:
-                    return []
+            qty = compute_qty_from_ctx(ctx, sig["sl_pips"], mode="calibration")
+            if ctx.get("ev_mode") == "off" and qty <= 0:
+                return []
             tag = f"mean_reversion#{sig['side']}#calib"
             self.state["last_signal_bar"] = self.state["bar_idx"]
             return [
@@ -192,18 +175,7 @@ class MeanReversionStrategy(Strategy):
 
         warmup_left = int(ctx.get("warmup_left", 0))
         if warmup_left > 0:
-            equity = float(ctx.get("equity", 0.0))
-            pip_value = float(ctx.get("pip_value", 0.0))
-            sizing_cfg_dict = ctx.get("sizing_cfg", {})
-            sz_cfg = SizingConfig(
-                risk_per_trade_pct=sizing_cfg_dict.get("risk_per_trade_pct", 0.25),
-                kelly_fraction=sizing_cfg_dict.get("kelly_fraction", 0.25),
-                units_cap=sizing_cfg_dict.get("units_cap", 5.0),
-                max_trade_loss_pct=sizing_cfg_dict.get("max_trade_loss_pct", 0.5),
-            )
-            base = base_units(equity, pip_value, sig["sl_pips"], sz_cfg)
-            warm_mult = float(ctx.get("warmup_mult", 0.05))
-            qty = apply_guards(base * max(0.0, warm_mult), equity, pip_value, sig["sl_pips"], sz_cfg)
+            qty = compute_qty_from_ctx(ctx, sig["sl_pips"], mode="warmup")
             if qty <= 0:
                 return []
             tag = f"mean_reversion#{sig['side']}#warmup"
@@ -223,18 +195,13 @@ class MeanReversionStrategy(Strategy):
         if ev is None:
             return []
         p_lcb = ev.p_lcb()
-        equity = float(ctx.get("equity", 0.0))
-        pip_value = float(ctx.get("pip_value", 0.0))
-        sizing_cfg_dict = ctx.get("sizing_cfg", {})
-        sz_cfg = SizingConfig(
-            risk_per_trade_pct=sizing_cfg_dict.get("risk_per_trade_pct", 0.25),
-            kelly_fraction=sizing_cfg_dict.get("kelly_fraction", 0.25),
-            units_cap=sizing_cfg_dict.get("units_cap", 5.0),
-            max_trade_loss_pct=sizing_cfg_dict.get("max_trade_loss_pct", 0.5),
+        qty = compute_qty_from_ctx(
+            ctx,
+            sig["sl_pips"],
+            mode="production",
+            tp_pips=sig["tp_pips"],
+            p_lcb=p_lcb,
         )
-        base = base_units(equity, pip_value, sig["sl_pips"], sz_cfg)
-        mult = kelly_multiplier_oco(p_lcb, sig["tp_pips"], sig["sl_pips"], sz_cfg)
-        qty = apply_guards(base * mult, equity, pip_value, sig["sl_pips"], sz_cfg)
         if qty <= 0:
             return []
 

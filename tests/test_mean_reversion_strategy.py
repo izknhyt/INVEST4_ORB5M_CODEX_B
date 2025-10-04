@@ -1,5 +1,6 @@
 import unittest
 
+from core.sizing import compute_qty_from_ctx
 from strategies.mean_reversion import MeanReversionStrategy
 
 
@@ -61,6 +62,15 @@ class MeanReversionStrategyTest(unittest.TestCase):
         self.assertGreater(intent.oco["tp_pips"], 0.0)
         self.assertGreater(intent.oco["sl_pips"], intent.oco["tp_pips"])
         self.assertEqual(self.strategy.state["last_signal_bar"], self.strategy.state["bar_idx"])
+
+        expected_qty = compute_qty_from_ctx(
+            ctx,
+            intent.oco["sl_pips"],
+            mode="production",
+            tp_pips=intent.oco["tp_pips"],
+            p_lcb=ctx["ev_oco"].p_lcb(),
+        )
+        self.assertAlmostEqual(intent.qty, expected_qty)
 
     def test_strategy_gate_blocks_high_rv_and_adx(self) -> None:
         bar = {"c": 150.0, "atr14": 0.15, "zscore": -2.0}

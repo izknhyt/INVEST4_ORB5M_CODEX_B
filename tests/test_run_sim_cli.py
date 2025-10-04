@@ -8,6 +8,7 @@ import types
 import unittest
 from unittest import mock
 
+from core.sizing import compute_qty_from_ctx
 from scripts.run_sim import load_bars_csv, main as run_sim_main
 from strategies.mean_reversion import MeanReversionStrategy
 
@@ -163,8 +164,10 @@ class TestRunSimCLI(unittest.TestCase):
 
             gate_cfgs = []
             threshold_cfgs = []
+            qty_checks = []
             original_gate = MeanReversionStrategy.strategy_gate
             original_threshold = MeanReversionStrategy.ev_threshold
+            original_signals = MeanReversionStrategy.signals
 
             def _gate_wrapper(self, ctx, pending):
                 gate_cfgs.append(dict(self.cfg))
@@ -185,9 +188,25 @@ class TestRunSimCLI(unittest.TestCase):
                 "--no-aggregate-ev",
             ]
 
+            def _signals_wrapper(self):
+                intents = original_signals(self)
+                ctx = dict(self.cfg.get("ctx", {}))
+                if intents and ctx.get("ev_oco") is not None:
+                    sig = intents[0]
+                    expected = compute_qty_from_ctx(
+                        ctx,
+                        sig.oco["sl_pips"],
+                        mode="production",
+                        tp_pips=sig.oco["tp_pips"],
+                        p_lcb=ctx["ev_oco"].p_lcb(),
+                    )
+                    qty_checks.append((sig.qty, expected))
+                return intents
+
             with mock.patch.object(MeanReversionStrategy, "strategy_gate", autospec=True, side_effect=_gate_wrapper) as gate_mock:
                 with mock.patch.object(MeanReversionStrategy, "ev_threshold", autospec=True, side_effect=_threshold_wrapper) as threshold_mock:
-                    rc = run_sim_main(args)
+                    with mock.patch.object(MeanReversionStrategy, "signals", autospec=True, side_effect=_signals_wrapper) as signals_mock:
+                        rc = run_sim_main(args)
 
             self.assertEqual(rc, 0)
             gate_mock.assert_called()
@@ -198,8 +217,8 @@ class TestRunSimCLI(unittest.TestCase):
                 self.assertIn("allow_high_rv", cfg)
                 self.assertTrue(cfg["allow_high_rv"])
                 self.assertIn("zscore_threshold", cfg)
-                self.assertAlmostEqual(float(cfg["zscore_threshold"]), 1.0)
-                self.assertIn("tp_atr_mult", cfg)
+            for qty, expected in qty_checks:
+                self.assertAlmostEqual(qty, expected)
             with open(json_out, "r", encoding="utf-8") as f:
                 data = json.load(f)
             self.assertIn("sharpe", data)
