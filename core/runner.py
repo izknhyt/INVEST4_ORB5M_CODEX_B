@@ -14,7 +14,7 @@ import json
 import hashlib
 import math
 from datetime import datetime, timezone
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 
 from strategies.day_orb_5m import DayORB5m
 from core.strategy_api import Strategy
@@ -22,7 +22,7 @@ from core.feature_store import atr as calc_atr, adx as calc_adx, opening_range, 
 from core.fill_engine import ConservativeFill, BridgeFill, OrderSpec
 from core.ev_gate import BetaBinomialEV, TLowerEV
 from core.pips import pip_size, price_to_pips
-from core.sizing import compute_qty_from_ctx
+from core.sizing import SizingConfig, compute_qty_from_ctx
 from router.router_v0 import pass_gates
 
 
@@ -267,6 +267,17 @@ class RunnerConfig:
 
     def merge_strategy_params(self, params: Dict[str, Any], *, replace: bool = False) -> None:
         self.strategy.merge(params, replace=replace)
+
+    def build_sizing_cfg(self) -> Dict[str, float]:
+        cfg = SizingConfig()
+        numeric_risk: Optional[float]
+        try:
+            numeric_risk = float(self.risk_per_trade_pct)
+        except (TypeError, ValueError):
+            numeric_risk = None
+        if numeric_risk is not None and numeric_risk > 0:
+            cfg.risk_per_trade_pct = numeric_risk
+        return asdict(cfg)
 
 
 class BacktestRunner:
@@ -1564,7 +1575,7 @@ class BacktestRunner:
             "base_cost_pips": spread_pips,
             "equity": self.equity,
             "pip_value": 10.0,  # placeholder; typically derived from notional
-            "sizing_cfg": {"risk_per_trade_pct": 0.25, "kelly_fraction": 0.25, "units_cap": 5.0, "max_trade_loss_pct": 0.5},
+            "sizing_cfg": self.rcfg.build_sizing_cfg(),
         }
         if self.rcfg.allowed_sessions:
             ctx["allowed_sessions"] = self.rcfg.allowed_sessions
