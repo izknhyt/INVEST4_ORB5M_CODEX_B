@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-01-03: `RunnerConfig.build_sizing_cfg` で `risk_per_trade_pct` を `float(...)` キャスト後に >0 判定するよう更新し、`_build_ctx` がヘルパー経由のサイジング設定を利用するよう整備。`tests/test_runner.py` に文字列入力を許容する回帰テストを追加し、`python3 -m pytest tests/test_runner.py` を実行して 18 件パスを再確認。
 - 2026-01-01: `core/runner._extract_pending_fields` ヘルパーを追加して pending シグナルの `side`/`tp_pips`/`sl_pips` 抽出を一元化し、`_evaluate_entry_conditions`・`_evaluate_ev_threshold`・`_check_slip_and_sizing` から重複分岐を排除。`python3 -m pytest tests/test_runner.py` を実行して 17 件パスを再確認。
 - 2026-01-02: `core/sizing.compute_qty_from_ctx` を新設して校正/ウォームアップ/本番サイズ算出を共通化し、Day ORB・Mean Reversion 戦略とランナーの重複ロジックを移行。関連テスト (`tests/test_runner.py`, `tests/test_run_sim_cli.py` など) を更新して数量一致を検証し、`python3 -m pytest` を完走。
 - 2025-12-31: `core/runner._compute_features` を `FeatureBundle` へ拡張し、`_maybe_enter_trade` 系のヘルパーが事前組立てコンテキストを共有するようリファクタ。`tests/test_runner.py` に校正モード閾値/期待スリップの単体テストを追加し、`python3 -m pytest` を実行して 151 件パスを確認。
