@@ -444,3 +444,18 @@ def test_run_update_state_passes_lowercase_mode(monkeypatch, tmp_path):
             "conservative",
         ]
     ]
+
+
+def test_live_worker_uses_shared_timestamp_parser():
+    from scripts import _time_utils
+
+    parser = worker._parse_timestamp
+
+    assert parser is _time_utils.parse_naive_utc
+    assert parser("2024-01-01T00:00:00Z") == datetime(2024, 1, 1, 0, 0)
+    assert parser("2024-01-01 00:00:00", fallback_formats=("%Y-%m-%d %H:%M:%S",)) == datetime(
+        2024, 1, 1, 0, 0
+    )
+    assert parser("") is None
+    assert parser("invalid") is None
+
