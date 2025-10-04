@@ -151,6 +151,8 @@ class DayORB5m(Strategy):
         if ctx.get("calibrating") or ctx.get("ev_mode") == "off":
             qty = compute_qty_from_ctx(ctx, sig["sl_pips"], mode="calibration")
             tag = f"day_orb5m#{sig['side']}#calib"
+            self.state["last_signal_bar"] = self.state["bar_idx"]
+            self.state["broken"] = True
             return [
                 OrderIntent(
                     sig["side"],
@@ -173,6 +175,8 @@ class DayORB5m(Strategy):
             if qty <= 0:
                 return []
             tag = f"day_orb5m#{sig['side']}#warmup"
+            self.state["last_signal_bar"] = self.state["bar_idx"]
+            self.state["broken"] = True
             return [OrderIntent(sig["side"], qty=qty, price=sig["entry"], tif="IOC", tag=tag,
                                 oco={"tp_pips":sig["tp_pips"], "sl_pips":sig["sl_pips"], "trail_pips":sig["trail_pips"]})]
 
