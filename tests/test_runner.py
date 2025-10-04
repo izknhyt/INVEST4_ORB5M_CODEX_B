@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 
 from core.runner import BacktestRunner, Metrics, RunnerConfig
 from core.pips import pip_size, price_to_pips
+from core.sizing import compute_qty_from_ctx
 
 
 def make_bar(ts, symbol, o, h, l, c, spread):
@@ -227,6 +228,7 @@ class TestRunner(unittest.TestCase):
             "slip_cap_pip": 1.5,
             "expected_slip_pip": 0.1,
             "pip_value": 10.0,
+            "equity": runner.equity,
             "sizing_cfg": {
                 "risk_per_trade_pct": 0.25,
                 "kelly_fraction": 0.25,
@@ -248,6 +250,15 @@ class TestRunner(unittest.TestCase):
 
         self.assertFalse(allowed)
         self.assertEqual(runner.debug_counts["zero_qty"], 1)
+
+        qty_helper = compute_qty_from_ctx(
+            ctx_dbg,
+            pending["sl_pips"],
+            mode="production",
+            tp_pips=pending["tp_pips"],
+            p_lcb=ev_mgr.p_lcb(),
+        )
+        self.assertEqual(qty_helper, 0.0)
 
     def test_check_slip_and_sizing_slip_guard_blocks(self):
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")

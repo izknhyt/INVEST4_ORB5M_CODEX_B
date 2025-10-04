@@ -1,7 +1,13 @@
 import unittest
 
 from core.ev_gate import BetaBinomialEV
-from core.sizing import SizingConfig, base_units, kelly_multiplier_oco, apply_guards
+from core.sizing import (
+    SizingConfig,
+    apply_guards,
+    base_units,
+    compute_qty_from_ctx,
+    kelly_multiplier_oco,
+)
 from strategies.day_orb_5m import DayORB5m
 
 
@@ -26,6 +32,25 @@ class TestEVSizing(unittest.TestCase):
         mult = kelly_multiplier_oco(p_lcb=0.7, tp_pips=25.0, sl_pips=20.0, cfg=cfg)
         qty = apply_guards(base * mult, equity, pip_value, sl_pips, cfg)
         self.assertGreater(qty, 0.0)
+
+        ctx = {
+            "equity": equity,
+            "pip_value": pip_value,
+            "sizing_cfg": {
+                "risk_per_trade_pct": cfg.risk_per_trade_pct,
+                "kelly_fraction": cfg.kelly_fraction,
+                "units_cap": cfg.units_cap,
+                "max_trade_loss_pct": cfg.max_trade_loss_pct,
+            },
+        }
+        qty_helper = compute_qty_from_ctx(
+            ctx,
+            sl_pips,
+            mode="production",
+            tp_pips=25.0,
+            p_lcb=0.7,
+        )
+        self.assertAlmostEqual(qty_helper, qty)
 
 
 class TestStrategyIntegration(unittest.TestCase):
@@ -77,6 +102,15 @@ class TestStrategyIntegration(unittest.TestCase):
         self.assertEqual(len(sigs), 1)
         self.assertGreater(sigs[0].qty, 0.0)
         self.assertIn("oco", sigs[0].__dict__)
+
+        expected_qty = compute_qty_from_ctx(
+            ctx,
+            sigs[0].oco["sl_pips"],
+            mode="production",
+            tp_pips=sigs[0].oco["tp_pips"],
+            p_lcb=ctx["ev_oco"].p_lcb(),
+        )
+        self.assertAlmostEqual(sigs[0].qty, expected_qty)
 
 
 if __name__ == "__main__":
