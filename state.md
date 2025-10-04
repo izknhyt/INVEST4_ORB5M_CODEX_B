@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-01-01: `core/runner._extract_pending_fields` ヘルパーを追加して pending シグナルの `side`/`tp_pips`/`sl_pips` 抽出を一元化し、`_evaluate_entry_conditions`・`_evaluate_ev_threshold`・`_check_slip_and_sizing` から重複分岐を排除。`python3 -m pytest tests/test_runner.py` を実行して 17 件パスを再確認。
 - 2025-12-31: `core/runner._compute_features` を `FeatureBundle` へ拡張し、`_maybe_enter_trade` 系のヘルパーが事前組立てコンテキストを共有するようリファクタ。`tests/test_runner.py` に校正モード閾値/期待スリップの単体テストを追加し、`python3 -m pytest` を実行して 151 件パスを確認。
 - 2025-12-30: `_run_api_ingest` を `_finalize_ingest_result` へ統合し、API 成功/フォールバック時のログ整合性を検証するテストを更新。`python3 -m pytest tests/test_run_daily_workflow.py` を実行して 32 件パスを確認。
 - 2025-12-29: `core/feature_store.py` に型ヒントを追加し、NaN ガードをコメント付きで整理。`python3 -m pytest tests/test_runner.py` を実行して 16 件パスを再確認。

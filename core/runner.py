@@ -465,6 +465,20 @@ class BacktestRunner:
             return allowed, reason
         return allowed, None
 
+    @staticmethod
+    def _extract_pending_fields(
+        pending: Any,
+    ) -> Tuple[Optional[str], Optional[float], Optional[float]]:
+        if isinstance(pending, Mapping):
+            pending_side = pending.get("side")
+            tp_pips = pending.get("tp_pips")
+            sl_pips = pending.get("sl_pips")
+        else:
+            pending_side = getattr(pending, "side", None)
+            tp_pips = getattr(pending, "tp_pips", None)
+            sl_pips = getattr(pending, "sl_pips", None)
+        return pending_side, tp_pips, sl_pips
+
     def _call_ev_threshold(
         self,
         ctx_dbg: Dict[str, Any],
@@ -1053,10 +1067,7 @@ class BacktestRunner:
         features: FeatureBundle,
     ) -> Optional[Dict[str, Any]]:
         ctx_dbg = dict(features.ctx)
-        if isinstance(pending, Mapping):
-            pending_side = pending.get("side")
-        else:
-            pending_side = getattr(pending, "side", None)
+        pending_side, _, _ = self._extract_pending_fields(pending)
         gate_allowed, gate_reason = self._call_strategy_gate(
             ctx_dbg,
             pending,
@@ -1110,14 +1121,7 @@ class BacktestRunner:
         calibrating: bool,
         timestamp: Optional[str],
     ) -> Optional[Tuple[Any, float, float, bool]]:
-        if isinstance(pending, Mapping):
-            pending_side = pending.get("side")
-            tp_pips = pending.get("tp_pips")
-            sl_pips = pending.get("sl_pips")
-        else:
-            pending_side = getattr(pending, "side", None)
-            tp_pips = getattr(pending, "tp_pips", None)
-            sl_pips = getattr(pending, "sl_pips", None)
+        pending_side, tp_pips, sl_pips = self._extract_pending_fields(pending)
         ev_key = ctx_dbg.get(
             "ev_key",
             (
@@ -1180,14 +1184,7 @@ class BacktestRunner:
         ev_bypass: bool,
         timestamp: Optional[str],
     ) -> bool:
-        if isinstance(pending, Mapping):
-            pending_side = pending.get("side")
-            tp_pips = pending.get("tp_pips")
-            sl_pips = pending.get("sl_pips")
-        else:
-            pending_side = getattr(pending, "side", None)
-            tp_pips = getattr(pending, "tp_pips", None)
-            sl_pips = getattr(pending, "sl_pips", None)
+        pending_side, tp_pips, sl_pips = self._extract_pending_fields(pending)
         slip_cap = ctx_dbg.get("slip_cap_pip", self.rcfg.slip_cap_pip)
         expected_slip = ctx_dbg.get("expected_slip_pip", 0.0)
         if expected_slip > slip_cap:
