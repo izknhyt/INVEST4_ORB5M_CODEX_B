@@ -2,11 +2,19 @@ import json
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+from types import SimpleNamespace
 
 import pytest
 from core.utils import yaml_compat
 
-from scripts import dukascopy_fetch, fetch_prices_api, run_daily_workflow, yfinance_fetch
+from scripts import (
+    dukascopy_fetch,
+    fetch_prices_api,
+    ingest_providers,
+    run_daily_workflow,
+    yfinance_fetch,
+)
 
 
 def _capture_run_cmd(monkeypatch):
@@ -891,7 +899,11 @@ def test_dukascopy_success_persists_offer_side_metadata(tmp_path, monkeypatch):
             ]
         )
 
-    monkeypatch.setattr(run_daily_workflow, "_load_dukascopy_fetch", lambda: fake_fetch)
+    monkeypatch.setattr(
+        ingest_providers,
+        "resolve_dukascopy_fetch",
+        lambda: (fake_fetch, None),
+    )
 
     exit_code = run_daily_workflow.main(
         [
@@ -1117,10 +1129,10 @@ def test_dukascopy_missing_dependency_falls_back_to_yfinance(tmp_path, monkeypat
 
     monkeypatch.setattr(run_daily_workflow, "datetime", _FixedDatetime)
 
-    def _fail_load():
-        raise RuntimeError("dukascopy_python is required")
+    def _fail_resolve():
+        return None, RuntimeError("dukascopy_python is required")
 
-    monkeypatch.setattr(run_daily_workflow, "_load_dukascopy_fetch", _fail_load)
+    monkeypatch.setattr(ingest_providers, "resolve_dukascopy_fetch", _fail_resolve)
 
     ticker_calls = {}
 
@@ -1256,10 +1268,10 @@ def test_dukascopy_and_yfinance_missing_falls_back_to_local_csv(
 
     monkeypatch.setattr(run_daily_workflow, "datetime", _FixedDatetime)
 
-    def _fail_load():
-        raise RuntimeError("dukascopy_python is required")
+    def _fail_resolve():
+        return None, RuntimeError("dukascopy_python is required")
 
-    monkeypatch.setattr(run_daily_workflow, "_load_dukascopy_fetch", _fail_load)
+    monkeypatch.setattr(ingest_providers, "resolve_dukascopy_fetch", _fail_resolve)
 
     def _missing_yfinance(*_args, **_kwargs):
         raise RuntimeError("missing yfinance dependency")
@@ -1386,10 +1398,10 @@ def test_dukascopy_fallback_metadata_excludes_offer_side(
 
     monkeypatch.setattr(run_daily_workflow, "datetime", _FixedDatetime)
 
-    def _fail_load():
-        raise RuntimeError("dukascopy unavailable")
+    def _fail_resolve():
+        return None, RuntimeError("dukascopy unavailable")
 
-    monkeypatch.setattr(run_daily_workflow, "_load_dukascopy_fetch", _fail_load)
+    monkeypatch.setattr(ingest_providers, "resolve_dukascopy_fetch", _fail_resolve)
 
     def fake_resolve(symbol):
         return "JPY=X"
@@ -1505,10 +1517,10 @@ def test_local_csv_fallback_can_disable_synthetic_extension(tmp_path, monkeypatc
 
     monkeypatch.setattr(run_daily_workflow, "datetime", _FixedDatetime)
 
-    def _fail_load():
-        raise RuntimeError("dukascopy_python is required")
+    def _fail_resolve():
+        return None, RuntimeError("dukascopy_python is required")
 
-    monkeypatch.setattr(run_daily_workflow, "_load_dukascopy_fetch", _fail_load)
+    monkeypatch.setattr(ingest_providers, "resolve_dukascopy_fetch", _fail_resolve)
 
     def _missing_yfinance(*_args, **_kwargs):
         raise RuntimeError("missing yfinance dependency")
@@ -1619,10 +1631,10 @@ def test_local_csv_fallback_accepts_custom_backup(tmp_path, monkeypatch):
 
     monkeypatch.setattr(run_daily_workflow, "datetime", _FixedDatetime)
 
-    def _fail_load():
-        raise RuntimeError("dukascopy_python is required")
+    def _fail_resolve():
+        return None, RuntimeError("dukascopy_python is required")
 
-    monkeypatch.setattr(run_daily_workflow, "_load_dukascopy_fetch", _fail_load)
+    monkeypatch.setattr(ingest_providers, "resolve_dukascopy_fetch", _fail_resolve)
 
     def _missing_yfinance(*_args, **_kwargs):
         raise RuntimeError("missing yfinance dependency")
@@ -1726,10 +1738,10 @@ def test_local_csv_fallback_expands_user_path(tmp_path, monkeypatch):
 
     monkeypatch.setattr(run_daily_workflow, "datetime", _FixedDatetime)
 
-    def _fail_load():
-        raise RuntimeError("dukascopy_python is required")
+    def _fail_resolve():
+        return None, RuntimeError("dukascopy_python is required")
 
-    monkeypatch.setattr(run_daily_workflow, "_load_dukascopy_fetch", _fail_load)
+    monkeypatch.setattr(ingest_providers, "resolve_dukascopy_fetch", _fail_resolve)
 
     def _missing_yfinance(*_args, **_kwargs):
         raise RuntimeError("missing yfinance dependency")
@@ -1805,10 +1817,10 @@ def test_local_csv_fallback_missing_for_symbol_without_default(tmp_path, monkeyp
     monkeypatch.setattr(pull_prices, "ANOMALY_LOG", anomaly_log_path)
     monkeypatch.setattr(run_daily_workflow, "ROOT", repo_root)
 
-    def _fail_load():
-        raise RuntimeError("dukascopy unavailable")
+    def _fail_resolve():
+        return None, RuntimeError("dukascopy unavailable")
 
-    monkeypatch.setattr(run_daily_workflow, "_load_dukascopy_fetch", _fail_load)
+    monkeypatch.setattr(ingest_providers, "resolve_dukascopy_fetch", _fail_resolve)
 
     def _missing_yfinance(*_args, **_kwargs):
         raise RuntimeError("missing yfinance dependency")
@@ -1876,10 +1888,10 @@ def test_local_csv_fallback_uses_custom_backup_for_non_usdjpy(tmp_path, monkeypa
     monkeypatch.setattr(pull_prices, "ANOMALY_LOG", anomaly_log_path)
     monkeypatch.setattr(run_daily_workflow, "ROOT", repo_root)
 
-    def _fail_load():
-        raise RuntimeError("dukascopy unavailable")
+    def _fail_resolve():
+        return None, RuntimeError("dukascopy unavailable")
 
-    monkeypatch.setattr(run_daily_workflow, "_load_dukascopy_fetch", _fail_load)
+    monkeypatch.setattr(ingest_providers, "resolve_dukascopy_fetch", _fail_resolve)
 
     def _missing_yfinance(*_args, **_kwargs):
         raise RuntimeError("missing yfinance dependency")
@@ -2040,3 +2052,77 @@ def test_extend_with_synthetic_bars_generates_when_stale(tmp_path):
     assert result["rows_validated"] == base_result["rows_validated"] + 4
     assert result["last_ts_now"] == "2025-10-02T04:15:00"
     assert result["local_backup_path"] == base_result["local_backup_path"]
+
+
+def test_ingest_providers_fetch_dukascopy_records_stale_guard():
+    start = datetime(2025, 1, 1, 0, 0)
+    end = datetime(2025, 1, 1, 0, 30)
+    stale_ts = (end - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+
+    fetch_args = {}
+
+    def fake_fetch(symbol, tf, *, start: datetime, end: datetime, offer_side: str):
+        fetch_args.update(
+            {
+                "symbol": symbol,
+                "tf": tf,
+                "start": start,
+                "end": end,
+                "offer_side": offer_side,
+            }
+        )
+        return [
+            {"timestamp": stale_ts, "symbol": symbol, "tf": tf},
+        ]
+
+    with pytest.raises(ingest_providers.ProviderError) as excinfo:
+        ingest_providers.fetch_dukascopy_records(
+            fake_fetch,
+            "USDJPY",
+            "5m",
+            start=start,
+            end=end,
+            offer_side="bid",
+            init_error=None,
+            freshness_threshold=5,
+        )
+
+    assert "stale data" in str(excinfo.value)
+    assert fetch_args["symbol"] == "USDJPY"
+    assert fetch_args["tf"] == "5m"
+    assert fetch_args["offer_side"] == "bid"
+
+
+def test_ingest_providers_yfinance_fallback_runner_handles_import_error():
+    ctx = SimpleNamespace(symbol="USDJPY", tf="5m")
+    args = SimpleNamespace(symbol="USDJPY", yfinance_lookback_minutes=60)
+    now = datetime(2025, 1, 1, 1, 0)
+    last_ts = datetime(2025, 1, 1, 0, 30)
+
+    ingest_calls = []
+
+    def fake_ingest(**kwargs):
+        ingest_calls.append(kwargs)
+        with pytest.raises(ingest_providers.ProviderError):
+            list(kwargs["fetch_records"]())
+        return None, None
+
+    def failing_loader():
+        raise RuntimeError("missing dependency")
+
+    runner = ingest_providers.YFinanceFallbackRunner(
+        ctx,
+        args,
+        now=now,
+        last_ts=last_ts,
+        ingest_runner=fake_ingest,
+        yfinance_loader=failing_loader,
+    )
+
+    result = runner("dukascopy outage")
+
+    assert result == (None, None)
+    assert ingest_calls
+    call = ingest_calls[0]
+    assert call["stage"] == "yfinance"
+    assert call["source_label"] == "yfinance"

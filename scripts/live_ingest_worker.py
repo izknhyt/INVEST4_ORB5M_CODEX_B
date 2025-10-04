@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 
+from scripts import ingest_providers  # noqa: E402  # isort:skip
 from scripts._time_utils import utcnow_naive  # noqa: E402  # isort:skip
 from scripts.pull_prices import (  # noqa: E402  # isort:skip
     FEATURES_ROOT,
@@ -99,30 +100,32 @@ def _load_dukascopy_records(
     start: datetime,
     end: datetime,
     offer_side: str,
+    freshness_threshold: Optional[int],
 ) -> List[dict]:
-    from scripts.dukascopy_fetch import fetch_bars
+    fetch_impl, init_error = ingest_providers.resolve_dukascopy_fetch()
 
-    return list(
-        fetch_bars(
-            symbol,
-            tf,
-            start=start,
-            end=end,
-            offer_side=offer_side,
-        )
+    return ingest_providers.fetch_dukascopy_records(
+        fetch_impl,
+        symbol,
+        tf,
+        start=start,
+        end=end,
+        offer_side=offer_side,
+        init_error=init_error,
+        freshness_threshold=freshness_threshold,
     )
 
 
 def _load_yfinance_records(symbol: str, tf: str, start: datetime, end: datetime) -> List[dict]:
-    from scripts import yfinance_fetch as yfinance_module
+    yfinance_module = ingest_providers.load_yfinance_module()
 
-    return list(
-        yfinance_module.fetch_bars(
-            symbol,
-            tf,
-            start=start,
-            end=end,
-        )
+    return ingest_providers.fetch_yfinance_records(
+        yfinance_module.fetch_bars,
+        symbol,
+        tf,
+        start=start,
+        end=end,
+        empty_reason="yfinance fallback returned no rows",
     )
 
 
@@ -162,7 +165,6 @@ def _ingest_symbol(symbol: str, config: WorkerConfig, *, now: datetime) -> Optio
     else:
         start = last_ts - timedelta(minutes=config.lookback_minutes)
 
-    fallback_reason: Optional[str] = None
     try:
         dukascopy_records = _load_dukascopy_records(
             symbol,
@@ -170,28 +172,19 @@ def _ingest_symbol(symbol: str, config: WorkerConfig, *, now: datetime) -> Optio
             start=start,
             end=now,
             offer_side=config.offer_side,
+            freshness_threshold=config.freshness_threshold,
         )
+        records: Iterable[dict] = dukascopy_records
+        source_name = "dukascopy"
+        fallback_reason: Optional[str] = None
+    except ingest_providers.ProviderError as exc:
+        fallback_reason = exc.reason
+        dukascopy_records = []
     except Exception as exc:
         fallback_reason = f"fetch error: {exc}"
         dukascopy_records = []
-
-    if fallback_reason is None:
-        if not dukascopy_records:
-            fallback_reason = "no rows returned"
-        else:
-            last_record_ts = _parse_timestamp(str(dukascopy_records[-1].get("timestamp", "")))
-            if last_record_ts is None:
-                fallback_reason = "could not parse last timestamp"
-            elif config.freshness_threshold and config.freshness_threshold > 0:
-                max_age = timedelta(minutes=config.freshness_threshold)
-                if now - last_record_ts > max_age:
-                    fallback_reason = (
-                        "stale data: "
-                        f"last_ts={last_record_ts.isoformat(timespec='seconds')}"
-                    )
-
-    source_name = "dukascopy"
-    records: Iterable[dict] = dukascopy_records
+    else:
+        fallback_reason = None
 
     if fallback_reason is not None:
         print(
@@ -199,15 +192,29 @@ def _ingest_symbol(symbol: str, config: WorkerConfig, *, now: datetime) -> Optio
             fallback_reason,
         )
         try:
-            fallback_start = now - timedelta(days=7)
+            fallback_start = ingest_providers.compute_yfinance_fallback_start(
+                last_ts=last_ts,
+                lookback_minutes=config.lookback_minutes,
+                now=now,
+            )
+            print(
+                "[live-ingest] fetching yfinance bars",
+                symbol,
+                tf,
+                fallback_start.isoformat(timespec="seconds"),
+                now.isoformat(timespec="seconds"),
+            )
             records = _load_yfinance_records(symbol, tf, start=fallback_start, end=now)
             source_name = "yfinance"
+        except ingest_providers.ProviderError as exc:
+            print(f"[live-ingest] yfinance fallback failed: {exc}")
+            return None
         except Exception as exc:
             print(f"[live-ingest] yfinance fallback failed: {exc}")
             return None
-        if not records:
-            print("[live-ingest] yfinance fallback returned no rows")
-            return None
+    else:
+        records = dukascopy_records
+        source_name = "dukascopy"
 
     try:
         result = ingest_records(
@@ -225,16 +232,11 @@ def _ingest_symbol(symbol: str, config: WorkerConfig, *, now: datetime) -> Optio
         print(f"[live-ingest] ingestion failed for {symbol}: {exc}")
         return None
 
-    if isinstance(result, dict) and config.offer_side:
-        source_hints: List[str] = []
-        if source_name:
-            source_hints.append(str(source_name))
-        source_value = result.get("source")
-        if isinstance(source_value, str):
-            source_hints.append(source_value)
-        normalized = [hint.lower() for hint in source_hints if hint]
-        if any("dukascopy" in hint for hint in normalized):
-            result.setdefault("dukascopy_offer_side", config.offer_side)
+    if isinstance(result, dict) and config.offer_side and source_name == "dukascopy":
+        ingest_providers.mark_dukascopy_offer_side(
+            result,
+            offer_side=config.offer_side,
+        )
 
     print(
         f"[live-ingest] {symbol} {source_name} rows={result['rows_validated']} "
