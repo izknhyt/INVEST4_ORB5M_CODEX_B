@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 
 class SameBarPolicy(str, Enum):
@@ -29,6 +29,8 @@ class OrderSpec:
 
 class _BaseFill:
     """Common helpers shared by Conservative / Bridge fill models."""
+
+    _ResultMutator = Optional[Callable[[Dict[str, float], Dict[str, Any]], None]]
 
     def __init__(
         self,
@@ -114,17 +116,27 @@ class _BaseFill:
         exit_reason = "tp" if p_tp >= 0.5 else stop_info[1]
         return exit_px, exit_reason, p_tp
 
-
-class ConservativeFill(_BaseFill):
-    def __init__(self, same_bar_policy: SameBarPolicy = SameBarPolicy.SL_FIRST) -> None:
-        super().__init__(same_bar_policy)
-
-    def simulate(self, bar: Dict[str, float], spec: OrderSpec) -> Dict[str, float]:
+    def _simulate_bar(
+        self,
+        bar: Dict[str, float],
+        spec: OrderSpec,
+        *,
+        include_prob: bool,
+        result_mutator: _ResultMutator = None,
+    ) -> Dict[str, float]:
         pip = bar.get("pip", 0.01) or 0.01
         entry = spec.entry
-        if spec.side == "BUY":
+        side = spec.side
+
+        context_base: Dict[str, Any] = {"side": side, "pip": pip, "include_prob": include_prob}
+
+        if side == "BUY":
             if bar["h"] < entry:
-                return {"fill": False}
+                result: Dict[str, float] = {"fill": False}
+                context = {**context_base, "event": "no_fill"}
+                if result_mutator:
+                    result_mutator(result, context)
+                return result
             worst_fill = entry + spec.slip_cap_pip * pip
             fill_px = min(bar["h"], worst_fill)
             tp_px = entry + spec.tp_pips * pip
@@ -139,83 +151,94 @@ class ConservativeFill(_BaseFill):
                 stop_hit = True
                 stop_info = (sl_px, "sl")
             tp_hit = bar["h"] >= tp_px
-            if stop_hit and tp_hit:
-                exit_px, exit_reason, p_tp = self._resolve_same_bar(
-                    spec, tp_px, stop_info, bar, pip, include_prob=False
-                )
-                result = {
-                    "fill": True,
-                    "entry_px": fill_px,
-                    "exit_px": exit_px,
-                    "exit_reason": exit_reason,
-                }
-                if p_tp is not None:
-                    result["p_tp"] = p_tp
+        elif side == "SELL":
+            if bar["l"] > entry:
+                result = {"fill": False}
+                context = {**context_base, "event": "no_fill"}
+                if result_mutator:
+                    result_mutator(result, context)
                 return result
-            if stop_hit:
-                return {
-                    "fill": True,
-                    "entry_px": fill_px,
-                    "exit_px": stop_info[0],
-                    "exit_reason": stop_info[1],
-                }
-            if tp_hit:
-                return {
-                    "fill": True,
-                    "entry_px": fill_px,
-                    "exit_px": tp_px,
-                    "exit_reason": "tp",
-                }
-            result = {"fill": True, "entry_px": fill_px, "exit": None}
-            if trail_px is not None and not trail_hit:
-                result["trail_stop_px"] = trail_px
-            return result
+            worst_fill = entry - spec.slip_cap_pip * pip
+            fill_px = max(bar["l"], worst_fill)
+            tp_px = entry - spec.tp_pips * pip
+            sl_px = entry + spec.sl_pips * pip
+            trail_hit, trail_px = self._eval_trailing("SELL", entry, sl_px, spec.trail_pips, bar, pip)
+            stop_hit = False
+            stop_info = None
+            if trail_hit:
+                stop_hit = True
+                stop_info = (trail_px or sl_px, "trail")
+            elif bar["h"] >= sl_px:
+                stop_hit = True
+                stop_info = (sl_px, "sl")
+            tp_hit = bar["l"] <= tp_px
+        else:
+            raise ValueError(f"Unsupported side: {side}")
 
-        if bar["l"] > entry:
-            return {"fill": False}
-        worst_fill = entry - spec.slip_cap_pip * pip
-        fill_px = max(bar["l"], worst_fill)
-        tp_px = entry - spec.tp_pips * pip
-        sl_px = entry + spec.sl_pips * pip
-        trail_hit, trail_px = self._eval_trailing("SELL", entry, sl_px, spec.trail_pips, bar, pip)
-        stop_hit = False
-        stop_info = None
-        if trail_hit:
-            stop_hit = True
-            stop_info = (trail_px or sl_px, "trail")
-        elif bar["h"] >= sl_px:
-            stop_hit = True
-            stop_info = (sl_px, "sl")
-        tp_hit = bar["l"] <= tp_px
-        if stop_hit and tp_hit:
-            exit_px, exit_reason, p_tp = self._resolve_same_bar(spec, tp_px, stop_info, bar, pip, include_prob=False)
+        context_common: Dict[str, Any] = {
+            **context_base,
+            "stop_info": stop_info,
+            "tp_px": tp_px,
+            "trail_hit": trail_hit,
+            "trail_px": trail_px,
+            "tp_hit": tp_hit,
+            "stop_hit": stop_hit,
+        }
+
+        if stop_hit and tp_hit and stop_info is not None:
+            exit_px, exit_reason, p_tp = self._resolve_same_bar(spec, tp_px, stop_info, bar, pip, include_prob)
             result = {
                 "fill": True,
                 "entry_px": fill_px,
                 "exit_px": exit_px,
                 "exit_reason": exit_reason,
             }
-            if p_tp is not None:
+            context = {**context_common, "event": "same_bar", "p_tp": p_tp}
+            if include_prob and p_tp is not None:
                 result["p_tp"] = p_tp
+            if result_mutator:
+                result_mutator(result, context)
             return result
-        if stop_hit:
-            return {
+
+        if stop_hit and stop_info is not None:
+            result = {
                 "fill": True,
                 "entry_px": fill_px,
                 "exit_px": stop_info[0],
                 "exit_reason": stop_info[1],
             }
+            context = {**context_common, "event": "stop"}
+            if result_mutator:
+                result_mutator(result, context)
+            return result
+
         if tp_hit:
-            return {
+            result = {
                 "fill": True,
                 "entry_px": fill_px,
                 "exit_px": tp_px,
                 "exit_reason": "tp",
             }
+            context = {**context_common, "event": "tp"}
+            if result_mutator:
+                result_mutator(result, context)
+            return result
+
         result = {"fill": True, "entry_px": fill_px, "exit": None}
         if trail_px is not None and not trail_hit:
             result["trail_stop_px"] = trail_px
+        context = {**context_common, "event": "pending"}
+        if result_mutator:
+            result_mutator(result, context)
         return result
+
+
+class ConservativeFill(_BaseFill):
+    def __init__(self, same_bar_policy: SameBarPolicy = SameBarPolicy.SL_FIRST) -> None:
+        super().__init__(same_bar_policy)
+
+    def simulate(self, bar: Dict[str, float], spec: OrderSpec) -> Dict[str, float]:
+        return self._simulate_bar(bar, spec, include_prob=False)
 
 
 class BridgeFill(_BaseFill):
@@ -228,101 +251,15 @@ class BridgeFill(_BaseFill):
         super().__init__(same_bar_policy, lam=lam, drift_scale=drift_scale)
 
     def simulate(self, bar: Dict[str, float], spec: OrderSpec) -> Dict[str, float]:
-        pip = bar.get("pip", 0.01) or 0.01
-        entry = spec.entry
-        if spec.side == "BUY":
-            if bar["h"] < entry:
-                return {"fill": False}
-            worst_fill = entry + spec.slip_cap_pip * pip
-            fill_px = min(bar["h"], worst_fill)
-            tp_px = entry + spec.tp_pips * pip
-            sl_px = entry - spec.sl_pips * pip
-            trail_hit, trail_px = self._eval_trailing("BUY", entry, sl_px, spec.trail_pips, bar, pip)
-            stop_hit = False
-            stop_info: Optional[Tuple[float, str]] = None
-            if trail_hit:
-                stop_hit = True
-                stop_info = (trail_px or sl_px, "trail")
-            elif bar["l"] <= sl_px:
-                stop_hit = True
-                stop_info = (sl_px, "sl")
-            tp_hit = bar["h"] >= tp_px
-            if stop_hit and tp_hit:
-                exit_px, exit_reason, p_tp = self._resolve_same_bar(spec, tp_px, stop_info, bar, pip, include_prob=True)
-                return {
-                    "fill": True,
-                    "entry_px": fill_px,
-                    "exit_px": exit_px,
-                    "exit_reason": exit_reason,
-                    "p_tp": p_tp,
-                }
-            if stop_hit:
-                p_tp = 0.0
-                if stop_info[1] == "trail" and self._policy(spec) == SameBarPolicy.PROBABILISTIC:
-                    # Trailing stop can still exit with some locked profit; treat as certainty of stop
-                    p_tp = 0.0
-                return {
-                    "fill": True,
-                    "entry_px": fill_px,
-                    "exit_px": stop_info[0],
-                    "exit_reason": stop_info[1],
-                    "p_tp": p_tp,
-                }
-            if tp_hit:
-                return {
-                    "fill": True,
-                    "entry_px": fill_px,
-                    "exit_px": tp_px,
-                    "exit_reason": "tp",
-                    "p_tp": 1.0,
-                }
-            result = {"fill": True, "entry_px": fill_px, "exit": None}
-            if trail_px is not None and not trail_hit:
-                result["trail_stop_px"] = trail_px
-            return result
+        def _mutator(result: Dict[str, float], context: Dict[str, Any]) -> None:
+            if context["event"] == "stop":
+                if context.get("include_prob"):
+                    # Trailing stop exits should be treated as certain stops even
+                    # under probabilistic policies so downstream sizing can rely on
+                    # `p_tp` being zero.
+                    result["p_tp"] = 0.0
+            elif context["event"] == "tp":
+                if context.get("include_prob"):
+                    result["p_tp"] = 1.0
 
-        if bar["l"] > entry:
-            return {"fill": False}
-        worst_fill = entry - spec.slip_cap_pip * pip
-        fill_px = max(bar["l"], worst_fill)
-        tp_px = entry - spec.tp_pips * pip
-        sl_px = entry + spec.sl_pips * pip
-        trail_hit, trail_px = self._eval_trailing("SELL", entry, sl_px, spec.trail_pips, bar, pip)
-        stop_hit = False
-        stop_info = None
-        if trail_hit:
-            stop_hit = True
-            stop_info = (trail_px or sl_px, "trail")
-        elif bar["h"] >= sl_px:
-            stop_hit = True
-            stop_info = (sl_px, "sl")
-        tp_hit = bar["l"] <= tp_px
-        if stop_hit and tp_hit:
-            exit_px, exit_reason, p_tp = self._resolve_same_bar(spec, tp_px, stop_info, bar, pip, include_prob=True)
-            return {
-                "fill": True,
-                "entry_px": fill_px,
-                "exit_px": exit_px,
-                "exit_reason": exit_reason,
-                "p_tp": p_tp,
-            }
-        if stop_hit:
-            return {
-                "fill": True,
-                "entry_px": fill_px,
-                "exit_px": stop_info[0],
-                "exit_reason": stop_info[1],
-                "p_tp": 0.0,
-            }
-        if tp_hit:
-            return {
-                "fill": True,
-                "entry_px": fill_px,
-                "exit_px": tp_px,
-                "exit_reason": "tp",
-                "p_tp": 1.0,
-            }
-        result = {"fill": True, "entry_px": fill_px, "exit": None}
-        if trail_px is not None and not trail_hit:
-            result["trail_stop_px"] = trail_px
-        return result
+        return self._simulate_bar(bar, spec, include_prob=True, result_mutator=_mutator)
