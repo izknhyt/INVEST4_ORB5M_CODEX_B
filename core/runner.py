@@ -48,6 +48,7 @@ class Metrics:
     records: List[Dict[str, Any]] = field(default_factory=list)
     daily: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     debug: Dict[str, Any] = field(default_factory=dict)
+    runtime: Dict[str, Any] = field(default_factory=dict)
     starting_equity: float = 0.0
 
     def __post_init__(self) -> None:
@@ -73,7 +74,7 @@ class Metrics:
         else:
             win_rate = None
 
-        return {
+        data = {
             "trades": self.trades,
             "wins": self.wins,
             "win_rate": win_rate,
@@ -81,6 +82,9 @@ class Metrics:
             "sharpe": self._compute_sharpe(),
             "max_drawdown": self._compute_max_drawdown(),
         }
+        if self.runtime:
+            data["runtime"] = self.runtime
+        return data
 
     def _compute_sharpe(self) -> Optional[float]:
         if not self.trade_returns:
@@ -430,6 +434,34 @@ class BacktestRunner:
             entry[key] = float(entry.get(key, 0.0)) + float(amount)
         else:
             entry[key] = int(entry.get(key, 0)) + int(amount)
+
+    def _build_runtime_snapshot(self) -> Dict[str, Any]:
+        totals = {
+            "ev_pass": 0,
+            "ev_reject": 0,
+            "fills": 0,
+            "slip_real": 0.0,
+        }
+        for entry in self.daily.values():
+            totals["ev_pass"] += int(entry.get("ev_pass", 0))
+            totals["ev_reject"] += int(entry.get("ev_reject", 0))
+            totals["fills"] += int(entry.get("fills", 0))
+            totals["slip_real"] += float(entry.get("slip_real", 0.0))
+
+        runtime: Dict[str, Any] = {
+            "ev_pass": totals["ev_pass"],
+            "ev_reject": totals["ev_reject"],
+            "fills": totals["fills"],
+        }
+        gate_total = totals["ev_pass"] + totals["ev_reject"]
+        exec_health: Dict[str, float] = {}
+        if gate_total > 0:
+            exec_health["reject_rate"] = totals["ev_reject"] / float(gate_total)
+        if totals["fills"] > 0:
+            exec_health["slippage_bps"] = totals["slip_real"] / float(totals["fills"])
+        if exec_health:
+            runtime["execution_health"] = exec_health
+        return runtime
 
     @staticmethod
     def _quantile(values: List[float], q: float) -> Optional[float]:
@@ -1705,6 +1737,8 @@ class BacktestRunner:
         self.metrics.records = list(self.records)
         if self.daily:
             self.metrics.daily = dict(self.daily)
+
+        self.metrics.runtime = self._build_runtime_snapshot()
 
         if self.debug:
             self.metrics.debug.update(self.debug_counts)

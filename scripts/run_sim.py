@@ -29,8 +29,10 @@ if ROOT not in sys.path:
 from core.utils import yaml_compat as yaml
 from scripts._time_utils import utcnow_aware
 from core.runner import BacktestRunner, RunnerConfig
+from core.router_pipeline import PortfolioTelemetry, build_portfolio_state
 from scripts.config_utils import build_runner_config
 from configs.strategies.loader import load_manifest, StrategyManifest
+from router.router_v1 import select_candidates
 
 
 def _strategy_state_key(strategy_cls) -> str:
@@ -333,7 +335,24 @@ def main(argv=None):
             except Exception:
                 loaded_state_path = None
     metrics = runner.run(bars, mode=args.mode)
+    router_results = None
+    if manifest is not None:
+        runtime_mapping: Dict[str, Dict[str, Any]] = {}
+        runtime_snapshot = getattr(metrics, "runtime", {}) or {}
+        if runtime_snapshot:
+            runtime_mapping[manifest.id] = dict(runtime_snapshot)
+        telemetry_snapshot = PortfolioTelemetry(active_positions={manifest.id: 0})
+        portfolio_state = build_portfolio_state(
+            [manifest], telemetry=telemetry_snapshot, runtime_metrics=runtime_mapping or None
+        )
+        router_results = select_candidates(
+            {"session": None, "spread_band": None, "rv_band": None},
+            [manifest],
+            portfolio=portfolio_state,
+        )
     out = metrics.as_dict()
+    if router_results is not None:
+        out["router"] = [result.as_dict() for result in router_results]
     out["decay"] = runner.ev_global.decay
     if getattr(metrics, 'debug', None):
         out["debug"] = metrics.debug
