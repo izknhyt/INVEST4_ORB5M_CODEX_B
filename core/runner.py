@@ -14,15 +14,15 @@ import json
 import hashlib
 import math
 from datetime import datetime, timezone
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 
 from strategies.day_orb_5m import DayORB5m
 from core.strategy_api import Strategy
 from core.feature_store import atr as calc_atr, adx as calc_adx, opening_range, realized_vol
 from core.fill_engine import ConservativeFill, BridgeFill, OrderSpec
 from core.ev_gate import BetaBinomialEV, TLowerEV
-from core.pips import pip_size, price_to_pips
-from core.sizing import compute_qty_from_ctx
+from core.pips import pip_size, pip_value, price_to_pips
+from core.sizing import SizingConfig, compute_qty_from_ctx
 from router.router_v0 import pass_gates
 
 
@@ -213,6 +213,8 @@ class RunnerConfig:
     })
     slip_learn: bool = True
     slip_ewma_alpha: float = 0.1
+    base_notional: Optional[float] = None
+    pip_value_override: Optional[float] = None
     # RV quantile calibration (session-wise)
     rv_qcalib_enabled: bool = False
     rv_q_low: float = 0.33
@@ -267,6 +269,30 @@ class RunnerConfig:
 
     def merge_strategy_params(self, params: Dict[str, Any], *, replace: bool = False) -> None:
         self.strategy.merge(params, replace=replace)
+
+    def build_sizing_cfg(self) -> SizingConfig:
+        cfg = SizingConfig()
+        if self.risk_per_trade_pct and self.risk_per_trade_pct > 0:
+            cfg.risk_per_trade_pct = float(self.risk_per_trade_pct)
+        kelly_fraction = getattr(self, "kelly_fraction", None)
+        if kelly_fraction is not None:
+            try:
+                cfg.kelly_fraction = float(kelly_fraction)
+            except (TypeError, ValueError):
+                pass
+        units_cap = getattr(self, "units_cap", None)
+        if units_cap is not None:
+            try:
+                cfg.units_cap = float(units_cap)
+            except (TypeError, ValueError):
+                pass
+        max_trade_loss_pct = getattr(self, "max_trade_loss_pct", None)
+        if max_trade_loss_pct is not None:
+            try:
+                cfg.max_trade_loss_pct = float(max_trade_loss_pct)
+            except (TypeError, ValueError):
+                pass
+        return cfg
 
 
 class BacktestRunner:
@@ -1543,6 +1569,18 @@ class BacktestRunner:
         if or_h is not None and or_l is not None and atr14 and atr14 > 0:
             or_ratio = (or_h - or_l) / atr14
 
+        if self.rcfg.pip_value_override is not None:
+            try:
+                pip_val = float(self.rcfg.pip_value_override)
+            except (TypeError, ValueError):
+                pip_val = 10.0
+        elif self.rcfg.base_notional is not None and self.rcfg.base_notional > 0:
+            pip_val = pip_value(self.symbol, float(self.rcfg.base_notional))
+        else:
+            pip_val = 10.0
+
+        sizing_cfg_dict = asdict(self.rcfg.build_sizing_cfg())
+
         ctx = {
             "session": session,
             "spread_band": self._band_spread(spread_pips),
@@ -1563,8 +1601,8 @@ class BacktestRunner:
             "ev_oco": None,
             "base_cost_pips": spread_pips,
             "equity": self.equity,
-            "pip_value": 10.0,  # placeholder; typically derived from notional
-            "sizing_cfg": {"risk_per_trade_pct": 0.25, "kelly_fraction": 0.25, "units_cap": 5.0, "max_trade_loss_pct": 0.5},
+            "pip_value": pip_val,
+            "sizing_cfg": sizing_cfg_dict,
         }
         if self.rcfg.allowed_sessions:
             ctx["allowed_sessions"] = self.rcfg.allowed_sessions

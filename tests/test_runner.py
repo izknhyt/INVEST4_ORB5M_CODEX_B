@@ -289,6 +289,31 @@ class TestRunner(unittest.TestCase):
         self.assertEqual(runner.debug_counts["gate_block"], 1)
         self.assertEqual(runner.debug_counts["zero_qty"], 0)
 
+    def test_build_ctx_uses_runner_config_sizing_and_pip_value(self):
+        cfg = RunnerConfig(risk_per_trade_pct=1.2, base_notional=200_000.0)
+        runner = BacktestRunner(equity=50_000.0, symbol="EURUSD", runner_cfg=cfg)
+        bar = make_bar(
+            datetime(2024, 1, 4, 8, 0, tzinfo=timezone.utc),
+            "EURUSD",
+            1.10,
+            1.11,
+            1.09,
+            1.105,
+            spread=0.0002,
+        )
+        new_session, session, calibrating = runner._update_daily_state(bar)
+        features = runner._compute_features(
+            bar,
+            session=session,
+            new_session=new_session,
+            calibrating=calibrating,
+        )
+        self.assertAlmostEqual(features.ctx["pip_value"], 20.0)
+        self.assertAlmostEqual(
+            features.ctx["sizing_cfg"]["risk_per_trade_pct"],
+            1.2,
+        )
+
     def test_slip_learning_helper_updates_coefficients(self):
         cfg = RunnerConfig(include_expected_slip=True, slip_learn=True)
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY", runner_cfg=cfg)
