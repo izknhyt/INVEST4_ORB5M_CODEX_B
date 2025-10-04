@@ -39,13 +39,21 @@ class TestRunner(unittest.TestCase):
         def update(self, hit: bool) -> None:
             self.last_update = hit
 
-    def _prepare_breakout_environment(self, *, warmup_left: int = 0):
+    def _prepare_breakout_environment(
+        self,
+        *,
+        warmup_left: int = 0,
+        calibrate_days: int = 0,
+        include_expected_slip: bool = False,
+    ):
         import core.runner as runner_module
 
         symbol = "USDJPY"
         runner = BacktestRunner(equity=100_000.0, symbol=symbol)
         runner._strategy_gate_hook = None
         runner._ev_threshold_hook = None
+        runner.rcfg.calibrate_days = calibrate_days
+        runner.rcfg.include_expected_slip = include_expected_slip
         t0 = datetime(2024, 1, 5, 8, 0, tzinfo=timezone.utc)
         bars = []
         price = 150.0
@@ -81,7 +89,7 @@ class TestRunner(unittest.TestCase):
                 calibrating=calibrating,
             )
         new_session, session, calibrating = runner._update_daily_state(breakout)
-        bar_input, ctx, atr14, adx14, or_h, or_l = runner._compute_features(
+        features = runner._compute_features(
             breakout,
             session=session,
             new_session=new_session,
@@ -102,7 +110,7 @@ class TestRunner(unittest.TestCase):
         runner.rcfg.min_or_atr_ratio = 0.0
         runner.rcfg.allow_low_rv = True
         runner.rcfg.allowed_sessions = ()
-        return runner, pending, breakout, bar_input, ctx, atr14, adx14, or_h, or_l, calibrating
+        return runner, pending, breakout, features, calibrating
 
     def test_minimal_flow_produces_metrics(self):
         # create simple opening range then breakout
@@ -319,28 +327,14 @@ class TestRunner(unittest.TestCase):
         self.assertEqual(runner_off.slip_a["normal"], prev_a_off)
         self.assertEqual(runner_off.qty_ewma["normal"], prev_qty_off)
     def test_evaluate_entry_conditions_and_ev_pass_on_breakout(self):
-        (
-            runner,
-            pending,
-            breakout,
-            bar_input,
-            ctx,
-            atr14,
-            adx14,
-            or_h,
-            or_l,
-            calibrating,
-        ) = self._prepare_breakout_environment(warmup_left=0)
+        runner, pending, breakout, features, calibrating = self._prepare_breakout_environment(
+            warmup_left=0
+        )
         stub_ev = self.DummyEV(ev_lcb=1.2, p_lcb=0.65)
         runner._get_ev_manager = lambda key: stub_ev
         ctx_dbg = runner._evaluate_entry_conditions(
             pending=pending,
-            bar=breakout,
-            bar_input=bar_input,
-            atr14=atr14,
-            adx14=adx14,
-            or_h=or_h,
-            or_l=or_l,
+            features=features,
         )
         self.assertIsNotNone(ctx_dbg)
         ev_eval = runner._evaluate_ev_threshold(
@@ -366,28 +360,14 @@ class TestRunner(unittest.TestCase):
         self.assertTrue(slip_ok)
 
     def test_evaluate_ev_threshold_rejects_when_ev_below_threshold(self):
-        (
-            runner,
-            pending,
-            breakout,
-            bar_input,
-            ctx,
-            atr14,
-            adx14,
-            or_h,
-            or_l,
-            calibrating,
-        ) = self._prepare_breakout_environment(warmup_left=0)
+        runner, pending, breakout, features, calibrating = self._prepare_breakout_environment(
+            warmup_left=0
+        )
         stub_ev = self.DummyEV(ev_lcb=0.05, p_lcb=0.55)
         runner._get_ev_manager = lambda key: stub_ev
         ctx_dbg = runner._evaluate_entry_conditions(
             pending=pending,
-            bar=breakout,
-            bar_input=bar_input,
-            atr14=atr14,
-            adx14=adx14,
-            or_h=or_h,
-            or_l=or_l,
+            features=features,
         )
         self.assertIsNotNone(ctx_dbg)
         ev_eval = runner._evaluate_ev_threshold(
@@ -400,28 +380,14 @@ class TestRunner(unittest.TestCase):
         self.assertEqual(runner.debug_counts["ev_reject"], 1)
 
     def test_warmup_bypass_allows_low_ev_signal(self):
-        (
-            runner,
-            pending,
-            breakout,
-            bar_input,
-            ctx,
-            atr14,
-            adx14,
-            or_h,
-            or_l,
-            calibrating,
-        ) = self._prepare_breakout_environment(warmup_left=5)
+        runner, pending, breakout, features, calibrating = self._prepare_breakout_environment(
+            warmup_left=5
+        )
         stub_ev = self.DummyEV(ev_lcb=0.05, p_lcb=0.55)
         runner._get_ev_manager = lambda key: stub_ev
         ctx_dbg = runner._evaluate_entry_conditions(
             pending=pending,
-            bar=breakout,
-            bar_input=bar_input,
-            atr14=atr14,
-            adx14=adx14,
-            or_h=or_h,
-            or_l=or_l,
+            features=features,
         )
         self.assertIsNotNone(ctx_dbg)
         ev_eval = runner._evaluate_ev_threshold(
@@ -444,6 +410,27 @@ class TestRunner(unittest.TestCase):
         )
         self.assertTrue(slip_ok)
         self.assertEqual(runner.debug_counts["ev_bypass"], 1)
+
+    def test_calibration_ctx_preserves_threshold_and_expected_slip(self):
+        runner, pending, breakout, features, calibrating = self._prepare_breakout_environment(
+            warmup_left=0,
+            calibrate_days=2,
+            include_expected_slip=True,
+        )
+        self.assertTrue(calibrating)
+        base_ctx = features.ctx
+        self.assertIn("threshold_lcb_pip", base_ctx)
+        self.assertEqual(base_ctx["threshold_lcb_pip"], -1e9)
+        expected_slip = base_ctx.get("expected_slip_pip")
+        self.assertIsNotNone(expected_slip)
+        self.assertGreater(expected_slip, 0.0)
+        ctx_dbg = runner._evaluate_entry_conditions(
+            pending=pending,
+            features=features,
+        )
+        self.assertIsNotNone(ctx_dbg)
+        self.assertEqual(ctx_dbg.get("threshold_lcb_pip"), -1e9)
+        self.assertEqual(ctx_dbg.get("expected_slip_pip"), expected_slip)
 
     def test_handle_active_position_trail_exit_buy_and_sell(self):
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
