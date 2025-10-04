@@ -903,8 +903,11 @@ def _run_yfinance_ingest(
             f"yfinance module unavailable: {exc}",
         )
     else:
-        lookback = max(5, args.yfinance_lookback_minutes)
-        start = last_ts - timedelta(minutes=lookback) if last_ts else now - timedelta(minutes=lookback)
+        start = _compute_yfinance_fallback_start(
+            last_ts=last_ts,
+            lookback_minutes=args.yfinance_lookback_minutes,
+            now=now,
+        )
 
         fetch_symbol = resolve_ticker(ctx.symbol)
         print(

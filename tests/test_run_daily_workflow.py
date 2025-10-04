@@ -4,6 +4,7 @@ from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from types import SimpleNamespace
+from typing import Dict
 
 import pytest
 from core.utils import yaml_compat
@@ -674,6 +675,123 @@ def test_yfinance_ingest_updates_snapshot(tmp_path, monkeypatch):
     assert "fallbacks" not in meta
     assert meta["last_ingest_at"] == fixed_now.replace(tzinfo=timezone.utc).isoformat()
 
+
+@pytest.mark.parametrize(
+    "last_ts_offset",
+    [None, timedelta(days=10)],
+    ids=["missing_last_ts", "stale_last_ts"],
+)
+def test_yfinance_ingest_clamps_lookback_like_helper(
+    tmp_path, monkeypatch, capsys, last_ts_offset
+):
+    repo_root = tmp_path / "repo"
+    (repo_root / "ops").mkdir(parents=True)
+    (repo_root / "raw/USDJPY").mkdir(parents=True)
+    (repo_root / "validated/USDJPY").mkdir(parents=True)
+    (repo_root / "features/USDJPY").mkdir(parents=True)
+
+    snapshot_path_obj = repo_root / "ops/runtime_snapshot.json"
+    snapshot_path_obj.write_text("{}", encoding="utf-8")
+
+    now = datetime(2025, 10, 8, 5, 0)
+    monkeypatch.setattr(run_daily_workflow, "_utcnow_naive", lambda: now)
+    monkeypatch.setattr(run_daily_workflow, "ROOT", repo_root)
+
+    last_ts = None if last_ts_offset is None else now - last_ts_offset
+
+    expected_start = ingest_providers.compute_yfinance_fallback_start(
+        last_ts=last_ts,
+        lookback_minutes=60,
+        now=now,
+    )
+
+    captured: Dict[str, object] = {}
+
+    def fake_fetch(fetch_bars, symbol, tf, *, start, end, empty_reason):
+        captured["symbol"] = symbol
+        captured["tf"] = tf
+        captured["start"] = start
+        captured["end"] = end
+        captured["empty_reason"] = empty_reason
+        return [
+            {
+                "timestamp": (now - timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%S"),
+                "symbol": symbol,
+                "tf": tf,
+                "o": 1.0,
+                "h": 1.0,
+                "l": 1.0,
+                "c": 1.0,
+                "v": 0.0,
+                "spread": 0.0,
+            }
+        ]
+
+    monkeypatch.setattr(run_daily_workflow, "_fetch_yfinance_records", fake_fetch)
+
+    def fake_get_last_processed_ts(
+        _symbol, _tf, *, snapshot_path, validated_path
+    ):
+        assert Path(snapshot_path) == snapshot_path_obj
+        assert Path(validated_path) == repo_root / "validated/USDJPY/5m.csv"
+        return last_ts
+
+    def fake_ingest(
+        records,
+        *,
+        symbol,
+        tf,
+        snapshot_path,
+        raw_path,
+        validated_path,
+        features_path,
+        source_name,
+        **_kwargs,
+    ):
+        assert symbol == "USDJPY"
+        assert tf == "5m"
+        assert Path(snapshot_path) == snapshot_path_obj
+        assert Path(raw_path) == repo_root / "raw/USDJPY/5m.csv"
+        assert Path(validated_path) == repo_root / "validated/USDJPY/5m.csv"
+        assert Path(features_path) == repo_root / "features/USDJPY/5m.csv"
+        assert source_name == "yfinance"
+        return {
+            "rows_raw": len(records),
+            "rows_validated": len(records),
+            "rows_featured": 0,
+            "last_ts_now": now.isoformat(timespec="seconds"),
+            "source": source_name,
+        }
+
+    monkeypatch.setattr(run_daily_workflow, "_persist_ingest_metadata", lambda **_kwargs: None)
+
+    ctx = run_daily_workflow.IngestContext(
+        symbol="USDJPY",
+        tf="5m",
+        snapshot_path=snapshot_path_obj,
+        raw_path=repo_root / "raw/USDJPY/5m.csv",
+        validated_path=repo_root / "validated/USDJPY/5m.csv",
+        features_path=repo_root / "features/USDJPY/5m.csv",
+        ingest_records=fake_ingest,
+        get_last_processed_ts=fake_get_last_processed_ts,
+        fallback_notes=[],
+        local_backup_path=None,
+        synthetic_allowed=True,
+    )
+
+    args = SimpleNamespace(symbol="USDJPY", yfinance_lookback_minutes=60)
+
+    result, exit_code = run_daily_workflow._run_yfinance_ingest(ctx, args)
+
+    assert exit_code == 0
+    assert captured["symbol"] == "USDJPY"
+    assert captured["tf"] == "5m"
+    assert captured["start"] == expected_start
+    assert captured["end"] == now
+    assert result["rows_validated"] == 1
+
+    output = capsys.readouterr().out
+    assert expected_start.isoformat(timespec="seconds") in output
 
 def test_yfinance_ingest_accepts_suffix_symbol(tmp_path, monkeypatch):
     repo_root = tmp_path / "repo"
