@@ -42,6 +42,28 @@ def test_log_latency_and_fallback(tmp_path):
     assert record["note"] == "error"
 
 
+def test_log_files_without_dir(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    payload = emit.SignalPayload(
+        signal_id="sig2",
+        timestamp_utc="2025-09-21T12:05:00+00:00",
+        side="SELL",
+        entry=120.0,
+        tp=119.5,
+        sl=121.0,
+        trail=0.0,
+        confidence=0.6,
+    )
+
+    emit.log_latency("latency.csv", payload.signal_id, payload.timestamp_utc, True, "ok")
+    emit.log_fallback("fallback.log", payload, "fallback")
+
+    latency_path = tmp_path / "latency.csv"
+    fallback_path = tmp_path / "fallback.log"
+    assert latency_path.exists()
+    assert fallback_path.exists()
+
+
 def test_send_webhook_success(monkeypatch):
     class FakeResponse:
         status = 200

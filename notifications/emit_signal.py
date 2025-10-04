@@ -7,6 +7,7 @@ import os
 import sys
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Iterable, Optional
 
 try:
@@ -48,8 +49,15 @@ def send_webhook(url: str, payload: SignalPayload, timeout: float = 5.0) -> tupl
         return False, f"unexpected_error={type(e).__name__}:{e}"
 
 
+def _ensure_parent_dir(path: str) -> None:
+    dirpath = Path(path).parent
+    if not dirpath.parts:
+        return
+    dirpath.mkdir(parents=True, exist_ok=True)
+
+
 def log_latency(output_path: str, signal_id: str, ts_emit: str, success: bool, detail: str) -> None:
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    _ensure_parent_dir(output_path)
     ts_ack = datetime.now(timezone.utc).isoformat()
     line = ",".join([
         signal_id,
@@ -67,7 +75,7 @@ def log_latency(output_path: str, signal_id: str, ts_emit: str, success: bool, d
 
 
 def log_fallback(path: str, payload: SignalPayload, note: str) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    _ensure_parent_dir(path)
     ts = datetime.now(timezone.utc).isoformat()
     record = {
         "ts": ts,
