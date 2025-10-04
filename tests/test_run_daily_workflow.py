@@ -247,7 +247,7 @@ def test_main_returns_first_failure(failing_run_cmd):
     assert len(captured) == 1
 
 
-def test_api_ingest_updates_snapshot(tmp_path, monkeypatch):
+def test_api_ingest_updates_snapshot(tmp_path, monkeypatch, capsys):
     repo_root = tmp_path / "repo"
     (repo_root / "ops/logs").mkdir(parents=True)
     (repo_root / "configs").mkdir()
@@ -378,6 +378,10 @@ def test_api_ingest_updates_snapshot(tmp_path, monkeypatch):
     )
 
     assert exit_code == 0
+    captured = capsys.readouterr().out
+    assert "[wf] api_ingest" in captured
+    assert "rows=2" in captured
+    assert "last_ts=2025-01-01T00:30:00" in captured
     assert fetch_calls["symbol"] == "USDJPY"
     assert fetch_calls["tf"] == "5m"
     assert fetch_calls["provider"] == "mock"
@@ -409,7 +413,7 @@ def test_api_ingest_updates_snapshot(tmp_path, monkeypatch):
     assert meta["snapshot_path"] == str(snapshot_path)
 
 
-def test_api_ingest_falls_back_to_local_csv(tmp_path, monkeypatch):
+def test_api_ingest_falls_back_to_local_csv(tmp_path, monkeypatch, capsys):
     repo_root = tmp_path / "repo"
     (repo_root / "ops/logs").mkdir(parents=True)
     (repo_root / "configs").mkdir()
@@ -496,6 +500,10 @@ def test_api_ingest_falls_back_to_local_csv(tmp_path, monkeypatch):
     )
 
     assert exit_code == 0
+    fallback_logs = capsys.readouterr().out
+    assert "[wf] local_csv_ingest" in fallback_logs
+    assert "rows=" in fallback_logs
+    assert "last_ts=" in fallback_logs
 
     snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
     meta = snapshot["ingest_meta"]["USDJPY_5m"]

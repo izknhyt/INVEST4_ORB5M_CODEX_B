@@ -1007,24 +1007,13 @@ def _run_api_ingest(
         ingest_error_prefix="api ingestion failed during ingest",
     )
 
-    if result is None or not source_label:
-        print("[wf] API ingestion produced no result")
-        return None, 1
-
-    _log_ingest_summary(result, source_label)
-
-    finish_now = _utcnow_naive()
-    _persist_ingest_metadata(
-        symbol=ctx.symbol,
-        tf=ctx.tf,
-        snapshot_path=ctx.snapshot_path,
-        result=result,
-        fallback_notes=ctx.fallback_notes,
+    return _finalize_ingest_result(
+        ctx,
+        result,
+        source_label,
         primary_source="api",
-        now=finish_now,
+        empty_message="[wf] API ingestion produced no result",
     )
-
-    return result, 0
 
 def run_cmd(cmd):
     print(f"[wf] running: {' '.join(cmd)}")
