@@ -21,7 +21,7 @@ from core.strategy_api import Strategy
 from core.feature_store import atr as calc_atr, adx as calc_adx, opening_range, realized_vol
 from core.fill_engine import ConservativeFill, BridgeFill, OrderSpec
 from core.ev_gate import BetaBinomialEV, TLowerEV
-from core.pips import pip_size, price_to_pips
+from core.pips import pip_size, price_to_pips, pip_value as calc_pip_value
 from core.sizing import SizingConfig, compute_qty_from_ctx
 from router.router_v0 import pass_gates
 
@@ -1550,6 +1550,32 @@ class BacktestRunner:
     ) -> Dict[str, Any]:
         ps = pip_size(self.symbol)
         spread_pips = bar["spread"] / ps  # assume spread is price units; convert to pips
+
+        pip_value_default = 10.0
+        pip_value_ctx = pip_value_default
+
+        pip_override_raw = getattr(self.rcfg, "pip_value_override", None)
+        try:
+            pip_override_value: Optional[float] = (
+                float(pip_override_raw) if pip_override_raw is not None else None
+            )
+        except (TypeError, ValueError):
+            pip_override_value = None
+
+        if pip_override_value is not None and pip_override_value > 0.0:
+            pip_value_ctx = pip_override_value
+        else:
+            base_notional_raw = getattr(self.rcfg, "base_notional", None)
+            try:
+                base_notional_value: Optional[float] = (
+                    float(base_notional_raw) if base_notional_raw is not None else None
+                )
+            except (TypeError, ValueError):
+                base_notional_value = None
+
+            if base_notional_value is not None and base_notional_value > 0.0:
+                pip_value_ctx = calc_pip_value(self.symbol, base_notional_value)
+
         or_ratio = 0.0
         if or_h is not None and or_l is not None and atr14 and atr14 > 0:
             or_ratio = (or_h - or_l) / atr14
@@ -1574,7 +1600,7 @@ class BacktestRunner:
             "ev_oco": None,
             "base_cost_pips": spread_pips,
             "equity": self.equity,
-            "pip_value": 10.0,  # placeholder; typically derived from notional
+            "pip_value": pip_value_ctx,
             "sizing_cfg": self.rcfg.build_sizing_cfg(),
         }
         if self.rcfg.allowed_sessions:

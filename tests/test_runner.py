@@ -151,6 +151,43 @@ class TestRunner(unittest.TestCase):
 
         self.assertAlmostEqual(ctx["sizing_cfg"]["risk_per_trade_pct"], 1.2)
 
+    def test_build_ctx_uses_base_notional_string(self):
+        cfg = RunnerConfig()
+        cfg.base_notional = "100000"
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY", runner_cfg=cfg)
+        base_ts = datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc)
+        bar = make_bar(base_ts, "USDJPY", 150.0, 150.2, 149.8, 150.05, spread=0.02)
+
+        ctx = runner._build_ctx(
+            bar=bar,
+            session="LDN",
+            atr14=0.5,
+            or_h=150.2,
+            or_l=149.8,
+            realized_vol_value=0.01,
+        )
+
+        expected = float(cfg.base_notional) * pip_size(runner.symbol)
+        self.assertAlmostEqual(ctx["pip_value"], expected)
+
+    def test_build_ctx_invalid_base_notional_falls_back(self):
+        cfg = RunnerConfig()
+        cfg.base_notional = "not-a-number"
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY", runner_cfg=cfg)
+        base_ts = datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc)
+        bar = make_bar(base_ts, "USDJPY", 150.0, 150.2, 149.8, 150.05, spread=0.02)
+
+        ctx = runner._build_ctx(
+            bar=bar,
+            session="LDN",
+            atr14=0.5,
+            or_h=150.2,
+            or_l=149.8,
+            realized_vol_value=0.01,
+        )
+
+        self.assertAlmostEqual(ctx["pip_value"], 10.0)
+
     def test_run_partial_matches_full_run(self):
         symbol = "USDJPY"
         t0 = datetime(2024, 1, 2, 8, 0, tzinfo=timezone.utc)
