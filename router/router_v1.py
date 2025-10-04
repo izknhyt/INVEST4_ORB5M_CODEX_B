@@ -55,7 +55,9 @@ def _band_allowed(allowed: Iterable[str], value: Optional[str]) -> bool:
 def _check_category_cap(manifest: StrategyManifest, portfolio: PortfolioState) -> Optional[str]:
     category = manifest.category
     usage = float(portfolio.category_utilisation_pct.get(category, 0.0))
-    cap = manifest.router.category_cap_pct or portfolio.category_caps_pct.get(category)
+    cap = manifest.router.category_cap_pct
+    if cap is None:
+        cap = portfolio.category_caps_pct.get(category)
     if cap is None:
         return None
     if usage >= cap:
