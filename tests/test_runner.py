@@ -3,7 +3,8 @@ from pathlib import Path
 import unittest
 from datetime import datetime, timedelta, timezone
 
-from core.runner import BacktestRunner, Metrics
+from core.runner import BacktestRunner, Metrics, RunnerConfig
+from core.pips import price_to_pips
 
 
 def make_bar(ts, symbol, o, h, l, c, spread):
@@ -129,6 +130,55 @@ class TestRunner(unittest.TestCase):
         self.assertAlmostEqual(result["sharpe"], 0.27660638840895513)
         self.assertAlmostEqual(result["max_drawdown"], -10.0)
         self.assertAlmostEqual(result["win_rate"], 0.5)
+
+    def test_slip_learning_helper_updates_coefficients(self):
+        cfg = RunnerConfig(include_expected_slip=True, slip_learn=True)
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY", runner_cfg=cfg)
+
+        class DummyOrder:
+            def __init__(self, qty: float, price: float) -> None:
+                self.qty = qty
+                self.price = price
+
+        order = DummyOrder(qty=2.0, price=150.0)
+        ctx = {"spread_band": "normal"}
+        prev_a = runner.slip_a["normal"]
+        prev_qty_ewma = runner.qty_ewma["normal"]
+
+        qty_sample, slip_actual = runner._update_slip_learning(
+            order=order,
+            actual_price=150.02,
+            intended_price=order.price,
+            ctx=ctx,
+        )
+
+        expected_slip = abs(price_to_pips(150.02 - order.price, "USDJPY"))
+        self.assertAlmostEqual(qty_sample, 2.0)
+        self.assertAlmostEqual(slip_actual, expected_slip)
+
+        alpha = cfg.slip_ewma_alpha
+        sample_a = slip_actual / max(qty_sample, 1e-9)
+        expected_a = (1 - alpha) * prev_a + alpha * sample_a
+        expected_qty = (1 - alpha) * prev_qty_ewma + alpha * qty_sample
+        self.assertAlmostEqual(runner.slip_a["normal"], expected_a)
+        self.assertAlmostEqual(runner.qty_ewma["normal"], expected_qty)
+
+        cfg_off = RunnerConfig(include_expected_slip=False, slip_learn=True)
+        runner_off = BacktestRunner(equity=50_000.0, symbol="USDJPY", runner_cfg=cfg_off)
+        prev_a_off = runner_off.slip_a["normal"]
+        prev_qty_off = runner_off.qty_ewma["normal"]
+
+        qty_off, slip_off = runner_off._update_slip_learning(
+            order=order,
+            actual_price=150.02,
+            intended_price=order.price,
+            ctx=ctx,
+        )
+
+        self.assertAlmostEqual(qty_off, 2.0)
+        self.assertAlmostEqual(slip_off, expected_slip)
+        self.assertEqual(runner_off.slip_a["normal"], prev_a_off)
+        self.assertEqual(runner_off.qty_ewma["normal"], prev_qty_off)
 
 
 if __name__ == "__main__":

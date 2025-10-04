@@ -4,6 +4,7 @@
 - Review this file before starting any task to confirm the latest context and checklist.
 - Update this file after completing work to record outcomes, blockers, and next steps.
 
+- 2025-12-18: `core/runner.py` のスリップ学習処理を `_update_slip_learning` ヘルパーへ集約し、`tests/test_runner.py` に係数検証テストを追加。`python3 -m pytest` を実行して全件パスを確認。
 - 2025-12-17: `scripts/run_daily_workflow.py` にベンチマーク/サマリー/鮮度チェックなどのコマンドビルダーとアラート閾値ヘルパーを追加し、`main` をディスパッチテーブル化して `run_cmd` 呼び出しを集約した。`python3 -m pytest tests/test_run_daily_workflow.py` を実行して 27 件パスを確認。
 - 2025-12-16: `scripts/run_daily_workflow.py` に `_ingest_with_provider` ヘルパーを追加し、Dukascopy/yfinance/API 経路のフォールバック記録と `source_label` ログを共通化。`ProviderError` と `_log_ingest_summary` でエラー理由と完了ログを整理し、`python3 -m pytest tests/test_run_daily_workflow.py` を実行して 27 件パスを確認した。
 - 2025-12-15: `scripts/run_daily_workflow.py` のローカルCSV既定パスをシンボル別に検証し、存在しない場合は `--local-backup-csv` 指定を促すエラーを返すよう更新。`scripts/pull_prices.py` にデフォルトパターン関数を追加し、シンボル不一致アノマリーへ明示メッセージを含めた。`tests/test_run_daily_workflow.py` に EURUSD シナリオのフォールバック失敗/成功ケースを追加し、`python3 -m pytest tests/test_run_daily_workflow.py` を実行して 27 件パスを確認。README へローカルバックアップ命名規則と失敗時挙動を追記。

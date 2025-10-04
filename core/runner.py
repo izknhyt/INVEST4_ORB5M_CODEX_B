@@ -8,7 +8,7 @@ Backtest/Replay Runner (skeleton)
 NOTE: Placeholder thresholds and simplified assumptions to keep dependencies minimal.
 """
 from __future__ import annotations
-from typing import List, Dict, Any, Optional, Tuple, Callable
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 from collections import deque
 import json
 import hashlib
@@ -420,6 +420,31 @@ class BacktestRunner:
             )
             return base_threshold
         return threshold
+
+    def _update_slip_learning(
+        self,
+        *,
+        order: Any,
+        actual_price: float,
+        intended_price: float,
+        ctx: Mapping[str, Any],
+    ) -> Tuple[float, float]:
+        qty_value = getattr(order, "qty", 1.0) or 1.0
+        qty_sample = float(qty_value)
+        slip_actual = abs(price_to_pips(actual_price - intended_price, self.symbol))
+        if getattr(self.rcfg, "include_expected_slip", False) and getattr(
+            self.rcfg, "slip_learn", True
+        ):
+            band = ctx.get("spread_band", "normal")
+            sample_a = slip_actual / max(qty_sample, 1e-9)
+            alpha = getattr(self.rcfg, "slip_ewma_alpha", 0.1)
+            self.slip_a[band] = (
+                (1 - alpha) * self.slip_a.get(band, sample_a) + alpha * sample_a
+            )
+            self.qty_ewma[band] = (
+                (1 - alpha) * self.qty_ewma.get(band, 0.0) + alpha * qty_sample
+            )
+        return qty_sample, slip_actual
 
     def _log_trade_record(
         self,
@@ -1190,18 +1215,12 @@ class BacktestRunner:
                     hit = result.get("exit_reason") == "tp"
                     ev_mgr_dbg.update(bool(hit))
                     continue
-                # Learn slippage a (per band) if enabled
-                if getattr(self.rcfg, "include_expected_slip", False) and getattr(self.rcfg, 'slip_learn', True):
-                    band = ctx.get("spread_band", "normal")
-                    qty_sample = getattr(it, 'qty', 1.0) or 1.0
-                    slip_actual = abs(price_to_pips(entry_px - it.price, self.symbol))
-                    sample_a = slip_actual / max(qty_sample, 1e-9)
-                    alpha = getattr(self.rcfg, 'slip_ewma_alpha', 0.1)
-                    self.slip_a[band] = (1-alpha)*self.slip_a.get(band, sample_a) + alpha*sample_a
-                    self.qty_ewma[band] = (1-alpha)*self.qty_ewma.get(band, 0.0) + alpha*qty_sample
-                else:
-                    qty_sample = getattr(it, 'qty', 1.0) or 1.0
-                    slip_actual = abs(price_to_pips(entry_px - it.price, self.symbol))
+                qty_sample, slip_actual = self._update_slip_learning(
+                    order=it,
+                    actual_price=entry_px,
+                    intended_price=it.price,
+                    ctx=ctx,
+                )
                 signed = +1 if it.side == "BUY" else -1
                 pnl_px = (exit_px - entry_px) * signed
                 base_cost = trade_ctx_snapshot.get("cost_base", ctx.get("base_cost_pips", ctx.get("cost_pips", 0.0)))
@@ -1268,14 +1287,12 @@ class BacktestRunner:
                 entry_px = result.get("entry_px")
                 tp_px = it.price + (spec.tp_pips * ps if it.side == "BUY" else -spec.tp_pips * ps)
                 sl_px0 = it.price - (spec.sl_pips * ps if it.side == "BUY" else -spec.sl_pips * ps)
-                entry_slip_pip = abs(price_to_pips(entry_px - it.price, self.symbol))
-                if getattr(self.rcfg, "include_expected_slip", False) and getattr(self.rcfg, 'slip_learn', True):
-                    band = ctx.get("spread_band", "normal")
-                    qty_sample = getattr(it, 'qty', 1.0) or 1.0
-                    sample_a = entry_slip_pip / max(qty_sample, 1e-9)
-                    alpha = getattr(self.rcfg, 'slip_ewma_alpha', 0.1)
-                    self.slip_a[band] = (1-alpha)*self.slip_a.get(band, sample_a) + alpha*sample_a
-                    self.qty_ewma[band] = (1-alpha)*self.qty_ewma.get(band, 0.0) + alpha*qty_sample
+                _, entry_slip_pip = self._update_slip_learning(
+                    order=it,
+                    actual_price=entry_px,
+                    intended_price=it.price,
+                    ctx=ctx,
+                )
                 self.pos = {
                     "side": it.side,
                     "entry_px": entry_px,
