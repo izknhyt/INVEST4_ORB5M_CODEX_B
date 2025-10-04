@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-01-12: `scripts/ev_vs_actual_pnl._normalize_path` を新設して CLI/保存系の引数正規化を共通化し、`tests/test_ev_vs_actual_pnl.py` で Path 展開ヘルパー共有をモック検証。`python3 -m pytest tests/test_ev_vs_actual_pnl.py` を実行して 1 件パスを確認。
 - 2026-01-11: `_run_yfinance_ingest` を `compute_yfinance_fallback_start` で共通化し、`last_ts` 欠損/陳腐化時のルックバックをヘルパーと同じクランプに合わせるテストを追加。`python3 -m pytest tests/test_run_daily_workflow.py` を実行して 37 件パスを確認。
 - 2026-01-10: `scripts/run_daily_workflow.run_cmd` に `cwd=ROOT` 既定を追加し、`tests/test_run_daily_workflow.py::test_run_cmd_executes_with_repo_root` でサブプロセスがリポジトリ直下から起動されることを検証。`python3 -m pytest tests/test_run_daily_workflow.py` を実行して 35 件パスを再確認。
 - 2026-01-09: Day ORB 5m strategy updated so calibration/warmup signals stamp `last_signal_bar` and mark sessions as broken, preventing immediate re-entries. Added regression tests ensuring warmup cooldown is honored, and ran `python3 -m pytest tests/test_runner.py` to verify 23 passing cases.

@@ -13,8 +13,9 @@ import json
 from dataclasses import dataclass, asdict
 from datetime import datetime
 import math
+from os import PathLike
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 import pandas as pd
 
@@ -30,6 +31,12 @@ NUMERIC_COLUMNS = [
     "or_atr_ratio",
     "min_or_atr_ratio",
 ]
+
+
+def _normalize_path(value: Optional[Union[str, PathLike[str], Path]]) -> Optional[Path]:
+    if value is None:
+        return None
+    return Path(value).expanduser().resolve()
 
 
 @dataclass
@@ -320,22 +327,26 @@ def store_run_summary(
     store_daily: bool = False,
     top_n: int = 5,
 ) -> Dict[str, Any]:
-    runs_dir = Path(runs_dir).expanduser().resolve()
-    store_dir = Path(store_dir).expanduser().resolve()
-    record_paths = _collect_record_paths(runs_dir)
+    runs_dir_path = _normalize_path(runs_dir)
+    store_dir_path = _normalize_path(store_dir)
+    if runs_dir_path is None or store_dir_path is None:
+        raise ValueError("runs_dir and store_dir must be provided")
+    record_paths = _collect_record_paths(runs_dir_path)
     record_path = _select_run(record_paths, run_id)
     include_daily = bool(store_daily)
-    output = process_single_run(record_path, runs_dir, top_n, include_daily)
-    _store_single_run(store_dir, output, record_paths, store_daily)
+    output = process_single_run(record_path, runs_dir_path, top_n, include_daily)
+    _store_single_run(store_dir_path, output, record_paths, store_daily)
     return output
 
 
 def store_all_runs(runs_dir: Path, store_dir: Path) -> Dict[str, Any]:
-    runs_dir = Path(runs_dir).expanduser().resolve()
-    store_dir = Path(store_dir).expanduser().resolve()
-    record_paths = _collect_record_paths(runs_dir)
+    runs_dir_path = _normalize_path(runs_dir)
+    store_dir_path = _normalize_path(store_dir)
+    if runs_dir_path is None or store_dir_path is None:
+        raise ValueError("runs_dir and store_dir must be provided")
+    record_paths = _collect_record_paths(runs_dir_path)
     aggregated = process_all_runs(record_paths)
-    _store_all_runs(store_dir, aggregated)
+    _store_all_runs(store_dir_path, aggregated)
     return aggregated
 
 
@@ -400,7 +411,9 @@ def _store_all_runs(store_dir: Path, aggregated: Dict[str, Any]) -> None:
 
 def main() -> None:
     args = parse_args()
-    runs_dir = Path(args.runs_dir).expanduser().resolve()
+    runs_dir = _normalize_path(args.runs_dir)
+    if runs_dir is None:
+        raise ValueError("runs_dir must be provided")
     record_paths = _collect_record_paths(runs_dir)
 
     if args.list_runs:
@@ -418,8 +431,8 @@ def main() -> None:
         include_daily = bool(args.show_daily or args.store_daily or args.store_dir)
         output = process_single_run(record_path, runs_dir, args.top_n, include_daily)
 
-    if args.store_dir:
-        store_dir = Path(args.store_dir).expanduser().resolve()
+    store_dir = _normalize_path(args.store_dir)
+    if store_dir is not None:
         if args.all_runs:
             _store_all_runs(store_dir, output)
         else:
@@ -428,8 +441,8 @@ def main() -> None:
     if not args.quiet:
         print(json.dumps(output, indent=2, ensure_ascii=False))
 
-    if args.output_json:
-        out_path = Path(args.output_json)
+    out_path = _normalize_path(args.output_json)
+    if out_path is not None:
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(json.dumps(output, ensure_ascii=False, indent=2), encoding="utf-8")
 
