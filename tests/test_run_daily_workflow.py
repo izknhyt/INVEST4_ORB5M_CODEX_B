@@ -1925,3 +1925,118 @@ def test_local_csv_fallback_uses_custom_backup_for_non_usdjpy(tmp_path, monkeypa
     local_note = next(note for note in fallbacks if note["stage"] == "local_csv")
     assert Path(local_note["detail"]) == custom_csv
     assert meta["local_backup_path"] == str(custom_csv)
+
+
+def test_extend_with_synthetic_bars_skips_when_latest_fresh(tmp_path):
+    validated_path = tmp_path / "validated.csv"
+    validated_path.write_text(
+        "timestamp,symbol,tf,o,h,l,c,v,spread\n"
+        "2025-10-02T03:55:00,USDJPY,5m,147.9,147.95,147.85,147.92,110,0\n",
+        encoding="utf-8",
+    )
+
+    base_result = {
+        "source": "local_csv:backup.csv",
+        "rows_validated": 5,
+        "rows_raw": 5,
+        "rows_featured": 5,
+        "anomalies_logged": 0,
+        "gaps_detected": 0,
+        "last_ts_now": "2025-10-02T04:10:00",
+    }
+
+    ingest_calls = []
+
+    def fake_ingest(records, **kwargs):
+        rows = list(records)
+        ingest_calls.append({"source_name": kwargs.get("source_name"), "rows": rows})
+        last_ts = rows[-1]["timestamp"] if rows else base_result["last_ts_now"]
+        return {
+            "source": kwargs.get("source_name"),
+            "rows_validated": len(rows),
+            "rows_raw": len(rows),
+            "rows_featured": len(rows),
+            "anomalies_logged": 0,
+            "gaps_detected": 0,
+            "last_ts_now": last_ts,
+        }
+
+    result = run_daily_workflow._extend_with_synthetic_bars(
+        base_result=dict(base_result),
+        ingest_records_func=fake_ingest,
+        symbol="USDJPY",
+        tf="5m",
+        snapshot_path=tmp_path / "snapshot.json",
+        raw_path=tmp_path / "raw.csv",
+        validated_path=validated_path,
+        features_path=tmp_path / "features.csv",
+        tf_minutes=5,
+        now=datetime(2025, 10, 2, 4, 15),
+    )
+
+    assert ingest_calls == []
+    assert result["last_ts_now"] == base_result["last_ts_now"]
+    assert result["source"] == base_result["source"]
+
+
+def test_extend_with_synthetic_bars_generates_when_stale(tmp_path):
+    validated_path = tmp_path / "validated.csv"
+    validated_path.write_text(
+        "timestamp,symbol,tf,o,h,l,c,v,spread\n"
+        "2025-10-02T03:55:00,USDJPY,5m,147.9,147.95,147.85,147.92,110,0\n",
+        encoding="utf-8",
+    )
+
+    base_result = {
+        "source": "local_csv:backup.csv",
+        "rows_validated": 5,
+        "rows_raw": 5,
+        "rows_featured": 5,
+        "anomalies_logged": 0,
+        "gaps_detected": 0,
+        "last_ts_now": "2025-10-02T03:55:00",
+        "local_backup_path": str(tmp_path / "backup.csv"),
+    }
+
+    ingest_calls = []
+
+    def fake_ingest(records, **kwargs):
+        rows = list(records)
+        ingest_calls.append({"source_name": kwargs.get("source_name"), "rows": rows})
+        last_ts = rows[-1]["timestamp"] if rows else base_result["last_ts_now"]
+        return {
+            "source": kwargs.get("source_name"),
+            "rows_validated": len(rows),
+            "rows_raw": len(rows),
+            "rows_featured": len(rows),
+            "anomalies_logged": 0,
+            "gaps_detected": 0,
+            "last_ts_now": last_ts,
+        }
+
+    result = run_daily_workflow._extend_with_synthetic_bars(
+        base_result=dict(base_result),
+        ingest_records_func=fake_ingest,
+        symbol="USDJPY",
+        tf="5m",
+        snapshot_path=tmp_path / "snapshot.json",
+        raw_path=tmp_path / "raw.csv",
+        validated_path=validated_path,
+        features_path=tmp_path / "features.csv",
+        tf_minutes=5,
+        now=datetime(2025, 10, 2, 4, 20),
+    )
+
+    assert ingest_calls
+    synthetic_call = ingest_calls[-1]
+    assert synthetic_call["source_name"] == "synthetic_local"
+    assert [row["timestamp"] for row in synthetic_call["rows"]] == [
+        "2025-10-02T04:00:00",
+        "2025-10-02T04:05:00",
+        "2025-10-02T04:10:00",
+        "2025-10-02T04:15:00",
+    ]
+    assert result["source"].endswith("synthetic_local")
+    assert result["rows_validated"] == base_result["rows_validated"] + 4
+    assert result["last_ts_now"] == "2025-10-02T04:15:00"
+    assert result["local_backup_path"] == base_result["local_backup_path"]
