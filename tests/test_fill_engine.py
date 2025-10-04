@@ -40,6 +40,22 @@ def test_conservative_same_bar_tp_first_policy():
     assert math.isclose(result["exit_px"], 100.05, abs_tol=1e-9)
 
 
+def test_conservative_sell_same_bar_default_sl_first():
+    spec = OrderSpec(
+        side="SELL",
+        entry=100.0,
+        tp_pips=5.0,
+        sl_pips=5.0,
+        trail_pips=0.0,
+        slip_cap_pip=3.0,
+    )
+    bar = {"o": 100.10, "h": 100.12, "l": 99.90, "c": 99.95, "pip": 0.01, "spread": 0.001}
+    result = ConservativeFill().simulate(bar, spec)
+    assert result["fill"] is True
+    assert result["exit_reason"] == "sl"
+    assert math.isclose(result["exit_px"], 100.05, abs_tol=1e-9)
+
+
 def test_bridge_fill_returns_probability_in_same_bar():
     spec = OrderSpec(
         side="BUY",
@@ -58,6 +74,24 @@ def test_bridge_fill_returns_probability_in_same_bar():
         spec.entry - spec.sl_pips * bar["pip"]
     )
     assert math.isclose(result["exit_px"], expected_mix, rel_tol=1e-9, abs_tol=1e-9)
+
+
+def test_bridge_sell_trailing_stop_probability_zero():
+    spec = OrderSpec(
+        side="SELL",
+        entry=120.0,
+        tp_pips=20.0,
+        sl_pips=15.0,
+        trail_pips=10.0,
+        slip_cap_pip=2.0,
+        same_bar_policy=SameBarPolicy.PROBABILISTIC,
+    )
+    bar = {"o": 120.05, "h": 120.22, "l": 119.88, "c": 120.10, "pip": 0.01, "spread": 0.001}
+    result = BridgeFill().simulate(bar, spec)
+    assert result["fill"] is True
+    assert result["exit_reason"] == "trail"
+    assert math.isclose(result["exit_px"], 119.98, abs_tol=1e-9)
+    assert result["p_tp"] == 0.0
 
 
 def test_trailing_exit_within_same_bar():
