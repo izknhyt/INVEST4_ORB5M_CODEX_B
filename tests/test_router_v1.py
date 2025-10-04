@@ -58,3 +58,54 @@ def test_scoring_sorting():
     res = select_candidates(ctx, [manifest], strategy_signals=signals)
     assert res[0].score == 1.5
     assert any("ev_lcb" in reason for reason in res[0].reasons)
+
+
+def test_gross_exposure_cap_blocks_candidate():
+    manifest = load_day_manifest()
+    manifest.router.max_gross_exposure_pct = 60.0
+    portfolio = PortfolioState(
+        category_utilisation_pct={manifest.category: 10.0},
+        category_caps_pct={manifest.category: 40.0},
+        gross_exposure_pct=72.0,
+        gross_exposure_cap_pct=80.0,
+    )
+    ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "high"}
+    res = select_candidates(ctx, [manifest], portfolio=portfolio)
+    assert res[0].eligible is False
+    assert any("gross exposure" in reason for reason in res[0].reasons)
+
+
+def test_correlation_guard():
+    manifest = load_day_manifest()
+    manifest.router.max_correlation = 0.6
+    portfolio = PortfolioState(
+        strategy_correlations={manifest.id: {"active_day": 0.85}}
+    )
+    ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "mid"}
+    res = select_candidates(ctx, [manifest], portfolio=portfolio)
+    assert res[0].eligible is False
+    assert any("correlation" in reason for reason in res[0].reasons)
+
+
+def test_execution_health_guard():
+    manifest = load_day_manifest()
+    manifest.router.max_reject_rate = 0.05
+    manifest.router.max_slippage_bps = 8.0
+    portfolio = PortfolioState(
+        execution_health={manifest.id: {"reject_rate": 0.08, "slippage_bps": 12.0}}
+    )
+    ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "mid"}
+    res = select_candidates(ctx, [manifest], portfolio=portfolio)
+    assert res[0].eligible is False
+    joined = " ".join(res[0].reasons)
+    assert "reject_rate" in joined
+    assert "slippage" in joined
+
+
+def test_priority_boosts_score():
+    manifest = load_day_manifest()
+    manifest.router.priority = 0.4
+    ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "mid"}
+    signals = {manifest.id: {"score": 1.1}}
+    res = select_candidates(ctx, [manifest], strategy_signals=signals)
+    assert res[0].score == 1.5

@@ -16,11 +16,37 @@
 
 ### In Progress
 
+
+
+
+
+- **ルーター拡張** (Backlog: `docs/task_backlog.md` → [P2-マルチ戦略ポートフォリオ化](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化)) <!-- anchor: docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化 -->
+  - `docs/checklists/p2_router.md` を利用し、カテゴリ配分・相関・キャパ制約を考慮したルーター拡張を進める。既存ルーター実装とテストの現状把握、設計ドキュメントの再読から着手。
+  - Backlog Anchor: [ルーター拡張 (P2-02)](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化)
+  - Vision / Runbook References:
+    - [docs/logic_overview.md](docs/logic_overview.md)
+    - [docs/simulation_plan.md](docs/simulation_plan.md)
+    - 主要ランブック: [docs/state_runbook.md](docs/state_runbook.md)
+  - Pending Questions:
+    - [ ] Clarify gating metrics, data dependencies, or open questions.
+  - DoD チェックリスト: [docs/templates/dod_checklist.md](docs/templates/dod_checklist.md) を [docs/checklists/p2_router.md](docs/checklists/p2_router.md) にコピーし、進捗リンクを更新する。
+
+
+- **ルーター拡張** — `state.md` 2026-01-08 <!-- anchor: docs/task_backlog.md#p2-ルーター拡張 -->
+  - docs/checklists/p2_router.md を参照
+  - Backlog Anchor: [ルーター拡張 (P2-02)](docs/task_backlog.md#p2-ルーター拡張)
+  - Vision / Runbook References:
+    - [docs/logic_overview.md](docs/logic_overview.md)
+    - [docs/simulation_plan.md](docs/simulation_plan.md)
+    - 主要ランブック: [docs/state_runbook.md](docs/state_runbook.md)
+  - Pending Questions:
+    - [ ] Clarify gating metrics, data dependencies, or open questions.
+  - DoD チェックリスト: [docs/templates/dod_checklist.md](docs/templates/dod_checklist.md) を [docs/checklists/p2-02.md](docs/checklists/p2-02.md) にコピーし、進捗リンクを更新する。
+
 ### Ready
 
-- **フェーズ1 バグチェック & リファクタリング運用整備** (Backlog: `docs/task_backlog.md` → [P1-07](docs/task_backlog.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備)) — `state.md` 2025-12-05 <!-- anchor: docs/task_backlog.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備 -->
-  - `docs/checklists/p1-07_phase1_bug_refactor.md` を活用し、バグ調査観点とリファクタリング計画テンプレを更新する。進捗ログはチェックリストのテーブル/チェックボックスへ反映し、必要に応じて `scripts/manage_task_cycle.py --dry-run start-task` / `finish-task` の例を追記。
-  - 調査で判明したフォローアップは `Pending Questions` または `Archive` へ移動する前に `docs/todo_next.md` と `state.md` に同期し、次セッションで参照しやすいよう関連 CLI/pytest コマンドをメモする。
+
+
 
 ### Pending Review
 - **Workflow Integration Guide** (Backlog: `docs/task_backlog.md` → "ワークフロー統合" section) — `state.md` 2024-06-18, 2025-09-29 <!-- anchor: docs/task_backlog.md#codex-session-operations-guide -->
@@ -31,6 +57,10 @@
   - 2025-12-02: `strategies/mean_reversion.py` へ本実装を移行し、`configs/strategies/mean_reversion.yaml` / `configs/ev_profiles/mean_reversion.yaml` を刷新。`analysis/broker_fills.ipynb` を公開してブローカー比較のレビュー手段を統一し、pytest で回帰を追加済み。レビュー完了後に Archive へ移動予定。
 
 ## Archive（達成済み）
+- ~~**フェーズ1 バグチェック & リファクタリング運用整備**~~ ✅ — `state.md` 2026-01-08 <!-- anchor: docs/task_backlog.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備 -->
+  - `docs/checklists/p1-07_phase1_bug_refactor.md` に調査チェックボード・テスト手順・リファクタリング計画テンプレを追加し、運用チェック項目を全て埋めた。`scripts/manage_task_cycle.py` の start/finish 例も掲載。
+  - `docs/task_backlog.md` から P1-07 をアーカイブし、`docs/todo_next.md` / `state.md` の Ready / Next Task ブロックを整理。今後はチェックボードの行追加と `state.md` ログ更新のみで継続できる。
+
 - ~~**価格インジェストAPI基盤整備**~~ ✅ — `state.md` 2025-10-16, 2025-11-05, 2025-11-06, 2025-11-28 <!-- anchor: docs/task_backlog.md#p1-04-価格インジェストapi基盤整備 -->
   - `python3 scripts/run_daily_workflow.py --ingest --use-dukascopy --symbol USDJPY --mode conservative` を実行し、yfinance フォールバックで 91 行を取り込み `ops/runtime_snapshot.json.ingest_meta.USDJPY_5m.freshness_minutes=0.614` を確認。
   - 続けて `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6 --ingest-timeframe USDJPY_5m` を実行し、`ok: true`・`errors: []`・`advisories: []` を確認。`benchmark_pipeline` 側も遅延 0.59h 以内を維持。
@@ -58,3 +88,22 @@
 
 - ~~**インシデントリプレイテンプレート**~~（バックログ: `docs/task_backlog.md` → P1「インシデントリプレイテンプレート」） — `state.md` 2024-06-14, 2024-06-15, 2024-06-21, 2025-12-01 ✅ <!-- anchor: docs/task_backlog.md#p1-02-インシデントリプレイテンプレート -->
   - 期間指定リプレイ CLI の拡張と Notebook (`analysis/incident_review.ipynb`) のテンプレ整備を完了。`docs/state_runbook.md#インシデントリプレイワークフロー` と README に再現フロー/成果物の整理手順を追記し、`ops/incidents/<incident_id>/` の出力ファイル（`replay_notes.md`・`replay_params.json`・`runs/incidents/...`）掲載先とステークホルダー共有ルールを明文化した。
+
+ ✅ <!-- anchor placeholder to satisfy manage_task_cycle start-task detection -->
+- <!-- docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化 -->
+  - DoD チェックリスト: [docs/templates/dod_checklist.md](docs/templates/dod_checklist.md) を [docs/checklists/p2_manifest.md](docs/checklists/p2_manifest.md) にコピーし、進捗リンクを更新する。
+
+- ~~**戦略マニフェスト整備**~~ (Backlog: `docs/task_backlog.md` → [P2-01](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化)) — `state.md` 2026-01-08 ✅ <!-- anchor: docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化 -->
+  - `configs/strategies/*.yaml` を整理し、依存特徴量・セッション・リスク上限を統一形式で記述。`docs/checklists/p2_manifest.md` の DoD を参照して、RunnerConfig/CLI へのパラメータ伝播を検証する。
+  - `scripts/run_sim.py --strategy-manifest` の引数マッピングを再確認し、必要なら loader/CLI を更新。pytest (`tests/test_run_sim_cli.py`, `tests/test_mean_reversion_strategy.py` など) をターゲットに追加実行する。
+  - 2026-01-08: `strategies/scalping_template.py` / `strategies/day_template.py` / `strategies/tokyo_micro_mean_reversion.py` / `strategies/session_momentum_continuation.py` を追加し、対応する manifest (`configs/strategies/*.yaml`) を新設。`python3 -m pytest tests/test_strategy_manifest.py` (2 passed) と `python3 -m pytest tests/test_run_sim_cli.py -k manifest` (1 passed, 4 deselected) を実行済み。
+  - 2026-01-08: `python3 scripts/run_sim.py --strategy-manifest configs/strategies/tokyo_micro_mean_reversion.yaml --csv data/sample_orb.csv --symbol USDJPY --mode conservative --equity 100000 --json-out /tmp/tokyo_micro.json --dump-csv /tmp/tokyo_micro.csv --dump-daily /tmp/tokyo_micro_daily.csv --no-auto-state --no-aggregate-ev`、`python3 scripts/run_sim.py --strategy-manifest configs/strategies/session_momentum_continuation.yaml --csv data/sample_orb.csv --symbol USDJPY --mode conservative --equity 150000 --json-out /tmp/session_momo.json --dump-csv /tmp/session_momo.csv --dump-daily /tmp/session_momo_daily.csv --no-auto-state --no-aggregate-ev`、`python3 scripts/run_sim.py --strategy-manifest configs/strategies/day_orb_5m.yaml --csv data/sample_orb.csv --symbol USDJPY --mode conservative --equity 100000 --json-out /tmp/day_orb.json --dump-csv /tmp/day_orb.csv --dump-daily /tmp/day_orb_daily.csv --no-auto-state --no-aggregate-ev` を完了。manifest 経由の CLI 配線を確認し、DoD テスト項目を更新済み。
+  - manage_task_cycle start-task は Ready セクションのアンカー不一致で失敗したため、当面は手動更新を継続。ドキュメント更新後にアンカー修正を検討。
+  - Backlog Anchor: [戦略マニフェスト整備 (P2-01)](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化)
+  - Vision / Runbook References:
+    - [docs/logic_overview.md](docs/logic_overview.md)
+    - [docs/simulation_plan.md](docs/simulation_plan.md)
+    - 主要ランブック: [docs/state_runbook.md](docs/state_runbook.md)
+  - Pending Questions:
+    - [ ] Clarify gating metrics, data dependencies, or open questions.
+  - DoD チェックリスト: [docs/templates/dod_checklist.md](docs/templates/dod_checklist.md) を [docs/checklists/p2-01.md](docs/checklists/p2-01.md) にコピーし、進捗リンクを更新する。

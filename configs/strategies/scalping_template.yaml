@@ -1,0 +1,74 @@
+meta:
+  id: scalping_template_v0
+  name: Scalping Strategy Template (USDJPY)
+  version: "0.1"
+  category: scalping
+  tags: [template, scalping, usd]
+  description: |
+    Skeleton manifest for high-frequency scalping strategies. Start from this
+    file when prototyping mean-reversion or breakout ideas on lower timeframes.
+
+strategy:
+  class_path: strategies.scalping_template.ScalpingTemplate
+  instruments:
+    - symbol: USDJPY
+      timeframe: 1m
+      mode: conservative
+  parameters:
+    entry_window: 3
+    exit_window: 8
+    atr_tp_mult: 0.4
+    atr_sl_mult: 0.7
+    cooldown_bars: 2
+
+router:
+  allowed_sessions: [TOK, LDN, NY]
+  allow_spread_bands: [narrow]
+  allow_rv_bands: [low, mid]
+  max_latency_ms: 40
+  category_cap_pct: 15
+  tags: [template, scalping, usd]
+  priority: 0.0
+  max_gross_exposure_pct: 25.0
+  max_correlation: 0.65
+  correlation_tags: [scalping]
+  max_reject_rate: 0.05
+  max_slippage_bps: 12.0
+
+risk:
+  risk_per_trade_pct: 0.05
+  max_daily_dd_pct: 3.0
+  notional_cap: 750000
+  max_concurrent_positions: 2
+  warmup_trades: 10
+
+features:
+  required:
+    - mid_price
+    - spread_band
+    - rv_band
+    - atr14
+  optional:
+    - micro_trend
+    - session
+
+runner:
+  runner_config:
+    threshold_lcb_pip: 0.3
+    allowed_sessions: [TOK, LDN, NY]
+    warmup_trades: 10
+    include_expected_slip: true
+    cooldown_bars: 2
+  cli_args:
+    equity: 75000
+    threshold_lcb: 0.3
+    allowed_sessions: TOK,LDN,NY
+    mode: conservative
+
+state:
+  archive_namespace: strategies.scalping_template.ScalpingTemplate/USDJPY/conservative
+
+notes:
+  - This template does not emit trades until `_maybe_build_signal` is overridden.
+  - Calibrate EV thresholds and spread filters before enabling live routing.
+  - Update `features.required` to match the data set used for backtests.

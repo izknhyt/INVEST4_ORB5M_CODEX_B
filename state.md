@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-01-07: `scripts/run_daily_workflow._build_pull_prices_cmd` をシンボル固有の既定 CSV に合わせて修正し、`tests/test_run_daily_workflow.py::test_ingest_pull_prices_uses_symbol_specific_source` を追加。`python3 -m pytest` を実行したところ、`tests/test_fetch_prices_api.py` がサンドボックスのソケット制限でローカル HTTP サーバをバインドできず 8 件エラーとなった（他テストはパス）。
 - 2026-01-06: `core/runner._extract_pending_fields` で `.oco` からの TP/SL も float へ正規化して抽出し、`tests/test_runner.py` に OrderIntent の `.oco` 参照のみで EV リジェクト/サイジングガードが動作する回帰テストを追加。`python3 -m pytest tests/test_runner.py` を実行し 21 件パスを確認。
 - 2026-01-05: `router/router_v1._check_category_cap` で `category_cap_pct` が `None` の場合のみポートフォリオ定義の上限へフォールバックするよう修正し、`category_cap_pct=0.0` を尊重する回帰テストを追加。`python3 -m pytest tests/test_router_v1.py` を実行して 4 件パスを確認。
 - 2026-01-04: `core/runner._build_ctx` で `pip_value_override` / `base_notional` の float キャストに失敗した場合でも 10.0 へフォールバックするよう調整し、数値文字列を許容するテストを追加。`python3 -m pytest tests/test_runner.py` を実行して 20 件パスを確認。
@@ -127,7 +128,9 @@
   - 2025-10-16: 最新バーの供給が途絶しているため、P1-04 で API インジェスト基盤を設計・整備し、鮮度チェックのブロッカーを解消する計画。
 
 ## Log
+- [P1-07] 2026-01-08: Closed Phase1 bug-check & refactor ops by extending `docs/checklists/p1-07_phase1_bug_refactor.md` with the investigation board, regression command list, refactor planning template, and manage-task-cycle examples. Archived the backlog entry, moved `docs/todo_next.md` Ready item to Archive, and removed the P1-07 anchor from `## Next Task`. Documentation-only update; tests not re-run.
 - [P1-07] 2025-12-30: Consolidated `core/runner.BacktestRunner` daily metrics bookkeeping by introducing shared helpers for counter increments and RV threshold refresh. Replaced ad-hoc dictionary guards with `_increment_daily`/`_ensure_daily_entry`, extracted `_update_rv_thresholds` with a reusable quantile helper, and verified `python3 -m pytest` passes (150 tests) after the refactor.
+- [P2-01] 2026-01-08: Added category-specific templates (`strategies/scalping_template.py`, `strategies/day_template.py`) and first candidate manifests (`tokyo_micro_mean_reversion`, `session_momentum_continuation`). Ran `python3 -m pytest tests/test_strategy_manifest.py` (2 passed) と `python3 -m pytest tests/test_run_sim_cli.py -k manifest` (1 passed, 4 deselected)。`python3 scripts/run_sim.py --strategy-manifest configs/strategies/tokyo_micro_mean_reversion.yaml --csv data/sample_orb.csv --symbol USDJPY --mode conservative --equity 100000 --json-out /tmp/tokyo_micro.json --dump-csv /tmp/tokyo_micro.csv --dump-daily /tmp/tokyo_micro_daily.csv --no-auto-state --no-aggregate-ev`、`python3 scripts/run_sim.py --strategy-manifest configs/strategies/session_momentum_continuation.yaml --csv data/sample_orb.csv --symbol USDJPY --mode conservative --equity 150000 --json-out /tmp/session_momo.json --dump-csv /tmp/session_momo.csv --dump-daily /tmp/session_momo_daily.csv --no-auto-state --no-aggregate-ev`、`python3 scripts/run_sim.py --strategy-manifest configs/strategies/day_orb_5m.yaml --csv data/sample_orb.csv --symbol USDJPY --mode conservative --equity 100000 --json-out /tmp/day_orb.json --dump-csv /tmp/day_orb.csv --dump-daily /tmp/day_orb_daily.csv --no-auto-state --no-aggregate-ev` を実行し、manifest 経由の CLI 配線とテンプレ整備を検証。
 - [P2-MS] 2025-12-02: Migrated the Mean Reversion strategy from the stub into `strategies/mean_reversion.py`, wiring RV/ADX filters, ATR-based sizing, and EV profile adjustments. Refreshed the manifest/EV profile (`configs/strategies/mean_reversion.yaml`, `configs/ev_profiles/mean_reversion.yaml`), published the broker comparison notebook (`analysis/broker_fills.ipynb`), and added regression coverage (`tests/test_mean_reversion_strategy.py`, updated `tests/test_run_sim_cli.py`). Ran `python3 analysis/broker_fills_cli.py --format markdown` と `python3 -m pytest` で挙動を確認し、`docs/progress_phase1.md` / `docs/task_backlog.md` / `docs/checklists/multi_strategy_validation.md` / `analysis/README.md` を同期。
 - [P2-MS] 2025-12-05: Updated `strategies/day_orb_5m.DayORB5m` to persist breakout direction when `require_retest` is enabled, enforcing directional retest checks so sell breakouts no longer auto-approve without touching the OR low. Added regression coverage in `tests/test_day_orb_retest.py` and documented the workflow tweak in `docs/progress_phase1.md`. Ran `python3 -m pytest` to confirm all suites pass.
 - [P1-02] 2025-12-01: Documented the incident replay workflow in `docs/state_runbook.md#インシデントリプレイワークフロー` and cross-referenced it from README / `ops/incidents/README.md`. Clarified how to archive `replay_notes.md` / `replay_params.json` / `runs/incidents/...` outputs and where to publish stakeholder digests. Synced `docs/todo_next.md` Archive dates to close the remaining P1-02 documentation deliverables.
@@ -170,35 +173,17 @@
 - [P1-04] 2024-06-19: `docs/todo_next.md` を In Progress / Ready / Pending Review / Archive セクション構成へ刷新し、`state.md` のログ日付とバックログ連携を明示。DoD: ガイドライン/チェックリストの追記と過去成果のアーカイブ保持。
 - [P1-04] 2024-06-20: Ready 昇格チェックリストにビジョンガイド再読を追加し、`Next Task` 登録時の参照先として `docs/logic_overview.md` / `docs/simulation_plan.md` を明記。
 
-## Next Task
-  - Backlog Anchor: [フェーズ1 バグチェック & リファクタリング運用整備 (P1-07)](docs/task_backlog.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備)
-  - Vision / Runbook References:
-    - [docs/logic_overview.md](docs/logic_overview.md)
-    - [docs/simulation_plan.md](docs/simulation_plan.md)
-    - 主要ランブック: [docs/state_runbook.md](docs/state_runbook.md), [docs/codex_workflow.md](docs/codex_workflow.md)
-  - Pending Questions:
-    - [x] Refactor `core/runner` daily metrics updates so that helpers cover breakout/gate/EV logging without duplicating dictionary checks; confirm required regression tests after restructuring.
-  - Scope (EN): Consolidate BacktestRunner daily-stat bookkeeping and RV threshold refresh helpers to support ongoing phase1 bug-hunt refactors under P1-07.
+- [P2-01] 2026-01-08: 戦略テンプレと manifest を整備し、manifest CLI 回帰と run_sim ドライランを完了. DoD: [docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化).
 
-- [P1-02] 2024-06-21: incident ノートテンプレを整備し、ops/incidents/ へ雛形を配置. DoD: [docs/task_backlog.md#p1-02-インシデントリプレイテンプレート](docs/task_backlog.md#p1-02-インシデントリプレイテンプレート).
-- [P1-04] 2024-06-22: `scripts/manage_task_cycle.py` を追加し、`sync_task_docs.py` の record/promote/complete をラップする `start-task` / `finish-task` を整備。README / state_runbook を更新し、pytest でドライラン出力を検証。
-- [P1-04] 2025-09-28: Ready/DoD チェックリスト テンプレートと `sync_task_docs.py` の自動リンク挿入を整備し、`docs/todo_next.md` / `docs/state_runbook.md` に運用手順を追記。DoD: [docs/task_backlog.md#ワークフロー統合ガイド](docs/task_backlog.md#ワークフロー統合ガイド).
-- [P1-04] 2025-09-28: `docs/templates/next_task_entry.md` を新設し、`manage_task_cycle.py start-task` がテンプレを自動適用するよう拡張。DoD: [docs/task_backlog.md#ワークフロー統合ガイド](docs/task_backlog.md#ワークフロー統合ガイド).
-- [P1-04] 2025-09-29: Published `docs/codex_workflow.md` to outline Codex session operations and clarified references to `docs/state_runbook.md` and the shared templates. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
-- [P1-01] 2025-10-04: Updated the benchmark runbook schedule to surface the shared `--alert-pips 60` / `--alert-winrate 0.04` thresholds for each window and aligned the 07:30 JST workflow with DoD references.
-- [P1-01] 2025-09-28: Normalized benchmark summary max drawdown thresholds to accept negative CLI inputs, added regression coverage, and revalidated with targeted pytest.
-- [P1-01] 2025-09-28: `scripts/run_benchmark_pipeline.py --windows 365,180,90` を手動実行し、`reports/rolling/{365,180,90}/USDJPY_conservative.json` と `reports/benchmark_summary.json` に Sharpe / 最大DD / 勝率が揃って出力されたことを確認。`benchmark_runs.alert` の delta_sharpe > 0.15 による通知トリガーと Slack 403 (tunnel) を記録し、ランブック / todo_next を同期。
-- [P2-MS] 2025-09-29: Day ORB vs Mean Reversion validation on `data/sample_orb.csv`; ensured `zscore` flow reaches strategy/dumps, compared EV profile on/off, and updated [docs/checklists/multi_strategy_validation.md](docs/checklists/multi_strategy_validation.md) + `docs/todo_next.md` with metrics (gate/EV counts, PnL, win rate). Runs stored under `runs/multi_strategy/` with JSON/CSV artifacts for review.
-- [P1-01] 2025-09-29: Refined drawdown threshold normalization via helper, captured warning logs for negative CLI input in regression tests, and reran targeted pytest & CLI verification.
-- [P1-01] 2025-09-30: Propagated `--alert-pips` / `--alert-winrate` through benchmark pipeline + daily workflow CLIs, refreshed pytest coverage, and synced runbook CLI examples.
-- [P1-01] 2025-10-01: 固定パス参照の `aggregate_ev.py` をリファクタし、リポジトリルートを `sys.path` と I/O 基準に統一する REPO_ROOT を導入。CLI 回帰テストを追加し、`python3 -m pytest tests/test_aggregate_ev_script.py` とベンチマーク実行を再確認。
-- [P1-01] 2025-10-02: `run_benchmark_pipeline.py` がローリング JSON の必須メトリクスを検証し、`reports/benchmark_summary.json` の書き込みを確認する安全策を追加。`tests/test_run_benchmark_pipeline.py` で Sharpe/DD の存在を回帰確認し、`docs/benchmark_runbook.md` に Cron モニタリングと再実行手順を追記。`python3 -m pytest` 完走で挙動を再検証。
-- [P1-01] 2025-10-03: `report_benchmark_summary.py` に Sharpe/最大DD 閾値逸脱の構造化アラートを追加し、`threshold_alerts` を Webhook・`run_benchmark_pipeline.py` のスナップショットにも伝播。負の閾値正規化の回帰テストと runbook のトラブルシュート項目を更新し、`python3 -m pytest tests/test_report_benchmark_summary.py` を実行して確認。
-- [P1-01] 2025-10-05: `run_benchmark_pipeline.py` で baseline/rolling JSON の `aggregate_ev` 失敗を検知するバリデーションを拡充し、`tests/test_run_benchmark_pipeline.py` に非ゼロ return code の再現テストを追加。`docs/benchmark_runbook.md` の成功確認手順へ `aggregate_ev` 障害時の再実行フローを追記し、`python3 -m pytest tests/test_run_benchmark_pipeline.py` を実行して回帰確認。
-- [P1-01] 2025-10-06: Sharpe / 最大DD 差分アラートを `run_benchmark_runs.py`・パイプライン・日次ワークフローに伝播し、`docs/benchmark_runbook.md` を新閾値とレビュー観点で更新。DoD: `python3 -m pytest tests/test_run_benchmark_pipeline.py tests/test_run_daily_workflow.py` パスで新デルタ通知を確認。
-- [P1-01] 2025-10-07: `report_benchmark_summary.py` に Matplotlib 未導入環境でのフォールバックを追加し、`summary plot skipped: missing dependency ...` 警告をスナップショットへ保存。USDJPY conservative を実行し直して `ops/runtime_snapshot.json` / `reports/benchmark_summary.json` を更新、`python3 -m pytest tests/test_run_benchmark_pipeline.py tests/test_report_benchmark_summary.py` で回帰確認。
-- [P1-05] 2025-10-08: BacktestRunner debug visibility refresh — helper-based `strategy_gate`/`ev_threshold` dispatch, normalized debug counters/records, and new investigation guide. Executed `python3 -m pytest` before wrap-up.
-- [DOC-06] 2025-10-08: Documented Day ORB parameter dependency matrix, noted transfer checklist, and linked the update from the simulation plan Phase1 task.
-- [DOC-07] 2025-10-09: Mean Reversion スタブの入力想定を整理し、Day ORB との比較チェックリストを公開。`docs/checklists/multi_strategy_validation.md` を追加し、backlog へマルチ戦略レビュータスクを追記。
-- [DOC-08] 2025-10-09: 戦略マニフェストの必須/任意ブロックを README に整理し、Day ORB を基にしたテンプレート (`configs/strategies/templates/base_strategy.yaml`) と runner ガイドを追加。DoD: `python3 -m pytest tests/test_strategy_manifest.py` 通過・バックログへ整備済みノート追記。
-- [P1-05] 2025-10-10: Expanded `scripts/generate_ev_case_study.py` to handle decay/prior/warmup sweeps with JSON/CSV exports, added `analysis/ev_param_sweep.ipynb` for heatmaps, updated `docs/ev_tuning.md`, and introduced pytest coverage (`tests/test_generate_ev_case_study.py`). DoD: `python3 -m pytest` オールパス。
+- [P2-01] 2026-01-08: 戦略テンプレと manifest を整備し、pytest/run_sim で配線確認済み. DoD: [docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化).
+## Next Task
+- Backlog Anchor: [P2-02 ルーター拡張](docs/task_backlog.md#p2-ルーター拡張)
+- Vision / Runbook References:
+  - [readme/設計方針（投資_3_）v_1.md](readme/設計方針（投資_3_）v_1.md) (ADR-010/017/037)
+  - [docs/checklists/p2_router.md](docs/checklists/p2_router.md)
+  - [docs/codex_workflow.md](docs/codex_workflow.md)
+- Pending Questions / Notes:
+  - [ ] カテゴリ配分ロジック（利用率、上限、優先度）と相関ガード（pair-wise or bucket-based）の算出方法を決める。
+  - [ ] Router に渡すメトリクス（EV LCB、サイズ上限、執行品質指標）のデータ経路を runner/manifest から整理する。
+  - [ ] 既存 router v0/v1 の役割分担を確認し、v2 拡張の設計メモをまとめる。
+- Scope (EN): Extend router scoring to support category budgets, correlation guards, and capacity constraints using manifest-provided metadata.

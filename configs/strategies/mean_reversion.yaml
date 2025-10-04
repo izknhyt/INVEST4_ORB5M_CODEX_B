@@ -3,6 +3,7 @@ meta:
   name: Mean Reversion (USDJPY)
   version: "1.0"
   category: day
+  tags: [mean_reversion, contrarian]
   description: |
     Production-ready mean reversion strategy leveraging the shared gating and
     EV infrastructure. The manifest highlights z-score thresholds, RV filters,
@@ -35,6 +36,7 @@ strategy:
 router:
   allowed_sessions: [LDN, NY, TOK]
   allow_rv_bands: [low, mid, high]
+  tags: [mean_reversion, usd]
 
 risk:
   risk_per_trade_pct: 0.1
@@ -44,12 +46,8 @@ risk:
   warmup_trades: 0
 
 features:
-  required:
-    - zscore
-    - rv_band
-  optional:
-    - atr14
-    - adx14
+  required: [zscore, rv_band]
+  optional: [atr14, adx14]
 
 runner:
   runner_config:
@@ -68,6 +66,8 @@ runner:
 
 state:
   archive_namespace: strategies.mean_reversion.MeanReversionStrategy/USDJPY/conservative
+  ev_profile: configs/ev_profiles/mean_reversion.yaml
 
 notes:
+  - Scoping: leverage zscore-based contrarian signals with RV/ADX filters.
   - Manifest reference used by CLI regression tests and multi-strategy validation.

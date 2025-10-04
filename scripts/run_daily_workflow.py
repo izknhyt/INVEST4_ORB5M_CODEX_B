@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -199,20 +199,34 @@ def _merge_ingest_results(
     return merged
 
 
+def _resolve_path_argument(
+    path_value: Optional[Union[str, Path]], *, default: Optional[Path] = None
+) -> Optional[Path]:
+    """Return an absolute path for user-supplied CLI arguments."""
+
+    if path_value is None:
+        return default.resolve() if isinstance(default, Path) else default
+
+    if isinstance(path_value, str) and not path_value:
+        return default.resolve() if isinstance(default, Path) else default
+
+    candidate = Path(path_value).expanduser()
+    if not candidate.is_absolute():
+        candidate = (ROOT / candidate).resolve()
+    else:
+        candidate = candidate.resolve()
+
+    return candidate
+
+
 def _resolve_optimize_csv_path(symbol: str, bars_override: Optional[str]) -> str:
     """Return the CSV path for optimize runs, honoring overrides."""
 
-    if bars_override:
-        candidate = Path(bars_override).expanduser()
-        if not candidate.is_absolute():
-            candidate = (ROOT / candidate).resolve()
-        else:
-            candidate = candidate.resolve()
-        return str(candidate)
-
-    symbol_token = symbol.lower()
-    default_csv = ROOT / "data" / f"{symbol_token}_5m_2018-2024_utc.csv"
-    return str(default_csv)
+    resolved = _resolve_path_argument(bars_override)
+    if resolved is None:
+        symbol_token = symbol.lower()
+        resolved = (ROOT / "data" / f"{symbol_token}_5m_2018-2024_utc.csv").resolve()
+    return str(resolved)
 
 
 def _tf_to_minutes(tf: str) -> int:
@@ -239,21 +253,16 @@ def _resolve_local_backup_path(
 
     from scripts import pull_prices as pull_module
 
-    candidate_path = Path(backup_path) if backup_path is not None else None
+    candidate_path = _resolve_path_argument(backup_path)
     if candidate_path is None:
         default_relative = pull_module.default_source_for_symbol(symbol)
-        candidate_path = (ROOT / default_relative).resolve()
-        if not candidate_path.exists():
+        candidate_path = _resolve_path_argument(default_relative)
+        if candidate_path is None or not candidate_path.exists():
             raise RuntimeError(
                 "local CSV backup not found for symbol "
-                f"{symbol}: expected {candidate_path} (override with --local-backup-csv)"
+                f"{symbol}: expected {(ROOT / default_relative).resolve()} (override with --local-backup-csv)"
             )
         return candidate_path
-
-    if not candidate_path.is_absolute():
-        candidate_path = (ROOT / candidate_path).resolve()
-    else:
-        candidate_path = candidate_path.resolve()
 
     if not candidate_path.exists():
         raise RuntimeError(f"local CSV backup not found: {candidate_path}")
@@ -1027,24 +1036,24 @@ def _apply_alert_threshold_args(cmd, args):
     """Append alert threshold arguments if provided."""
 
     if args.alert_pips is not None:
-        cmd += ["--alert-pips", str(args.alert_pips)]
+        cmd.extend(["--alert-pips", str(args.alert_pips)])
     if args.alert_winrate is not None:
-        cmd += ["--alert-winrate", str(args.alert_winrate)]
+        cmd.extend(["--alert-winrate", str(args.alert_winrate)])
     if args.alert_sharpe is not None:
-        cmd += ["--alert-sharpe", str(args.alert_sharpe)]
+        cmd.extend(["--alert-sharpe", str(args.alert_sharpe)])
     if args.alert_max_drawdown is not None:
-        cmd += ["--alert-max-drawdown", str(args.alert_max_drawdown)]
+        cmd.extend(["--alert-max-drawdown", str(args.alert_max_drawdown)])
 
 
 def _apply_benchmark_threshold_args(cmd, args):
     """Append benchmark performance threshold arguments if provided."""
 
     if args.min_sharpe is not None:
-        cmd += ["--min-sharpe", str(args.min_sharpe)]
+        cmd.extend(["--min-sharpe", str(args.min_sharpe)])
     if args.min_win_rate is not None:
-        cmd += ["--min-win-rate", str(args.min_win_rate)]
+        cmd.extend(["--min-win-rate", str(args.min_win_rate)])
     if args.max_drawdown is not None:
-        cmd += ["--max-drawdown", str(args.max_drawdown)]
+        cmd.extend(["--max-drawdown", str(args.max_drawdown)])
 
 
 def _build_benchmark_pipeline_cmd(args, bars_csv):
@@ -1065,7 +1074,7 @@ def _build_benchmark_pipeline_cmd(args, bars_csv):
     _apply_alert_threshold_args(cmd, args)
     _apply_benchmark_threshold_args(cmd, args)
     if args.webhook:
-        cmd += ["--webhook", args.webhook]
+        cmd.extend(["--webhook", args.webhook])
     return cmd
 
 
@@ -1088,7 +1097,7 @@ def _build_benchmark_summary_cmd(args):
     ]
     _apply_benchmark_threshold_args(cmd, args)
     if args.webhook:
-        cmd += ["--webhook", args.webhook]
+        cmd.extend(["--webhook", args.webhook])
     return cmd
 
 
@@ -1102,10 +1111,10 @@ def _build_benchmark_freshness_cmd(args):
         str(args.benchmark_freshness_base_max_age_hours),
     ]
     if args.benchmark_freshness_max_age_hours is not None:
-        cmd += [
+        cmd.extend([
             "--benchmark-freshness-max-age-hours",
             str(args.benchmark_freshness_max_age_hours),
-        ]
+        ])
     if args.benchmark_freshness_targets:
         targets = [
             target.strip()
@@ -1115,7 +1124,7 @@ def _build_benchmark_freshness_cmd(args):
     else:
         targets = [f"{args.symbol}:{args.mode}"]
     for target in targets:
-        cmd += ["--target", target]
+        cmd.extend(["--target", target])
     return cmd
 
 
@@ -1170,7 +1179,7 @@ def _build_optimize_cmd(args):
         str(ROOT / "reports/auto_optimize.json"),
     ]
     if args.webhook:
-        cmd += ["--webhook", args.webhook]
+        cmd.extend(["--webhook", args.webhook])
     return cmd
 
 
@@ -1210,14 +1219,121 @@ def _build_state_health_cmd():
 
 
 def _build_pull_prices_cmd(args):
+    from scripts import pull_prices
+
+    source_path = _resolve_path_argument(pull_prices.default_source_for_symbol(args.symbol))
+    if source_path is None:  # pragma: no cover - defensive guard
+        raise RuntimeError("unable to resolve default source CSV for pull_prices")
+
     return [
         sys.executable,
         str(ROOT / "scripts/pull_prices.py"),
         "--source",
-        str(ROOT / "data/usdjpy_5m_2018-2024_utc.csv"),
+        str(source_path),
         "--symbol",
         args.symbol,
     ]
+
+
+_INGEST_PROVIDER_RUNNERS: Dict[str, Callable[[IngestContext, argparse.Namespace], tuple[Optional[Dict[str, object]], int]]] = {
+    "dukascopy": _run_dukascopy_ingest,
+    "api": _run_api_ingest,
+    "yfinance": _run_yfinance_ingest,
+}
+
+_DEFAULT_CONTEXT_MESSAGES = (
+    "[wf] ingestion unavailable: {exc}",
+    "[wf] ingestion failed to initialize: {exc}",
+)
+
+_INGEST_CONTEXT_MESSAGES: Dict[str, tuple[str, str]] = {
+    "dukascopy": (
+        "[wf] Dukascopy ingestion unavailable: {exc}",
+        "[wf] Dukascopy ingestion failed to initialize: {exc}",
+    ),
+    "yfinance": (
+        "[wf] yfinance ingestion unavailable: {exc}",
+        "[wf] yfinance ingestion failed to initialize pull_prices: {exc}",
+    ),
+    "api": (
+        "[wf] API ingestion unavailable: {exc}",
+        "[wf] API ingestion unavailable: {exc}",
+    ),
+}
+
+
+def _resolve_ingest_provider(args: argparse.Namespace) -> tuple[Optional[str], int]:
+    selected = [
+        provider
+        for provider, enabled in (
+            ("dukascopy", args.use_dukascopy),
+            ("api", args.use_api),
+            ("yfinance", args.use_yfinance),
+        )
+        if enabled
+    ]
+
+    if len(selected) > 1:
+        print("[wf] specify at most one of --use-dukascopy/--use-api/--use-yfinance")
+        return None, 1
+
+    return (selected[0], 0) if selected else (None, 0)
+
+
+def _init_ingest_context(
+    args: argparse.Namespace,
+    *,
+    local_backup_path: Optional[Path],
+    synthetic_allowed: bool,
+    provider: str,
+) -> tuple[Optional[IngestContext], int]:
+    runtime_msg, general_msg = _INGEST_CONTEXT_MESSAGES.get(provider, _DEFAULT_CONTEXT_MESSAGES)
+
+    try:
+        ctx = _build_ingest_context(
+            args,
+            local_backup_path=local_backup_path,
+            synthetic_allowed=synthetic_allowed,
+        )
+    except RuntimeError as exc:
+        print(runtime_msg.format(exc=exc))
+        return None, 1
+    except Exception as exc:  # pragma: no cover - defensive guard
+        print(general_msg.format(exc=exc))
+        return None, 1
+
+    return ctx, 0
+
+
+def _dispatch_ingest(
+    args: argparse.Namespace,
+    *,
+    local_backup_path: Optional[Path],
+    synthetic_allowed: bool,
+) -> int:
+    provider, status = _resolve_ingest_provider(args)
+    if status:
+        return status
+
+    if provider is None:
+        return run_cmd(_build_pull_prices_cmd(args))
+
+    ctx, status = _init_ingest_context(
+        args,
+        local_backup_path=local_backup_path,
+        synthetic_allowed=synthetic_allowed,
+        provider=provider,
+    )
+    if status or ctx is None:
+        return status
+
+    runner = _INGEST_PROVIDER_RUNNERS.get(provider)
+    if runner is None:  # pragma: no cover - unexpected wiring issue
+        print(f"[wf] unsupported ingest provider: {provider}")
+        return 1
+
+    _ingest_result, exit_code = runner(ctx, args)
+    return exit_code
 
 
 def main(argv=None) -> int:
@@ -1375,14 +1491,7 @@ def main(argv=None) -> int:
     )
     args = parser.parse_args(argv)
 
-    local_backup_path: Optional[Path] = None
-    if args.local_backup_csv:
-        candidate = Path(args.local_backup_csv).expanduser()
-        if not candidate.is_absolute():
-            candidate = (ROOT / candidate).resolve()
-        else:
-            candidate = candidate.resolve()
-        local_backup_path = candidate
+    local_backup_path = _resolve_path_argument(args.local_backup_csv)
 
     symbol_input = args.symbol.upper()
     symbol_upper = symbol_input
@@ -1392,74 +1501,25 @@ def main(argv=None) -> int:
             symbol_upper = fx_candidate
     args.symbol = symbol_upper
 
-    bars_csv = args.bars or str(ROOT / f"validated/{symbol_upper}/5m.csv")
+    bars_path = _resolve_path_argument(
+        args.bars,
+        default=ROOT / f"validated/{symbol_upper}/5m.csv",
+    )
+    if bars_path is None:  # defensive guard; default ensures this should not happen
+        raise RuntimeError("unable to resolve validated bars CSV path")
+    bars_csv = str(bars_path)
 
     synthetic_allowed = not args.disable_synthetic_extension
 
 
     if args.ingest:
-        selected_sources = [
-            flag
-            for flag in (args.use_dukascopy, args.use_api, args.use_yfinance)
-            if flag
-        ]
-        if len(selected_sources) > 1:
-            print("[wf] specify at most one of --use-dukascopy/--use-api/--use-yfinance")
-            return 1
-
-        if args.use_dukascopy:
-            try:
-                ctx = _build_ingest_context(
-                    args,
-                    local_backup_path=local_backup_path,
-                    synthetic_allowed=synthetic_allowed,
-                )
-            except RuntimeError as exc:
-                print(f"[wf] Dukascopy ingestion unavailable: {exc}")
-                return 1
-            except Exception as exc:  # pragma: no cover - unexpected import failure
-                print(f"[wf] Dukascopy ingestion failed to initialize: {exc}")
-                return 1
-
-            _ingest_result, exit_code = _run_dukascopy_ingest(ctx, args)
-            if exit_code:
-                return exit_code
-        elif args.use_yfinance:
-            try:
-                ctx = _build_ingest_context(
-                    args,
-                    local_backup_path=local_backup_path,
-                    synthetic_allowed=synthetic_allowed,
-                )
-            except RuntimeError as exc:
-                print(f"[wf] yfinance ingestion unavailable: {exc}")
-                return 1
-            except Exception as exc:  # pragma: no cover - import error
-                print(f"[wf] yfinance ingestion failed to initialize pull_prices: {exc}")
-                return 1
-
-            _ingest_result, exit_code = _run_yfinance_ingest(ctx, args)
-            if exit_code:
-                return exit_code
-        elif args.use_api:
-            try:
-                ctx = _build_ingest_context(
-                    args,
-                    local_backup_path=local_backup_path,
-                    synthetic_allowed=synthetic_allowed,
-                )
-            except Exception as exc:
-                print(f"[wf] API ingestion unavailable: {exc}")
-                return 1
-
-            _ingest_result, exit_code = _run_api_ingest(ctx, args)
-            if exit_code:
-                return exit_code
-
-        else:
-            exit_code = run_cmd(_build_pull_prices_cmd(args))
-            if exit_code:
-                return exit_code
+        exit_code = _dispatch_ingest(
+            args,
+            local_backup_path=local_backup_path,
+            synthetic_allowed=synthetic_allowed,
+        )
+        if exit_code:
+            return exit_code
     mode_builders = [
         (args.update_state, lambda: _build_update_state_cmd(args, bars_csv)),
         (args.benchmarks, lambda: _build_benchmark_pipeline_cmd(args, bars_csv)),

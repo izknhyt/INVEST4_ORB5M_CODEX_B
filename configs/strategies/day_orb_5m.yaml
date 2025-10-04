@@ -39,16 +39,8 @@ risk:
   warmup_trades: 50
 
 features:
-  required:
-    - atr14
-    - adx14
-    - rv12
-    - or_high
-    - or_low
-    - spread_band
-    - session
-  optional:
-    - regime_flag
+  required: [atr14, adx14, rv12, or_high, or_low, spread_band, session]
+  optional: [regime_flag]
 
 runner:
   runner_config:

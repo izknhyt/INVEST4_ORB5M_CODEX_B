@@ -104,6 +104,23 @@ def test_benchmark_summary_with_webhook(monkeypatch):
     assert cmd[cmd.index("--windows") + 1] == "120,30"
 
 
+def test_update_state_resolves_bars_override(monkeypatch):
+    captured = _capture_run_cmd(monkeypatch)
+
+    exit_code = run_daily_workflow.main([
+        "--update-state",
+        "--bars",
+        "validated/override.csv",
+    ])
+
+    assert exit_code == 0
+    assert captured, "run_cmd should be invoked"
+    cmd = captured[0]
+    bars_value = cmd[cmd.index("--bars") + 1]
+    expected = (run_daily_workflow.ROOT / "validated/override.csv").resolve()
+    assert Path(bars_value) == expected
+
+
 def test_check_benchmark_freshness_passes_pipeline_and_override(monkeypatch):
     captured = _capture_run_cmd(monkeypatch)
 
@@ -179,6 +196,24 @@ def test_benchmarks_pipeline_arguments(monkeypatch):
     assert float(cmd[cmd.index("--max-drawdown") + 1]) == pytest.approx(150.0)
     assert cmd[cmd.index("--webhook") + 1] == "https://example.com/hook"
     assert cmd[cmd.index("--windows") + 1] == "200,60"
+
+
+def test_ingest_pull_prices_uses_symbol_specific_source(monkeypatch):
+    captured = _capture_run_cmd(monkeypatch)
+
+    exit_code = run_daily_workflow.main([
+        "--ingest",
+        "--symbol",
+        "GBPJPY",
+    ])
+
+    assert exit_code == 0
+    assert captured, "pull_prices command should be invoked"
+    cmd = captured[0]
+    assert "pull_prices.py" in cmd[1]
+    source_value = cmd[cmd.index("--source") + 1]
+    expected = (run_daily_workflow.ROOT / "data/gbpjpy_5m_2018-2024_utc.csv").resolve()
+    assert Path(source_value) == expected
 
 
 def test_optimize_uses_absolute_paths(monkeypatch):
@@ -2153,4 +2188,3 @@ def test_run_daily_workflow_uses_shared_timestamp_parser():
 
     assert parser("   ") is None
     assert parser("not-a-timestamp") is None
-

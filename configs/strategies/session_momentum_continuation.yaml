@@ -1,0 +1,75 @@
+meta:
+  id: session_momentum_continuation_v0
+  name: Session Momentum Continuation (USDJPY)
+  version: "0.1"
+  category: day
+  tags: [day, momentum, continuation]
+  description: |
+    Momentum continuation strategy designed for London → New York sessions.
+    Builds on shared day-strategy template with trend/pullback filters and ATR
+    based risk parameters.
+
+strategy:
+  class_path: strategies.session_momentum_continuation.SessionMomentumContinuation
+  instruments:
+    - symbol: USDJPY
+      timeframe: 15m
+      mode: conservative
+  parameters:
+    trend_threshold: 0.7
+    pullback_threshold: 0.45
+    min_adx: 18.0
+    atr_tp_mult: 1.3
+    atr_sl_mult: 1.9
+    cooldown_bars: 6
+    default_tp_pips: 15.0
+    default_sl_pips: 24.0
+
+router:
+  allowed_sessions: [LDN, NY]
+  allow_spread_bands: [narrow, normal]
+  allow_rv_bands: [mid, high]
+  max_latency_ms: 110
+  category_cap_pct: 35
+  tags: [momentum, continuation, usd]
+
+risk:
+  risk_per_trade_pct: 0.22
+  max_daily_dd_pct: 5.5
+  notional_cap: 1800000
+  max_concurrent_positions: 1
+  warmup_trades: 25
+
+features:
+  required:
+    - trend_score
+    - pullback
+    - atr14
+    - rv_band
+    - spread_band
+    - session
+  optional:
+    - regime_flag
+    - higher_tf_trend
+
+runner:
+  runner_config:
+    threshold_lcb_pip: 0.5
+    allowed_sessions: [LDN, NY]
+    warmup_trades: 25
+    include_expected_slip: true
+    cooldown_bars: 6
+  cli_args:
+    equity: 150000
+    threshold_lcb: 0.5
+    allowed_sessions: LDN,NY
+    mode: conservative
+
+state:
+  archive_namespace: strategies.session_momentum_continuation.SessionMomentumContinuation/USDJPY/conservative
+  ev_profile: configs/ev_profiles/day_orb_5m.yaml
+
+notes:
+  - Momentum filter expects non-zero trend_score and pullback data.
+  - Review ATR multipliers and session filters against live data before deployment.
+  - Warmup trades set higher to gather session-specific stats.

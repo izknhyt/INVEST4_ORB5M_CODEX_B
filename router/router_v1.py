@@ -17,6 +17,10 @@ class PortfolioState:
     category_utilisation_pct: Dict[str, float] = field(default_factory=dict)
     active_positions: Dict[str, int] = field(default_factory=dict)
     category_caps_pct: Dict[str, float] = field(default_factory=dict)
+    gross_exposure_pct: Optional[float] = None
+    gross_exposure_cap_pct: Optional[float] = None
+    strategy_correlations: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    execution_health: Dict[str, Dict[str, float]] = field(default_factory=dict)
 
 
 @dataclass
@@ -75,6 +79,68 @@ def _check_concurrency(manifest: StrategyManifest, portfolio: PortfolioState) ->
     return None
 
 
+def _check_gross_exposure(manifest: StrategyManifest, portfolio: PortfolioState) -> Optional[str]:
+    current = portfolio.gross_exposure_pct
+    if current is None:
+        return None
+    cap = manifest.router.max_gross_exposure_pct
+    if cap is None:
+        cap = portfolio.gross_exposure_cap_pct
+    if cap is None:
+        return None
+    if current >= cap:
+        return f"gross exposure {current:.1f}% >= cap {cap:.1f}%"
+    return None
+
+
+def _max_correlation(manifest: StrategyManifest, portfolio: PortfolioState) -> Optional[float]:
+    corr_map: Dict[str, float] = {}
+    if manifest.id in portfolio.strategy_correlations:
+        corr_map.update(portfolio.strategy_correlations.get(manifest.id, {}))
+    for tag in manifest.router.correlation_tags:
+        corr_map.update(portfolio.strategy_correlations.get(tag, {}))
+    if not corr_map:
+        return None
+    return max(abs(float(val)) for val in corr_map.values())
+
+
+def _check_correlation(manifest: StrategyManifest, portfolio: PortfolioState) -> Optional[str]:
+    limit = manifest.router.max_correlation
+    if limit is None:
+        return None
+    max_corr = _max_correlation(manifest, portfolio)
+    if max_corr is None:
+        return None
+    if max_corr > limit:
+        return f"correlation {max_corr:.2f} exceeds cap {limit:.2f}"
+    return None
+
+
+def _check_execution_health(manifest: StrategyManifest, portfolio: PortfolioState) -> List[str]:
+    health = portfolio.execution_health.get(manifest.id, {})
+    reasons: List[str] = []
+    if health:
+        reject = health.get("reject_rate")
+        if (
+            reject is not None
+            and manifest.router.max_reject_rate is not None
+            and float(reject) > manifest.router.max_reject_rate
+        ):
+            reasons.append(
+                f"reject_rate {float(reject):.3f} > max {manifest.router.max_reject_rate:.3f}"
+            )
+        slip = health.get("slippage_bps")
+        if (
+            slip is not None
+            and manifest.router.max_slippage_bps is not None
+            and float(slip) > manifest.router.max_slippage_bps
+        ):
+            reasons.append(
+                f"slippage {float(slip):.1f}bps > max {manifest.router.max_slippage_bps:.1f}bps"
+            )
+    return reasons
+
+
 def select_candidates(
     market_ctx: Dict[str, Any],
     manifests: Iterable[StrategyManifest],
@@ -112,9 +178,39 @@ def select_candidates(
             if conc_reason:
                 eligible = False
                 reasons.append(conc_reason)
+            gross_reason = _check_gross_exposure(manifest, portfolio)
+            if gross_reason:
+                eligible = False
+                reasons.append(gross_reason)
+            corr_reason = _check_correlation(manifest, portfolio)
+            if corr_reason:
+                eligible = False
+                reasons.append(corr_reason)
+            health_reasons = _check_execution_health(manifest, portfolio)
+            if health_reasons:
+                eligible = False
+                reasons.extend(health_reasons)
 
         signal_ctx = (strategy_signals or {}).get(manifest.id, {})
         score = float(signal_ctx.get("score") or signal_ctx.get("ev_lcb") or 0.0)
+        score += manifest.router.priority
+
+        # Apply soft penalties (do not flip eligibility) when information exists.
+        corr_penalty = _max_correlation(manifest, portfolio) if portfolio else None
+        if corr_penalty is not None and manifest.router.max_correlation is not None:
+            excess = max(0.0, corr_penalty - manifest.router.max_correlation)
+            if excess > 0:
+                score -= excess
+        if portfolio:
+            health = portfolio.execution_health.get(manifest.id, {})
+            reject = health.get("reject_rate")
+            if (
+                reject is not None
+                and manifest.router.max_reject_rate is not None
+                and float(reject) <= manifest.router.max_reject_rate
+            ):
+                score += 0.01  # small incentive when within guard
+
         ev_lcb_raw = signal_ctx.get("ev_lcb")
         if ev_lcb_raw is not None and "ev_lcb" not in reasons:
             try:

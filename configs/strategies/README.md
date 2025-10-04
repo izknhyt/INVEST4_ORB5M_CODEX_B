@@ -50,4 +50,10 @@ See `day_orb_5m.yaml` for a reference manifest covering the Day ORB 5m strategy.
 ### Templates
 Start new manifests from `templates/base_strategy.yaml`, which contains inline
 guidance for each field plus suggested runner defaults inspired by the Day ORB
-manifest.
+manifest. Category-specific scaffolding is also available:
+
+- `scalping_template.yaml` + `strategies/scalping_template.py`
+- `day_template.yaml` + `strategies/day_template.py`
+
+These template pairs integrate with the sizing/router pipeline out of the box
+while leaving `_maybe_build_signal` for concrete strategy logic.

@@ -48,6 +48,12 @@ class RouterSpec:
     max_latency_ms: Optional[float] = None
     category_cap_pct: Optional[float] = None
     tags: tuple[str, ...] = ()
+    priority: float = 0.0
+    max_gross_exposure_pct: Optional[float] = None
+    max_correlation: Optional[float] = None
+    correlation_tags: tuple[str, ...] = ()
+    max_reject_rate: Optional[float] = None
+    max_slippage_bps: Optional[float] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "RouterSpec":
@@ -61,6 +67,16 @@ class RouterSpec:
         latency_val = float(latency) if latency is not None else None
         cat_cap = data.get("category_cap_pct")
         cat_cap_val = float(cat_cap) if cat_cap is not None else None
+        priority_val = float(data.get("priority", 0.0) or 0.0)
+        gross_cap = data.get("max_gross_exposure_pct")
+        gross_cap_val = float(gross_cap) if gross_cap is not None else None
+        max_corr = data.get("max_correlation")
+        max_corr_val = float(max_corr) if max_corr is not None else None
+        corr_tags = tuple(str(s).strip().lower() for s in data.get("correlation_tags", []) if str(s).strip())
+        max_reject = data.get("max_reject_rate")
+        max_reject_val = float(max_reject) if max_reject is not None else None
+        max_slip = data.get("max_slippage_bps")
+        max_slip_val = float(max_slip) if max_slip is not None else None
         return cls(
             allowed_sessions=sessions,
             allow_spread_bands=spread_bands,
@@ -68,6 +84,12 @@ class RouterSpec:
             max_latency_ms=latency_val,
             category_cap_pct=cat_cap_val,
             tags=tags,
+            priority=priority_val,
+            max_gross_exposure_pct=gross_cap_val,
+            max_correlation=max_corr_val,
+            correlation_tags=corr_tags,
+            max_reject_rate=max_reject_val,
+            max_slippage_bps=max_slip_val,
         )
 
 
@@ -335,4 +357,3 @@ def iter_manifest_paths(paths: Iterable[str | Path]) -> Iterable[Path]:
             yield path
         elif path.is_dir():
             yield from path.rglob("*.yaml")
-
