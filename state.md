@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2025-12-19: `core/runner.py` の `run_partial` をヘルパー関数へ分解し、日次状態更新・特徴量計算・ポジション決済・トレードエントリー処理を整理。`_finalize_trade` でスリップ/決済共通処理を集約し、`tests/test_runner.py` を実行して回帰を確認。
 - Update this file after completing work to record outcomes, blockers, and next steps.
 
 - 2025-12-18: `core/runner.py` のスリップ学習処理を `_update_slip_learning` ヘルパーへ集約し、`tests/test_runner.py` に係数検証テストを追加。`python3 -m pytest` を実行して全件パスを確認。
