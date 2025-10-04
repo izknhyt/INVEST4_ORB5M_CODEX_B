@@ -244,6 +244,124 @@ def _tf_to_minutes(tf: str) -> int:
     return default_minutes
 
 
+def _resolve_local_backup_path(
+    *, symbol: str, backup_path: Optional[Path]
+) -> Path:
+    """Return the resolved CSV backup path for *symbol*."""
+
+    from scripts import pull_prices as pull_module
+
+    candidate_path = Path(backup_path) if backup_path is not None else None
+    if candidate_path is None:
+        default_relative = pull_module.default_source_for_symbol(symbol)
+        candidate_path = (ROOT / default_relative).resolve()
+        if not candidate_path.exists():
+            raise RuntimeError(
+                "local CSV backup not found for symbol "
+                f"{symbol}: expected {candidate_path} (override with --local-backup-csv)"
+            )
+        return candidate_path
+
+    if not candidate_path.is_absolute():
+        candidate_path = (ROOT / candidate_path).resolve()
+    else:
+        candidate_path = candidate_path.resolve()
+
+    if not candidate_path.exists():
+        raise RuntimeError(f"local CSV backup not found: {candidate_path}")
+
+    return candidate_path
+
+
+def _ingest_csv_source(
+    *,
+    ingest_records_func,
+    rows: Iterable[Dict[str, object]],
+    symbol: str,
+    tf: str,
+    snapshot_path: Path,
+    raw_path: Path,
+    validated_path: Path,
+    features_path: Path,
+    source_name: str,
+    extra_kwargs: Optional[Dict[str, object]] = None,
+):
+    """Invoke ``ingest_records`` with consistent keyword arguments."""
+
+    extra_kwargs = extra_kwargs or {}
+
+    return ingest_records_func(
+        rows,
+        symbol=symbol,
+        tf=tf,
+        snapshot_path=snapshot_path,
+        raw_path=raw_path,
+        validated_path=validated_path,
+        features_path=features_path,
+        source_name=source_name,
+        **extra_kwargs,
+    )
+
+
+def _extend_with_synthetic_bars(
+    *,
+    base_result: Dict[str, object],
+    ingest_records_func,
+    symbol: str,
+    tf: str,
+    snapshot_path: Path,
+    raw_path: Path,
+    validated_path: Path,
+    features_path: Path,
+    tf_minutes: int,
+    now: Optional[datetime] = None,
+) -> Dict[str, object]:
+    """Extend *base_result* with synthetic bars when freshness lags."""
+
+    if not isinstance(base_result, dict):
+        return base_result
+
+    last_entry = _load_last_validated_entry(validated_path)
+    if last_entry is None:
+        return base_result
+
+    latest_ts = _parse_naive_utc(str(base_result.get("last_ts_now", "")))
+    if latest_ts is None:
+        latest_ts = last_entry["timestamp"]
+
+    current_time = now or _utcnow_naive()
+    target_end = _compute_synthetic_target(current_time, tf_minutes=tf_minutes)
+
+    if latest_ts >= target_end:
+        return base_result
+
+    synthetic_rows = _generate_synthetic_bars(
+        base_entry=last_entry,
+        target_end=target_end,
+        tf_minutes=tf_minutes,
+        symbol=symbol,
+        tf=tf,
+    )
+
+    if not synthetic_rows:
+        return base_result
+
+    synthetic_result = _ingest_csv_source(
+        ingest_records_func=ingest_records_func,
+        rows=synthetic_rows,
+        symbol=symbol,
+        tf=tf,
+        snapshot_path=snapshot_path,
+        raw_path=raw_path,
+        validated_path=validated_path,
+        features_path=features_path,
+        source_name="synthetic_local",
+    )
+
+    merged = _merge_ingest_results(base_result, synthetic_result)
+    return merged if merged is not None else base_result
+
+
 def _ingest_local_csv_backup(
     *,
     ingest_records_func,
@@ -258,79 +376,40 @@ def _ingest_local_csv_backup(
 ) -> Dict[str, object]:
     """Ingest bars from the bundled CSV backup for sandbox execution."""
 
-    from scripts import pull_prices as pull_module
-
     tf_minutes = _tf_to_minutes(tf)
+    resolved_path = _resolve_local_backup_path(symbol=symbol, backup_path=backup_path)
 
-    candidate_path = Path(backup_path) if backup_path is not None else None
-    if candidate_path is None:
-        default_relative = pull_module.default_source_for_symbol(symbol)
-        candidate_path = (ROOT / default_relative).resolve()
-        if not candidate_path.exists():
-            raise RuntimeError(
-                "local CSV backup not found for symbol "
-                f"{symbol}: expected {candidate_path} (override with --local-backup-csv)"
-            )
-    elif not candidate_path.is_absolute():
-        candidate_path = (ROOT / candidate_path).resolve()
-
-    if not candidate_path.exists():
-        raise RuntimeError(f"local CSV backup not found: {candidate_path}")
-
-    with candidate_path.open(newline="", encoding="utf-8") as fh:
+    with resolved_path.open(newline="", encoding="utf-8") as fh:
         reader: Iterable[Dict[str, object]] = csv.DictReader(fh)
-        result = ingest_records_func(
-            reader,
+        result = _ingest_csv_source(
+            ingest_records_func=ingest_records_func,
+            rows=reader,
             symbol=symbol,
             tf=tf,
             snapshot_path=snapshot_path,
             raw_path=raw_path,
             validated_path=validated_path,
             features_path=features_path,
-            source_name=f"local_csv:{candidate_path.name}",
+            source_name=f"local_csv:{resolved_path.name}",
         )
 
     if isinstance(result, dict):
-        result.setdefault("local_backup_path", str(candidate_path))
+        result.setdefault("local_backup_path", str(resolved_path))
 
     if not enable_synthetic:
         return result
 
-    last_entry = _load_last_validated_entry(validated_path)
-    if last_entry is None:
-        return result
-
-    latest_ts = _parse_naive_utc(str(result.get("last_ts_now", ""))) or last_entry["timestamp"]
-    now = _utcnow_naive()
-    target_end = _compute_synthetic_target(now, tf_minutes=tf_minutes)
-
-    if latest_ts >= target_end:
-        return result
-
-    synthetic_rows = _generate_synthetic_bars(
-        base_entry=last_entry,
-        target_end=target_end,
-        tf_minutes=tf_minutes,
-        symbol=symbol,
-        tf=tf,
-    )
-
-    if not synthetic_rows:
-        return result
-
-    synthetic_result = ingest_records_func(
-        synthetic_rows,
+    return _extend_with_synthetic_bars(
+        base_result=result,
+        ingest_records_func=ingest_records_func,
         symbol=symbol,
         tf=tf,
         snapshot_path=snapshot_path,
         raw_path=raw_path,
         validated_path=validated_path,
         features_path=features_path,
-        source_name="synthetic_local",
+        tf_minutes=tf_minutes,
     )
-
-    merged = _merge_ingest_results(result, synthetic_result)
-    return merged if merged is not None else result
 
 
 def _split_source_chain(source_text: Optional[str]) -> List[Dict[str, str]]:
@@ -482,33 +561,15 @@ def _execute_local_csv_fallback(
     stage: str,
     reason: str,
     fallback_notes: List[Dict[str, str]],
-    ingest_records_func: Callable[..., Dict[str, object]],
-    symbol: str,
-    tf: str,
-    snapshot_path: Path,
-    raw_path: Path,
-    validated_path: Path,
-    features_path: Path,
-    backup_path: Optional[Path],
-    enable_synthetic: bool,
     trigger_reason: Optional[str] = None,
+    **fallback_kwargs,
 ) -> Optional[Dict[str, object]]:
     """Run the local CSV fallback ingest and append structured notes."""
 
     message = trigger_reason or reason
     print("[wf] local CSV fallback triggered:", message)
     try:
-        result = _ingest_local_csv_backup(
-            ingest_records_func=ingest_records_func,
-            symbol=symbol,
-            tf=tf,
-            snapshot_path=snapshot_path,
-            raw_path=raw_path,
-            validated_path=validated_path,
-            features_path=features_path,
-            backup_path=backup_path,
-            enable_synthetic=enable_synthetic,
-        )
+        result = _ingest_local_csv_backup(**fallback_kwargs)
     except Exception as backup_exc:  # pragma: no cover - unexpected failure
         print(f"[wf] local CSV fallback unavailable: {backup_exc}")
         return None
