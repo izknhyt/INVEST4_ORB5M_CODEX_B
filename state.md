@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2025-12-29: `core/feature_store.py` に型ヒントを追加し、NaN ガードをコメント付きで整理。`python3 -m pytest tests/test_runner.py` を実行して 16 件パスを再確認。
 - 2025-12-26: `core/runner._resolve_calibration_positions` で `_compute_exit_decision` を使ってキャリブレーションポジションを処理し、`tests/test_runner.py` に同時ヒット/セッション切替時の EV 更新回帰テストを追加。`python3 -m pytest tests/test_runner.py` を実行して 16 件パスを確認。
 - 2025-12-27: Dukascopy/yfinance 共通ヘルパー `scripts/ingest_providers.py` を追加し、`run_daily_workflow.py` と `live_ingest_worker.py` を移行。フォールバック鮮度判定・メタデータ付与を共通化するテスト (`tests/test_run_daily_workflow.py` / `tests/test_live_ingest_worker.py`) を拡張し、`python3 -m pytest` を完走してリグレッションを確認。
 - 2025-12-28: `scripts/_time_utils.parse_naive_utc` を追加し、`run_daily_workflow.py` と `live_ingest_worker.py` が同一パーサーを参照するよう統一。`tests/test_run_daily_workflow.py` / `tests/test_live_ingest_worker.py` に共有パスの回帰テストを追加し、`python3 -m pytest` で 150 件パスを確認。
