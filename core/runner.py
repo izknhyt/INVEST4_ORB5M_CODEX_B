@@ -494,6 +494,655 @@ class BacktestRunner:
             record["cost_base"] = ctx_snapshot["cost_base"]
         self.records.append(record)
 
+    def _finalize_trade(
+        self,
+        *,
+        exit_ts: Any,
+        entry_ts: Any,
+        side: str,
+        entry_px: float,
+        exit_px: float,
+        exit_reason: Optional[str],
+        ctx_snapshot: Mapping[str, Any],
+        ctx: Mapping[str, Any],
+        qty_sample: float,
+        slip_actual: float,
+        ev_key: Optional[tuple],
+        tp_pips: float,
+        sl_pips: float,
+        debug_stage: str,
+        debug_extra: Optional[Mapping[str, Any]] = None,
+    ) -> None:
+        base_cost = ctx_snapshot.get(
+            "cost_base", ctx.get("base_cost_pips", ctx.get("cost_pips", 0.0))
+        )
+        est_slip_used = 0.0
+        if getattr(self.rcfg, "include_expected_slip", False):
+            band = ctx_snapshot.get(
+                "spread_band", ctx.get("spread_band", "normal")
+            )
+            coeff = float(
+                self.slip_a.get(
+                    band, self.rcfg.slip_curve.get(band, {}).get("a", 0.0)
+                )
+            )
+            intercept = float(
+                self.rcfg.slip_curve.get(band, {}).get("b", 0.0)
+            )
+            est_slip_used = max(0.0, coeff * qty_sample + intercept)
+        cost = base_cost + est_slip_used
+        signed = 1 if side == "BUY" else -1
+        pnl_px = (exit_px - entry_px) * signed
+        pnl_pips = price_to_pips(pnl_px, self.symbol) - cost
+        hit = exit_reason == "tp"
+        self._record_trade_metrics(pnl_pips, hit)
+        if self._current_date and self._current_date in self.daily:
+            daily = self.daily[self._current_date]
+            daily["fills"] += 1
+            if hit:
+                daily["wins"] += 1
+            daily["pnl_pips"] += pnl_pips
+            daily["slip_est"] += est_slip_used
+            daily["slip_real"] += slip_actual
+        self._log_trade_record(
+            exit_ts=exit_ts,
+            entry_ts=entry_ts,
+            side=side,
+            tp_pips=tp_pips,
+            sl_pips=sl_pips,
+            cost_pips=cost,
+            slip_est=est_slip_used,
+            slip_real=slip_actual,
+            exit_reason=exit_reason,
+            pnl_pips=pnl_pips,
+            ctx_snapshot=dict(ctx_snapshot),
+        )
+        debug_fields: Dict[str, Any] = {
+            "ts": self._last_timestamp,
+            "side": side,
+            "cost_pips": cost,
+            "slip_est": est_slip_used,
+            "slip_real": slip_actual,
+            "exit": exit_reason,
+            "pnl_pips": pnl_pips,
+        }
+        if debug_extra:
+            debug_fields.update(debug_extra)
+        self._append_debug_record(debug_stage, **debug_fields)
+        session = ctx.get("session", "TOK")
+        spread_band = ctx.get("spread_band", "normal")
+        rv_band = ctx.get("rv_band")
+        resolved_key = ev_key or ctx.get("ev_key") or (
+            session,
+            spread_band,
+            rv_band,
+        )
+        self._get_ev_manager(resolved_key).update(hit)
+        self.ev_var.update(pnl_pips)
+
+    def _update_daily_state(
+        self, bar: Dict[str, Any]
+    ) -> Tuple[bool, str, bool]:
+        try:
+            ts = bar.get("timestamp")
+        except Exception:
+            ts = None
+        day: Optional[int]
+        date_str: Optional[str]
+        sess = "TOK"
+        try:
+            if isinstance(ts, str):
+                day = int(ts[8:10])
+                date_str = ts[:10]
+                sess = self._session_of_ts(ts)
+                self._last_timestamp = ts
+            else:
+                day = None
+                date_str = None
+        except Exception:
+            day = None
+            date_str = None
+        if not isinstance(ts, str) and isinstance(bar.get("timestamp"), str):
+            self._last_timestamp = bar.get("timestamp")
+        new_session = self._last_session is None or sess != self._last_session
+        self._last_session = sess
+        if day is not None:
+            if self._last_day is None:
+                self._last_day = day
+            elif day != self._last_day:
+                self._last_day = day
+        if isinstance(date_str, str) and date_str != self._current_date:
+            self._current_date = date_str
+            self._day_count += 1
+            if self._current_date not in self.daily:
+                self.daily[self._current_date] = {
+                    "breakouts": 0,
+                    "gate_pass": 0,
+                    "gate_block": 0,
+                    "ev_pass": 0,
+                    "ev_reject": 0,
+                    "fills": 0,
+                    "wins": 0,
+                    "pnl_pips": 0.0,
+                    "slip_est": 0.0,
+                    "slip_real": 0.0,
+                }
+            if self.rcfg.rv_qcalib_enabled:
+                for session_name in ("TOK", "LDN", "NY"):
+                    hist = list(self.rv_hist[session_name])
+                    if len(hist) >= max(100, int(self.rcfg.rv_q_lookback_bars * 0.2)):
+                        hist_sorted = sorted(hist)
+
+                        def quantile(arr: List[float], q: float) -> Optional[float]:
+                            if not arr:
+                                return None
+                            k = max(0, min(len(arr) - 1, int(q * (len(arr) - 1))))
+                            return arr[k]
+
+                        c1 = quantile(hist_sorted, self.rcfg.rv_q_low)
+                        c2 = quantile(hist_sorted, self.rcfg.rv_q_high)
+                        if c1 is not None and c2 is not None and c1 <= c2:
+                            self.rv_thresh[session_name] = (c1, c2)
+        calibrating = (
+            self.rcfg.calibrate_days > 0
+            and self._day_count <= self.rcfg.calibrate_days
+        )
+        return new_session, sess, calibrating
+
+    def _compute_features(
+        self,
+        bar: Dict[str, Any],
+        *,
+        session: str,
+        new_session: bool,
+        calibrating: bool,
+    ) -> Tuple[
+        Dict[str, Any],
+        Dict[str, Any],
+        float,
+        float,
+        Optional[float],
+        Optional[float],
+    ]:
+        self.window.append({k: bar[k] for k in ("o", "h", "l", "c")})
+        if len(self.window) > 200:
+            self.window.pop(0)
+        if new_session:
+            self.session_bars = []
+        self.session_bars.append({k: bar[k] for k in ("o", "h", "l", "c")})
+        try:
+            rv_val = realized_vol(self.window, n=12) or 0.0
+            self.rv_hist[session].append(rv_val)
+        except Exception:
+            pass
+        atr14 = calc_atr(self.window[-15:]) if len(self.window) >= 15 else float("nan")
+        adx14 = calc_adx(self.window[-15:]) if len(self.window) >= 15 else float("nan")
+        or_h, or_l = opening_range(self.session_bars, n=self.rcfg.or_n)
+        bar_input: Dict[str, Any] = {
+            "o": bar["o"],
+            "h": bar["h"],
+            "l": bar["l"],
+            "c": bar["c"],
+            "atr14": atr14 if atr14 == atr14 else 0.0,
+            "window": self.session_bars[: self.rcfg.or_n],
+            "new_session": new_session,
+        }
+        if "zscore" in bar:
+            zscore_val = bar["zscore"]
+            try:
+                zscore_val = float(zscore_val)
+            except (TypeError, ValueError):
+                pass
+            bar_input["zscore"] = zscore_val
+        ctx = self._build_ctx(
+            bar,
+            bar_input["atr14"],
+            adx14,
+            or_h if or_h == or_h else None,
+            or_l if or_l == or_l else None,
+        )
+        if calibrating:
+            ctx["threshold_lcb_pip"] = -1e9
+            ctx["calibrating"] = True
+        self.stg.cfg["ctx"] = ctx
+        return bar_input, ctx, atr14, adx14, or_h, or_l
+
+    def _handle_active_position(
+        self,
+        *,
+        bar: Dict[str, Any],
+        ctx: Mapping[str, Any],
+        mode: str,
+        pip_size_value: float,
+        new_session: bool,
+    ) -> bool:
+        if getattr(self, "pos", None) is None:
+            return False
+        side = self.pos["side"]
+        entry_px = self.pos["entry_px"]
+        tp_px = self.pos["tp_px"]
+        sl_px = self.pos["sl_px"]
+        if self.pos.get("trail_pips", 0.0) > 0:
+            if side == "BUY":
+                self.pos["hh"] = max(self.pos.get("hh", entry_px), bar["h"])
+                new_sl = self.pos["hh"] - self.pos["trail_pips"] * pip_size_value
+                sl_px = max(sl_px, new_sl)
+            else:
+                self.pos["ll"] = min(self.pos.get("ll", entry_px), bar["l"])
+                new_sl = self.pos["ll"] + self.pos["trail_pips"] * pip_size_value
+                sl_px = min(sl_px, new_sl)
+            self.pos["sl_px"] = sl_px
+        exited = False
+        exit_px = None
+        exit_reason: Optional[str] = None
+        if side == "BUY":
+            if bar["l"] <= sl_px and bar["h"] >= tp_px:
+                if mode == "conservative":
+                    exit_px, exit_reason = sl_px, "sl"
+                else:
+                    rng = max(bar["h"] - bar["l"], pip_size_value)
+                    drift = (bar["c"] - bar["o"]) / rng if rng > 0 else 0.0
+                    d_tp = max((tp_px - entry_px) / pip_size_value, 1e-9)
+                    d_sl = max((entry_px - sl_px) / pip_size_value, 1e-9)
+                    base = d_sl / (d_tp + d_sl)
+                    p_tp = min(
+                        0.999,
+                        max(0.001, 0.65 * base + 0.35 * 0.5 * (1.0 + math.tanh(2.5 * drift))),
+                    )
+                    exit_px = p_tp * tp_px + (1 - p_tp) * sl_px
+                    exit_reason = "tp" if p_tp >= 0.5 else "sl"
+                exited = True
+            elif bar["l"] <= sl_px:
+                exit_px, exit_reason, exited = sl_px, "sl", True
+            elif bar["h"] >= tp_px:
+                exit_px, exit_reason, exited = tp_px, "tp", True
+        else:
+            if bar["h"] >= sl_px and bar["l"] <= tp_px:
+                if mode == "conservative":
+                    exit_px, exit_reason = sl_px, "sl"
+                else:
+                    rng = max(bar["h"] - bar["l"], pip_size_value)
+                    drift = (bar["o"] - bar["c"]) / rng if rng > 0 else 0.0
+                    d_tp = max((entry_px - tp_px) / pip_size_value, 1e-9)
+                    d_sl = max((sl_px - entry_px) / pip_size_value, 1e-9)
+                    base = d_sl / (d_tp + d_sl)
+                    p_tp = min(
+                        0.999,
+                        max(0.001, 0.65 * base + 0.35 * 0.5 * (1.0 + math.tanh(2.5 * drift))),
+                    )
+                    exit_px = p_tp * tp_px + (1 - p_tp) * sl_px
+                    exit_reason = "tp" if p_tp >= 0.5 else "sl"
+                exited = True
+            elif bar["h"] >= sl_px:
+                exit_px, exit_reason, exited = sl_px, "sl", True
+            elif bar["l"] <= tp_px:
+                exit_px, exit_reason, exited = tp_px, "tp", True
+        if not exited:
+            self.pos["hold"] = self.pos.get("hold", 0) + 1
+            if new_session or self.pos["hold"] >= getattr(self.rcfg, "max_hold_bars", 96):
+                exit_px = bar["o"]
+                exit_reason = "session_end" if new_session else "timeout"
+                exited = True
+        if exited and exit_px is not None:
+            qty_sample = self.pos.get("qty", 1.0) or 1.0
+            slip_actual = self.pos.get("entry_slip_pip", 0.0)
+            self._finalize_trade(
+                exit_ts=bar.get("timestamp"),
+                entry_ts=self.pos.get("entry_ts"),
+                side=side,
+                entry_px=entry_px,
+                exit_px=exit_px,
+                exit_reason=exit_reason,
+                ctx_snapshot=self.pos.get("ctx_snapshot", {}),
+                ctx=ctx,
+                qty_sample=qty_sample,
+                slip_actual=slip_actual,
+                ev_key=self.pos.get("ev_key"),
+                tp_pips=self.pos.get("tp_pips", 0.0),
+                sl_pips=self.pos.get("sl_pips", 0.0),
+                debug_stage="trade_exit",
+            )
+            self.pos = None
+        return True
+
+    def _resolve_calibration_positions(
+        self,
+        *,
+        bar: Dict[str, Any],
+        ctx: Mapping[str, Any],
+        new_session: bool,
+        calibrating: bool,
+    ) -> None:
+        if not calibrating or not self.calib_positions:
+            return
+        still: List[Dict[str, Any]] = []
+        for pos in self.calib_positions:
+            side = pos["side"]
+            entry_px = pos["entry_px"]
+            tp_px = pos["tp_px"]
+            sl_px = pos["sl_px"]
+            exited = False
+            exit_reason: Optional[str] = None
+            if side == "BUY":
+                if bar["l"] <= sl_px and bar["h"] >= tp_px:
+                    exit_reason, exited = "sl", True
+                elif bar["l"] <= sl_px:
+                    exit_reason, exited = "sl", True
+                elif bar["h"] >= tp_px:
+                    exit_reason, exited = "tp", True
+            else:
+                if bar["h"] >= sl_px and bar["l"] <= tp_px:
+                    exit_reason, exited = "sl", True
+                elif bar["h"] >= sl_px:
+                    exit_reason, exited = "sl", True
+                elif bar["l"] <= tp_px:
+                    exit_reason, exited = "tp", True
+            pos["hold"] = pos.get("hold", 0) + 1
+            if not exited and (new_session or pos["hold"] >= getattr(self.rcfg, "max_hold_bars", 96)):
+                exit_reason, exited = "timeout", True
+            if exited:
+                hit = exit_reason == "tp"
+                ev_key = pos.get("ev_key") or ctx.get("ev_key") or (
+                    ctx.get("session"),
+                    ctx.get("spread_band"),
+                    ctx.get("rv_band"),
+                )
+                self._get_ev_manager(ev_key).update(bool(hit))
+            else:
+                still.append(pos)
+        self.calib_positions = still
+
+    def _maybe_enter_trade(
+        self,
+        *,
+        bar: Dict[str, Any],
+        bar_input: Dict[str, Any],
+        ctx: Dict[str, Any],
+        atr14: float,
+        adx14: float,
+        or_h: Optional[float],
+        or_l: Optional[float],
+        mode: str,
+        pip_size_value: float,
+        calibrating: bool,
+    ) -> None:
+        self.stg.on_bar(bar_input)
+        pending = getattr(self.stg, "_pending_signal", None)
+        if pending is None:
+            self.debug_counts["no_breakout"] += 1
+            self._append_debug_record("no_breakout", ts=self._last_timestamp)
+            return
+        if self._current_date and self._current_date in self.daily:
+            self.daily[self._current_date]["breakouts"] += 1
+        ctx_dbg = self._build_ctx(
+            bar,
+            bar_input["atr14"],
+            adx14,
+            or_h if or_h == or_h else None,
+            or_l if or_l == or_l else None,
+        )
+        gate_allowed, gate_reason = self._call_strategy_gate(
+            ctx_dbg,
+            pending,
+            ts=self._last_timestamp,
+            side=pending.get("side") if isinstance(pending, dict) else None,
+        )
+        if not gate_allowed:
+            self.debug_counts["gate_block"] += 1
+            if self._current_date and self._current_date in self.daily:
+                self.daily[self._current_date]["gate_block"] += 1
+            reason_stage = None
+            or_ratio = None
+            min_or_ratio = None
+            rv_band = None
+            if gate_reason:
+                reason_stage = gate_reason.get("stage")
+                or_ratio = gate_reason.get("or_atr_ratio")
+                min_or_ratio = gate_reason.get("min_or_atr_ratio")
+                rv_band = gate_reason.get("rv_band")
+            self._append_debug_record(
+                "strategy_gate",
+                ts=self._last_timestamp,
+                side=pending.get("side") if isinstance(pending, dict) else None,
+                reason_stage=reason_stage,
+                or_atr_ratio=or_ratio,
+                min_or_atr_ratio=min_or_ratio,
+                rv_band=rv_band,
+                allow_low_rv=ctx_dbg.get("allow_low_rv"),
+            )
+            return
+        if not pass_gates(ctx_dbg):
+            self.debug_counts["gate_block"] += 1
+            if self._current_date and self._current_date in self.daily:
+                self.daily[self._current_date]["gate_block"] += 1
+            self._append_debug_record(
+                "gate_block",
+                ts=self._last_timestamp,
+                side=pending.get("side") if isinstance(pending, dict) else None,
+                rv_band=ctx_dbg.get("rv_band"),
+                spread_band=ctx_dbg.get("spread_band"),
+                or_atr_ratio=ctx_dbg.get("or_atr_ratio"),
+                reason="router_gate",
+            )
+            return
+        if self._current_date and self._current_date in self.daily:
+            self.daily[self._current_date]["gate_pass"] += 1
+        ev_mgr_dbg = self._get_ev_manager(
+            ctx_dbg.get(
+                "ev_key",
+                (
+                    ctx_dbg.get("session"),
+                    ctx_dbg.get("spread_band"),
+                    ctx_dbg.get("rv_band"),
+                ),
+            )
+        )
+        threshold_lcb = self.rcfg.threshold_lcb_pip
+        threshold_lcb = self._call_ev_threshold(
+            ctx_dbg,
+            pending,
+            threshold_lcb,
+            ts=self._last_timestamp,
+            side=pending.get("side") if isinstance(pending, dict) else None,
+        )
+        ctx_dbg["threshold_lcb_pip"] = threshold_lcb
+        ev_lcb = (
+            ev_mgr_dbg.ev_lcb_oco(
+                pending["tp_pips"],
+                pending["sl_pips"],
+                ctx_dbg["cost_pips"],
+            )
+            if (pending and not calibrating)
+            else 1e9
+        )
+        ev_bypass = False
+        if not calibrating and ev_lcb < threshold_lcb:
+            if self._warmup_left > 0:
+                ev_bypass = True
+                self.debug_counts["ev_bypass"] += 1
+            else:
+                self.debug_counts["ev_reject"] += 1
+                if self._current_date and self._current_date in self.daily:
+                    self.daily[self._current_date]["ev_reject"] += 1
+                self._append_debug_record(
+                    "ev_reject",
+                    ts=self._last_timestamp,
+                    side=pending.get("side") if isinstance(pending, dict) else None,
+                    ev_lcb=ev_lcb,
+                    threshold_lcb=threshold_lcb,
+                    cost_pips=ctx_dbg.get("cost_pips"),
+                    tp_pips=pending.get("tp_pips") if isinstance(pending, dict) else None,
+                    sl_pips=pending.get("sl_pips") if isinstance(pending, dict) else None,
+                )
+                return
+        else:
+            if self._current_date and self._current_date in self.daily:
+                self.daily[self._current_date]["ev_pass"] += 1
+        ctx_dbg["ev_lcb"] = ev_lcb
+        ctx_dbg["threshold_lcb"] = threshold_lcb
+        ctx_dbg["ev_pass"] = not ev_bypass
+        slip_cap = ctx_dbg.get("slip_cap_pip", self.rcfg.slip_cap_pip)
+        if ctx_dbg.get("expected_slip_pip", 0.0) > slip_cap:
+            self.debug_counts["gate_block"] += 1
+            if self._current_date and self._current_date in self.daily:
+                self.daily[self._current_date]["gate_block"] += 1
+            self._append_debug_record(
+                "slip_cap",
+                ts=self._last_timestamp,
+                side=pending.get("side") if isinstance(pending, dict) else None,
+                expected_slip_pip=ctx_dbg.get("expected_slip_pip"),
+                slip_cap_pip=slip_cap,
+            )
+            return
+        if not ev_bypass and not calibrating:
+            p_lcb = ev_mgr_dbg.p_lcb()
+            b = pending["tp_pips"] / max(pending["sl_pips"], 1e-9)
+            f_star = max(0.0, p_lcb - (1.0 - p_lcb) / b)
+            kelly_fraction = 0.25
+            mult = min(5.0, kelly_fraction * f_star)
+            risk_amt = self.equity * (0.25 / 100.0)
+            base = max(
+                0.0,
+                risk_amt / max(10.0 * pending["sl_pips"], 1e-9),
+            )
+            qty_dbg = max(
+                0.0,
+                min(
+                    base * mult,
+                    (self.equity * (0.5 / 100.0)) / (10.0 * pending["sl_pips"]),
+                    5.0,
+                ),
+            )
+            if qty_dbg <= 0:
+                self.debug_counts["zero_qty"] += 1
+                return
+        intents = list(self.stg.signals())
+        if not intents:
+            self.debug_counts["gate_block"] += 1
+            return
+        if self._warmup_left > 0:
+            self._warmup_left -= 1
+        intent = intents[0]
+        spec = OrderSpec(
+            side=intent.side,
+            entry=intent.price,
+            tp_pips=intent.oco["tp_pips"],
+            sl_pips=intent.oco["sl_pips"],
+            trail_pips=intent.oco.get("trail_pips", 0.0),
+            slip_cap_pip=ctx["slip_cap_pip"],
+        )
+        fill_engine = self.fill_engine_c if mode == "conservative" else self.fill_engine_b
+        result = fill_engine.simulate(
+            {
+                "o": bar["o"],
+                "h": bar["h"],
+                "l": bar["l"],
+                "c": bar["c"],
+                "pip": pip_size_value,
+                "spread": bar["spread"],
+            },
+            spec,
+        )
+        if not result.get("fill"):
+            return
+        trade_ctx_snapshot: Dict[str, Any] = {
+            "session": ctx_dbg.get("session", ctx.get("session")),
+            "rv_band": ctx_dbg.get("rv_band", ctx.get("rv_band")),
+            "spread_band": ctx_dbg.get("spread_band", ctx.get("spread_band")),
+            "or_atr_ratio": ctx_dbg.get("or_atr_ratio", ctx.get("or_atr_ratio")),
+            "min_or_atr_ratio": ctx_dbg.get("min_or_atr_ratio", ctx.get("min_or_atr_ratio")),
+            "ev_lcb": ctx_dbg.get("ev_lcb"),
+            "threshold_lcb": ctx_dbg.get("threshold_lcb"),
+            "ev_pass": ctx_dbg.get("ev_pass"),
+            "expected_slip_pip": ctx.get("expected_slip_pip", 0.0),
+            "cost_base": ctx.get("base_cost_pips", ctx.get("cost_pips", 0.0)),
+        }
+        if "zscore" in bar_input:
+            trade_ctx_snapshot["zscore"] = bar_input["zscore"]
+        if "exit_px" in result:
+            entry_px = result["entry_px"]
+            exit_px = result["exit_px"]
+            exit_reason = result.get("exit_reason")
+            if calibrating:
+                hit = exit_reason == "tp"
+                ev_key = ctx.get("ev_key") or (
+                    ctx.get("session"),
+                    ctx.get("spread_band"),
+                    ctx.get("rv_band"),
+                )
+                self._get_ev_manager(ev_key).update(bool(hit))
+                return
+            qty_sample, slip_actual = self._update_slip_learning(
+                order=intent,
+                actual_price=entry_px,
+                intended_price=intent.price,
+                ctx=ctx,
+            )
+            self._finalize_trade(
+                exit_ts=bar.get("timestamp"),
+                entry_ts=bar.get("timestamp"),
+                side=intent.side,
+                entry_px=entry_px,
+                exit_px=exit_px,
+                exit_reason=exit_reason,
+                ctx_snapshot=trade_ctx_snapshot,
+                ctx=ctx,
+                qty_sample=qty_sample,
+                slip_actual=slip_actual,
+                ev_key=ctx.get("ev_key"),
+                tp_pips=spec.tp_pips,
+                sl_pips=spec.sl_pips,
+                debug_stage="trade",
+                debug_extra={
+                    "tp_pips": spec.tp_pips,
+                    "sl_pips": spec.sl_pips,
+                },
+            )
+            return
+        entry_px = result.get("entry_px")
+        tp_px = intent.price + (
+            spec.tp_pips * pip_size_value if intent.side == "BUY" else -spec.tp_pips * pip_size_value
+        )
+        sl_px0 = intent.price - (
+            spec.sl_pips * pip_size_value if intent.side == "BUY" else -spec.sl_pips * pip_size_value
+        )
+        if calibrating:
+            self.calib_positions.append(
+                {
+                    "side": intent.side,
+                    "entry_px": entry_px,
+                    "tp_px": tp_px,
+                    "sl_px": sl_px0,
+                    "ev_key": ctx.get("ev_key"),
+                    "hold": 0,
+                }
+            )
+            return
+        _, entry_slip_pip = self._update_slip_learning(
+            order=intent,
+            actual_price=entry_px,
+            intended_price=intent.price,
+            ctx=ctx,
+        )
+        self.pos = {
+            "side": intent.side,
+            "entry_px": entry_px,
+            "tp_px": tp_px,
+            "sl_px": sl_px0,
+            "tp_pips": spec.tp_pips,
+            "sl_pips": spec.sl_pips,
+            "trail_pips": spec.trail_pips,
+            "hh": bar["h"],
+            "ll": bar["l"],
+            "ev_key": ctx.get("ev_key"),
+            "qty": getattr(intent, "qty", 1.0) or 1.0,
+            "expected_slip_pip": ctx.get("expected_slip_pip", 0.0),
+            "entry_slip_pip": entry_slip_pip,
+            "hold": 0,
+            "entry_ts": bar.get("timestamp"),
+            "ctx_snapshot": dict(trade_ctx_snapshot),
+        }
+
     def _record_trade_metrics(self, pnl_pips: float, hit: bool) -> None:
         self.metrics.record_trade(pnl_pips, hit)
 
@@ -795,524 +1444,40 @@ class BacktestRunner:
         for bar in bars:
             if not validate_bar(bar):
                 continue
-            # Detect UTC day change for daily OR reset
-            try:
-                ts = bar.get("timestamp")
-                # Accept both 'Z' and naive; fallback simple parse
-                if isinstance(ts, str):
-                    # Fast parse yyyy-mm-ddThh:mm:ss[Z]
-                    day = int(ts[8:10])
-                    date_str = ts[:10]
-                    sess = self._session_of_ts(ts)
-                    self._last_timestamp = ts
-                else:
-                    day = None
-                    date_str = None
-                    sess = "TOK"
-            except Exception:
-                day = None
-                date_str = None
-                sess = "TOK"
-            if not isinstance(ts, str) and isinstance(bar.get("timestamp"), str):
-                self._last_timestamp = bar.get("timestamp")
-            new_session = False
-            # session boundary reset: on first bar or when session changes
-            if self._last_session is None or sess != self._last_session:
-                new_session = True
-            self._last_session = sess
-            if day is not None:
-                if self._last_day is None:
-                    self._last_day = day
-                elif day != self._last_day:
-                    self._last_day = day
-            if date_str and date_str != self._current_date:
-                self._current_date = date_str
-                self._day_count += 1
-                if self._current_date not in self.daily:
-                    self.daily[self._current_date] = {
-                        "breakouts":0,
-                        "gate_pass":0,
-                        "gate_block":0,
-                        "ev_pass":0,
-                        "ev_reject":0,
-                        "fills":0,
-                        "wins":0,
-                        "pnl_pips":0.0,
-                        "slip_est":0.0,
-                        "slip_real":0.0,
-                    }
-                # Recompute RV thresholds daily based on history (no future leak)
-                if self.rcfg.rv_qcalib_enabled:
-                    for s in ("TOK","LDN","NY"):
-                        hist = list(self.rv_hist[s])
-                        if len(hist) >= max(100, int(self.rcfg.rv_q_lookback_bars*0.2)):
-                            hist_sorted = sorted(hist)
-                            def quantile(arr, q):
-                                if not arr: return None
-                                k = max(0, min(len(arr)-1, int(q*(len(arr)-1))))
-                                return arr[k]
-                            c1 = quantile(hist_sorted, self.rcfg.rv_q_low)
-                            c2 = quantile(hist_sorted, self.rcfg.rv_q_high)
-                            if c1 is not None and c2 is not None and c1 <= c2:
-                                self.rv_thresh[s] = (c1, c2)
-            # maintain rolling window and compute features
-            self.window.append({k: bar[k] for k in ("o","h","l","c")})
-            if len(self.window) > 200:
-                self.window.pop(0)
-            # maintain session bars from session start
-            if new_session:
-                self.session_bars = []
-            self.session_bars.append({k: bar[k] for k in ("o","h","l","c")})
-            # append RV to session-wise history for quantile calibration
-            try:
-                sess_key = sess
-            except NameError:
-                sess_key = self._session_of_ts(bar.get("timestamp", ""))
-            try:
-                rv_val = realized_vol(self.window, n=12) or 0.0
-                self.rv_hist[sess_key].append(rv_val)
-            except Exception:
-                pass
-            atr14 = calc_atr(self.window[-15:]) if len(self.window) >= 15 else float("nan")
-            adx14 = calc_adx(self.window[-15:]) if len(self.window) >= 15 else float("nan")
-            or_h, or_l = opening_range(self.session_bars, n=self.rcfg.or_n)
-
-            bar_input = {
-                "o": bar["o"], "h": bar["h"], "l": bar["l"], "c": bar["c"],
-                "atr14": atr14 if atr14 == atr14 else 0.0,  # nan->0.0
-                "window": self.session_bars[: self.rcfg.or_n],
-                "new_session": new_session,
-            }
-            if "zscore" in bar:
-                zscore_val = bar["zscore"]
-                try:
-                    zscore_val = float(zscore_val)
-                except (TypeError, ValueError):
-                    pass
-                bar_input["zscore"] = zscore_val
-            ctx = self._build_ctx(bar, bar_input["atr14"], adx14, or_h if or_h==or_h else None, or_l if or_l==or_l else None)
-            # inject ctx for strategy
-            # calibration flag: bypass EV threshold inside strategy by lowering threshold
-            calibrating = (self.rcfg.calibrate_days > 0 and self._day_count <= self.rcfg.calibrate_days)
-            if calibrating:
-                ctx["threshold_lcb_pip"] = -1e9
-                ctx["calibrating"] = True
-            self.stg.cfg["ctx"] = ctx
-
-            # If a position is open, manage exits first (carry-over OCO)
-            if getattr(self, "pos", None) is not None:
-                side = self.pos["side"]
-                entry_px = self.pos["entry_px"]
-                tp_px = self.pos["tp_px"]
-                sl_px = self.pos["sl_px"]
-                # Trailing update
-                if self.pos.get("trail_pips", 0.0) > 0:
-                    if side == "BUY":
-                        self.pos["hh"] = max(self.pos.get("hh", entry_px), bar["h"])
-                        new_sl = self.pos["hh"] - self.pos["trail_pips"] * ps
-                        sl_px = max(sl_px, new_sl)
-                    else:
-                        self.pos["ll"] = min(self.pos.get("ll", entry_px), bar["l"])
-                        new_sl = self.pos["ll"] + self.pos["trail_pips"] * ps
-                        sl_px = min(sl_px, new_sl)
-                    self.pos["sl_px"] = sl_px
-
-                exited = False
-                exit_px = None
-                exit_reason = None
-                if side == "BUY":
-                    if bar["l"] <= sl_px and bar["h"] >= tp_px:
-                        if mode == "conservative":
-                            exit_px, exit_reason = sl_px, "sl"
-                        else:
-                            rng = max(bar["h"] - bar["l"], ps)
-                            drift = (bar["c"] - bar["o"]) / rng if rng>0 else 0.0
-                            import math
-                            d_tp = max((tp_px - entry_px)/ps, 1e-9)
-                            d_sl = max((entry_px - sl_px)/ps, 1e-9)
-                            base = d_sl/(d_tp+d_sl)
-                            p_tp = min(0.999, max(0.001, 0.65*base + 0.35*0.5*(1.0+math.tanh(2.5*drift))))
-                            exit_px = p_tp*tp_px + (1-p_tp)*sl_px
-                            exit_reason = "tp" if p_tp>=0.5 else "sl"
-                        exited = True
-                    elif bar["l"] <= sl_px:
-                        exit_px, exit_reason, exited = sl_px, "sl", True
-                    elif bar["h"] >= tp_px:
-                        exit_px, exit_reason, exited = tp_px, "tp", True
-                else:
-                    if bar["h"] >= sl_px and bar["l"] <= tp_px:
-                        if mode == "conservative":
-                            exit_px, exit_reason = sl_px, "sl"
-                        else:
-                            rng = max(bar["h"] - bar["l"], ps)
-                            drift = (bar["o"] - bar["c"]) / rng if rng>0 else 0.0
-                            import math
-                            d_tp = max((entry_px - tp_px)/ps, 1e-9)
-                            d_sl = max((sl_px - entry_px)/ps, 1e-9)
-                            base = d_sl/(d_tp+d_sl)
-                            p_tp = min(0.999, max(0.001, 0.65*base + 0.35*0.5*(1.0+math.tanh(2.5*drift))))
-                            exit_px = p_tp*tp_px + (1-p_tp)*sl_px
-                            exit_reason = "tp" if p_tp>=0.5 else "sl"
-                        exited = True
-                    elif bar["h"] >= sl_px:
-                        exit_px, exit_reason, exited = sl_px, "sl", True
-                    elif bar["l"] <= tp_px:
-                        exit_px, exit_reason, exited = tp_px, "tp", True
-
-                if not exited:
-                    self.pos["hold"] = self.pos.get("hold", 0) + 1
-                    if new_session or self.pos["hold"] >= getattr(self.rcfg, "max_hold_bars", 96):
-                        exit_px, exit_reason, exited = bar["o"], ("session_end" if new_session else "timeout"), True
-
-                if exited:
-                    qty_sample = self.pos.get("qty", 1.0) or 1.0
-                    signed = +1 if side == "BUY" else -1
-                    pnl_px = (exit_px - entry_px) * signed
-                    pos_snapshot = self.pos.get("ctx_snapshot", {})
-                    base_cost = pos_snapshot.get("cost_base", ctx.get("base_cost_pips", ctx.get("cost_pips", 0.0)))
-                    est_slip_used = 0.0
-                    if getattr(self.rcfg, "include_expected_slip", False):
-                        band = pos_snapshot.get("spread_band", ctx.get("spread_band", "normal"))
-                        coeff = float(self.slip_a.get(band, self.rcfg.slip_curve.get(band, {}).get("a", 0.0)))
-                        intercept = float(self.rcfg.slip_curve.get(band, {}).get("b", 0.0))
-                        est_slip_used = max(0.0, coeff * qty_sample + intercept)
-                    cost = base_cost + est_slip_used
-                    pnl_pips = price_to_pips(pnl_px, self.symbol) - cost
-                    hit = exit_reason == "tp"
-                    self._record_trade_metrics(pnl_pips, hit)
-                    # update EV models
-                    ev_key = self.pos.get("ev_key", (ctx["session"], ctx["spread_band"], ctx["rv_band"]))
-                    self._get_ev_manager(ev_key).update(exit_reason == "tp")
-                    self.ev_var.update(pnl_pips)
-                    if self._current_date:
-                        self.daily[self._current_date]["fills"] += 1
-                        if hit:
-                            self.daily[self._current_date]["wins"] += 1
-                        self.daily[self._current_date]["pnl_pips"] += pnl_pips
-                        slip_actual = self.pos.get("entry_slip_pip", 0.0)
-                        self.daily[self._current_date]["slip_est"] += est_slip_used
-                        self.daily[self._current_date]["slip_real"] += slip_actual
-                    self._log_trade_record(
-                        exit_ts=bar.get("timestamp"),
-                        entry_ts=self.pos.get("entry_ts"),
-                        side=side,
-                        tp_pips=self.pos.get("tp_pips", 0.0),
-                        sl_pips=self.pos.get("sl_pips", 0.0),
-                        cost_pips=cost,
-                        slip_est=est_slip_used,
-                        slip_real=slip_actual,
-                        exit_reason=exit_reason,
-                        pnl_pips=pnl_pips,
-                        ctx_snapshot=self.pos.get("ctx_snapshot"),
-                    )
-                    self._append_debug_record(
-                        "trade_exit",
-                        ts=self._last_timestamp,
-                        side=side,
-                        cost_pips=cost,
-                        slip_est=est_slip_used,
-                        slip_real=self.pos.get("entry_slip_pip", 0.0),
-                        exit=exit_reason,
-                        pnl_pips=pnl_pips,
-                    )
-                    self.pos = None
-                # Skip new entries while a position is open (or just exited this bar)
-                continue
-
-            # During calibration phase, resolve calibration positions (no metrics, only EV updates)
-            calibrating = (self.rcfg.calibrate_days > 0 and self._day_count <= self.rcfg.calibrate_days)
-            if calibrating and self.calib_positions:
-                still: List[Dict[str, Any]] = []
-                for p in self.calib_positions:
-                    side = p["side"]; entry_px = p["entry_px"]; tp_px = p["tp_px"]; sl_px = p["sl_px"]
-                    exited = False; exit_reason = None
-                    if side == "BUY":
-                        if bar["l"] <= sl_px and bar["h"] >= tp_px: exit_reason, exited = "sl", True
-                        elif bar["l"] <= sl_px: exit_reason, exited = "sl", True
-                        elif bar["h"] >= tp_px: exit_reason, exited = "tp", True
-                    else:
-                        if bar["h"] >= sl_px and bar["l"] <= tp_px: exit_reason, exited = "sl", True
-                        elif bar["h"] >= sl_px: exit_reason, exited = "sl", True
-                        elif bar["l"] <= tp_px: exit_reason, exited = "tp", True
-                    p["hold"] = p.get("hold", 0) + 1
-                    if not exited and (new_session or p["hold"] >= getattr(self.rcfg, "max_hold_bars", 96)):
-                        exit_reason, exited = "timeout", True
-                    if exited:
-                        hit = (exit_reason == "tp")
-                        self._get_ev_manager(p.get("ev_key", (ctx["session"], ctx["spread_band"], ctx["rv_band"])) ).update(bool(hit))
-                    else:
-                        still.append(p)
-                self.calib_positions = still
-
-            # strategy step
-            self.stg.on_bar(bar_input)
-            # Inspect pending signal for diagnostics
-            pending = getattr(self.stg, "_pending_signal", None)
-            if pending is None:
-                self.debug_counts["no_breakout"] += 1
-                self._append_debug_record("no_breakout", ts=self._last_timestamp)
-                continue
-            if self._current_date:
-                self.daily[self._current_date]["breakouts"] += 1
-
-            # Recompute gating/EV/sizing locally for transparent diagnostics
-            ctx_dbg = self._build_ctx(bar, bar_input["atr14"], adx14, or_h if or_h==or_h else None, or_l if or_l==or_l else None)
-            gate_allowed, gate_reason = self._call_strategy_gate(
-                ctx_dbg,
-                pending,
-                ts=self._last_timestamp,
-                side=pending.get("side") if isinstance(pending, dict) else None,
+            new_session, session, calibrating = self._update_daily_state(bar)
+            bar_input, ctx, atr14, adx14, or_h, or_l = self._compute_features(
+                bar,
+                session=session,
+                new_session=new_session,
+                calibrating=calibrating,
             )
-            if not gate_allowed:
-                self.debug_counts["gate_block"] += 1
-                if self._current_date:
-                    self.daily[self._current_date]["gate_block"] += 1
-                reason_stage = None
-                or_ratio = None
-                min_or_ratio = None
-                rv_band = None
-                if gate_reason:
-                    reason_stage = gate_reason.get("stage")
-                    or_ratio = gate_reason.get("or_atr_ratio")
-                    min_or_ratio = gate_reason.get("min_or_atr_ratio")
-                    rv_band = gate_reason.get("rv_band")
-                self._append_debug_record(
-                    "strategy_gate",
-                    ts=self._last_timestamp,
-                    side=pending.get("side") if isinstance(pending, dict) else None,
-                    reason_stage=reason_stage,
-                    or_atr_ratio=or_ratio,
-                    min_or_atr_ratio=min_or_ratio,
-                    rv_band=rv_band,
-                    allow_low_rv=ctx_dbg.get("allow_low_rv"),
-                )
+            if self._handle_active_position(
+                bar=bar,
+                ctx=ctx,
+                mode=mode,
+                pip_size_value=ps,
+                new_session=new_session,
+            ):
                 continue
-            if not pass_gates(ctx_dbg):
-                self.debug_counts["gate_block"] += 1
-                if self._current_date:
-                    self.daily[self._current_date]["gate_block"] += 1
-                self._append_debug_record(
-                    "gate_block",
-                    ts=self._last_timestamp,
-                    side=pending.get("side") if isinstance(pending, dict) else None,
-                    rv_band=ctx_dbg.get("rv_band"),
-                    spread_band=ctx_dbg.get("spread_band"),
-                    or_atr_ratio=ctx_dbg.get("or_atr_ratio"),
-                    reason="router_gate",
-                )
-                continue
-            if self._current_date:
-                self.daily[self._current_date]["gate_pass"] += 1
-
-            ev_mgr_dbg = self._get_ev_manager(ctx_dbg.get("ev_key", (ctx_dbg["session"], ctx_dbg["spread_band"], ctx_dbg["rv_band"])))
-            threshold_lcb = self.rcfg.threshold_lcb_pip
-            threshold_lcb = self._call_ev_threshold(
-                ctx_dbg,
-                pending,
-                threshold_lcb,
-                ts=self._last_timestamp,
-                side=pending.get("side") if isinstance(pending, dict) else None,
+            self._resolve_calibration_positions(
+                bar=bar,
+                ctx=ctx,
+                new_session=new_session,
+                calibrating=calibrating,
             )
-            ctx_dbg["threshold_lcb_pip"] = threshold_lcb
-            calibrating = (self.rcfg.calibrate_days > 0 and self._day_count <= self.rcfg.calibrate_days)
-            ev_lcb = ev_mgr_dbg.ev_lcb_oco(pending["tp_pips"], pending["sl_pips"], ctx_dbg["cost_pips"]) if (pending and not calibrating) else 1e9
-            ev_bypass = False
-            if not calibrating and ev_lcb < threshold_lcb:
-                if self._warmup_left > 0:
-                    # Bypass EV during warmup to bootstrap stats; do not size-debug
-                    ev_bypass = True
-                    self.debug_counts["ev_bypass"] += 1
-                else:
-                    self.debug_counts["ev_reject"] += 1
-                    if self._current_date:
-                        self.daily[self._current_date]["ev_reject"] += 1
-                    self._append_debug_record(
-                        "ev_reject",
-                        ts=self._last_timestamp,
-                        side=pending.get("side") if isinstance(pending, dict) else None,
-                        ev_lcb=ev_lcb,
-                        threshold_lcb=threshold_lcb,
-                        cost_pips=ctx_dbg.get("cost_pips"),
-                        tp_pips=pending.get("tp_pips") if isinstance(pending, dict) else None,
-                        sl_pips=pending.get("sl_pips") if isinstance(pending, dict) else None,
-                    )
-                    continue
-            else:
-                if self._current_date:
-                    self.daily[self._current_date]["ev_pass"] += 1
+            self._maybe_enter_trade(
+                bar=bar,
+                bar_input=bar_input,
+                ctx=ctx,
+                atr14=atr14,
+                adx14=adx14,
+                or_h=or_h,
+                or_l=or_l,
+                mode=mode,
+                pip_size_value=ps,
+                calibrating=calibrating,
+            )
 
-            ctx_dbg["ev_lcb"] = ev_lcb
-            ctx_dbg["threshold_lcb"] = threshold_lcb
-            ctx_dbg["ev_pass"] = not ev_bypass
-
-            slip_cap = ctx_dbg.get("slip_cap_pip", self.rcfg.slip_cap_pip)
-            if ctx_dbg.get("expected_slip_pip", 0.0) > slip_cap:
-                self.debug_counts["gate_block"] += 1
-                if self._current_date:
-                    self.daily[self._current_date]["gate_block"] += 1
-                self._append_debug_record(
-                    "slip_cap",
-                    ts=self._last_timestamp,
-                    side=pending.get("side") if isinstance(pending, dict) else None,
-                    expected_slip_pip=ctx_dbg.get("expected_slip_pip"),
-                    slip_cap_pip=slip_cap,
-                )
-                continue
-
-            # Sizing (skip debug size check during EV bypass; strategy will warmup-size)
-            if not ev_bypass and not calibrating:
-                # Mirror the strategy calcs but minimal to avoid import cycle
-                p_lcb = ev_mgr_dbg.p_lcb()
-                b = pending["tp_pips"] / max(pending["sl_pips"], 1e-9)
-                f_star = max(0.0, p_lcb - (1.0 - p_lcb)/b)
-                kelly_fraction = 0.25
-                mult = min(5.0, kelly_fraction * f_star)
-                risk_amt = self.equity * (0.25/100.0)
-                base = max(0.0, risk_amt / max(10.0*pending["sl_pips"], 1e-9))  # assumes pip_value=10
-                qty_dbg = max(0.0, min(base * mult, (self.equity*(0.5/100.0))/(10.0*pending["sl_pips"]), 5.0))
-                if qty_dbg <= 0:
-                    self.debug_counts["zero_qty"] += 1
-                    continue
-
-            # If we get here, intents should exist; call signals() for real order emission
-            intents = list(self.stg.signals())
-            if not intents:
-                # Safety: count as generic block
-                self.debug_counts["gate_block"] += 1
-                continue
-            if self._warmup_left > 0:
-                self._warmup_left -= 1
-
-            # simulate fills (first intent only for skeleton)
-            it = intents[0]
-            spec = OrderSpec(side=it.side, entry=it.price, tp_pips=it.oco["tp_pips"], sl_pips=it.oco["sl_pips"], trail_pips=it.oco.get("trail_pips",0.0), slip_cap_pip=ctx["slip_cap_pip"])
-            fe = self.fill_engine_c if mode == "conservative" else self.fill_engine_b
-            result = fe.simulate({"o": bar["o"], "h": bar["h"], "l": bar["l"], "c": bar["c"], "pip": ps, "spread": bar["spread"]}, spec)
-            if not result.get("fill"):
-                continue
-
-            trade_ctx_snapshot = {
-                "session": ctx_dbg.get("session", ctx.get("session")),
-                "rv_band": ctx_dbg.get("rv_band", ctx.get("rv_band")),
-                "spread_band": ctx_dbg.get("spread_band", ctx.get("spread_band")),
-                "or_atr_ratio": ctx_dbg.get("or_atr_ratio", ctx.get("or_atr_ratio")),
-                "min_or_atr_ratio": ctx_dbg.get("min_or_atr_ratio", ctx.get("min_or_atr_ratio")),
-                "ev_lcb": ctx_dbg.get("ev_lcb"),
-                "threshold_lcb": ctx_dbg.get("threshold_lcb"),
-                "ev_pass": ctx_dbg.get("ev_pass"),
-                "expected_slip_pip": ctx.get("expected_slip_pip", 0.0),
-                "cost_base": ctx.get("base_cost_pips", ctx.get("cost_pips", 0.0)),
-            }
-            if "zscore" in bar_input:
-                trade_ctx_snapshot["zscore"] = bar_input["zscore"]
-
-            # If immediate TP/SL inside bar, record; else carry over
-            if "exit_px" in result:
-                entry_px, exit_px = result["entry_px"], result["exit_px"]
-                if calibrating:
-                    # Only update EV counts; no metrics, no positions
-                    # If Bridge (both reachable) returned mixture, approximate via hit bool or skip
-                    hit = result.get("exit_reason") == "tp"
-                    ev_mgr_dbg.update(bool(hit))
-                    continue
-                qty_sample, slip_actual = self._update_slip_learning(
-                    order=it,
-                    actual_price=entry_px,
-                    intended_price=it.price,
-                    ctx=ctx,
-                )
-                signed = +1 if it.side == "BUY" else -1
-                pnl_px = (exit_px - entry_px) * signed
-                base_cost = trade_ctx_snapshot.get("cost_base", ctx.get("base_cost_pips", ctx.get("cost_pips", 0.0)))
-                est_slip_used = 0.0
-                if getattr(self.rcfg, "include_expected_slip", False):
-                    band = ctx.get("spread_band", "normal")
-                    coeff = float(self.slip_a.get(band, self.rcfg.slip_curve.get(band, {}).get("a", 0.0)))
-                    intercept = float(self.rcfg.slip_curve.get(band, {}).get("b", 0.0))
-                    est_slip_used = max(0.0, coeff * qty_sample + intercept)
-                cost = base_cost + est_slip_used
-                pnl_pips = price_to_pips(pnl_px, self.symbol) - cost
-                hit = result.get("exit_reason") == "tp"
-                self._record_trade_metrics(pnl_pips, hit)
-                if self._current_date:
-                    self.daily[self._current_date]["fills"] += 1
-                    if hit:
-                        self.daily[self._current_date]["wins"] += 1
-                    self.daily[self._current_date]["pnl_pips"] += pnl_pips
-                    self.daily[self._current_date]["slip_est"] += est_slip_used
-                    self.daily[self._current_date]["slip_real"] += slip_actual
-                self._append_debug_record(
-                    "trade",
-                    ts=self._last_timestamp,
-                    side=it.side,
-                    tp_pips=spec.tp_pips,
-                    sl_pips=spec.sl_pips,
-                    cost_pips=cost,
-                    slip_est=est_slip_used,
-                    slip_real=slip_actual,
-                    exit=result.get("exit_reason"),
-                    pnl_pips=pnl_pips,
-                )
-                self._log_trade_record(
-                    exit_ts=bar.get("timestamp"),
-                    entry_ts=bar.get("timestamp"),
-                    side=it.side,
-                    tp_pips=spec.tp_pips,
-                    sl_pips=spec.sl_pips,
-                    cost_pips=cost,
-                    slip_est=est_slip_used,
-                    slip_real=slip_actual,
-                    exit_reason=result.get("exit_reason"),
-                    pnl_pips=pnl_pips,
-                    ctx_snapshot=trade_ctx_snapshot,
-                )
-                # Update pooled EV for the bucket
-                self._get_ev_manager(ctx.get("ev_key", (ctx["session"], ctx["spread_band"], ctx["rv_band"])) ).update(bool(hit))
-                self.ev_var.update(pnl_pips)
-            else:
-                # Open position to next bars
-                if calibrating:
-                    entry_px = result.get("entry_px")
-                    tp_px = it.price + (spec.tp_pips * ps if it.side == "BUY" else -spec.tp_pips * ps)
-                    sl_px0 = it.price - (spec.sl_pips * ps if it.side == "BUY" else -spec.sl_pips * ps)
-                    self.calib_positions.append({
-                        "side": it.side,
-                        "entry_px": entry_px,
-                        "tp_px": tp_px,
-                        "sl_px": sl_px0,
-                        "ev_key": ctx.get("ev_key", (ctx["session"], ctx["spread_band"], ctx["rv_band"])) ,
-                        "hold": 0,
-                    })
-                    continue
-                entry_px = result.get("entry_px")
-                tp_px = it.price + (spec.tp_pips * ps if it.side == "BUY" else -spec.tp_pips * ps)
-                sl_px0 = it.price - (spec.sl_pips * ps if it.side == "BUY" else -spec.sl_pips * ps)
-                _, entry_slip_pip = self._update_slip_learning(
-                    order=it,
-                    actual_price=entry_px,
-                    intended_price=it.price,
-                    ctx=ctx,
-                )
-                self.pos = {
-                    "side": it.side,
-                    "entry_px": entry_px,
-                    "tp_px": tp_px,
-                    "sl_px": sl_px0,
-                    "tp_pips": spec.tp_pips,
-                    "sl_pips": spec.sl_pips,
-                    "trail_pips": spec.trail_pips,
-                    "hh": bar["h"],
-                    "ll": bar["l"],
-                    "ev_key": ctx.get("ev_key", (ctx["session"], ctx["spread_band"], ctx["rv_band"])) ,
-                    "qty": getattr(it, 'qty', 1.0) or 1.0,
-                    "expected_slip_pip": ctx.get("expected_slip_pip", 0.0),
-                    "entry_slip_pip": entry_slip_pip,
-                    "hold": 0,
-                    "entry_ts": bar.get("timestamp"),
-                    "ctx_snapshot": dict(trade_ctx_snapshot),
-                }
-
-        # Attach collected artifacts for external inspection
         self.metrics.records = list(self.records)
         if self.daily:
             self.metrics.daily = dict(self.daily)
