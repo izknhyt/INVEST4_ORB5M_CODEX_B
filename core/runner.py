@@ -836,44 +836,53 @@ class BacktestRunner:
         ctx: Mapping[str, Any],
         new_session: bool,
         calibrating: bool,
+        mode: str,
+        pip_size_value: float,
     ) -> None:
         if not calibrating or not self.calib_positions:
             return
         still: List[Dict[str, Any]] = []
-        for pos in self.calib_positions:
-            side = pos["side"]
-            entry_px = pos["entry_px"]
-            tp_px = pos["tp_px"]
-            sl_px = pos["sl_px"]
-            exited = False
-            exit_reason: Optional[str] = None
-            if side == "BUY":
-                if bar["l"] <= sl_px and bar["h"] >= tp_px:
-                    exit_reason, exited = "sl", True
-                elif bar["l"] <= sl_px:
-                    exit_reason, exited = "sl", True
-                elif bar["h"] >= tp_px:
-                    exit_reason, exited = "tp", True
-            else:
-                if bar["h"] >= sl_px and bar["l"] <= tp_px:
-                    exit_reason, exited = "sl", True
-                elif bar["h"] >= sl_px:
-                    exit_reason, exited = "sl", True
-                elif bar["l"] <= tp_px:
-                    exit_reason, exited = "tp", True
-            pos["hold"] = pos.get("hold", 0) + 1
-            if not exited and (new_session or pos["hold"] >= getattr(self.rcfg, "max_hold_bars", 96)):
-                exit_reason, exited = "timeout", True
-            if exited:
-                hit = exit_reason == "tp"
-                ev_key = pos.get("ev_key") or ctx.get("ev_key") or (
-                    ctx.get("session"),
-                    ctx.get("spread_band"),
-                    ctx.get("rv_band"),
-                )
+        for raw_pos in self.calib_positions:
+            normalized = {
+                "side": raw_pos["side"],
+                "entry_px": raw_pos["entry_px"],
+                "tp_px": raw_pos["tp_px"],
+                "sl_px": raw_pos["sl_px"],
+                "trail_pips": float(raw_pos.get("trail_pips", 0.0) or 0.0),
+                "hh": raw_pos.get("hh", raw_pos["entry_px"]),
+                "ll": raw_pos.get("ll", raw_pos["entry_px"]),
+                "hold": int(raw_pos.get("hold", 0) or 0),
+            }
+            decision = self._compute_exit_decision(
+                pos=normalized,
+                bar=bar,
+                mode=mode,
+                pip_size_value=pip_size_value,
+                new_session=new_session,
+            )
+            ev_key = raw_pos.get("ev_key") or ctx.get("ev_key") or (
+                ctx.get("session"),
+                ctx.get("spread_band"),
+                ctx.get("rv_band"),
+            )
+            if decision.exited:
+                hit = decision.exit_reason == "tp"
                 self._get_ev_manager(ev_key).update(bool(hit))
-            else:
-                still.append(pos)
+                continue
+            updated = decision.updated_pos or normalized
+            still.append(
+                {
+                    "side": updated["side"],
+                    "entry_px": updated["entry_px"],
+                    "tp_px": updated["tp_px"],
+                    "sl_px": updated["sl_px"],
+                    "trail_pips": float(updated.get("trail_pips", normalized["trail_pips"])),
+                    "hh": updated.get("hh", normalized["hh"]),
+                    "ll": updated.get("ll", normalized["ll"]),
+                    "hold": int(updated.get("hold", normalized["hold"])),
+                    "ev_key": raw_pos.get("ev_key"),
+                }
+            )
         self.calib_positions = still
 
 
@@ -1252,6 +1261,9 @@ class BacktestRunner:
                     "sl_px": sl_px0,
                     "ev_key": ctx.get("ev_key"),
                     "hold": 0,
+                    "trail_pips": spec.trail_pips,
+                    "hh": bar["h"],
+                    "ll": bar["l"],
                 }
             )
             return
@@ -1601,6 +1613,8 @@ class BacktestRunner:
                 ctx=ctx,
                 new_session=new_session,
                 calibrating=calibrating,
+                mode=mode,
+                pip_size_value=ps,
             )
             self._maybe_enter_trade(
                 bar=bar,
