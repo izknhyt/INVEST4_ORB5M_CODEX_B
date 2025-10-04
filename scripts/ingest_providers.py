@@ -6,6 +6,8 @@ from datetime import datetime, timedelta, timezone
 from functools import partial
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
+from scripts._time_utils import parse_naive_utc as _shared_parse_naive_utc
+
 
 __all__ = [
     "ProviderError",
@@ -33,25 +35,7 @@ class ProviderError(RuntimeError):
 def parse_naive_utc(timestamp: str) -> Optional[datetime]:
     """Parse ISO 8601 timestamps into naive UTC datetimes."""
 
-    if not timestamp:
-        return None
-
-    value = timestamp.strip()
-    if not value:
-        return None
-
-    if value.endswith("Z"):
-        value = value[:-1] + "+00:00"
-
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        return None
-
-    if parsed.tzinfo is not None:
-        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
-
-    return parsed
+    return _shared_parse_naive_utc(timestamp)
 
 
 def load_dukascopy_fetch() -> Callable[..., Iterable[Dict[str, object]]]:

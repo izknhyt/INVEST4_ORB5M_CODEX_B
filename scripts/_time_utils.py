@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from datetime import datetime as _datetime, timezone
-from typing import Optional
+from typing import Optional, Sequence
+
+from scripts._ts_utils import parse_naive_utc_timestamp
 
 # Allow monkeypatching via ``scripts._time_utils.datetime``
 datetime = _datetime  # type: ignore
@@ -64,3 +66,25 @@ def utcnow_iso(dt_cls=None) -> str:
         .isoformat()
         .replace("+00:00", "Z")
     )
+
+
+def parse_naive_utc(
+    value: str,
+    *,
+    fallback_formats: Sequence[str] | None = None,
+) -> Optional[_datetime]:
+    """Parse ``value`` into a naive UTC ``datetime``.
+
+    The helper wraps :func:`scripts._ts_utils.parse_naive_utc_timestamp` and
+    returns ``None`` for empty or invalid inputs so callers can gracefully
+    handle missing timestamps without raising.
+    """
+
+    text = (value or "").strip()
+    if not text:
+        return None
+
+    try:
+        return parse_naive_utc_timestamp(text, fallback_formats=fallback_formats)
+    except ValueError:
+        return None

@@ -7,7 +7,7 @@ import signal
 import sys
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence
 
@@ -17,7 +17,10 @@ if str(ROOT) not in sys.path:
 
 
 from scripts import ingest_providers  # noqa: E402  # isort:skip
-from scripts._time_utils import utcnow_naive  # noqa: E402  # isort:skip
+from scripts._time_utils import (  # noqa: E402  # isort:skip
+    parse_naive_utc,
+    utcnow_naive,
+)
 from scripts.pull_prices import (  # noqa: E402  # isort:skip
     FEATURES_ROOT,
     RAW_ROOT,
@@ -81,16 +84,7 @@ def _parse_csv_list(
     return _apply_case(items)
 
 
-def _parse_timestamp(value: str) -> Optional[datetime]:
-    if not value:
-        return None
-    try:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if dt.tzinfo is not None:
-        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-    return dt
+_parse_timestamp = parse_naive_utc
 
 
 def _load_dukascopy_records(

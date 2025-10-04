@@ -2126,3 +2126,23 @@ def test_ingest_providers_yfinance_fallback_runner_handles_import_error():
     call = ingest_calls[0]
     assert call["stage"] == "yfinance"
     assert call["source_label"] == "yfinance"
+
+
+def test_run_daily_workflow_uses_shared_timestamp_parser():
+    from scripts import _time_utils
+
+    parser = run_daily_workflow._parse_naive_utc
+
+    assert parser is _time_utils.parse_naive_utc
+
+    dt_z = parser("2024-01-01T00:00:00Z")
+    assert dt_z == datetime(2024, 1, 1, 0, 0)
+    assert dt_z.tzinfo is None
+
+    dt_offset = parser("2024-01-01T09:00:00+09:00")
+    assert dt_offset == datetime(2024, 1, 1, 0, 0)
+    assert dt_offset.tzinfo is None
+
+    assert parser("   ") is None
+    assert parser("not-a-timestamp") is None
+

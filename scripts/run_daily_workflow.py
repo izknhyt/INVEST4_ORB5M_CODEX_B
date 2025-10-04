@@ -18,11 +18,14 @@ if str(ROOT) not in sys.path:
 
 from core.utils import yaml_compat as yaml
 from scripts import ingest_providers
-from scripts._time_utils import utcnow_naive as _shared_utcnow_naive
+from scripts._time_utils import (
+    parse_naive_utc as _shared_parse_naive_utc,
+    utcnow_naive as _shared_utcnow_naive,
+)
 
 
 ProviderError = ingest_providers.ProviderError
-_parse_naive_utc = ingest_providers.parse_naive_utc
+_parse_naive_utc = _shared_parse_naive_utc
 _fetch_dukascopy_records = ingest_providers.fetch_dukascopy_records
 _compute_yfinance_fallback_start = ingest_providers.compute_yfinance_fallback_start
 _fetch_yfinance_records = ingest_providers.fetch_yfinance_records
