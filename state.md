@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2025-12-24: `notifications/emit_signal.py` の `log_latency` / `log_fallback` で親ディレクトリが存在しない場合でもファイル名のみで書き込めるようガードを追加し、`tests/test_emit_signal.py` に無ディレクトリ指定の回帰テストを実装。`python3 -m pytest tests/test_emit_signal.py` を実行して 5 件パスを確認。
 - 2025-12-20: `scripts/run_daily_workflow.py` の `_run_dukascopy_ingest` をフェッチ処理・yfinance フォールバック・結果永続化ヘルパーへ分離し、`_fetch_dukascopy_records` / `_YFinanceFallbackRunner` / `_finalize_ingest_result` を導入。`_run_yfinance_ingest` と共通ロジックを共有し、`python3 -m pytest tests/test_run_daily_workflow.py` で 27 件パスを確認。
 - 2025-12-22: core/runner._maybe_enter_trade をエントリ条件・EV評価・スリップ/サイズ検証・Fill処理のヘルパーへ分割し、tests/test_runner.py にブレイクアウト成功/EVリジェクト/ウォームアップバイパスのユニットテストを追加。python3 -m pytest tests/test_runner.py で 9 件パスを確認。
 - 2025-12-23: `core/runner._handle_active_position` を `_compute_exit_decision` で共通化し、トレール/同時ヒット/タイムアウトの BUY・SELL 双方向回帰テストを `tests/test_runner.py` に追加。`python3 -m pytest tests/test_runner.py` を実行して 12 件パスを確認。
