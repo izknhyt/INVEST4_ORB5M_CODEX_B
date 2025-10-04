@@ -1,5 +1,6 @@
 import csv
 from pathlib import Path
+from typing import List
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
@@ -614,6 +615,108 @@ class TestRunner(unittest.TestCase):
                     self.assertIsNone(runner.pos)
         finally:
             runner._finalize_trade = original_finalize
+
+    def test_calibration_ev_update_simultaneous_hit_regression(self):
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
+        pip_value = pip_size(runner.symbol)
+
+        updates: List[bool] = []
+
+        class DummyEv:
+            def update(self, hit: bool) -> None:
+                updates.append(hit)
+
+        dummy_ev = DummyEv()
+        runner._get_ev_manager = lambda key: dummy_ev
+        runner.calib_positions = [
+            {
+                "side": "BUY",
+                "entry_px": 150.00,
+                "tp_px": 150.20,
+                "sl_px": 149.80,
+                "trail_pips": 0.0,
+                "hh": 150.00,
+                "ll": 150.00,
+                "hold": 0,
+                "ev_key": ("LDN", "normal", "mid"),
+            }
+        ]
+        bar = {
+            "o": 150.00,
+            "h": 150.25,
+            "l": 149.75,
+            "c": 150.10,
+            "timestamp": "2024-01-01T08:30:00+00:00",
+        }
+        ctx = {
+            "session": "LDN",
+            "spread_band": "normal",
+            "rv_band": "mid",
+            "ev_key": ("LDN", "normal", "mid"),
+        }
+
+        runner._resolve_calibration_positions(
+            bar=bar,
+            ctx=ctx,
+            new_session=False,
+            calibrating=True,
+            mode="conservative",
+            pip_size_value=pip_value,
+        )
+
+        self.assertEqual(updates, [False])
+        self.assertFalse(runner.calib_positions)
+
+    def test_calibration_ev_update_session_boundary_regression(self):
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
+        pip_value = pip_size(runner.symbol)
+
+        updates: List[bool] = []
+
+        class DummyEv:
+            def update(self, hit: bool) -> None:
+                updates.append(hit)
+
+        dummy_ev = DummyEv()
+        runner._get_ev_manager = lambda key: dummy_ev
+        runner.calib_positions = [
+            {
+                "side": "SELL",
+                "entry_px": 150.00,
+                "tp_px": 149.70,
+                "sl_px": 150.30,
+                "trail_pips": 0.0,
+                "hh": 150.00,
+                "ll": 150.00,
+                "hold": 0,
+                "ev_key": None,
+            }
+        ]
+        bar = {
+            "o": 150.05,
+            "h": 150.10,
+            "l": 149.95,
+            "c": 150.00,
+            "timestamp": "2024-01-01T13:00:00+00:00",
+        }
+        ctx = {
+            "session": "NY",
+            "spread_band": "normal",
+            "rv_band": "mid",
+            "ev_key": ("NY", "normal", "mid"),
+        }
+
+        runner._resolve_calibration_positions(
+            bar=bar,
+            ctx=ctx,
+            new_session=True,
+            calibrating=True,
+            mode="conservative",
+            pip_size_value=pip_value,
+        )
+
+        self.assertEqual(updates, [False])
+        self.assertFalse(runner.calib_positions)
 
 
 
