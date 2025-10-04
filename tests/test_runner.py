@@ -2,9 +2,10 @@ import csv
 from pathlib import Path
 import unittest
 from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock
 
 from core.runner import BacktestRunner, Metrics, RunnerConfig
-from core.pips import price_to_pips
+from core.pips import pip_size, price_to_pips
 
 
 def make_bar(ts, symbol, o, h, l, c, spread):
@@ -385,6 +386,177 @@ class TestRunner(unittest.TestCase):
         )
         self.assertTrue(slip_ok)
         self.assertEqual(runner.debug_counts["ev_bypass"], 1)
+
+    def test_handle_active_position_trail_exit_buy_and_sell(self):
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
+        pip_value = pip_size(runner.symbol)
+        original_finalize = runner._finalize_trade
+        try:
+            for side, bar, expected_exit in (
+                (
+                    "BUY",
+                    {
+                        "o": 150.10,
+                        "h": 150.40,
+                        "l": 150.20,
+                        "c": 150.25,
+                        "timestamp": "2024-01-01T08:30:00+00:00",
+                    },
+                    150.40 - 10.0 * pip_value,
+                ),
+                (
+                    "SELL",
+                    {
+                        "o": 150.00,
+                        "h": 149.55,
+                        "l": 149.40,
+                        "c": 149.45,
+                        "timestamp": "2024-01-01T08:35:00+00:00",
+                    },
+                    149.40 + 10.0 * pip_value,
+                ),
+            ):
+                with self.subTest(side=side):
+                    runner.pos = {
+                        "side": side,
+                        "entry_px": 150.00,
+                        "tp_px": 150.80 if side == "BUY" else 149.20,
+                        "sl_px": 149.00 if side == "BUY" else 151.00,
+                        "trail_pips": 10.0,
+                        "qty": 1.0,
+                        "entry_ts": "2024-01-01T08:00:00+00:00",
+                        "ctx_snapshot": {},
+                        "ev_key": None,
+                        "tp_pips": 80.0,
+                        "sl_pips": 100.0,
+                    }
+                    runner._finalize_trade = MagicMock()
+                    result = runner._handle_active_position(
+                        bar=bar,
+                        ctx={},
+                        mode="conservative",
+                        pip_size_value=pip_value,
+                        new_session=False,
+                    )
+                    self.assertTrue(result)
+                    runner._finalize_trade.assert_called_once()
+                    call = runner._finalize_trade.call_args.kwargs
+                    self.assertEqual(call["exit_reason"], "sl")
+                    self.assertAlmostEqual(call["exit_px"], expected_exit)
+                    self.assertIsNone(runner.pos)
+        finally:
+            runner._finalize_trade = original_finalize
+
+    def test_handle_active_position_same_bar_hits_buy_and_sell(self):
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
+        pip_value = pip_size(runner.symbol)
+        original_finalize = runner._finalize_trade
+        try:
+            for side, bar in (
+                (
+                    "BUY",
+                    {
+                        "o": 150.00,
+                        "h": 150.25,
+                        "l": 149.75,
+                        "c": 150.10,
+                        "timestamp": "2024-01-01T08:40:00+00:00",
+                    },
+                ),
+                (
+                    "SELL",
+                    {
+                        "o": 150.00,
+                        "h": 150.25,
+                        "l": 149.75,
+                        "c": 149.90,
+                        "timestamp": "2024-01-01T08:45:00+00:00",
+                    },
+                ),
+            ):
+                with self.subTest(side=side):
+                    entry = 150.00
+                    tp = entry + 0.20 if side == "BUY" else entry - 0.20
+                    sl = entry - 0.20 if side == "BUY" else entry + 0.20
+                    runner.pos = {
+                        "side": side,
+                        "entry_px": entry,
+                        "tp_px": tp,
+                        "sl_px": sl,
+                        "trail_pips": 0.0,
+                        "qty": 1.0,
+                        "entry_ts": "2024-01-01T08:00:00+00:00",
+                        "ctx_snapshot": {},
+                        "ev_key": None,
+                        "tp_pips": abs(tp - entry) / pip_value,
+                        "sl_pips": abs(entry - sl) / pip_value,
+                    }
+                    runner._finalize_trade = MagicMock()
+                    runner._handle_active_position(
+                        bar=bar,
+                        ctx={},
+                        mode="bridge",
+                        pip_size_value=pip_value,
+                        new_session=False,
+                    )
+                    runner._finalize_trade.assert_called_once()
+                    call = runner._finalize_trade.call_args.kwargs
+                    self.assertEqual(call["exit_reason"], "tp")
+                    if side == "BUY":
+                        self.assertTrue(sl < call["exit_px"] < tp)
+                    else:
+                        self.assertTrue(tp < call["exit_px"] < sl)
+                    self.assertIsNone(runner.pos)
+        finally:
+            runner._finalize_trade = original_finalize
+
+    def test_handle_active_position_timeout_buy_and_sell(self):
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
+        runner.rcfg.max_hold_bars = 2
+        pip_value = pip_size(runner.symbol)
+        original_finalize = runner._finalize_trade
+        try:
+            for side in ("BUY", "SELL"):
+                with self.subTest(side=side):
+                    entry = 150.00
+                    tp = entry + 0.50 if side == "BUY" else entry - 0.50
+                    sl = entry - 0.50 if side == "BUY" else entry + 0.50
+                    runner.pos = {
+                        "side": side,
+                        "entry_px": entry,
+                        "tp_px": tp,
+                        "sl_px": sl,
+                        "trail_pips": 0.0,
+                        "qty": 1.0,
+                        "entry_ts": "2024-01-01T08:00:00+00:00",
+                        "ctx_snapshot": {},
+                        "ev_key": None,
+                        "tp_pips": abs(tp - entry) / pip_value,
+                        "sl_pips": abs(entry - sl) / pip_value,
+                        "hold": 1,
+                    }
+                    runner._finalize_trade = MagicMock()
+                    bar = {
+                        "o": entry,
+                        "h": entry + 0.10,
+                        "l": entry - 0.10,
+                        "c": entry,
+                        "timestamp": "2024-01-01T08:50:00+00:00",
+                    }
+                    runner._handle_active_position(
+                        bar=bar,
+                        ctx={},
+                        mode="conservative",
+                        pip_size_value=pip_value,
+                        new_session=False,
+                    )
+                    runner._finalize_trade.assert_called_once()
+                    call = runner._finalize_trade.call_args.kwargs
+                    self.assertEqual(call["exit_reason"], "timeout")
+                    self.assertEqual(call["exit_px"], bar["o"])
+                    self.assertIsNone(runner.pos)
+        finally:
+            runner._finalize_trade = original_finalize
 
 
 

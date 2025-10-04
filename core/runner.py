@@ -109,6 +109,14 @@ class Metrics:
 
 
 @dataclass
+class ExitDecision:
+    exited: bool
+    exit_px: Optional[float]
+    exit_reason: Optional[str]
+    updated_pos: Optional[Dict[str, Any]]
+
+
+@dataclass
 class StrategyConfig:
     """Container for strategy-specific parameters.
 
@@ -707,6 +715,75 @@ class BacktestRunner:
         self.stg.cfg["ctx"] = ctx
         return bar_input, ctx, atr14, adx14, or_h, or_l
 
+    def _compute_exit_decision(
+        self,
+        *,
+        pos: Mapping[str, Any],
+        bar: Mapping[str, Any],
+        mode: str,
+        pip_size_value: float,
+        new_session: bool,
+    ) -> ExitDecision:
+        updated_pos: Dict[str, Any] = dict(pos)
+        side = updated_pos["side"]
+        entry_px = updated_pos["entry_px"]
+        tp_px = updated_pos["tp_px"]
+        sl_px = updated_pos["sl_px"]
+        trail_pips = float(updated_pos.get("trail_pips", 0.0) or 0.0)
+        direction = 1.0 if side == "BUY" else -1.0
+
+        if trail_pips > 0.0:
+            if side == "BUY":
+                updated_pos["hh"] = max(updated_pos.get("hh", entry_px), bar["h"])
+                new_sl = updated_pos["hh"] - trail_pips * pip_size_value
+                sl_px = max(sl_px, new_sl)
+            else:
+                updated_pos["ll"] = min(updated_pos.get("ll", entry_px), bar["l"])
+                new_sl = updated_pos["ll"] + trail_pips * pip_size_value
+                sl_px = min(sl_px, new_sl)
+            updated_pos["sl_px"] = sl_px
+
+        exit_px: Optional[float] = None
+        exit_reason: Optional[str] = None
+        sl_hit = bar["l"] <= sl_px if side == "BUY" else bar["h"] >= sl_px
+        tp_hit = bar["h"] >= tp_px if side == "BUY" else bar["l"] <= tp_px
+
+        if sl_hit and tp_hit:
+            if mode == "conservative":
+                exit_px, exit_reason = sl_px, "sl"
+            else:
+                rng = max(bar["h"] - bar["l"], pip_size_value)
+                drift = direction * (bar["c"] - bar["o"]) / rng if rng > 0 else 0.0
+                d_tp = max(((tp_px - entry_px) * direction) / pip_size_value, 1e-9)
+                d_sl = max(((entry_px - sl_px) * direction) / pip_size_value, 1e-9)
+                base = d_sl / (d_tp + d_sl)
+                p_tp = min(
+                    0.999,
+                    max(0.001, 0.65 * base + 0.35 * 0.5 * (1.0 + math.tanh(2.5 * drift))),
+                )
+                exit_px = p_tp * tp_px + (1 - p_tp) * sl_px
+                exit_reason = "tp" if p_tp >= 0.5 else "sl"
+            exited = True
+        elif sl_hit:
+            exit_px, exit_reason, exited = sl_px, "sl", True
+        elif tp_hit:
+            exit_px, exit_reason, exited = tp_px, "tp", True
+        else:
+            exited = False
+
+        if not exited:
+            hold = updated_pos.get("hold", 0) + 1
+            updated_pos["hold"] = hold
+            max_hold = getattr(self.rcfg, "max_hold_bars", 96)
+            if new_session or hold >= max_hold:
+                exit_px = bar["o"]
+                exit_reason = "session_end" if new_session else "timeout"
+                exited = True
+
+        if exited:
+            return ExitDecision(True, exit_px, exit_reason, None)
+        return ExitDecision(False, None, None, updated_pos)
+
     def _handle_active_position(
         self,
         *,
@@ -718,91 +795,37 @@ class BacktestRunner:
     ) -> bool:
         if getattr(self, "pos", None) is None:
             return False
-        side = self.pos["side"]
-        entry_px = self.pos["entry_px"]
-        tp_px = self.pos["tp_px"]
-        sl_px = self.pos["sl_px"]
-        if self.pos.get("trail_pips", 0.0) > 0:
-            if side == "BUY":
-                self.pos["hh"] = max(self.pos.get("hh", entry_px), bar["h"])
-                new_sl = self.pos["hh"] - self.pos["trail_pips"] * pip_size_value
-                sl_px = max(sl_px, new_sl)
-            else:
-                self.pos["ll"] = min(self.pos.get("ll", entry_px), bar["l"])
-                new_sl = self.pos["ll"] + self.pos["trail_pips"] * pip_size_value
-                sl_px = min(sl_px, new_sl)
-            self.pos["sl_px"] = sl_px
-        exited = False
-        exit_px = None
-        exit_reason: Optional[str] = None
-        if side == "BUY":
-            if bar["l"] <= sl_px and bar["h"] >= tp_px:
-                if mode == "conservative":
-                    exit_px, exit_reason = sl_px, "sl"
-                else:
-                    rng = max(bar["h"] - bar["l"], pip_size_value)
-                    drift = (bar["c"] - bar["o"]) / rng if rng > 0 else 0.0
-                    d_tp = max((tp_px - entry_px) / pip_size_value, 1e-9)
-                    d_sl = max((entry_px - sl_px) / pip_size_value, 1e-9)
-                    base = d_sl / (d_tp + d_sl)
-                    p_tp = min(
-                        0.999,
-                        max(0.001, 0.65 * base + 0.35 * 0.5 * (1.0 + math.tanh(2.5 * drift))),
-                    )
-                    exit_px = p_tp * tp_px + (1 - p_tp) * sl_px
-                    exit_reason = "tp" if p_tp >= 0.5 else "sl"
-                exited = True
-            elif bar["l"] <= sl_px:
-                exit_px, exit_reason, exited = sl_px, "sl", True
-            elif bar["h"] >= tp_px:
-                exit_px, exit_reason, exited = tp_px, "tp", True
-        else:
-            if bar["h"] >= sl_px and bar["l"] <= tp_px:
-                if mode == "conservative":
-                    exit_px, exit_reason = sl_px, "sl"
-                else:
-                    rng = max(bar["h"] - bar["l"], pip_size_value)
-                    drift = (bar["o"] - bar["c"]) / rng if rng > 0 else 0.0
-                    d_tp = max((entry_px - tp_px) / pip_size_value, 1e-9)
-                    d_sl = max((sl_px - entry_px) / pip_size_value, 1e-9)
-                    base = d_sl / (d_tp + d_sl)
-                    p_tp = min(
-                        0.999,
-                        max(0.001, 0.65 * base + 0.35 * 0.5 * (1.0 + math.tanh(2.5 * drift))),
-                    )
-                    exit_px = p_tp * tp_px + (1 - p_tp) * sl_px
-                    exit_reason = "tp" if p_tp >= 0.5 else "sl"
-                exited = True
-            elif bar["h"] >= sl_px:
-                exit_px, exit_reason, exited = sl_px, "sl", True
-            elif bar["l"] <= tp_px:
-                exit_px, exit_reason, exited = tp_px, "tp", True
-        if not exited:
-            self.pos["hold"] = self.pos.get("hold", 0) + 1
-            if new_session or self.pos["hold"] >= getattr(self.rcfg, "max_hold_bars", 96):
-                exit_px = bar["o"]
-                exit_reason = "session_end" if new_session else "timeout"
-                exited = True
-        if exited and exit_px is not None:
-            qty_sample = self.pos.get("qty", 1.0) or 1.0
-            slip_actual = self.pos.get("entry_slip_pip", 0.0)
+
+        current_pos = self.pos
+        decision = self._compute_exit_decision(
+            pos=current_pos,
+            bar=bar,
+            mode=mode,
+            pip_size_value=pip_size_value,
+            new_session=new_session,
+        )
+        self.pos = decision.updated_pos
+
+        if decision.exited and decision.exit_px is not None:
+            qty_sample = current_pos.get("qty", 1.0) or 1.0
+            slip_actual = current_pos.get("entry_slip_pip", 0.0)
             self._finalize_trade(
                 exit_ts=bar.get("timestamp"),
-                entry_ts=self.pos.get("entry_ts"),
-                side=side,
-                entry_px=entry_px,
-                exit_px=exit_px,
-                exit_reason=exit_reason,
-                ctx_snapshot=self.pos.get("ctx_snapshot", {}),
+                entry_ts=current_pos.get("entry_ts"),
+                side=current_pos["side"],
+                entry_px=current_pos["entry_px"],
+                exit_px=decision.exit_px,
+                exit_reason=decision.exit_reason,
+                ctx_snapshot=current_pos.get("ctx_snapshot", {}),
                 ctx=ctx,
                 qty_sample=qty_sample,
                 slip_actual=slip_actual,
-                ev_key=self.pos.get("ev_key"),
-                tp_pips=self.pos.get("tp_pips", 0.0),
-                sl_pips=self.pos.get("sl_pips", 0.0),
+                ev_key=current_pos.get("ev_key"),
+                tp_pips=current_pos.get("tp_pips", 0.0),
+                sl_pips=current_pos.get("sl_pips", 0.0),
                 debug_stage="trade_exit",
             )
-            self.pos = None
+
         return True
 
     def _resolve_calibration_positions(
