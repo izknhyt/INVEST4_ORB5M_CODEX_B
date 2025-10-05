@@ -189,6 +189,7 @@
   - 2025-10-16: 最新バーの供給が途絶しているため、P1-04 で API インジェスト基盤を設計・整備し、鮮度チェックのブロッカーを解消する計画。
 
 ## Log
+- [Ops] 2026-02-15: Moved the Workflow Integration Guide entry to In Progress in `docs/todo_next.md`, refreshed the linked `state.md` date list to include the 2026-02-13 update, and dry-ran `scripts/manage_task_cycle.py start-task` to confirm the `doc-section` promotion remains aligned.
 - [P1-06] 2026-02-13: Added fill-engine overrides (`fill_same_bar_policy_*`, `fill_bridge_lambda`, `fill_bridge_drift_scale`) to RunnerConfig and `scripts/run_sim.py`, exposed CLI flags, refreshed broker OCO docs/runbooks, and executed `python3 -m pytest tests/test_fill_engine.py tests/test_runner.py tests/test_run_sim_cli.py` to lock regression coverage.
 - [Ops] 2026-02-13: Updated `docs/codex_workflow.md` with sandbox/approval guidance (workspace-write + on-request), clarified `scripts/manage_task_cycle.py` dry-run usage, and aligned references with `docs/state_runbook.md` / template links.
 - [P2-MS] 2026-02-13: Re-ran Day ORB / Mean Reversion comparisons per `docs/checklists/multi_strategy_validation.md`, regenerated `runs/multi_strategy/` artefacts (`python3 scripts/run_sim.py ...`) including the `--no-ev-profile` variant, updated the checklist/table with the new metrics (`ev_reject=330` for Mean Reversion), and archived the task notes in `docs/todo_next.md` / `docs/task_backlog.md`.
