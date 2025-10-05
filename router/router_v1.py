@@ -17,8 +17,10 @@ class PortfolioState:
     category_utilisation_pct: Dict[str, float] = field(default_factory=dict)
     active_positions: Dict[str, int] = field(default_factory=dict)
     category_caps_pct: Dict[str, float] = field(default_factory=dict)
+    category_headroom_pct: Dict[str, float] = field(default_factory=dict)
     gross_exposure_pct: Optional[float] = None
     gross_exposure_cap_pct: Optional[float] = None
+    gross_exposure_headroom_pct: Optional[float] = None
     strategy_correlations: Dict[str, Dict[str, float]] = field(default_factory=dict)
     execution_health: Dict[str, Dict[str, float]] = field(default_factory=dict)
 

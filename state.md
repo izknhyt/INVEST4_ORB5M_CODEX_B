@@ -2,6 +2,11 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-01-26: `router/router_v1.PortfolioState` にカテゴリ/グロスエクスポージャーのヘッドルームを保持するフィールドを追加し、
+  `core/router_pipeline.build_portfolio_state` で利用率・上限からヘッドルームを算出するロジックを実装。
+  `analysis/portfolio_monitor` がポートフォリオヘッドルームを参照するよう揃え、対応テスト
+  (`tests/test_router_pipeline.py` / `tests/test_portfolio_monitor.py`) を更新。
+  `python3 -m pytest tests/test_router_pipeline.py tests/test_portfolio_monitor.py` を実行して 8 件パスを確認。
 - 2026-01-25: `analysis/portfolio_monitor._load_strategy_series` で manifest の相対パスをメトリクス所在ディレクトリ基準で解決するよう更新し、
   `scripts/report_portfolio_summary.py` の CLI 実行でも同ロジックを共有。
   マニフェスト名を書き換えたフィクスチャを一時ディレクトリへ複製する回帰テスト（`tests/test_portfolio_monitor.py`）を追加し、

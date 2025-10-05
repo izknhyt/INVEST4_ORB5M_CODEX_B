@@ -144,15 +144,20 @@ def _max_drawdown(points: Sequence[Tuple[datetime, str, float]]) -> Dict[str, An
 
 
 def _serialise_category_summary(portfolio: PortfolioState) -> List[Dict[str, Any]]:
-    categories = sorted(set(portfolio.category_utilisation_pct) | set(portfolio.category_caps_pct))
+    categories = sorted(
+        set(portfolio.category_utilisation_pct)
+        | set(portfolio.category_caps_pct)
+        | set(portfolio.category_headroom_pct)
+    )
     summary: List[Dict[str, Any]] = []
     for category in categories:
         usage = float(portfolio.category_utilisation_pct.get(category, 0.0))
         cap = portfolio.category_caps_pct.get(category)
-        headroom = None
+        headroom = portfolio.category_headroom_pct.get(category)
         utilisation_ratio = None
         if cap is not None:
-            headroom = cap - usage
+            if headroom is None:
+                headroom = cap - usage
             if cap > 0:
                 utilisation_ratio = usage / cap
         summary.append(
@@ -230,11 +235,9 @@ def build_portfolio_summary(
     if generated_at is None:
         generated_at = datetime.now(timezone.utc)
 
-    gross_headroom = None
     gross_cap = portfolio.gross_exposure_cap_pct
     gross_current = portfolio.gross_exposure_pct
-    if gross_cap is not None and gross_current is not None:
-        gross_headroom = gross_cap - gross_current
+    gross_headroom = portfolio.gross_exposure_headroom_pct
 
     return {
         "generated_at": generated_at.isoformat(),

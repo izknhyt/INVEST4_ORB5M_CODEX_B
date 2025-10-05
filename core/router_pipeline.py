@@ -114,6 +114,7 @@ def build_portfolio_state(
             category_caps[manifest.category] = (
                 cap_float if prev_cap is None else min(prev_cap, cap_float)
             )
+        category_usage.setdefault(manifest.category, 0.0)
 
     gross_exposure_pct = _to_float(snapshot.gross_exposure_pct)
     if gross_exposure_pct is None and exposures:
@@ -129,6 +130,15 @@ def build_portfolio_state(
         gross_caps = [cap for cap in gross_caps if cap is not None]
         if gross_caps:
             gross_cap_pct = min(gross_caps)
+
+    category_headroom: Dict[str, float] = {}
+    for category, cap in category_caps.items():
+        usage = float(category_usage.get(category, 0.0))
+        category_headroom[category] = cap - usage
+
+    gross_headroom_pct: Optional[float] = None
+    if gross_cap_pct is not None and gross_exposure_pct is not None:
+        gross_headroom_pct = gross_cap_pct - gross_exposure_pct
 
     if runtime_metrics:
         for manifest in manifest_list:
@@ -152,8 +162,10 @@ def build_portfolio_state(
         category_utilisation_pct=category_usage,
         active_positions=active_positions,
         category_caps_pct=category_caps,
+        category_headroom_pct=category_headroom,
         gross_exposure_pct=gross_exposure_pct,
         gross_exposure_cap_pct=gross_cap_pct,
+        gross_exposure_headroom_pct=gross_headroom_pct,
         strategy_correlations=correlations,
         execution_health=execution_health,
     )
