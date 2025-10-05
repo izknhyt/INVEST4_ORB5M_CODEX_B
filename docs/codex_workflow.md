@@ -24,7 +24,7 @@ This guide summarizes the routine Codex agents should follow to keep tasks movin
    - Network: `restricted`
    - Approvals: `on-request`
    Request approval when you need to rerun commands unsandboxed (e.g., external network access, privileged filesystem writes, destructive git operations). For routine read/pytest commands, approvals are unnecessary.
-5. **Dry-run the start command**  
+5. **Dry-run the start command**
    Execute the following command with `--dry-run` to validate anchors and dates before making real changes.
    ```bash
    python3 scripts/manage_task_cycle.py --dry-run start-task \
@@ -39,7 +39,24 @@ This guide summarizes the routine Codex agents should follow to keep tasks movin
        [--runbook-links "<Markdown links for runbooks>"] \
        [--pending-questions "<Key questions to track>"]
    ```
-   After confirming the preview, rerun the command without `--dry-run` to populate `state.md` and `docs/todo_next.md` with the appropriate template blocks.
+   During the preview the automation cross-checks the anchor to avoid creating duplicate records. If the session still needs to reuse the existing anchor—for example when only the memos must be refreshed—add `--skip-record` so the tool intentionally bypasses the record creation step.
+   ```bash
+   python3 scripts/manage_task_cycle.py --dry-run start-task --skip-record \
+       --anchor docs/task_backlog.md#codex-session-operations-guide \
+       --record-date 2026-02-15 \
+       --promote-date 2026-02-15 \
+       --task-id OPS-CODEX-GUIDE \
+       --title "Codex Session Operations Guide" \
+       --state-note "Refresh Next Task memo" \
+       --doc-note "Carry forward memo updates" \
+       --doc-section "In Progress"
+   ```
+   Recommended uses for `--skip-record` include:
+   - Keeping the existing backlog anchor while updating only the `state.md` memo or `docs/todo_next.md` note.
+   - Rehydrating a Codex session that already populated the record and merely needs to reapply automation after manual edits.
+   - Testing template changes where creating an extra record would add noise to the log.
+
+   After confirming the preview, rerun the command without `--dry-run` to populate `state.md` and `docs/todo_next.md` with the appropriate template blocks. Usually you should run the dry run without `--skip-record` first so the tool confirms whether a record already exists; only introduce `--skip-record` when you explicitly need to reuse the anchor without creating another entry.
    - Use `--runbook-links` to override the default `[docs/state_runbook.md](docs/state_runbook.md)` reference when another runbook is more relevant.
    - Provide `--pending-questions` to seed the checklist item that appears under "Pending Questions" in the template so the next session inherits the right context.
 

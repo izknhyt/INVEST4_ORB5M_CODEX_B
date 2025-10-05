@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-02-16: Clarified `--skip-record` guidance in `docs/codex_workflow.md` / `docs/state_runbook.md`, captured recommended scenarios, and verified `python3 scripts/manage_task_cycle.py --dry-run start-task --skip-record ...` emits the skip notice plus `sync_task_docs.py promote` preview.
 - 2026-02-15: Shifted the warmup decrement in `core/runner._maybe_enter_trade` to occur after processing fill results so only confirmed fills reduce the counter, updated `tests/test_runner.py` to exercise the conservative fill engine for both filled and unfilled scenarios, and executed `python3 -m pytest tests/test_runner.py` to verify the behaviour.
 - 2026-02-14: Updated `core/runner._maybe_enter_trade` so warmup trades decrement only after fills, added regression coverage in `tests/test_runner.py` for filled vs. unfilled simulations, and executed `python3 -m pytest tests/test_runner.py` to confirm the behaviour.
 - 2026-02-13: Surfaced category budget values/headroom/status in the portfolio summary, updated the router demo telemetry sample, extended `tests/test_report_portfolio_summary.py` to assert the new fields, and executed `python3 -m pytest tests/test_report_portfolio_summary.py`.
