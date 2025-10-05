@@ -325,6 +325,12 @@ def _parse_args() -> argparse.Namespace:
         help="Override category budget targets (format category=pct)",
     )
     parser.add_argument(
+        "--correlation-window-minutes",
+        type=float,
+        default=None,
+        help="Lookback window (in minutes) used for correlation calculations",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=DEFAULT_OUTPUT,
@@ -399,6 +405,7 @@ def main() -> int:
         active_positions=active_positions,
         strategy_correlations=strategy_correlations,
         category_budget_pct=category_budget_pct,
+        correlation_window_minutes=args.correlation_window_minutes,
     )
     portfolio_state = build_portfolio_state(
         manifests.values(),
@@ -423,6 +430,7 @@ def main() -> int:
         "gross_exposure_cap_pct": portfolio_state.gross_exposure_cap_pct,
         "strategy_correlations": portfolio_state.strategy_correlations,
         "execution_health": portfolio_state.execution_health,
+        "correlation_window_minutes": portfolio_state.correlation_window_minutes,
     }
 
     telemetry_path = output_dir / "telemetry.json"
