@@ -57,6 +57,7 @@
 - `scripts/run_daily_workflow.py` と `scripts/cron_schedule_example.json` で最適化・レイテンシ監視・state アーカイブをまとめて実行可能。
 
 ### ポートフォリオ監視
+- 監視対象の最新ランをまとめるには `scripts/build_router_snapshot.py --manifest configs/strategies/day_orb_5m.yaml --manifest configs/strategies/tokyo_micro_mean_reversion.yaml --manifest-run day_orb_5m_v1=runs/day_snapshot --manifest-run tokyo_micro_mean_reversion_v0=runs/tokyo_snapshot --positions day_orb_5m_v1=1 --positions tokyo_micro_mean_reversion_v0=2` のように実行し、`runs/router_pipeline/latest`（`--output` で上書き可）へ `telemetry.json` と戦略別メトリクスを生成する。`runs/index.csv` に `manifest_id` 列があれば自動で最新 run を選択できる。
 - `scripts/report_portfolio_summary.py --input runs/router_pipeline/latest --output reports/portfolio_summary.json` を実行すると、最新のルーター
   テレメトリと戦略別メトリクスからカテゴリ利用率・グロスエクスポージャー・相関ヒートマップ・ドローダウン指標を JSON 化する。
 - 出力の `category_utilisation.headroom_pct` がマイナスになったカテゴリは上限超過を意味するため、新規エントリー抑制やリスクリバランス
