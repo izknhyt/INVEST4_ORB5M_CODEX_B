@@ -46,6 +46,7 @@ class RouterSpec:
     allow_spread_bands: tuple[str, ...] = ()
     allow_rv_bands: tuple[str, ...] = ()
     max_latency_ms: Optional[float] = None
+    max_fill_latency_ms: Optional[float] = None
     category_cap_pct: Optional[float] = None
     category_budget_pct: Optional[float] = None
     tags: tuple[str, ...] = ()
@@ -66,6 +67,8 @@ class RouterSpec:
         tags = tuple(str(s).strip().lower() for s in data.get("tags", []) if str(s).strip())
         latency = data.get("max_latency_ms")
         latency_val = float(latency) if latency is not None else None
+        fill_latency = data.get("max_fill_latency_ms")
+        fill_latency_val = float(fill_latency) if fill_latency is not None else None
         cat_cap = data.get("category_cap_pct")
         cat_cap_val = float(cat_cap) if cat_cap is not None else None
         cat_budget = data.get("category_budget_pct")
@@ -85,6 +88,7 @@ class RouterSpec:
             allow_spread_bands=spread_bands,
             allow_rv_bands=rv_bands,
             max_latency_ms=latency_val,
+            max_fill_latency_ms=fill_latency_val,
             category_cap_pct=cat_cap_val,
             category_budget_pct=cat_budget_val,
             tags=tags,
@@ -251,6 +255,7 @@ class StrategyManifest:
                 "allow_spread_bands": list(self.router.allow_spread_bands),
                 "allow_rv_bands": list(self.router.allow_rv_bands),
                 "max_latency_ms": self.router.max_latency_ms,
+                "max_fill_latency_ms": self.router.max_fill_latency_ms,
                 "category_cap_pct": self.router.category_cap_pct,
                 "category_budget_pct": self.router.category_budget_pct,
                 "tags": list(self.router.tags),

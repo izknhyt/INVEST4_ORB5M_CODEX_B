@@ -199,12 +199,11 @@ def build_portfolio_state(
             if not isinstance(health, Mapping):
                 continue
             target = execution_health.get(manifest.id, {}).copy()
-            reject_rate = _to_float(health.get("reject_rate"))
-            if reject_rate is not None:
-                target["reject_rate"] = reject_rate
-            slippage = _to_float(health.get("slippage_bps"))
-            if slippage is not None:
-                target["slippage_bps"] = slippage
+            for inner_metric, inner_value in health.items():
+                metric_value = _to_float(inner_value)
+                if metric_value is None:
+                    continue
+                target[str(inner_metric)] = metric_value
             if target:
                 execution_health[manifest.id] = target
 

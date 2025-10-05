@@ -25,6 +25,7 @@ def test_load_single_manifest():
     assert router_dict["correlation_tags"] == []
     assert router_dict["max_reject_rate"] is None
     assert router_dict["max_slippage_bps"] is None
+    assert router_dict["max_fill_latency_ms"] is None
     assert router_dict["category_budget_pct"] == manifest.router.category_budget_pct
 
 
@@ -53,6 +54,7 @@ def test_router_round_trip_with_priority_and_limits(tmp_path):
     assert router_dict["correlation_tags"] == list(manifest.router.correlation_tags)
     assert router_dict["max_reject_rate"] == manifest.router.max_reject_rate
     assert router_dict["max_slippage_bps"] == manifest.router.max_slippage_bps
+    assert router_dict["max_fill_latency_ms"] == manifest.router.max_fill_latency_ms
     assert router_dict["category_budget_pct"] == manifest.router.category_budget_pct
 
     round_trip_manifest = {
@@ -85,4 +87,5 @@ def test_router_round_trip_with_priority_and_limits(tmp_path):
     assert reloaded.router.correlation_tags == manifest.router.correlation_tags
     assert reloaded.router.max_reject_rate == manifest.router.max_reject_rate
     assert reloaded.router.max_slippage_bps == manifest.router.max_slippage_bps
+    assert reloaded.router.max_fill_latency_ms == manifest.router.max_fill_latency_ms
     assert reloaded.router.category_budget_pct == manifest.router.category_budget_pct
