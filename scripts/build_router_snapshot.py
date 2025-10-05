@@ -19,7 +19,9 @@ via :func:`core.router_pipeline.build_portfolio_state` so the resulting
 ``telemetry.json`` matches the contract used by the router pipeline. Pass
 ``--correlation-window-minutes`` to persist the rolling lookback window used to
 compute the correlation matrix so downstream monitors can display the correct
-context.
+context. Governance budgets can be provided via manifest overrides or an
+external CSV (`--category-budget-csv`) so ``telemetry.json`` reflects the
+canonical category allocations used by the router.
 """
 
 from __future__ import annotations
@@ -40,7 +42,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from configs.strategies.loader import StrategyManifest, load_manifest
-from core.router_pipeline import PortfolioTelemetry, build_portfolio_state
+from core.router_pipeline import (
+    PortfolioTelemetry,
+    build_portfolio_state,
+    manifest_category_budget,
+)
 
 DEFAULT_MANIFESTS = [Path("configs/strategies")]
 DEFAULT_OUTPUT = Path("runs/router_pipeline/latest")
@@ -292,6 +298,67 @@ def _build_runtime_metrics(payload: Mapping[str, Any]) -> Optional[Mapping[str, 
     return {"execution_health": dict(health)}
 
 
+def _extract_manifest_category_budgets(
+    manifests: Iterable[StrategyManifest],
+) -> Dict[str, float]:
+    budgets: Dict[str, float] = {}
+    for manifest in manifests:
+        value = manifest_category_budget(manifest)
+        if value is None:
+            continue
+        current = budgets.get(manifest.category)
+        budgets[manifest.category] = value if current is None else min(current, value)
+    return budgets
+
+
+def _load_category_budget_csv(path: Path) -> Dict[str, float]:
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        if not reader.fieldnames or "category" not in [f.lower() for f in reader.fieldnames]:
+            raise ValueError(
+                "category budget CSV must include a 'category' column"
+            )
+        budgets: Dict[str, float] = {}
+        for row in reader:
+            category_field = None
+            for key in row:
+                if key and key.lower() == "category":
+                    category_field = key
+                    break
+            if not category_field:
+                continue
+            category = str(row.get(category_field, "")).strip()
+            if not category:
+                continue
+            value: Optional[float] = None
+            for candidate_key in (
+                "budget_pct",
+                "budget",
+                "budget_percent",
+                "allocation_pct",
+            ):
+                if candidate_key not in row:
+                    continue
+                raw_value = str(row[candidate_key]).strip()
+                if not raw_value:
+                    continue
+                try:
+                    value = float(raw_value)
+                except ValueError as exc:  # pragma: no cover - defensive branch
+                    raise ValueError(
+                        f"invalid budget value '{raw_value}' for category {category} in {path}"
+                    ) from exc
+                break
+            if value is None:
+                raise ValueError(
+                    f"missing budget percentage for category {category} in {path}"
+                )
+            budgets[category] = value
+    if not budgets:
+        raise ValueError(f"no category budgets discovered in {path}")
+    return budgets
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -326,6 +393,12 @@ def _parse_args() -> argparse.Namespace:
         action="append",
         default=[],
         help="Override category budget targets (format category=pct)",
+    )
+    parser.add_argument(
+        "--category-budget-csv",
+        type=Path,
+        default=None,
+        help="CSV containing per-category budgets (columns: category,budget_pct)",
     )
     parser.add_argument(
         "--correlation-window-minutes",
@@ -390,12 +463,19 @@ def main() -> int:
         except ValueError as exc:
             raise ValueError(f"invalid active position count '{raw_value}' for {manifest_id}") from exc
 
+    category_budget_pct: Dict[str, float] = _extract_manifest_category_budgets(
+        manifests.values()
+    )
+
+    if args.category_budget_csv:
+        csv_budgets = _load_category_budget_csv(args.category_budget_csv)
+        category_budget_pct.update(csv_budgets)
+
     budget_overrides = (
         _parse_mapping_arg(args.category_budgets, label="category budget")
         if args.category_budgets
         else {}
     )
-    category_budget_pct: Dict[str, float] = {}
     for category, raw_value in budget_overrides.items():
         try:
             category_budget_pct[category] = float(raw_value)

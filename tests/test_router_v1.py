@@ -244,7 +244,7 @@ def test_headroom_adjusts_scores_and_reasons():
 
     assert near_result.eligible is True
     assert ample_result.eligible is True
-    assert near_result.score == 0.0  # 1.0 -0.5 (category) -0.5 (gross)
+    assert near_result.score == approx(-0.05, abs=1e-6)
     assert ample_result.score == 1.3  # 1.0 +0.1 (category) +0.2 (gross)
 
     near_reasons = " ".join(near_result.reasons)
@@ -254,7 +254,10 @@ def test_headroom_adjusts_scores_and_reasons():
     assert "category budget headroom" in near_reasons
     assert "category budget headroom" in ample_reasons
     assert "score_delta=-0.50" in near_reasons
+    assert "status=warning" in near_reasons
+    assert "score_delta=-0.05" in near_reasons
     assert "score_delta=+0.20" in ample_reasons
+    assert "status=ok" in ample_reasons
 
 
 def test_budget_penalty_adjusts_scores_and_reasons():
@@ -289,12 +292,14 @@ def test_budget_penalty_adjusts_scores_and_reasons():
         ctx, [manifest], portfolio=near_cap, strategy_signals=signals
     )[0]
 
-    assert moderate_result.score == approx(0.6)
-    assert near_cap_result.score == approx(-0.20)
+    assert moderate_result.score == approx(0.48)
+    assert near_cap_result.score == approx(-0.30)
 
     moderate_reasons = " ".join(moderate_result.reasons)
     near_cap_reasons = " ".join(near_cap_result.reasons)
     assert "category budget headroom" in moderate_reasons
-    assert "score_delta=-0.40" in moderate_reasons
+    assert "score_delta=-0.52" in moderate_reasons
+    assert "status=breach" in moderate_reasons
     assert "category budget headroom" in near_cap_reasons
-    assert "score_delta=-0.70" in near_cap_reasons
+    assert "score_delta=-0.80" in near_cap_reasons
+    assert "status=breach" in near_cap_reasons
