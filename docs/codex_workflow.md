@@ -83,9 +83,9 @@ This guide summarizes the routine Codex agents should follow to keep tasks movin
    ```
    Sample preview output:
    ```bash
-   [dry-run] /root/.pyenv/versions/3.12.10/bin/python3 /workspace/INVEST4_ORB5M_CODEX_B/scripts/sync_task_docs.py complete --anchor 'docs/task_backlog.md#codex-session-operations-guide' --date 2026-02-15 --note 'Documented finish-task dry-run sample for workflow guide' --task-id OPS-CODEX-GUIDE
+   [dry-run] /root/.pyenv/versions/3.12.10/bin/python3 /workspace/INVEST4_ORB5M_CODEX_B/scripts/sync_task_docs.py complete --anchor 'docs/task_backlog.md#codex-session-operations-guide' --date 2026-02-14 --note 'Captured finish-task dry-run sample for documentation' --task-id OPS-CODEX-GUIDE
    ```
-   This preview shows the exact `sync_task_docs.py complete` invocation that will execute, moving the corresponding entry from `state.md`'s **Next Task** block into the `## Log` archive while simultaneously relocating the task in `docs/todo_next.md`.
+   Because the command is invoked with `--dry-run`, it produces only this preview line without modifying `state.md` or `docs/todo_next.md`. The preview shows the exact `sync_task_docs.py complete` invocation that will execute once you rerun the command without `--dry-run`, moving the corresponding entry from `state.md`'s **Next Task** block into the `## Log` archive while simultaneously relocating the task in `docs/todo_next.md`.
 2. If the dry run looks correct, rerun without `--dry-run` so `state.md` (`## Log`) and `docs/todo_next.md` update in tandem.
 3. Update the DoD checklist, archive it when done, and add links to `docs/task_backlog.md` or the relevant runbook. Ensure `docs/todo_next.md` moves the entry to the Archive section when the automation completes.
 4. Provide a Japanese summary in the final Codex response, including executed test commands and any follow-up actions.
