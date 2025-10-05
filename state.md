@@ -2,6 +2,10 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-01-28: `core/runner.Metrics` がトレード記録時にバーの timestamp を保持し、`equity_curve` を `[ts, equity]` 形式で構築するよう更新。
+  `scripts/run_sim.py` から出力される `metrics.json` にエクイティカーブを含め、ルーター用サンプルメトリクスと
+  `tests/test_runner.py` / `tests/test_router_pipeline.py` のアサーションを新スキーマに合わせて調整。
+  `python3 -m pytest tests/test_runner.py tests/test_router_pipeline.py` を実行し 29 件のパスを確認。
 - 2026-01-26: `router/router_v1.PortfolioState` にカテゴリ/グロスエクスポージャーのヘッドルームを保持するフィールドを追加し、
   `core/router_pipeline.build_portfolio_state` で利用率・上限からヘッドルームを算出するロジックを実装。
   `analysis/portfolio_monitor` がポートフォリオヘッドルームを参照するよう揃え、対応テスト

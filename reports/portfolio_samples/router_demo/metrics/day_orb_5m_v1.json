@@ -2,6 +2,7 @@
   "manifest_id": "day_orb_5m_v1",
   "manifest_path": "configs/strategies/day_orb_5m.yaml",
   "equity_curve": [
+    ["2025-01-01T00:00:00.000000Z", 100000.0],
     ["2025-01-01T00:00:00Z", 100000.0],
     ["2025-01-02T00:00:00Z", 100450.0],
     ["2025-01-03T00:00:00Z", 100200.0],
