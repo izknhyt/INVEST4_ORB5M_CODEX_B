@@ -143,14 +143,41 @@ def test_router_pipeline_respects_budget_headroom_from_telemetry():
     telemetry = PortfolioTelemetry(
         category_utilisation_pct={manifest.category: 25.0},
         category_budget_pct={manifest.category: 45.0},
-        category_budget_headroom_pct={manifest.category: 12.3},
+        category_budget_headroom_pct={manifest.category: 20.0},
     )
 
     portfolio = build_portfolio_state([manifest], telemetry=telemetry)
 
     # Telemetry-provided headroom should be preserved rather than recomputed.
     assert portfolio.category_budget_pct[manifest.category] == 45.0
-    assert portfolio.category_budget_headroom_pct[manifest.category] == approx(12.3)
+    assert portfolio.category_budget_headroom_pct[manifest.category] == approx(20.0)
+
+
+def test_router_pipeline_recomputes_budget_headroom_on_tightened_budget():
+    manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
+    manifest.router.category_cap_pct = 90.0
+    manifest.router.category_budget_pct = 40.0
+
+    telemetry = PortfolioTelemetry(
+        category_utilisation_pct={manifest.category: 45.0},
+        category_budget_pct={manifest.category: 60.0},
+        category_budget_headroom_pct={manifest.category: 15.0},
+    )
+
+    portfolio = build_portfolio_state([manifest], telemetry=telemetry)
+
+    assert portfolio.category_budget_pct[manifest.category] == approx(40.0)
+    assert portfolio.category_budget_headroom_pct[manifest.category] == approx(-5.0)
+
+    market_ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "mid"}
+    result = select_candidates(market_ctx, [manifest], portfolio=portfolio)[0]
+
+    assert any("status=breach" in reason for reason in result.reasons)
+    expected_penalty = -0.25 - min(abs(-5.0) / 10.0, 1.0) * 0.45
+    expected_headroom_delta = 0.2  # cap headroom is comfortably above thresholds.
+    assert result.score == approx(
+        manifest.router.priority + expected_headroom_delta + expected_penalty
+    )
 
 
 def test_router_pipeline_handles_none_reject_rate_and_blank_usage():
