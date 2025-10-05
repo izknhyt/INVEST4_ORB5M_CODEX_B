@@ -72,6 +72,18 @@ def test_router_pipeline_merges_limits_and_execution_health():
     assert any("reject_rate" in reason for reason in result_map[mean_manifest.id].reasons)
 
 
+def test_router_pipeline_preserves_correlation_window_metadata():
+    manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
+    telemetry = PortfolioTelemetry(
+        strategy_correlations={manifest.id: {}},
+        correlation_window_minutes=180.0,
+    )
+
+    portfolio = build_portfolio_state([manifest], telemetry=telemetry)
+
+    assert portfolio.correlation_window_minutes == approx(180.0)
+
+
 def test_router_pipeline_skips_invalid_telemetry_values():
     day_manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
     day_manifest.router.category_cap_pct = 50.0
