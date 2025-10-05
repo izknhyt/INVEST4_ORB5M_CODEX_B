@@ -166,7 +166,8 @@ def build_portfolio_state(
             category_budget.pop(category, None)
             continue
         usage = float(category_usage.get(category, 0.0))
-        category_budget_headroom[category] = budget - usage
+        if category not in category_budget_headroom:
+            category_budget_headroom[category] = budget - usage
 
     gross_headroom_pct: Optional[float] = None
     if gross_cap_pct is not None and gross_exposure_pct is not None:
