@@ -48,11 +48,18 @@ class TestRunner(unittest.TestCase):
         warmup_left: int = 0,
         calibrate_days: int = 0,
         include_expected_slip: bool = False,
+        debug: bool = False,
+        debug_sample_limit: int = 0,
     ):
         import core.runner as runner_module
 
         symbol = "USDJPY"
-        runner = BacktestRunner(equity=100_000.0, symbol=symbol)
+        runner = BacktestRunner(
+            equity=100_000.0,
+            symbol=symbol,
+            debug=debug,
+            debug_sample_limit=debug_sample_limit,
+        )
         runner._strategy_gate_hook = None
         runner._ev_threshold_hook = None
         runner.rcfg.calibrate_days = calibrate_days
@@ -492,7 +499,9 @@ class TestRunner(unittest.TestCase):
 
     def test_warmup_bypass_allows_low_ev_signal(self):
         runner, pending, breakout, features, calibrating = self._prepare_breakout_environment(
-            warmup_left=5
+            warmup_left=5,
+            debug=True,
+            debug_sample_limit=5,
         )
         stub_ev = self.DummyEV(ev_lcb=0.05, p_lcb=0.55)
         runner._get_ev_manager = lambda key: stub_ev
@@ -521,6 +530,17 @@ class TestRunner(unittest.TestCase):
         )
         self.assertTrue(slip_ok)
         self.assertEqual(runner.debug_counts["ev_bypass"], 1)
+        self.assertGreaterEqual(len(runner.debug_records), 1)
+        bypass_records = [rec for rec in runner.debug_records if rec.get("stage") == "ev_bypass"]
+        self.assertEqual(len(bypass_records), 1)
+        record = bypass_records[0]
+        self.assertEqual(record["side"], "BUY")
+        self.assertEqual(record["warmup_left"], 5)
+        self.assertEqual(record["warmup_total"], runner.rcfg.warmup_trades)
+        self.assertAlmostEqual(record["ev_lcb"], stub_ev._ev_lcb)
+        self.assertAlmostEqual(record["threshold_lcb"], ctx_dbg["threshold_lcb"])
+        self.assertEqual(record["tp_pips"], 2.0)
+        self.assertEqual(record["sl_pips"], 1.0)
 
     @patch("strategies.day_orb_5m.pass_gates", return_value=True)
     def test_calibration_signal_updates_cooldown_state(self, _mock_pass_gates):
