@@ -98,8 +98,9 @@ def build_portfolio_state(
     exposures: Dict[str, float] = {}
     for manifest in manifest_list:
         active = active_positions.get(manifest.id, 0)
-        if active > 0:
-            exposure = active * float(manifest.risk.risk_per_trade_pct)
+        active_count = abs(active)
+        if active_count > 0:
+            exposure = active_count * float(manifest.risk.risk_per_trade_pct)
             exposures[manifest.id] = exposures.get(manifest.id, 0.0) + exposure
             category_usage[manifest.category] = (
                 category_usage.get(manifest.category, 0.0) + exposure

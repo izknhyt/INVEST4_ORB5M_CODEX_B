@@ -74,8 +74,9 @@ def _check_concurrency(manifest: StrategyManifest, portfolio: PortfolioState) ->
     if limit <= 0:
         return "max_concurrent_positions set to non-positive value"
     active = portfolio.active_positions.get(manifest.id, 0)
-    if active >= limit:
-        return f"active positions {active} >= limit {limit}"
+    active_count = abs(active)
+    if active_count >= limit:
+        return f"active positions {active_count} >= limit {limit}"
     return None
 
 
