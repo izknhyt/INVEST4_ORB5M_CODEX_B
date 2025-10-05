@@ -25,6 +25,7 @@ class PortfolioState:
     gross_exposure_headroom_pct: Optional[float] = None
     strategy_correlations: Dict[str, Dict[str, float]] = field(default_factory=dict)
     execution_health: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    correlation_window_minutes: Optional[float] = None
 
 
 @dataclass
