@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 from core.fill_engine import SameBarPolicy
-from core.runner import BacktestRunner, Metrics, RunnerConfig
+from core.runner import BacktestRunner, ExitDecision, Metrics, RunnerConfig
 from core.pips import pip_size, price_to_pips
 from core.sizing import compute_qty_from_ctx
 from core.strategy_api import OrderIntent, Strategy
@@ -802,6 +802,56 @@ class TestRunner(unittest.TestCase):
                     )
         self.assertEqual(runner._warmup_left, initial_warmup)
         mock_process.assert_called_once()
+
+    def test_calibration_positions_resolve_after_period(self):
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
+        runner.rcfg.calibrate_days = 1
+        ev_key = ("LDN", "normal", "mid")
+        runner.calib_positions = [
+            {
+                "side": "BUY",
+                "entry_px": 150.0,
+                "tp_px": 150.5,
+                "sl_px": 149.5,
+                "trail_pips": 0.0,
+                "hh": 150.2,
+                "ll": 149.8,
+                "hold": 0,
+                "ev_key": ev_key,
+            }
+        ]
+        bar = make_bar(
+            datetime(2024, 1, 2, 8, 5, tzinfo=timezone.utc),
+            "USDJPY",
+            150.0,
+            150.2,
+            149.8,
+            150.1,
+            spread=0.02,
+        )
+        ctx = {
+            "ev_key": ev_key,
+            "session": "LDN",
+            "spread_band": "normal",
+            "rv_band": "mid",
+        }
+        dummy_ev = MagicMock()
+        runner._get_ev_manager = MagicMock(return_value=dummy_ev)
+        decision = ExitDecision(exited=True, exit_px=150.2, exit_reason="tp", updated_pos=None)
+
+        with patch.object(runner, "_compute_exit_decision", return_value=decision) as mock_decision:
+            runner._resolve_calibration_positions(
+                bar=bar,
+                ctx=ctx,
+                new_session=False,
+                calibrating=False,
+                mode="conservative",
+                pip_size_value=pip_size(runner.symbol),
+            )
+
+        mock_decision.assert_called_once()
+        dummy_ev.update.assert_called_once_with(True)
+        self.assertFalse(runner.calib_positions)
 
     @patch("strategies.day_orb_5m.pass_gates", return_value=True)
     def test_calibration_signal_updates_cooldown_state(self, _mock_pass_gates):

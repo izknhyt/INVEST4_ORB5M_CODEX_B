@@ -57,6 +57,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - `strategy_gate` → `ev_threshold` → EV 判定 → サイズ判定の観察手順が docs に追記され、CSV/Daily 出力例と併せた調査フローが示されていること。
 
 **進捗メモ**
+- 2026-02-21: Fixed a calibration regression where `_resolve_calibration_positions` stopped updating pooled EV after the calibration window elapsed. Added regression `tests/test_runner.py::test_calibration_positions_resolve_after_period` to ensure calibration trades opened during warmup continue to settle and feed EV statistics, and reran targeted pytest for the runner suite.
 - 2026-02-13: Verified the counter/record documentation against the latest runner implementation, confirmed that the CSV/daily investigation flow covers `ev_bypass` warm-up tracking, and re-ran `python3 -m pytest tests/test_runner.py tests/test_run_sim_cli.py` to lock regression coverage before closing the task.
 - 2026-01-18: Logged EV warm-up bypass events as `ev_bypass` debug records (capturing `warmup_left` / `warmup_total`), refreshed regression coverage in `tests/test_runner.py`, and expanded [docs/backtest_runner_logging.md](docs/backtest_runner_logging.md) with the new fields.
 - 2025-10-13: Added CLI regression `tests/test_run_sim_cli.py::test_run_sim_debug_records_capture_hook_failures` to lock the debug counters/records when hook exceptions are raised, and expanded the logging reference with the coverage note.

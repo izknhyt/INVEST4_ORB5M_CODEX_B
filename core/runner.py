@@ -1122,8 +1122,10 @@ class BacktestRunner:
         mode: str,
         pip_size_value: float,
     ) -> None:
-        if not calibrating or not self.calib_positions:
+        if not self.calib_positions:
             return
+        # Continue resolving calibration trades even after the calibration
+        # window ends so their outcomes update pooled EV statistics.
         still: List[Dict[str, Any]] = []
         for raw_pos in self.calib_positions:
             normalized = {
