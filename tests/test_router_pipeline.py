@@ -143,14 +143,49 @@ def test_router_pipeline_respects_budget_headroom_from_telemetry():
     telemetry = PortfolioTelemetry(
         category_utilisation_pct={manifest.category: 25.0},
         category_budget_pct={manifest.category: 45.0},
-        category_budget_headroom_pct={manifest.category: 12.3},
+        category_budget_headroom_pct={manifest.category: 20.0},
     )
 
     portfolio = build_portfolio_state([manifest], telemetry=telemetry)
 
-    # Telemetry-provided headroom should be preserved rather than recomputed.
+    # Telemetry-provided headroom that matches usage should be preserved.
     assert portfolio.category_budget_pct[manifest.category] == 45.0
-    assert portfolio.category_budget_headroom_pct[manifest.category] == approx(12.3)
+    assert portfolio.category_budget_headroom_pct[manifest.category] == approx(20.0)
+
+
+def test_router_pipeline_recalculates_headroom_when_budget_tightens():
+    manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
+    manifest.router.category_cap_pct = 80.0
+    manifest.router.category_budget_pct = 30.0
+
+    telemetry = PortfolioTelemetry(
+        category_utilisation_pct={manifest.category: 45.0},
+        category_budget_pct={manifest.category: 60.0},
+        category_budget_headroom_pct={manifest.category: 15.0},
+    )
+
+    portfolio = build_portfolio_state([manifest], telemetry=telemetry)
+
+    expected_headroom = (
+        portfolio.category_budget_pct[manifest.category]
+        - portfolio.category_utilisation_pct[manifest.category]
+    )
+
+    assert portfolio.category_budget_pct[manifest.category] == approx(30.0)
+    assert portfolio.category_budget_headroom_pct[manifest.category] == approx(
+        expected_headroom
+    )
+
+    market_ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "mid"}
+    result = select_candidates(market_ctx, [manifest], portfolio=portfolio)[0]
+
+    breach_reason = next(
+        reason
+        for reason in result.reasons
+        if "category budget headroom" in reason
+    )
+    assert "status=breach" in breach_reason
+    assert "score_delta=-0.70" in breach_reason
 
 
 def test_router_pipeline_handles_none_reject_rate_and_blank_usage():

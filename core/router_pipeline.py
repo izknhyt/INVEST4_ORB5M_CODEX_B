@@ -101,6 +101,7 @@ def build_portfolio_state(
         if value_float is None:
             continue
         category_budget[str(key)] = value_float
+    telemetry_budget_baseline: Dict[str, float] = dict(category_budget)
 
     category_budget_headroom: Dict[str, float] = {}
     for key, value in snapshot.category_budget_headroom_pct.items():
@@ -181,10 +182,21 @@ def build_portfolio_state(
     for category, budget in list(category_budget.items()):
         if budget is None:
             category_budget.pop(category, None)
+            category_budget_headroom.pop(category, None)
             continue
         usage = float(category_usage.get(category, 0.0))
-        if category not in category_budget_headroom:
-            category_budget_headroom[category] = budget - usage
+        baseline_budget = telemetry_budget_baseline.get(category)
+        recalculated_headroom = budget - usage
+        stored_headroom = category_budget_headroom.get(category)
+        budget_changed = (
+            baseline_budget is None or abs(budget - baseline_budget) > 1e-9
+        )
+        headroom_mismatch = (
+            stored_headroom is None
+            or abs(stored_headroom - recalculated_headroom) > 1e-9
+        )
+        if budget_changed or headroom_mismatch:
+            category_budget_headroom[category] = recalculated_headroom
 
     gross_headroom_pct: Optional[float] = None
     if gross_cap_pct is not None and gross_exposure_pct is not None:
