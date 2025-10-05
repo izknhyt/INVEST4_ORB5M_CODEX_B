@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-01-23: `core/router_pipeline.build_portfolio_state` のグロスエクスポージャー系テレメトリを `_to_float` ガード経由で取り込み、欠損時にカテゴリ利用率からのフォールバックを有効化。`tests/test_router_pipeline.py` に空文字利用率と `reject_rate=None` の回帰テストを追加し、`python3 -m pytest tests/test_router_pipeline.py` を実行して 4 件パスを確認。
 - 2026-01-20: `core/router_pipeline.build_portfolio_state` のテレメトリ取り込みで `_to_float` を利用するよう更新し、非数値のカテゴリ利用率や `None` の拒否率を無視する回帰テストを `tests/test_router_pipeline.py` に追加。`python3 -m pytest tests/test_router_pipeline.py` を実行して 2 件パスを確認。
 - 2026-01-21: `core/router_pipeline.build_portfolio_state` でショートポジション数も絶対値ベースでカテゴリ利用率・グロスエクスポージャーへ反映し、`router/router_v1._check_concurrency` でも同様に絶対値を用いるよう修正。`tests/test_router_pipeline.py` にショート保有のガード発火テストを追加し、`python3 -m pytest tests/test_router_v1.py tests/test_router_pipeline.py` を実行して 12 件パスを確認。
 - 2026-01-22: `router/router_v1.select_candidates` でシグナルの `score` を優先的に float 化し、`None` の場合のみ `ev_lcb` を用いるよう整理。`tests/test_router_v1.py` にスコア 0.0 と EV LCB 並存ケースを追加し、`python3 -m pytest tests/test_router_v1.py` を実行して 10 件パスを確認。
