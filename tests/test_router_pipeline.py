@@ -3,7 +3,11 @@ from pathlib import Path
 
 from pytest import approx
 
-from core.router_pipeline import PortfolioTelemetry, build_portfolio_state
+from core.router_pipeline import (
+    PortfolioTelemetry,
+    build_correlation_maps,
+    build_portfolio_state,
+)
 from configs.strategies.loader import load_manifest
 from router.router_v1 import select_candidates
 
@@ -123,6 +127,43 @@ def test_router_pipeline_populates_correlation_metadata():
     assert tag_meta["category_budget_pct"] == approx(35.0)
     assert tag_meta["bucket_category"] == mean_manifest.category
     assert tag_meta["bucket_budget_pct"] == approx(35.0)
+
+
+def test_build_correlation_maps_matches_portfolio_output():
+    day_manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
+    mean_manifest = load_manifest("configs/strategies/mean_reversion.yaml")
+    day_manifest.router.category_budget_pct = 35.0
+    mean_manifest.router.category_budget_pct = 35.0
+
+    telemetry = PortfolioTelemetry(
+        strategy_correlations={
+            day_manifest.id: {mean_manifest.id: "0.55"},
+            "momentum": {mean_manifest.id: 0.6},
+        },
+        correlation_meta={
+            "momentum": {
+                mean_manifest.id: {
+                    "bucket_category": "swing",
+                    "bucket_budget_pct": 45.0,
+                }
+            }
+        },
+        category_budget_pct={day_manifest.category: 33.0},
+    )
+
+    manifest_index = {m.id: m for m in [day_manifest, mean_manifest]}
+    category_budget_map = {day_manifest.category: 33.0}
+
+    correlations, meta = build_correlation_maps(
+        telemetry, manifest_index, category_budget_map
+    )
+
+    portfolio = build_portfolio_state(
+        [day_manifest, mean_manifest], telemetry=telemetry
+    )
+
+    assert correlations == portfolio.strategy_correlations
+    assert meta == portfolio.correlation_meta
 
 
 def test_router_pipeline_preserves_bucket_metadata_without_peer_manifest():
@@ -262,6 +303,28 @@ def test_router_pipeline_handles_none_reject_rate_and_blank_usage():
         portfolio.category_budget_pct[manifest.category] - expected_exposure
     )
     assert "reject_rate" not in portfolio.execution_health.get(manifest.id, {})
+
+
+def test_router_pipeline_preserves_budget_headroom_within_tolerance():
+    manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
+    manifest.router.category_cap_pct = 55.0
+    manifest.router.category_budget_pct = 50.0
+
+    utilisation = 20.0
+    telemetry_headroom = 50.0 - utilisation + 5e-10
+
+    telemetry = PortfolioTelemetry(
+        category_utilisation_pct={manifest.category: utilisation},
+        category_budget_pct={manifest.category: 50.0},
+        category_budget_headroom_pct={manifest.category: telemetry_headroom},
+    )
+
+    portfolio = build_portfolio_state([manifest], telemetry=telemetry)
+
+    assert portfolio.category_budget_pct[manifest.category] == approx(50.0)
+    assert portfolio.category_budget_headroom_pct[manifest.category] == approx(
+        telemetry_headroom
+    )
 
 
 def test_router_pipeline_counts_shorts_for_limits():

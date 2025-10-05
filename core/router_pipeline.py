@@ -3,7 +3,7 @@ from __future__ import annotations
 """Utilities for assembling router portfolio state from runtime telemetry."""
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, Mapping, Optional
+from typing import Any, Dict, Iterable, Mapping, Optional, Tuple
 
 from configs.strategies.loader import StrategyManifest
 from router.router_v1 import PortfolioState
@@ -31,6 +31,18 @@ def _to_float(value: Any) -> Optional[float]:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _normalise_numeric_map(snapshot_map: Mapping[Any, Any]) -> Dict[str, float]:
+    """Convert telemetry-style mappings into string→float dictionaries."""
+
+    normalised: Dict[str, float] = {}
+    for key, value in snapshot_map.items():
+        value_float = _to_float(value)
+        if value_float is None:
+            continue
+        normalised[str(key)] = value_float
+    return normalised
 
 
 def manifest_category_budget(manifest: StrategyManifest) -> Optional[float]:
@@ -83,35 +95,76 @@ def build_portfolio_state(
     absolute_active_counts: Dict[str, int] = {
         key: abs(count) for key, count in active_positions.items()
     }
-    category_usage: Dict[str, float] = {}
-    for key, value in snapshot.category_utilisation_pct.items():
-        value_float = _to_float(value)
-        if value_float is None:
-            continue
-        category_usage[str(key)] = value_float
-
-    category_caps: Dict[str, float] = {}
-    for key, value in snapshot.category_caps_pct.items():
-        value_float = _to_float(value)
-        if value_float is None:
-            continue
-        category_caps[str(key)] = value_float
-
-    category_budget: Dict[str, float] = {}
-    for key, value in snapshot.category_budget_pct.items():
-        value_float = _to_float(value)
-        if value_float is None:
-            continue
-        category_budget[str(key)] = value_float
-
+    category_usage = _normalise_numeric_map(snapshot.category_utilisation_pct)
+    category_caps = _normalise_numeric_map(snapshot.category_caps_pct)
+    category_budget = _normalise_numeric_map(snapshot.category_budget_pct)
     telemetry_category_budget: Dict[str, float] = dict(category_budget)
+    category_budget_headroom = _normalise_numeric_map(
+        snapshot.category_budget_headroom_pct
+    )
 
-    category_budget_headroom: Dict[str, float] = {}
-    for key, value in snapshot.category_budget_headroom_pct.items():
-        value_float = _to_float(value)
-        if value_float is None:
+    correlations, correlation_meta = build_correlation_maps(
+        snapshot, manifest_index, category_budget
+    )
+
+    execution_health: Dict[str, Dict[str, float]] = {}
+    for key, value in snapshot.execution_health.items():
+        if not isinstance(value, Mapping):
             continue
-        category_budget_headroom[str(key)] = value_float
+        inner = _normalise_numeric_map(value)
+        if inner:
+            execution_health[str(key)] = inner
+
+    (
+        exposures,
+        category_headroom,
+        category_budget_headroom,
+    ) = _accumulate_exposures_and_headroom(
+        manifest_list,
+        absolute_active_counts,
+        category_usage,
+        category_caps,
+        category_budget,
+        telemetry_category_budget,
+        category_budget_headroom,
+    )
+
+    (
+        gross_exposure_pct,
+        gross_cap_pct,
+        gross_headroom_pct,
+    ) = _compute_gross_exposure(snapshot, manifest_list, exposures)
+
+    if runtime_metrics:
+        _merge_runtime_execution_health(
+            manifest_list, execution_health, runtime_metrics
+        )
+
+    correlation_window_minutes = _to_float(snapshot.correlation_window_minutes)
+
+    return PortfolioState(
+        category_utilisation_pct=category_usage,
+        active_positions=active_positions,
+        category_caps_pct=category_caps,
+        category_headroom_pct=category_headroom,
+        category_budget_pct=category_budget,
+        category_budget_headroom_pct=category_budget_headroom,
+        gross_exposure_pct=gross_exposure_pct,
+        gross_exposure_cap_pct=gross_cap_pct,
+        gross_exposure_headroom_pct=gross_headroom_pct,
+        strategy_correlations=correlations,
+        correlation_meta=correlation_meta,
+        execution_health=execution_health,
+        correlation_window_minutes=correlation_window_minutes,
+    )
+
+
+def build_correlation_maps(
+    snapshot: PortfolioTelemetry,
+    manifest_index: Mapping[str, StrategyManifest],
+    category_budget: Mapping[str, float],
+) -> Tuple[Dict[str, Dict[str, float]], Dict[str, Dict[str, Dict[str, Any]]]]:
+    """Construct correlation value and metadata maps from telemetry snapshots."""
 
     correlations: Dict[str, Dict[str, float]] = {}
     correlation_meta: Dict[str, Dict[str, Dict[str, Any]]] = {}
@@ -135,7 +188,10 @@ def build_portfolio_state(
             inner_meta[str(peer_key)] = peer_entry
         if inner_meta:
             correlation_meta[str(source_key)] = inner_meta
+
     for key, value in snapshot.strategy_correlations.items():
+        if not isinstance(value, Mapping):
+            continue
         inner: Dict[str, float] = {}
         meta_inner: Dict[str, Dict[str, Any]] = {
             peer: dict(meta)
@@ -189,18 +245,22 @@ def build_portfolio_state(
             if meta_inner:
                 correlation_meta[str(key)] = meta_inner
 
-    execution_health: Dict[str, Dict[str, float]] = {}
-    for key, value in snapshot.execution_health.items():
-        inner: Dict[str, float] = {}
-        for inner_k, inner_v in value.items():
-            inner_float = _to_float(inner_v)
-            if inner_float is None:
-                continue
-            inner[str(inner_k)] = inner_float
-        if inner:
-            execution_health[str(key)] = inner
+    return correlations, correlation_meta
+
+
+def _accumulate_exposures_and_headroom(
+    manifest_list: Iterable[StrategyManifest],
+    absolute_active_counts: Mapping[str, int],
+    category_usage: Dict[str, float],
+    category_caps: Dict[str, float],
+    category_budget: Dict[str, float],
+    telemetry_category_budget: Mapping[str, float],
+    category_budget_headroom: Dict[str, float],
+) -> Tuple[Dict[str, float], Dict[str, float], Dict[str, float]]:
+    """Aggregate per-manifest exposures and compute category headroom values."""
 
     exposures: Dict[str, float] = {}
+
     for manifest in manifest_list:
         active_count = absolute_active_counts.get(manifest.id, 0)
         if active_count > 0:
@@ -209,6 +269,7 @@ def build_portfolio_state(
             category_usage[manifest.category] = (
                 category_usage.get(manifest.category, 0.0) + exposure
             )
+
         cap_value = manifest.router.category_cap_pct
         if cap_value is not None:
             cap_float = float(cap_value)
@@ -216,6 +277,7 @@ def build_portfolio_state(
             category_caps[manifest.category] = (
                 cap_float if prev_cap is None else min(prev_cap, cap_float)
             )
+
         budget_value = manifest_category_budget(manifest)
         if budget_value is None:
             budget_value = manifest.router.category_cap_pct
@@ -225,7 +287,40 @@ def build_portfolio_state(
             category_budget[manifest.category] = (
                 budget_float if prev_budget is None else min(prev_budget, budget_float)
             )
+
         category_usage.setdefault(manifest.category, 0.0)
+
+    category_headroom: Dict[str, float] = {}
+    for category, cap in category_caps.items():
+        usage = float(category_usage.get(category, 0.0))
+        category_headroom[category] = cap - usage
+
+    tolerance = 1e-9
+    for category, budget in list(category_budget.items()):
+        usage = float(category_usage.get(category, 0.0))
+        expected_headroom = budget - usage
+        baseline_budget = telemetry_category_budget.get(category)
+        stored_headroom = category_budget_headroom.get(category)
+        baseline_differs = (
+            baseline_budget is None
+            or abs(float(baseline_budget) - budget) > tolerance
+        )
+        headroom_mismatch = (
+            stored_headroom is None
+            or abs(float(stored_headroom) - expected_headroom) > tolerance
+        )
+        if baseline_differs or headroom_mismatch:
+            category_budget_headroom[category] = expected_headroom
+
+    return exposures, category_headroom, category_budget_headroom
+
+
+def _compute_gross_exposure(
+    snapshot: PortfolioTelemetry,
+    manifest_list: Iterable[StrategyManifest],
+    exposures: Mapping[str, float],
+) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+    """Derive gross exposure, cap, and headroom figures."""
 
     gross_exposure_pct = _to_float(snapshot.gross_exposure_pct)
     if gross_exposure_pct is None and exposures:
@@ -242,73 +337,40 @@ def build_portfolio_state(
         if gross_caps:
             gross_cap_pct = min(gross_caps)
 
-    category_headroom: Dict[str, float] = {}
-    for category, cap in category_caps.items():
-        usage = float(category_usage.get(category, 0.0))
-        category_headroom[category] = cap - usage
-
-    for category, budget in list(category_budget.items()):
-        if budget is None:
-            category_budget.pop(category, None)
-            continue
-        usage = float(category_usage.get(category, 0.0))
-        expected_headroom = budget - usage
-        baseline_budget = telemetry_category_budget.get(category)
-        stored_headroom = category_budget_headroom.get(category)
-        tolerance = 1e-9
-        baseline_differs = (
-            baseline_budget is None
-            or abs(float(baseline_budget) - budget) > tolerance
-        )
-        headroom_mismatch = (
-            stored_headroom is None
-            or abs(float(stored_headroom) - expected_headroom) > tolerance
-        )
-        if baseline_differs or headroom_mismatch:
-            category_budget_headroom[category] = expected_headroom
-
     gross_headroom_pct: Optional[float] = None
     if gross_cap_pct is not None and gross_exposure_pct is not None:
         gross_headroom_pct = gross_cap_pct - gross_exposure_pct
 
-    if runtime_metrics:
-        for manifest in manifest_list:
-            metrics = runtime_metrics.get(manifest.id)
-            if not metrics:
-                continue
-            health = metrics.get("execution_health")
-            if not isinstance(health, Mapping):
-                continue
-            target = execution_health.get(manifest.id, {}).copy()
-            for inner_metric, inner_value in health.items():
-                metric_value = _to_float(inner_value)
-                if metric_value is None:
-                    continue
-                target[str(inner_metric)] = metric_value
-            if target:
-                execution_health[manifest.id] = target
+    return gross_exposure_pct, gross_cap_pct, gross_headroom_pct
 
-    correlation_window_minutes = _to_float(snapshot.correlation_window_minutes)
 
-    return PortfolioState(
-        category_utilisation_pct=category_usage,
-        active_positions=active_positions,
-        category_caps_pct=category_caps,
-        category_headroom_pct=category_headroom,
-        category_budget_pct=category_budget,
-        category_budget_headroom_pct=category_budget_headroom,
-        gross_exposure_pct=gross_exposure_pct,
-        gross_exposure_cap_pct=gross_cap_pct,
-        gross_exposure_headroom_pct=gross_headroom_pct,
-        strategy_correlations=correlations,
-        correlation_meta=correlation_meta,
-        execution_health=execution_health,
-        correlation_window_minutes=correlation_window_minutes,
-    )
+def _merge_runtime_execution_health(
+    manifest_list: Iterable[StrategyManifest],
+    execution_health: Dict[str, Dict[str, float]],
+    runtime_metrics: Mapping[str, Mapping[str, Any]],
+) -> None:
+    """Merge execution health exported by runtime metrics into the snapshot map."""
+
+    for manifest in manifest_list:
+        metrics = runtime_metrics.get(manifest.id)
+        if not metrics:
+            continue
+        health = metrics.get("execution_health")
+        if not isinstance(health, Mapping):
+            continue
+        target = execution_health.get(manifest.id, {}).copy()
+        for inner_metric, inner_value in health.items():
+            metric_value = _to_float(inner_value)
+            if metric_value is None:
+                continue
+            target[str(inner_metric)] = metric_value
+        if target:
+            execution_health[manifest.id] = target
 
 
 __all__ = [
     "PortfolioTelemetry",
     "manifest_category_budget",
+    "build_correlation_maps",
     "build_portfolio_state",
 ]
