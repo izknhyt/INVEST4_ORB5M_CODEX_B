@@ -192,7 +192,16 @@ def select_candidates(
                 reasons.extend(health_reasons)
 
         signal_ctx = (strategy_signals or {}).get(manifest.id, {})
-        score = float(signal_ctx.get("score") or signal_ctx.get("ev_lcb") or 0.0)
+        score_value: Optional[float] = None
+        if "score" in signal_ctx:
+            raw_score = signal_ctx.get("score")
+            if raw_score is not None:
+                score_value = float(raw_score)
+        if score_value is None:
+            ev_raw = signal_ctx.get("ev_lcb")
+            if ev_raw is not None:
+                score_value = float(ev_raw)
+        score = score_value if score_value is not None else 0.0
         score += manifest.router.priority
 
         # Apply soft penalties (do not flip eligibility) when information exists.

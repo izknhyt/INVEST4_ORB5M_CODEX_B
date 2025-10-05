@@ -60,6 +60,15 @@ def test_scoring_sorting():
     assert any("ev_lcb" in reason for reason in res[0].reasons)
 
 
+def test_zero_score_respected_when_ev_lcb_present():
+    manifest = load_day_manifest()
+    manifest.router.priority = 0.0
+    ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "mid"}
+    signals = {manifest.id: {"score": 0.0, "ev_lcb": 0.9}}
+    res = select_candidates(ctx, [manifest], strategy_signals=signals)
+    assert res[0].score == 0.0
+
+
 def test_gross_exposure_cap_blocks_candidate():
     manifest = load_day_manifest()
     manifest.router.max_gross_exposure_pct = 60.0
