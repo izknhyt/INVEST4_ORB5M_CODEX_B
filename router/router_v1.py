@@ -195,7 +195,7 @@ def select_candidates(
         signal_ctx = (strategy_signals or {}).get(manifest.id, {})
         score_value: Optional[float] = None
         if "score" in signal_ctx:
-            raw_score = signal_ctx.get("score")
+            raw_score = signal_ctx["score"]
             if raw_score is not None:
                 score_value = float(raw_score)
         if score_value is None:
