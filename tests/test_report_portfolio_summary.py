@@ -139,6 +139,36 @@ def test_build_router_snapshot_cli_generates_portfolio_summary(tmp_path: Path) -
     gross = summary["gross_exposure"]
     assert gross["current_pct"] == pytest.approx(0.33, rel=1e-6)
 
+    categories = {row["category"]: row for row in summary["category_utilisation"]}
+    assert set(categories) == {"day", "scalping"}
+
+    day_entry = categories["day"]
+    assert day_entry["budget_pct"] == pytest.approx(40.0)
+    assert day_entry["budget_status"] == "ok"
+    assert day_entry["budget_headroom_pct"] == pytest.approx(
+        day_entry["budget_pct"] - day_entry["utilisation_pct"],
+        rel=1e-6,
+        abs=1e-9,
+    )
+    assert day_entry["budget_utilisation_ratio"] == pytest.approx(
+        day_entry["utilisation_pct"] / day_entry["budget_pct"], rel=1e-6
+    )
+    assert "budget_over_pct" not in day_entry
+
+    scalping_entry = categories["scalping"]
+    assert scalping_entry["budget_pct"] == pytest.approx(15.0)
+    assert scalping_entry["budget_status"] == "ok"
+    assert scalping_entry["budget_headroom_pct"] == pytest.approx(
+        scalping_entry["budget_pct"] - scalping_entry["utilisation_pct"],
+        rel=1e-6,
+        abs=1e-9,
+    )
+    assert scalping_entry["budget_utilisation_ratio"] == pytest.approx(
+        scalping_entry["utilisation_pct"] / scalping_entry["budget_pct"],
+        rel=1e-6,
+    )
+    assert "budget_over_pct" not in scalping_entry
+
     heatmap = {
         (row["source"], row["target"]): row
         for row in summary["correlation_heatmap"]
