@@ -109,6 +109,24 @@ def test_router_pipeline_skips_invalid_telemetry_values():
     assert "reject_rate" not in portfolio.execution_health[day_manifest.id]
 
 
+def test_router_pipeline_respects_budget_headroom_from_telemetry():
+    manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
+    manifest.router.category_cap_pct = 55.0
+    manifest.router.category_budget_pct = 50.0
+
+    telemetry = PortfolioTelemetry(
+        category_utilisation_pct={manifest.category: 25.0},
+        category_budget_pct={manifest.category: 45.0},
+        category_budget_headroom_pct={manifest.category: 12.3},
+    )
+
+    portfolio = build_portfolio_state([manifest], telemetry=telemetry)
+
+    # Telemetry-provided headroom should be preserved rather than recomputed.
+    assert portfolio.category_budget_pct[manifest.category] == 45.0
+    assert portfolio.category_budget_headroom_pct[manifest.category] == approx(12.3)
+
+
 def test_router_pipeline_handles_none_reject_rate_and_blank_usage():
     manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
     manifest.router.category_cap_pct = 55.0

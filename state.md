@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-02-02: Preserved telemetry-supplied `category_budget_headroom_pct` values when building `PortfolioState`, added regression coverage to `tests/test_router_pipeline.py`, refreshed router docs/checklist guidance, and executed `python3 -m pytest tests/test_router_pipeline.py tests/test_router_v1.py`.
 - 2026-02-01: Portfolio telemetry/state now preserves category budgets and headroom. `router_v1.select_candidates` applies soft
   penalties with reason logging when utilisation exceeds budgets, `scripts/build_router_snapshot.py` accepts `--category-budget`
   overrides that persist to telemetry, related docs/checklists were updated, and `python3 -m pytest tests/test_router_pipeline.py
