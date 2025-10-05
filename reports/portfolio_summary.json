@@ -1,0 +1,121 @@
+{
+  "generated_at": "2025-10-05T00:21:18.886064+00:00",
+  "input_dir": "reports/portfolio_samples/router_demo",
+  "strategies": [
+    {
+      "manifest_id": "day_orb_5m_v1",
+      "name": "Day ORB 5m (USDJPY)",
+      "category": "day",
+      "tags": [
+        "orb",
+        "breakout"
+      ],
+      "max_concurrent_positions": 1,
+      "risk_per_trade_pct": 0.25
+    },
+    {
+      "manifest_id": "tokyo_micro_mean_reversion_v0",
+      "name": "Tokyo Micro Mean Reversion (USDJPY)",
+      "category": "scalping",
+      "tags": [
+        "scalping",
+        "mean_reversion",
+        "tokyo"
+      ],
+      "max_concurrent_positions": 2,
+      "risk_per_trade_pct": 0.04
+    }
+  ],
+  "category_utilisation": [
+    {
+      "category": "day",
+      "utilisation_pct": 18.75,
+      "cap_pct": 40.0,
+      "headroom_pct": 21.25,
+      "utilisation_ratio": 0.46875
+    },
+    {
+      "category": "scalping",
+      "utilisation_pct": 12.08,
+      "cap_pct": 15.0,
+      "headroom_pct": 2.92,
+      "utilisation_ratio": 0.8053333333333333
+    }
+  ],
+  "gross_exposure": {
+    "current_pct": 30.5,
+    "cap_pct": 55.0,
+    "headroom_pct": 24.5
+  },
+  "correlation_heatmap": [
+    {
+      "source": "day_orb_5m_v1",
+      "target": "tokyo_micro_mean_reversion_v0",
+      "correlation": 0.42
+    },
+    {
+      "source": "scalping",
+      "target": "day_orb_5m_v1",
+      "correlation": 0.35
+    }
+  ],
+  "execution_health": {
+    "day_orb_5m_v1": {
+      "reject_rate": 0.012,
+      "slippage_bps": 2.5
+    },
+    "tokyo_micro_mean_reversion_v0": {
+      "reject_rate": 0.032,
+      "slippage_bps": 4.1
+    }
+  },
+  "drawdowns": {
+    "aggregate": {
+      "max_drawdown_pct": 0.3140108657728156,
+      "peak_ts": "2025-01-04T00:00:00Z",
+      "peak_dt": "2025-01-04T00:00:00+00:00",
+      "peak_equity": 201340.0,
+      "trough_ts": "2025-01-03T00:00:00Z",
+      "trough_dt": "2025-01-03T00:00:00+00:00",
+      "trough_equity": 200000.0
+    },
+    "per_strategy": {
+      "day_orb_5m_v1": {
+        "max_drawdown_pct": 0.24888003982080636,
+        "peak_ts": "2025-01-04T00:00:00Z",
+        "peak_dt": "2025-01-04T00:00:00+00:00",
+        "peak_equity": 100920.0,
+        "trough_ts": "2025-01-03T00:00:00Z",
+        "trough_dt": "2025-01-03T00:00:00+00:00",
+        "trough_equity": 100200.0
+      },
+      "tokyo_micro_mean_reversion_v0": {
+        "max_drawdown_pct": 0.3793172289878219,
+        "peak_ts": "2025-01-04T00:00:00Z",
+        "peak_dt": "2025-01-04T00:00:00+00:00",
+        "peak_equity": 100420.0,
+        "trough_ts": "2025-01-03T00:00:00Z",
+        "trough_dt": "2025-01-03T00:00:00+00:00",
+        "trough_equity": 99800.0
+      }
+    }
+  },
+  "aggregate_equity_curve": [
+    {
+      "ts": "2025-01-01T00:00:00Z",
+      "equity": 200000.0
+    },
+    {
+      "ts": "2025-01-02T00:00:00Z",
+      "equity": 200630.0
+    },
+    {
+      "ts": "2025-01-03T00:00:00Z",
+      "equity": 200000.0
+    },
+    {
+      "ts": "2025-01-04T00:00:00Z",
+      "equity": 201340.0
+    }
+  ]
+}
