@@ -663,6 +663,54 @@ class TestRunner(unittest.TestCase):
         self.assertEqual(runner._warmup_left, initial_warmup - 1)
         mock_process.assert_called_once()
 
+    def test_calibration_warmup_counter_remains_unchanged(self):
+        runner, pending, breakout, features, calibrating = self._prepare_breakout_environment(
+            warmup_left=3,
+            calibrate_days=2,
+        )
+        self.assertTrue(calibrating)
+        stub_ev = self.DummyEV(ev_lcb=1.1, p_lcb=0.7)
+        runner._get_ev_manager = lambda key: stub_ev
+        fill_entry = breakout["c"]
+        pending["entry"] = fill_entry
+        runner.stg._pending_signal = pending
+        features.ctx["ev_oco"] = stub_ev
+        features.ctx.setdefault("slip_cap_pip", runner.rcfg.slip_cap_pip)
+        features.ctx.setdefault("expected_slip_pip", 0.0)
+        pip_value = pip_size(runner.symbol)
+        initial_warmup = runner._warmup_left
+        intent = OrderIntent(
+            pending["side"],
+            qty=1.0,
+            price=fill_entry,
+            tif="IOC",
+            tag="day_orb5m#test",
+            oco={
+                "tp_pips": pending["tp_pips"],
+                "sl_pips": pending["sl_pips"],
+                "trail_pips": pending["trail_pips"],
+            },
+        )
+
+        runner.fill_engine_c.default_policy = SameBarPolicy.SL_FIRST
+
+        with patch.object(runner, "_check_slip_and_sizing", return_value=True):
+            with patch.object(runner.stg, "signals", return_value=[intent]):
+                with patch.object(
+                    runner,
+                    "_process_fill_result",
+                    wraps=runner._process_fill_result,
+                ) as mock_process:
+                    runner._maybe_enter_trade(
+                        bar=breakout,
+                        features=features,
+                        mode="conservative",
+                        pip_size_value=pip_value,
+                        calibrating=calibrating,
+                    )
+        self.assertEqual(runner._warmup_left, initial_warmup)
+        mock_process.assert_called_once()
+
     @patch("strategies.day_orb_5m.pass_gates", return_value=True)
     def test_calibration_signal_updates_cooldown_state(self, _mock_pass_gates):
         stg = DayORB5m()
