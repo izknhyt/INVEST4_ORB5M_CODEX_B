@@ -121,6 +121,46 @@ def test_execution_health_guard():
     joined = " ".join(res[0].reasons)
     assert "reject_rate" in joined
     assert "slippage" in joined
+    assert "ratio=" in joined
+    assert any("execution reject_rate" in reason for reason in res[0].reasons)
+    assert any("execution slippage_bps" in reason for reason in res[0].reasons)
+
+
+def test_execution_health_bonus_and_penalty_tiers():
+    manifest = load_day_manifest()
+    manifest.router.priority = 0.0
+    manifest.router.max_reject_rate = 0.05
+    manifest.router.max_slippage_bps = 10.0
+
+    ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "mid"}
+    signals = {manifest.id: {"score": 1.0}}
+
+    bonus_state = PortfolioState(
+        execution_health={manifest.id: {"reject_rate": 0.015, "slippage_bps": 2.0}}
+    )
+    penalty_state = PortfolioState(
+        execution_health={manifest.id: {"reject_rate": 0.048, "slippage_bps": 9.8}}
+    )
+
+    bonus_result = select_candidates(
+        ctx, [manifest], portfolio=bonus_state, strategy_signals=signals
+    )[0]
+    penalty_result = select_candidates(
+        ctx, [manifest], portfolio=penalty_state, strategy_signals=signals
+    )[0]
+
+    assert bonus_result.eligible is True
+    assert bonus_result.score == approx(1.10)
+    bonus_joined = " ".join(bonus_result.reasons)
+    assert "execution reject_rate" in bonus_joined
+    assert "score_delta=+0.05" in bonus_joined
+    assert "execution slippage_bps" in bonus_joined
+
+    assert penalty_result.eligible is True
+    assert penalty_result.score == approx(0.80)
+    penalty_joined = " ".join(penalty_result.reasons)
+    assert "score_delta=-0.05" in penalty_joined
+    assert "score_delta=-0.15" in penalty_joined
 
 
 def test_priority_boosts_score():

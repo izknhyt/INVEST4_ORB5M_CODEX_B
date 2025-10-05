@@ -46,6 +46,15 @@ class SelectionResult:
         }
 
 
+@dataclass
+class ExecutionHealthStatus:
+    """Outcome of execution-health evaluation for a candidate."""
+
+    disqualifying_reasons: List[str] = field(default_factory=list)
+    log_messages: List[str] = field(default_factory=list)
+    score_delta: float = 0.0
+
+
 def _session_allowed(manifest: StrategyManifest, session: Optional[str]) -> bool:
     sessions = manifest.router.allowed_sessions
     if not sessions or session is None:
@@ -232,29 +241,100 @@ def _check_correlation(manifest: StrategyManifest, portfolio: PortfolioState) ->
     return None
 
 
-def _check_execution_health(manifest: StrategyManifest, portfolio: PortfolioState) -> List[str]:
+def _execution_health_score_adjustment(ratio: float) -> float:
+    """Return a score delta based on how close a metric ratio is to its guard."""
+
+    if ratio <= 0.5:
+        return 0.05
+    if ratio <= 0.75:
+        return 0.02
+    if ratio <= 0.9:
+        return 0.0
+    if ratio <= 0.97:
+        return -0.05
+    return -0.15
+
+
+def _format_metric_value(metric: str, value: float) -> str:
+    fmt = "{:.3f}" if metric == "reject_rate" else "{:.1f}"
+    unit = "" if metric == "reject_rate" else "bps"
+    return f"{fmt.format(value)}{unit}"
+
+
+def _format_execution_reason(
+    metric: str,
+    value: float,
+    guard: float,
+    ratio: Optional[float],
+    delta: float,
+) -> str:
+    parts = [
+        f"value={_format_metric_value(metric, value)}",
+        f"guard={_format_metric_value(metric, guard)}",
+    ]
+    if ratio is not None:
+        parts.append(f"ratio={ratio:.2f}")
+    parts.append(f"score_delta={delta:+.2f}")
+    joined = ", ".join(parts)
+    return f"execution {metric} ({joined})"
+
+
+def _check_execution_health(
+    manifest: StrategyManifest, portfolio: PortfolioState
+) -> ExecutionHealthStatus:
     health = portfolio.execution_health.get(manifest.id, {})
-    reasons: List[str] = []
-    if health:
-        reject = health.get("reject_rate")
-        if (
-            reject is not None
-            and manifest.router.max_reject_rate is not None
-            and float(reject) > manifest.router.max_reject_rate
-        ):
-            reasons.append(
-                f"reject_rate {float(reject):.3f} > max {manifest.router.max_reject_rate:.3f}"
+    status = ExecutionHealthStatus()
+    if not health:
+        return status
+
+    metrics: Tuple[Tuple[str, Optional[float], Optional[float]], ...] = (
+        (
+            "reject_rate",
+            _to_optional_float(health.get("reject_rate")),
+            _to_optional_float(manifest.router.max_reject_rate),
+        ),
+        (
+            "slippage_bps",
+            _to_optional_float(health.get("slippage_bps")),
+            _to_optional_float(manifest.router.max_slippage_bps),
+        ),
+    )
+
+    for metric, value, guard in metrics:
+        if value is None or guard is None:
+            continue
+        if guard <= 0:
+            if value > guard:
+                formatted_reason = (
+                    f"{metric} {_format_metric_value(metric, value)} > guard {_format_metric_value(metric, guard)}"
+                )
+                status.disqualifying_reasons.append(formatted_reason)
+                status.log_messages.append(
+                    _format_execution_reason(metric, value, guard, None, 0.0)
+                )
+            else:
+                message = _format_execution_reason(metric, value, guard, None, 0.0)
+                status.log_messages.append(message)
+            continue
+
+        ratio = value / guard
+        if ratio > 1.0:
+            formatted_reason = (
+                f"{metric} {_format_metric_value(metric, value)} > guard {_format_metric_value(metric, guard)}"
             )
-        slip = health.get("slippage_bps")
-        if (
-            slip is not None
-            and manifest.router.max_slippage_bps is not None
-            and float(slip) > manifest.router.max_slippage_bps
-        ):
-            reasons.append(
-                f"slippage {float(slip):.1f}bps > max {manifest.router.max_slippage_bps:.1f}bps"
+            status.disqualifying_reasons.append(formatted_reason)
+            status.log_messages.append(
+                _format_execution_reason(metric, value, guard, ratio, 0.0)
             )
-    return reasons
+            continue
+
+        delta = _execution_health_score_adjustment(ratio)
+        status.score_delta += delta
+        status.log_messages.append(
+            _format_execution_reason(metric, value, guard, ratio, delta)
+        )
+
+    return status
 
 
 def select_candidates(
@@ -285,6 +365,7 @@ def select_candidates(
             eligible = False
             reasons.append(f"rv band {rv_band} not allowed")
 
+        health_score_delta = 0.0
         if portfolio is not None:
             cap_reason = _check_category_cap(manifest, portfolio)
             if cap_reason:
@@ -302,10 +383,13 @@ def select_candidates(
             if corr_reason:
                 eligible = False
                 reasons.append(corr_reason)
-            health_reasons = _check_execution_health(manifest, portfolio)
-            if health_reasons:
+            health_status = _check_execution_health(manifest, portfolio)
+            if health_status.disqualifying_reasons:
                 eligible = False
-                reasons.extend(health_reasons)
+                reasons.extend(health_status.disqualifying_reasons)
+            if health_status.log_messages:
+                reasons.extend(health_status.log_messages)
+            health_score_delta = health_status.score_delta
 
         signal_ctx = (strategy_signals or {}).get(manifest.id, {})
         score_value: Optional[float] = None
@@ -319,6 +403,9 @@ def select_candidates(
                 score_value = float(ev_raw)
         score = score_value if score_value is not None else 0.0
         score += manifest.router.priority
+
+        if health_score_delta != 0.0:
+            score += health_score_delta
 
         # Apply soft penalties (do not flip eligibility) when information exists.
         corr_penalty = _max_correlation(manifest, portfolio) if portfolio else None
@@ -367,15 +454,6 @@ def select_candidates(
                         "gross", gross_usage, gross_cap, gross_headroom, gross_delta
                     )
                 )
-            health = portfolio.execution_health.get(manifest.id, {})
-            reject = health.get("reject_rate")
-            if (
-                reject is not None
-                and manifest.router.max_reject_rate is not None
-                and float(reject) <= manifest.router.max_reject_rate
-            ):
-                score += 0.01  # small incentive when within guard
-
         ev_lcb_raw = signal_ctx.get("ev_lcb")
         if ev_lcb_raw is not None and "ev_lcb" not in reasons:
             try:

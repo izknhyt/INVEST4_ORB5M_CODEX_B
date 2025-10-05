@@ -42,13 +42,13 @@ These derived numbers are critical for v1 scoring bonuses and will become the in
    - Per-strategy concurrency (`active_positions` and `risk.max_concurrent_positions`).【F:router/router_v1.py†L71-L88】
    - Gross exposure vs. cap (`gross_exposure_pct`, `gross_exposure_cap_pct`).【F:router/router_v1.py†L90-L107】
    - Correlation cap breaches using the highest absolute correlation across strategy IDs and correlation tags.【F:router/router_v1.py†L109-L140】
-   - Execution health guardrails comparing `reject_rate` and `slippage_bps` to manifest thresholds.【F:router/router_v1.py†L142-L167】
+   - Execution health guardrails comparing `reject_rate` and `slippage_bps` to manifest thresholds, returning an `ExecutionHealthStatus` payload with disqualification reasons and score deltas.【F:router/router_v1.py†L142-L233】
 3. **Signal scoring**:
    - Start from the strategy `score` (or fall back to `ev_lcb`) and add manifest `priority` to bias tiering.【F:router/router_v1.py†L169-L196】
    - Apply soft correlation penalties: subtract the amount by which the max correlation exceeds the configured limit (if any).【F:router/router_v1.py†L198-L203】
-   - Apply headroom bonuses/penalties using `_headroom_score_adjustment` for both category and gross headroom, appending formatted reasons so operators see utilisation, cap, headroom, and score deltas in telemetry logs.【F:router/router_v1.py†L205-L233】
-   - Layer category budget awareness on top of headroom checks: `_resolve_category_budget` pulls telemetry/manifests, `_budget_score_adjustment` applies tiered penalties when utilisation exceeds the budget but remains under the hard cap, and `_format_headroom_reason` records the resulting headroom/score delta in the reasons list.【F:router/router_v1.py†L105-L233】
-   - Reward compliant execution health with a minor boost when the recorded reject rate sits below its guard threshold.【F:router/router_v1.py†L235-L242】
+   - Apply headroom bonuses/penalties using `_headroom_score_adjustment` for both category and gross headroom, appending formatted reasons so operators see utilisation, cap, headroom, and score deltas in telemetry logs.【F:router/router_v1.py†L205-L257】
+   - Layer category budget awareness on top of headroom checks: `_resolve_category_budget` pulls telemetry/manifests, `_budget_score_adjustment` applies tiered penalties when utilisation exceeds the budget but remains under the hard cap, and `_format_headroom_reason` records the resulting headroom/score delta in the reasons list.【F:router/router_v1.py†L105-L257】
+   - Blend execution-health adjustments from `_check_execution_health`: metrics well under guard thresholds earn small bonuses, readings approaching the guard incur penalties, and overages continue to disqualify candidates while logging ratio/threshold context.【F:router/router_v1.py†L142-L257】
 4. **Reason logging**: propagate `ev_lcb` and headroom messages so downstream telemetry (e.g., `runs/router_pipeline/latest/telemetry.json`) preserves why a manifest was accepted or rejected.【F:router/router_v1.py†L244-L260】
 
 Expected `strategy_signals` fields:
@@ -90,8 +90,8 @@ To extend v1 without breaking callers, v2 will reuse the `PortfolioState`/`selec
   - Keep ingesting `reject_rate` and `slippage_bps` from `runtime_metrics` (as implemented today), and expand the schema to include `fill_latency_ms` or `avg_price_deviation_bps` when they become available.
   - Ensure `scripts/build_router_snapshot.py` persists these metrics under `execution_health[strategy_id]` so the router and downstream monitoring dashboards observe the same numbers.
 - **Router behaviour**:
-  - Escalate from the current binary guard (`reject_rate > max_reject_rate` → ineligible) to a tiered response: degrade scores when the metric approaches the threshold, hard fail when exceeded, and optionally include cooldown timers before re-enabling.
-  - Record the exact metric snapshot (e.g., `reject_rate=0.045, guard=0.050, penalty=-0.10`) in the reason log so we can audit suppression decisions.
+  - `_check_execution_health` now provides a tiered response: metrics below 50% of the guard earn bonuses, values drifting into the 90–97% band incur soft penalties, and breaches still mark the candidate ineligible while logging the offending ratio.【F:router/router_v1.py†L142-L257】
+  - Reason strings include the measured value, guard, ratio, and resulting `score_delta` so monitoring dashboards can audit suppression and recovery decisions without inspecting raw telemetry dumps.【F:router/router_v1.py†L142-L257】
 
 ## Integration checklist
 
