@@ -194,6 +194,7 @@
   - 2025-10-16: 最新バーの供給が途絶しているため、P1-04 で API インジェスト基盤を設計・整備し、鮮度チェックのブロッカーを解消する計画。
 
 ## Log
+- [P1-05] 2026-02-21: Resolved the calibration EV leakage where `_resolve_calibration_positions` stopped settling warmup trades after the calibration window, added regression coverage (`tests/test_runner.py::test_calibration_positions_resolve_after_period`), and ran `python3 -m pytest tests/test_runner.py` to confirm the fix.
 - [Ops] 2026-02-15: Captured the `finish-task` dry-run preview in `docs/codex_workflow.md`, cross-linked it from `docs/state_runbook.md`, and noted the update in the P1-07 docs memo.
 - [Ops] 2026-02-15: Moved the Workflow Integration Guide entry to In Progress in `docs/todo_next.md`, refreshed the linked `state.md` date list to include the 2026-02-13 update, and dry-ran `scripts/manage_task_cycle.py start-task` to confirm the `doc-section` promotion remains aligned.
 - [P1-06] 2026-02-13: Added fill-engine overrides (`fill_same_bar_policy_*`, `fill_bridge_lambda`, `fill_bridge_drift_scale`) to RunnerConfig and `scripts/run_sim.py`, exposed CLI flags, refreshed broker OCO docs/runbooks, and executed `python3 -m pytest tests/test_fill_engine.py tests/test_runner.py tests/test_run_sim_cli.py` to lock regression coverage.
