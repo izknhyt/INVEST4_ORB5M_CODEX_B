@@ -56,6 +56,15 @@
 - `notifications/emit_signal.py`（フォールバックログ、複数Webhook）と `scripts/analyze_signal_latency.py`（SLOチェック）で通知フローを構築。
 - `scripts/run_daily_workflow.py` と `scripts/cron_schedule_example.json` で最適化・レイテンシ監視・state アーカイブをまとめて実行可能。
 
+### ポートフォリオ監視
+- `scripts/report_portfolio_summary.py --input runs/router_pipeline/latest --output reports/portfolio_summary.json` を実行すると、最新のルーター
+  テレメトリと戦略別メトリクスからカテゴリ利用率・グロスエクスポージャー・相関ヒートマップ・ドローダウン指標を JSON 化する。
+- 出力の `category_utilisation.headroom_pct` がマイナスになったカテゴリは上限超過を意味するため、新規エントリー抑制やリスクリバランス
+  を検討する。`correlation_heatmap` の値が上限付近（例: ±0.6 以上）になった戦略ペアはマニフェストの `max_correlation` 設定と照らして
+  監視する。
+- `drawdowns.aggregate.max_drawdown_pct` は戦略合成エクイティカーブの最大 DD を示す。値が目標を超える場合は各戦略の `per_strategy`
+  ブロックでピーク/ボトム時刻を確認し、該当期間のシグナルログをレビューする。
+
 ## 運用・オプス
 - 通知: `notifications/emit_signal.py`（フォールバックログ、複数Webhook）、`scripts/analyze_signal_latency.py`（SLOチェック）。
 - state: `docs/state_runbook.md` と `scripts/archive_state.py` により、`ops/state_archive/` へ日次保存。
