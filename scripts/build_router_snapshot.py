@@ -318,6 +318,13 @@ def _parse_args() -> argparse.Namespace:
         help="Active position overrides per manifest (format id=count)",
     )
     parser.add_argument(
+        "--category-budget",
+        dest="category_budgets",
+        action="append",
+        default=[],
+        help="Override category budget targets (format category=pct)",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=DEFAULT_OUTPUT,
@@ -374,9 +381,24 @@ def main() -> int:
         except ValueError as exc:
             raise ValueError(f"invalid active position count '{raw_value}' for {manifest_id}") from exc
 
+    budget_overrides = (
+        _parse_mapping_arg(args.category_budgets, label="category budget")
+        if args.category_budgets
+        else {}
+    )
+    category_budget_pct: Dict[str, float] = {}
+    for category, raw_value in budget_overrides.items():
+        try:
+            category_budget_pct[category] = float(raw_value)
+        except ValueError as exc:
+            raise ValueError(
+                f"invalid category budget '{raw_value}' for {category}"
+            ) from exc
+
     telemetry_seed = PortfolioTelemetry(
         active_positions=active_positions,
         strategy_correlations=strategy_correlations,
+        category_budget_pct=category_budget_pct,
     )
     portfolio_state = build_portfolio_state(
         manifests.values(),
@@ -395,6 +417,8 @@ def main() -> int:
         "active_positions": portfolio_state.active_positions,
         "category_utilisation_pct": portfolio_state.category_utilisation_pct,
         "category_caps_pct": portfolio_state.category_caps_pct,
+        "category_budget_pct": portfolio_state.category_budget_pct,
+        "category_budget_headroom_pct": portfolio_state.category_budget_headroom_pct,
         "gross_exposure_pct": portfolio_state.gross_exposure_pct,
         "gross_exposure_cap_pct": portfolio_state.gross_exposure_cap_pct,
         "strategy_correlations": portfolio_state.strategy_correlations,

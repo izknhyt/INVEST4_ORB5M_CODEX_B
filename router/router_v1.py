@@ -18,6 +18,8 @@ class PortfolioState:
     active_positions: Dict[str, int] = field(default_factory=dict)
     category_caps_pct: Dict[str, float] = field(default_factory=dict)
     category_headroom_pct: Dict[str, float] = field(default_factory=dict)
+    category_budget_pct: Dict[str, float] = field(default_factory=dict)
+    category_budget_headroom_pct: Dict[str, float] = field(default_factory=dict)
     gross_exposure_pct: Optional[float] = None
     gross_exposure_cap_pct: Optional[float] = None
     gross_exposure_headroom_pct: Optional[float] = None
@@ -121,6 +123,24 @@ def _resolve_category_headroom(
     return usage, cap, headroom
 
 
+def _resolve_category_budget(
+    manifest: StrategyManifest, portfolio: PortfolioState
+) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+    category = manifest.category
+    usage = _to_optional_float(portfolio.category_utilisation_pct.get(category))
+    budget = _to_optional_float(portfolio.category_budget_pct.get(category))
+    if budget is None:
+        budget = _to_optional_float(manifest.router.category_budget_pct)
+    if budget is None:
+        budget = _to_optional_float(manifest.router.category_cap_pct)
+    headroom = _to_optional_float(
+        portfolio.category_budget_headroom_pct.get(category)
+    )
+    if headroom is None and usage is not None and budget is not None:
+        headroom = budget - usage
+    return usage, budget, headroom
+
+
 def _resolve_gross_headroom(
     manifest: StrategyManifest, portfolio: PortfolioState
 ) -> Tuple[Optional[float], Optional[float], Optional[float]]:
@@ -146,6 +166,25 @@ def _headroom_score_adjustment(headroom: Optional[float]) -> float:
     if headroom >= 20.0:
         return 0.1
     return 0.0
+
+
+def _budget_score_adjustment(
+    budget_headroom: Optional[float], cap_headroom: Optional[float]
+) -> float:
+    if budget_headroom is None or budget_headroom >= 0:
+        return 0.0
+    overage = abs(budget_headroom)
+    if overage <= 2.0:
+        penalty = -0.10
+    elif overage <= 5.0:
+        penalty = -0.25
+    elif overage <= 10.0:
+        penalty = -0.40
+    else:
+        penalty = -0.60
+    if cap_headroom is not None and cap_headroom <= 5.0:
+        penalty -= 0.10
+    return penalty
 
 
 def _format_headroom_reason(
@@ -294,6 +333,26 @@ def select_candidates(
                 score += delta
                 reasons.append(
                     _format_headroom_reason("category", usage, cap, headroom, delta)
+                )
+            budget_usage, budget_cap, budget_headroom = _resolve_category_budget(
+                manifest, portfolio
+            )
+            cap_headroom = _to_optional_float(
+                portfolio.category_headroom_pct.get(manifest.category)
+            )
+            if budget_cap is not None or budget_headroom is not None or budget_usage is not None:
+                budget_delta = _budget_score_adjustment(
+                    budget_headroom, cap_headroom
+                )
+                score += budget_delta
+                reasons.append(
+                    _format_headroom_reason(
+                        "category budget",
+                        budget_usage,
+                        budget_cap,
+                        budget_headroom,
+                        budget_delta,
+                    )
                 )
             gross_usage, gross_cap, gross_headroom = _resolve_gross_headroom(
                 manifest, portfolio

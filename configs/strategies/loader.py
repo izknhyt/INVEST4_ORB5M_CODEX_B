@@ -47,6 +47,7 @@ class RouterSpec:
     allow_rv_bands: tuple[str, ...] = ()
     max_latency_ms: Optional[float] = None
     category_cap_pct: Optional[float] = None
+    category_budget_pct: Optional[float] = None
     tags: tuple[str, ...] = ()
     priority: float = 0.0
     max_gross_exposure_pct: Optional[float] = None
@@ -67,6 +68,8 @@ class RouterSpec:
         latency_val = float(latency) if latency is not None else None
         cat_cap = data.get("category_cap_pct")
         cat_cap_val = float(cat_cap) if cat_cap is not None else None
+        cat_budget = data.get("category_budget_pct")
+        cat_budget_val = float(cat_budget) if cat_budget is not None else None
         priority_val = float(data.get("priority", 0.0) or 0.0)
         gross_cap = data.get("max_gross_exposure_pct")
         gross_cap_val = float(gross_cap) if gross_cap is not None else None
@@ -83,6 +86,7 @@ class RouterSpec:
             allow_rv_bands=rv_bands,
             max_latency_ms=latency_val,
             category_cap_pct=cat_cap_val,
+            category_budget_pct=cat_budget_val,
             tags=tags,
             priority=priority_val,
             max_gross_exposure_pct=gross_cap_val,
@@ -248,6 +252,7 @@ class StrategyManifest:
                 "allow_rv_bands": list(self.router.allow_rv_bands),
                 "max_latency_ms": self.router.max_latency_ms,
                 "category_cap_pct": self.router.category_cap_pct,
+                "category_budget_pct": self.router.category_budget_pct,
                 "tags": list(self.router.tags),
                 "priority": self.router.priority,
                 "max_gross_exposure_pct": self.router.max_gross_exposure_pct,

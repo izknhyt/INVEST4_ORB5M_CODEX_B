@@ -1,3 +1,5 @@
+from pytest import approx
+
 from configs.strategies.loader import load_manifest
 from router.router_v1 import PortfolioState, select_candidates
 
@@ -135,6 +137,7 @@ def test_headroom_adjusts_scores_and_reasons():
     manifest.router.priority = 0.0
     manifest.router.category_cap_pct = 50.0
     manifest.router.max_gross_exposure_pct = 80.0
+    manifest.router.category_budget_pct = 50.0
 
     ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "mid"}
     signals = {manifest.id: {"score": 1.0}}
@@ -173,5 +176,50 @@ def test_headroom_adjusts_scores_and_reasons():
     ample_reasons = " ".join(ample_result.reasons)
     assert "category headroom" in near_reasons
     assert "gross headroom" in near_reasons
+    assert "category budget headroom" in near_reasons
+    assert "category budget headroom" in ample_reasons
     assert "score_delta=-0.50" in near_reasons
     assert "score_delta=+0.20" in ample_reasons
+
+
+def test_budget_penalty_adjusts_scores_and_reasons():
+    manifest = load_day_manifest()
+    manifest.router.priority = 0.0
+    manifest.router.category_cap_pct = 50.0
+    manifest.router.category_budget_pct = 30.0
+
+    ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "mid"}
+    signals = {manifest.id: {"score": 1.0}}
+
+    moderate_over = PortfolioState(
+        category_utilisation_pct={manifest.category: 36.0},
+        category_caps_pct={manifest.category: 50.0},
+        category_headroom_pct={manifest.category: 14.0},
+        category_budget_pct={manifest.category: 30.0},
+        category_budget_headroom_pct={manifest.category: -6.0},
+    )
+
+    near_cap = PortfolioState(
+        category_utilisation_pct={manifest.category: 48.0},
+        category_caps_pct={manifest.category: 50.0},
+        category_headroom_pct={manifest.category: 2.0},
+        category_budget_pct={manifest.category: 30.0},
+        category_budget_headroom_pct={manifest.category: -18.0},
+    )
+
+    moderate_result = select_candidates(
+        ctx, [manifest], portfolio=moderate_over, strategy_signals=signals
+    )[0]
+    near_cap_result = select_candidates(
+        ctx, [manifest], portfolio=near_cap, strategy_signals=signals
+    )[0]
+
+    assert moderate_result.score == approx(0.6)
+    assert near_cap_result.score == approx(-0.20)
+
+    moderate_reasons = " ".join(moderate_result.reasons)
+    near_cap_reasons = " ".join(near_cap_result.reasons)
+    assert "category budget headroom" in moderate_reasons
+    assert "score_delta=-0.40" in moderate_reasons
+    assert "category budget headroom" in near_cap_reasons
+    assert "score_delta=-0.70" in near_cap_reasons
