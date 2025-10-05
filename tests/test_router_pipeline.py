@@ -81,6 +81,29 @@ def test_router_pipeline_skips_invalid_telemetry_values():
     assert "reject_rate" not in portfolio.execution_health[day_manifest.id]
 
 
+def test_router_pipeline_handles_none_reject_rate_and_blank_usage():
+    manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
+    manifest.router.category_cap_pct = 55.0
+
+    telemetry = PortfolioTelemetry(
+        active_positions={manifest.id: 1},
+        category_utilisation_pct={manifest.category: ""},
+        gross_exposure_pct="",
+    )
+    runtime_metrics = {
+        manifest.id: {"execution_health": {"reject_rate": None}}
+    }
+
+    portfolio = build_portfolio_state(
+        [manifest], telemetry=telemetry, runtime_metrics=runtime_metrics
+    )
+
+    expected_exposure = approx(float(manifest.risk.risk_per_trade_pct))
+    assert portfolio.category_utilisation_pct[manifest.category] == expected_exposure
+    assert portfolio.gross_exposure_pct == expected_exposure
+    assert "reject_rate" not in portfolio.execution_health.get(manifest.id, {})
+
+
 def test_router_pipeline_counts_shorts_for_limits():
     manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
     manifest.router.category_cap_pct = 0.4

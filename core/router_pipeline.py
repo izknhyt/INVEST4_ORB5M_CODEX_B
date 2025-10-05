@@ -113,11 +113,11 @@ def build_portfolio_state(
                 cap_float if prev_cap is None else min(prev_cap, cap_float)
             )
 
-    gross_exposure_pct = snapshot.gross_exposure_pct
+    gross_exposure_pct = _to_float(snapshot.gross_exposure_pct)
     if gross_exposure_pct is None and exposures:
         gross_exposure_pct = sum(exposures.values())
 
-    gross_cap_pct = snapshot.gross_exposure_cap_pct
+    gross_cap_pct = _to_float(snapshot.gross_exposure_cap_pct)
     if gross_cap_pct is None:
         gross_caps = [
             _to_float(manifest.router.max_gross_exposure_pct)
