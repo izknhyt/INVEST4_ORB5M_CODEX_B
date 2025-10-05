@@ -125,6 +125,29 @@ def test_router_pipeline_populates_correlation_metadata():
     assert tag_meta["bucket_budget_pct"] == approx(35.0)
 
 
+def test_router_pipeline_preserves_bucket_metadata_without_peer_manifest():
+    manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
+    telemetry = PortfolioTelemetry(
+        strategy_correlations={manifest.id: {"external_peer": 0.7}},
+        correlation_meta={
+            manifest.id: {
+                "external_peer": {
+                    "bucket_category": "swing",
+                    "bucket_budget_pct": 45.0,
+                }
+            }
+        },
+    )
+
+    portfolio = build_portfolio_state([manifest], telemetry=telemetry)
+
+    meta = portfolio.correlation_meta[manifest.id]["external_peer"]
+    assert meta["bucket_category"] == "swing"
+    assert meta["bucket_budget_pct"] == approx(45.0)
+    assert meta["category"] == "swing"
+    assert meta["category_budget_pct"] == approx(45.0)
+
+
 def test_router_pipeline_skips_invalid_telemetry_values():
     day_manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
     day_manifest.router.category_cap_pct = 50.0

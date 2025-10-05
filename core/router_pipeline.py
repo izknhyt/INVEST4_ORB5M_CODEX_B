@@ -161,21 +161,28 @@ def build_portfolio_state(
                     if cap_value is not None:
                         budget_value = float(cap_value)
             meta_entry = meta_inner.get(peer_key, {}).copy()
-            meta_entry.update(
-                {
-                    "strategy_id": str(peer_manifest.id)
-                    if peer_manifest
-                    else peer_key,
-                    "category": peer_category,
-                    "category_budget_pct": float(budget_value)
-                    if budget_value is not None
-                    else None,
-                    "bucket_category": peer_category,
-                    "bucket_budget_pct": float(budget_value)
-                    if budget_value is not None
-                    else None,
-                }
+            meta_entry["strategy_id"] = (
+                str(peer_manifest.id) if peer_manifest else peer_key
             )
+
+            if peer_category is not None:
+                meta_entry["category"] = peer_category
+                meta_entry.setdefault("bucket_category", peer_category)
+
+            if budget_value is not None:
+                budget_float = float(budget_value)
+                meta_entry["category_budget_pct"] = budget_float
+                meta_entry.setdefault("bucket_budget_pct", budget_float)
+
+            if "category" not in meta_entry:
+                bucket_category = meta_entry.get("bucket_category")
+                if bucket_category is not None:
+                    meta_entry["category"] = bucket_category
+
+            if "category_budget_pct" not in meta_entry:
+                bucket_budget = _to_float(meta_entry.get("bucket_budget_pct"))
+                if bucket_budget is not None:
+                    meta_entry["category_budget_pct"] = bucket_budget
             meta_inner[peer_key] = meta_entry
         if inner:
             correlations[str(key)] = inner

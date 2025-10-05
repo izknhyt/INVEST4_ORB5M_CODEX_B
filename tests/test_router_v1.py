@@ -1,5 +1,6 @@
 from pytest import approx
 
+from core.router_pipeline import PortfolioTelemetry, build_portfolio_state
 from configs.strategies.loader import load_manifest
 from router.router_v1 import (
     PortfolioState,
@@ -179,6 +180,48 @@ def test_correlation_guard_cross_bucket_penalises_once():
     assert len(correlation_reasons) == 1
     assert "score_delta=-0.30" in correlation_reasons[0]
     assert result.score == approx(-0.30)
+
+
+def test_correlation_guard_uses_bucket_metadata_from_telemetry():
+    manifest = load_day_manifest()
+    manifest.router.max_correlation = 0.5
+    manifest.router.priority = 0.0
+
+    telemetry = PortfolioTelemetry(
+        strategy_correlations={
+            manifest.id: {
+                "peer_same_bucket": 0.72,
+                "peer_cross_bucket": 0.65,
+            }
+        },
+        correlation_meta={
+            manifest.id: {
+                "peer_same_bucket": {
+                    "bucket_category": manifest.category,
+                    "bucket_budget_pct": 40.0,
+                },
+                "peer_cross_bucket": {
+                    "bucket_category": "asia",
+                    "bucket_budget_pct": 20.0,
+                },
+            }
+        },
+        category_budget_pct={manifest.category: 40.0},
+    )
+
+    portfolio = build_portfolio_state([manifest], telemetry=telemetry)
+
+    ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "mid"}
+    result = select_candidates(ctx, [manifest], portfolio=portfolio)[0]
+
+    assert result.eligible is False
+    correlation_reasons = [r for r in result.reasons if "correlation" in r]
+    assert len(correlation_reasons) == 2
+    same_bucket_reason = next(r for r in correlation_reasons if "bucket day" in r)
+    cross_bucket_reason = next(r for r in correlation_reasons if "bucket asia" in r)
+    assert f"{0.72:.2f}" in same_bucket_reason
+    assert f"{0.65:.2f}" in cross_bucket_reason
+    assert "score_delta=-0.15" in cross_bucket_reason
 
 
 def test_execution_health_guard():

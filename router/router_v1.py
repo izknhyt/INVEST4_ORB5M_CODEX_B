@@ -253,7 +253,11 @@ def _collect_correlation_peers(
             meta = meta_series.get(peer_key, {})
             strategy_id = str(meta.get("strategy_id") or peer_key)
             category = meta.get("category")
+            if category is None:
+                category = meta.get("bucket_category")
             budget = _to_optional_float(meta.get("category_budget_pct"))
+            if budget is None:
+                budget = _to_optional_float(meta.get("bucket_budget_pct"))
             existing = peers.get(strategy_id)
             if existing is None or abs(value) > abs(existing.value):
                 peers[strategy_id] = CorrelationPeerEntry(
