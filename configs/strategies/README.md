@@ -11,7 +11,7 @@ basic validation.
 |------------|----------|-------------|
 | `meta`     | ✅        | Identification (`id`, `name`, `category`, `version`, `description`, `tags`) |
 | `strategy` | ✅        | Python class (`class_path`), `instruments` list, default parameters |
-| `router`   | ✅        | Allowed sessions / spread & RV bands / latency caps / tags |
+| `router`   | ✅        | Allowed sessions, spread & RV bands, latency caps, routing tags, and guardrails |
 | `risk`     | ✅        | Risk budgets (risk per trade, DD guard, notional caps, warm-up trades) |
 | `features` | ❌        | Required & optional feature names used for gating/sizing |
 | `runner`   | ❌        | Recommended runner configuration overrides / CLI args |
@@ -21,7 +21,7 @@ basic validation.
 ### Required blocks
 - `meta` — Identify the strategy with stable IDs, human-readable names, category, version, descriptive text, and discovery tags.
 - `strategy` — Point to the Python implementation (`class_path`), enumerate tradable instruments, and supply default parameter values used by loaders and runners.
-- `router` — Define execution guardrails such as allowed sessions, spread/realized-volatility bands, latency caps, and routing tags.
+- `router` — Define execution guardrails such as allowed sessions, spread/realized-volatility bands, latency caps, routing tags, and per-manifest guard thresholds.
 - `risk` — Capture sizing guardrails including risk-per-trade, drawdown limits, notional caps, concurrency limits, and warm-up counts.
 
 ### Optional blocks
@@ -43,6 +43,24 @@ listed when a strategy is multi-instrument.
 `runner.runner_config` mirrors the arguments accepted by `RunnerConfig`, while
 `runner.cli_args` matches CLI flags (e.g. `scripts/run_sim.py`). These sections
 are advisory and can be used by orchestration tools to bootstrap runs.
+
+#### Router guard fields
+
+The router block also supports guardrails that help operators tune portfolio-level
+controls when manifests compete for capacity:
+
+- `priority` — Relative scheduling weight. Lower values execute first; leave at the default `0.0` until you need to down-rank
+  a strategy that should yield to higher conviction plays.
+- `max_gross_exposure_pct` — Strategy-specific gross exposure cap. Omit to inherit the portfolio default; set explicitly when the
+  strategy must run at tighter limits than the category budget.
+- `max_correlation` — Pairwise correlation ceiling applied against other manifests that share `correlation_tags`. Configure when you
+  have historical co-movement estimates; omit to disable correlation-based throttling.
+- `correlation_tags` — Buckets correlation checks. Only manifests sharing at least one tag will be compared, so keep tags broad enough
+  to reflect genuinely linked strategies and omit for isolated plays.
+- `max_reject_rate` — Upper bound on acceptable order rejection ratio (e.g. `0.05` = 5%). Leave unset until you have execution metrics
+  to calibrate the threshold, then tighten to pause manifests suffering persistent rejects.
+- `max_slippage_bps` — Execution quality limit expressed in basis points. Provide when the strategy has a known slip tolerance; otherwise
+  the router falls back to its global safeguard.
 
 ### Example
 See `day_orb_5m.yaml` for a reference manifest covering the Day ORB 5m strategy.
