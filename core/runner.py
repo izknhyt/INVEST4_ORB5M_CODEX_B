@@ -1255,7 +1255,7 @@ class BacktestRunner:
             calibrating=calibrating,
             pip_size_value=pip_size_value,
         )
-        if self._warmup_left > 0:
+        if not calibrating and self._warmup_left > 0:
             self._warmup_left -= 1
 
 
