@@ -15,7 +15,7 @@
 ## バックログ固有の DoD
 - [ ] カテゴリ別利用率と上限（category utilisation / caps）を manifest リスク情報とポートフォリオテレメトリから算出し、`PortfolioState` へ反映した。
 - [ ] コリレーションキャップおよびグロスエクスポージャー上限を取り込み、`router_v1` が期待するフィールド（`strategy_correlations`, `gross_exposure_pct`, `gross_exposure_cap_pct`）を欠損なく提供した。
-- [ ] 相関メタデータ（`correlation_meta`）にペアの manifest ID・カテゴリ・予算バケットを保持し、同一バケット超過をハード失格、異なるバケット超過をスコア減点に振り分けるロジックをテストで証明した。
+- [ ] 相関メタデータ（`correlation_meta`）にペアの manifest ID・カテゴリ・予算バケットを保持し、同一バケット超過をハード失格、異なるバケット超過をスコア減点に振り分けるロジックをテストで証明した。`telemetry.json` とポートフォリオサマリーの相関ヒートマップに `bucket_category` / `bucket_budget_pct` が出力され、オフラインレビューでもバケット差分を追跡できることを確認した。
 - [ ] カテゴリ/グロスヘッドルームとカテゴリ予算 (`category_budget_pct` / `category_budget_headroom_pct`) を `PortfolioState` へ保持し、manifest `governance.category_budget_pct` や CSV から供給された値が残ること、テレメトリ起点の headroom がある場合でも再計算で失われないことを確認した上で `router_v1.select_candidates` のスコアリングと理由ログに反映した。
 - [ ] BacktestRunner のランタイム指標から実行ヘルス（`reject_rate` / `slippage_bps` / `fill_latency_ms` など数値項目）を集計し、`_check_execution_health` の段階的なボーナス/ペナルティ、ペナルティマップ（`ExecutionHealthStatus.penalties`）、理由ログ（値・ガード・マージン・比率・スコア差分）が `select_candidates` へ反映されることを確認した。
 - [ ] v2 拡張で参照する予算・相関・ヘルス項目を [docs/router_architecture.md](../router_architecture.md) の計画に沿って記録し、必要なテレメトリ項目を `PortfolioState` 経由で公開した。

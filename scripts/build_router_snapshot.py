@@ -512,6 +512,7 @@ def main() -> int:
         "gross_exposure_pct": portfolio_state.gross_exposure_pct,
         "gross_exposure_cap_pct": portfolio_state.gross_exposure_cap_pct,
         "strategy_correlations": portfolio_state.strategy_correlations,
+        "correlation_meta": portfolio_state.correlation_meta,
         "execution_health": portfolio_state.execution_health,
         "correlation_window_minutes": portfolio_state.correlation_window_minutes,
     }

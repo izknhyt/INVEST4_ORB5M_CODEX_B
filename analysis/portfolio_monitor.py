@@ -189,7 +189,28 @@ def _serialise_correlation(portfolio: PortfolioState) -> List[Dict[str, Any]]:
                 continue
             if source == target:
                 continue
-            heatmap.append({"source": source, "target": str(target), "correlation": corr})
+            entry: Dict[str, Any] = {
+                "source": source,
+                "target": str(target),
+                "correlation": corr,
+            }
+            meta_source = portfolio.correlation_meta.get(source, {})
+            meta = meta_source.get(str(target)) if isinstance(meta_source, Mapping) else None
+            if isinstance(meta, Mapping):
+                strategy_id = meta.get("strategy_id")
+                if strategy_id is not None:
+                    entry["target_strategy_id"] = str(strategy_id)
+                bucket_category = meta.get("bucket_category", meta.get("category"))
+                if bucket_category is not None:
+                    entry["bucket_category"] = bucket_category
+                bucket_budget = meta.get("bucket_budget_pct", meta.get("category_budget_pct"))
+                try:
+                    bucket_budget_value = float(bucket_budget) if bucket_budget is not None else None
+                except (TypeError, ValueError):
+                    bucket_budget_value = None
+                if bucket_budget_value is not None:
+                    entry["bucket_budget_pct"] = bucket_budget_value
+            heatmap.append(entry)
     heatmap.sort(key=lambda row: (row["source"], row["target"]))
     return heatmap
 

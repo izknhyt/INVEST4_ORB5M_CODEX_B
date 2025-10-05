@@ -99,6 +99,10 @@ def test_build_router_snapshot_cli_generates_portfolio_summary(tmp_path: Path) -
         [point[1] for point in scalping_curve],
     )
     assert corr_value == pytest.approx(expected_corr, rel=1e-6)
+    meta_entry = telemetry["correlation_meta"]["day_orb_5m_v1"]["tokyo_micro_mean_reversion_v0"]
+    assert meta_entry["strategy_id"] == "tokyo_micro_mean_reversion_v0"
+    assert meta_entry["bucket_category"] == "scalping"
+    assert meta_entry["bucket_budget_pct"] == pytest.approx(15.0)
 
     metrics_dir = snapshot_dir / "metrics"
     day_metrics_path = metrics_dir / "day_orb_5m_v1.json"
@@ -136,10 +140,14 @@ def test_build_router_snapshot_cli_generates_portfolio_summary(tmp_path: Path) -
     assert gross["current_pct"] == pytest.approx(0.33, rel=1e-6)
 
     heatmap = {
-        (row["source"], row["target"]): row["correlation"]
+        (row["source"], row["target"]): row
         for row in summary["correlation_heatmap"]
     }
-    assert heatmap[("day_orb_5m_v1", "tokyo_micro_mean_reversion_v0")] == pytest.approx(expected_corr, rel=1e-6)
+    primary_entry = heatmap[("day_orb_5m_v1", "tokyo_micro_mean_reversion_v0")]
+    assert primary_entry["correlation"] == pytest.approx(expected_corr, rel=1e-6)
+    assert primary_entry["target_strategy_id"] == "tokyo_micro_mean_reversion_v0"
+    assert primary_entry["bucket_category"] == "scalping"
+    assert primary_entry["bucket_budget_pct"] == pytest.approx(15.0)
     assert summary["correlation_window_minutes"] == pytest.approx(240.0)
 
 

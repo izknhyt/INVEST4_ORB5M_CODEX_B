@@ -115,10 +115,14 @@ def test_router_pipeline_populates_correlation_metadata():
     assert direct_meta["strategy_id"] == mean_manifest.id
     assert direct_meta["category"] == mean_manifest.category
     assert direct_meta["category_budget_pct"] == approx(35.0)
+    assert direct_meta["bucket_category"] == mean_manifest.category
+    assert direct_meta["bucket_budget_pct"] == approx(35.0)
     tag_meta = meta["momentum"][mean_manifest.id]
     assert tag_meta["strategy_id"] == mean_manifest.id
     assert tag_meta["category"] == mean_manifest.category
     assert tag_meta["category_budget_pct"] == approx(35.0)
+    assert tag_meta["bucket_category"] == mean_manifest.category
+    assert tag_meta["bucket_budget_pct"] == approx(35.0)
 
 
 def test_router_pipeline_skips_invalid_telemetry_values():

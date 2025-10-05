@@ -21,6 +21,7 @@ class PortfolioTelemetry:
     gross_exposure_pct: Optional[float] = None
     gross_exposure_cap_pct: Optional[float] = None
     strategy_correlations: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    correlation_meta: Dict[str, Dict[str, Dict[str, Any]]] = field(default_factory=dict)
     execution_health: Dict[str, Dict[str, float]] = field(default_factory=dict)
     correlation_window_minutes: Optional[float] = None
 
@@ -113,10 +114,34 @@ def build_portfolio_state(
         category_budget_headroom[str(key)] = value_float
 
     correlations: Dict[str, Dict[str, float]] = {}
-    correlation_meta: Dict[str, Dict[str, Dict[str, Optional[float]]]] = {}
+    correlation_meta: Dict[str, Dict[str, Dict[str, Any]]] = {}
+
+    for source_key, mapping in snapshot.correlation_meta.items():
+        if not isinstance(mapping, Mapping):
+            continue
+        inner_meta: Dict[str, Dict[str, Any]] = {}
+        for peer_key, peer_meta in mapping.items():
+            if not isinstance(peer_meta, Mapping):
+                continue
+            peer_entry = dict(peer_meta)
+            peer_entry.setdefault("strategy_id", str(peer_key))
+            if "bucket_category" not in peer_entry and "category" in peer_entry:
+                peer_entry["bucket_category"] = peer_entry["category"]
+            if (
+                "bucket_budget_pct" not in peer_entry
+                and "category_budget_pct" in peer_entry
+            ):
+                peer_entry["bucket_budget_pct"] = peer_entry["category_budget_pct"]
+            inner_meta[str(peer_key)] = peer_entry
+        if inner_meta:
+            correlation_meta[str(source_key)] = inner_meta
     for key, value in snapshot.strategy_correlations.items():
         inner: Dict[str, float] = {}
-        meta_inner: Dict[str, Dict[str, Optional[float]]] = {}
+        meta_inner: Dict[str, Dict[str, Any]] = {
+            peer: dict(meta)
+            for peer, meta in correlation_meta.get(str(key), {}).items()
+            if isinstance(meta, Mapping)
+        }
         for inner_k, inner_v in value.items():
             inner_float = _to_float(inner_v)
             if inner_float is None:
@@ -135,11 +160,23 @@ def build_portfolio_state(
                     cap_value = peer_manifest.router.category_cap_pct
                     if cap_value is not None:
                         budget_value = float(cap_value)
-            meta_inner[peer_key] = {
-                "strategy_id": str(peer_manifest.id) if peer_manifest else peer_key,
-                "category": peer_category,
-                "category_budget_pct": float(budget_value) if budget_value is not None else None,
-            }
+            meta_entry = meta_inner.get(peer_key, {}).copy()
+            meta_entry.update(
+                {
+                    "strategy_id": str(peer_manifest.id)
+                    if peer_manifest
+                    else peer_key,
+                    "category": peer_category,
+                    "category_budget_pct": float(budget_value)
+                    if budget_value is not None
+                    else None,
+                    "bucket_category": peer_category,
+                    "bucket_budget_pct": float(budget_value)
+                    if budget_value is not None
+                    else None,
+                }
+            )
+            meta_inner[peer_key] = meta_entry
         if inner:
             correlations[str(key)] = inner
             if meta_inner:
