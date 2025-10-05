@@ -1228,8 +1228,6 @@ class BacktestRunner:
         )
         if not result.get("fill"):
             return
-        if self._warmup_left > 0:
-            self._warmup_left -= 1
         trade_ctx_snapshot: Dict[str, Any] = {
             "session": ctx_dbg.get("session", features.ctx.get("session")),
             "rv_band": ctx_dbg.get("rv_band", features.ctx.get("rv_band")),
@@ -1257,6 +1255,8 @@ class BacktestRunner:
             calibrating=calibrating,
             pip_size_value=pip_size_value,
         )
+        if self._warmup_left > 0:
+            self._warmup_left -= 1
 
 
     def _evaluate_entry_conditions(
