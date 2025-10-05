@@ -128,3 +128,50 @@ def test_priority_boosts_score():
     signals = {manifest.id: {"score": 1.1}}
     res = select_candidates(ctx, [manifest], strategy_signals=signals)
     assert res[0].score == 1.5
+
+
+def test_headroom_adjusts_scores_and_reasons():
+    manifest = load_day_manifest()
+    manifest.router.priority = 0.0
+    manifest.router.category_cap_pct = 50.0
+    manifest.router.max_gross_exposure_pct = 80.0
+
+    ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "mid"}
+    signals = {manifest.id: {"score": 1.0}}
+
+    near_limits = PortfolioState(
+        category_utilisation_pct={manifest.category: 47.0},
+        category_caps_pct={manifest.category: 50.0},
+        category_headroom_pct={manifest.category: 3.0},
+        gross_exposure_pct=76.0,
+        gross_exposure_cap_pct=80.0,
+        gross_exposure_headroom_pct=4.0,
+    )
+
+    ample_capacity = PortfolioState(
+        category_utilisation_pct={manifest.category: 20.0},
+        category_caps_pct={manifest.category: 50.0},
+        category_headroom_pct={manifest.category: 30.0},
+        gross_exposure_pct=35.0,
+        gross_exposure_cap_pct=80.0,
+        gross_exposure_headroom_pct=45.0,
+    )
+
+    near_result = select_candidates(
+        ctx, [manifest], portfolio=near_limits, strategy_signals=signals
+    )[0]
+    ample_result = select_candidates(
+        ctx, [manifest], portfolio=ample_capacity, strategy_signals=signals
+    )[0]
+
+    assert near_result.eligible is True
+    assert ample_result.eligible is True
+    assert near_result.score == 0.0  # 1.0 -0.5 (category) -0.5 (gross)
+    assert ample_result.score == 1.3  # 1.0 +0.1 (category) +0.2 (gross)
+
+    near_reasons = " ".join(near_result.reasons)
+    ample_reasons = " ".join(ample_result.reasons)
+    assert "category headroom" in near_reasons
+    assert "gross headroom" in near_reasons
+    assert "score_delta=-0.50" in near_reasons
+    assert "score_delta=+0.20" in ample_reasons
