@@ -14,8 +14,8 @@ This guide summarizes the routine Codex agents should follow to keep tasks movin
 ## Pre-session Routine
 1. **Review the current situation**  
    Read `state.md`, focusing on the `Next Task` entry, open questions, and linked checklists. Confirm that the `Backlog Anchor` and `Pending Questions` slots match the intended work.
-2. **Confirm the backlog anchor**  
-   Locate the task in `docs/task_backlog.md`, reread its DoD, and check `docs/todo_next.md` to ensure the task sits in the correct section (`Ready`, `In Progress`, or `Pending Review`). Adjust the target section via `--doc-section` when running automation.
+2. **Confirm the backlog anchor**
+   Locate the task in `docs/task_backlog.md`, reread its DoD, and check `docs/todo_next.md` to ensure the task sits in the correct section (`Ready`, `In Progress`, or `Pending Review`). Adjust the target section via `--doc-section` when running automation. For a quick refresher on how the placement synchronizes with `state.md`, see [docs/state_runbook.md#task-sync](state_runbook.md#task-sync).
 3. **Prepare templates**  
    When adding a new `Next Task`, start from `docs/templates/next_task_entry.md`. For Ready tasks, duplicate `docs/templates/dod_checklist.md` into `docs/checklists/<task-slug>.md` so progress can be tracked with checkboxes.
 4. **Sandbox & approval check**  
@@ -24,7 +24,7 @@ This guide summarizes the routine Codex agents should follow to keep tasks movin
    - Network: `restricted`
    - Approvals: `on-request`
    Request approval when you need to rerun commands unsandboxed (e.g., external network access, privileged filesystem writes, destructive git operations). For routine read/pytest commands, approvals are unnecessary.
-5. **Dry-run the start command**
+5. **Dry-run the start command** <a id="doc-section-options"></a>
    Execute the following command with `--dry-run` to validate anchors and dates before making real changes.
    ```bash
    python3 scripts/manage_task_cycle.py --dry-run start-task \
@@ -35,11 +35,11 @@ This guide summarizes the routine Codex agents should follow to keep tasks movin
        --title "<Task Title>" \
        --state-note "<State entry memo>" \
        --doc-note "<docs/todo_next.md memo>" \
-       --doc-section <Ready|In Progress> \
+       --doc-section <Ready|In Progress|Pending Review> \
        [--runbook-links "<Markdown links for runbooks>"] \
        [--pending-questions "<Key questions to track>"]
    ```
-   During the preview the automation cross-checks the anchor to avoid creating duplicate records. If the session still needs to reuse the existing anchor—for example when only the memos must be refreshed—add `--skip-record` so the tool intentionally bypasses the record creation step.
+   During the preview the automation cross-checks the anchor to avoid creating duplicate records. If the session still needs to reuse the existing anchor—for example when only the memos must be refreshed—add `--skip-record` so the tool intentionally bypasses the record creation step. Use `--doc-section Pending Review` when resuming a task that remains under review but requires additional iteration; the command keeps the memo in the Pending Review block of `docs/todo_next.md` while restoring the templates in `state.md`.
    ```bash
    python3 scripts/manage_task_cycle.py --dry-run start-task --skip-record \
        --anchor docs/task_backlog.md#codex-session-operations-guide \

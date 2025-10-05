@@ -26,6 +26,8 @@
 
 ### Pending Review
 
+- レビュー中のタスクを再開する際は `scripts/manage_task_cycle.py --doc-section Pending Review` を用いると、`docs/todo_next.md` の配置を維持したまま `state.md` のテンプレートを再適用できる。
+
 ## Archive（達成済み）
 
 - **ルーター拡張** (Backlog: `docs/task_backlog.md` → [P2-マルチ戦略ポートフォリオ化](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化)) — 2026-02-13 完了 <!-- anchor: docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化 -->

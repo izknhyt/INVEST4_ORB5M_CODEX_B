@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-02-18: Documented how `--doc-section In Progress|Pending Review` controls `docs/todo_next.md` placement across `docs/state_runbook.md` and `docs/codex_workflow.md`, added cross-links, refreshed the Pending Review note in `docs/todo_next.md`, and ran `python3 scripts/manage_task_cycle.py --dry-run start-task --doc-section "Pending Review" ...` to capture the dry-run output.
 - 2026-02-16: Clarified `--skip-record` guidance in `docs/codex_workflow.md` / `docs/state_runbook.md`, captured recommended scenarios, and verified `python3 scripts/manage_task_cycle.py --dry-run start-task --skip-record ...` emits the skip notice plus `sync_task_docs.py promote` preview.
 - 2026-02-17: Captured the `finish-task` dry-run preview for `docs/codex_workflow.md` and `docs/state_runbook.md`, documented the lack of side effects when using `--dry-run`, and executed `npx markdownlint-cli docs/codex_workflow.md docs/state_runbook.md` to review Markdown formatting warnings.
 - 2026-02-15: Shifted the warmup decrement in `core/runner._maybe_enter_trade` to occur after processing fill results so only confirmed fills reduce the counter, updated `tests/test_runner.py` to exercise the conservative fill engine for both filled and unfilled scenarios, and executed `python3 -m pytest tests/test_runner.py` to verify the behaviour.
