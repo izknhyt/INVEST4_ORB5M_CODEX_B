@@ -164,7 +164,7 @@
   - Pending Questions:
     - [ ] 調査対象モジュールごとの初期スコープ（戦略ロジック / データパイプライン / CLI / ドキュメント）を確定する。
     - [ ] 追加が必要な回帰テストセットの優先順位付けを決める。
-  - Docs note: Ready エントリを [docs/todo_next.md](docs/todo_next.md#ready) に追加済み。チェックリストのテーブルを埋めながら `scripts/manage_task_cycle.py` のドライラン出力を共有すること。
+  - Docs note: Ready エントリを [docs/todo_next.md](docs/todo_next.md#ready) に追加済み。チェックリストのテーブルを埋めつつ、`scripts/manage_task_cycle.py` のドライラン出力サンプルを [docs/codex_workflow.md#closing-the-task](docs/codex_workflow.md#closing-the-task) に転載済み。
   - 2025-12-05: チェックリスト初版とテンプレート説明を `docs/checklists/p1-07_phase1_bug_refactor.md` に作成し、`docs/codex_workflow.md` へ参照導線を追加。バックログ/Ready/State を同期して、次セッションがチェックボードを更新するだけで継続できるようにした。
     - 2025-12-06: フェーズ1 スクリプトで `datetime.utcnow()` を廃止し、`scripts/_time_utils.py` を介した `datetime.now(timezone.utc)` 起点のヘルパーに統一。`run_daily_workflow.py` / `yfinance_fetch.py` / `fetch_prices_api.py` などの鮮度判定がモンキーパッチにも追従するよう調整し、`python3 -m pytest` で DeprecationWarning が消えたことを確認。
     - 2025-12-07: `scripts/report_benchmark_summary.py` が `main()` 内で `utcnow_iso` を参照する際に import が未解決で NameError になる退行を修正。ヘルパー import をモジュール先頭へ移して CLI 実行時に `generated_at` が確実に設定されることを再確認し、バグチェックログへ反映。
@@ -189,6 +189,7 @@
   - 2025-10-16: 最新バーの供給が途絶しているため、P1-04 で API インジェスト基盤を設計・整備し、鮮度チェックのブロッカーを解消する計画。
 
 ## Log
+- [Ops] 2026-02-15: Captured the `finish-task` dry-run preview in `docs/codex_workflow.md`, cross-linked it from `docs/state_runbook.md`, and noted the update in the P1-07 docs memo.
 - [Ops] 2026-02-15: Moved the Workflow Integration Guide entry to In Progress in `docs/todo_next.md`, refreshed the linked `state.md` date list to include the 2026-02-13 update, and dry-ran `scripts/manage_task_cycle.py start-task` to confirm the `doc-section` promotion remains aligned.
 - [P1-06] 2026-02-13: Added fill-engine overrides (`fill_same_bar_policy_*`, `fill_bridge_lambda`, `fill_bridge_drift_scale`) to RunnerConfig and `scripts/run_sim.py`, exposed CLI flags, refreshed broker OCO docs/runbooks, and executed `python3 -m pytest tests/test_fill_engine.py tests/test_runner.py tests/test_run_sim_cli.py` to lock regression coverage.
 - [Ops] 2026-02-13: Updated `docs/codex_workflow.md` with sandbox/approval guidance (workspace-write + on-request), clarified `scripts/manage_task_cycle.py` dry-run usage, and aligned references with `docs/state_runbook.md` / template links.
