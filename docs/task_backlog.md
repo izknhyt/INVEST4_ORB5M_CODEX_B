@@ -126,6 +126,7 @@ REST/Streaming API と `scripts/pull_prices.py` を連携させ、手動CSV投�
 - `strategy_gate` → `ev_threshold` → EV 判定 → サイズ判定の観察手順が docs に追記され、CSV/Daily 出力例と併せた調査フローが示されていること。
 
 **進捗メモ**
+- 2026-01-18: Logged EV warm-up bypass events as `ev_bypass` debug records (capturing `warmup_left` / `warmup_total`), refreshed regression coverage in `tests/test_runner.py`, and expanded [docs/backtest_runner_logging.md](docs/backtest_runner_logging.md) with the new fields.
 - 2025-11-27: `python3 scripts/run_benchmark_pipeline.py --windows 365,180,90 --disable-plot` と `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6 --benchmark-freshness-max-age-hours 6` を実行し、ローリング JSON / ベンチマークサマリーの勝率・Sharpe・最大DDを更新。`ops/runtime_snapshot.json` の `benchmark_pipeline` を `ok:true`・`errors:[]` で揃え、README / docs/benchmark_runbook.md / チェックリスト / todo_next / state ログを同期してタスクをクローズ。
 - 2025-10-13: Added CLI regression `tests/test_run_sim_cli.py::test_run_sim_debug_records_capture_hook_failures` to lock the debug counters/records when hook exceptions are raised, and expanded the logging reference with the coverage note.
 - 2025-10-08: Added helper-based dispatch and logging reference. See [docs/backtest_runner_logging.md](docs/backtest_runner_logging.md) for counter/record definitions and EV investigation flow.

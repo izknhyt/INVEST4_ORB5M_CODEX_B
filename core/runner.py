@@ -316,6 +316,17 @@ class BacktestRunner:
         "gate_block": ("ts", "side", "rv_band", "spread_band", "or_atr_ratio", "reason"),
         "slip_cap": ("ts", "side", "expected_slip_pip", "slip_cap_pip"),
         "ev_reject": ("ts", "side", "ev_lcb", "threshold_lcb", "cost_pips", "tp_pips", "sl_pips"),
+        "ev_bypass": (
+            "ts",
+            "side",
+            "ev_lcb",
+            "threshold_lcb",
+            "warmup_left",
+            "warmup_total",
+            "cost_pips",
+            "tp_pips",
+            "sl_pips",
+        ),
         "ev_threshold_error": ("ts", "side", "base_threshold", "error"),
         "trade": ("ts", "side", "tp_pips", "sl_pips", "cost_pips", "slip_est", "slip_real", "exit", "pnl_pips"),
         "trade_exit": ("ts", "side", "cost_pips", "slip_est", "slip_real", "exit", "pnl_pips"),
@@ -1262,7 +1273,20 @@ class BacktestRunner:
         if not calibrating and ev_lcb < threshold_lcb:
             if self._warmup_left > 0:
                 ev_bypass = True
+                warmup_remaining = int(self._warmup_left)
                 self.debug_counts["ev_bypass"] += 1
+                self._append_debug_record(
+                    "ev_bypass",
+                    ts=timestamp,
+                    side=pending_side,
+                    ev_lcb=ev_lcb,
+                    threshold_lcb=threshold_lcb,
+                    warmup_left=warmup_remaining,
+                    warmup_total=int(self.rcfg.warmup_trades),
+                    cost_pips=ctx_dbg.get("cost_pips"),
+                    tp_pips=tp_pips,
+                    sl_pips=sl_pips,
+                )
             else:
                 self.debug_counts["ev_reject"] += 1
                 self._increment_daily("ev_reject")
