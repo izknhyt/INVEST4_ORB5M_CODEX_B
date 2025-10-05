@@ -21,7 +21,7 @@ This note captures how the portfolio router evolves from the legacy v0 gate to t
    - `category_budget_pct[category]` / `category_budget_headroom_pct[category]` → governance budgets and optional pre-computed headroom. When budgets are missing from telemetry the pipeline falls back to manifest defaults (budget → `router.category_budget_pct` or the cap when unset).
    - `gross_exposure_pct` / `gross_exposure_cap_pct` → overall gross usage and cap.
    - `strategy_correlations[key][peer]` → pairwise correlations keyed by strategy ID or correlation tag.
-   - `correlation_window_minutes` → rolling window (in minutes) used when building `strategy_correlations`.
+   - `correlation_window_minutes` → rolling window (in minutes) used when building `strategy_correlations`; set via `scripts/build_router_snapshot.py --correlation-window-minutes` so reviewers know which lookback produced the heatmap.
    - `execution_health[strategy_id]` → runtime health aggregates (see below for field names).
 3. **Runtime metrics**: optional runner exports keyed by manifest ID. When present, the function pulls `execution_health.reject_rate` and `execution_health.slippage_bps` into the aggregated telemetry so the router can gate/score on current execution quality.【F:core/router_pipeline.py†L99-L126】
 

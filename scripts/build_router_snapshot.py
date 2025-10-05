@@ -16,7 +16,10 @@ snapshot layout compatible with ``scripts/report_portfolio_summary.py``:
 Pairwise strategy correlations are derived from the equity curves embedded in
 the metrics files. Active position counts are merged with manifest risk data
 via :func:`core.router_pipeline.build_portfolio_state` so the resulting
-``telemetry.json`` matches the contract used by the router pipeline.
+``telemetry.json`` matches the contract used by the router pipeline. Pass
+``--correlation-window-minutes`` to persist the rolling lookback window used to
+compute the correlation matrix so downstream monitors can display the correct
+context.
 """
 
 from __future__ import annotations
