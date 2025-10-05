@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-01-30: Documented router architecture/data-flow expectations in `docs/router_architecture.md`, linked the guidance from `docs/task_backlog.md` (P2 ルーター拡張) and `docs/checklists/p2_router.md`, and noted the publication in `docs/todo_next.md` per the wrap-up workflow.
 - 2026-01-29: `scripts/build_router_snapshot.py` を追加し、manifest と最新 run のメトリクスから `runs/router_pipeline/latest`
   に `telemetry.json` / `metrics/*.json` を生成できるようにした。`tests/test_report_portfolio_summary.py` を新設して CLI
   フロー全体を検証し、`docs/logic_overview.md` / `docs/checklists/p2_router.md` にスナップショット更新手順を追記。

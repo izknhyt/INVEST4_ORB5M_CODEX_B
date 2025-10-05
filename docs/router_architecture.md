@@ -1,0 +1,99 @@
+# Router architecture and data flow
+
+This note captures how the portfolio router evolves from the legacy v0 gate to the current v1 scoring stage, and what telemetry, manifests, and runtime metrics must feed the planned v2 features. The goal is to make it obvious which artefact owns each responsibility and where new category budgets, correlation guards, and execution health controls will plug in.
+
+## Version responsibilities at a glance
+
+| Version | Entry point | Primary responsibilities | Key inputs |
+|---------|-------------|--------------------------|-----------|
+| v0 | [`router/router_v0.pass_gates`](../router/router_v0.py) | Binary gating based on market context (session whitelist, spread band, RV band, news freeze). | `market_ctx` only. |
+| v1 | [`router/router_v1.select_candidates`](../router/router_v1.py) | Merge manifest metadata, live telemetry, and signal quality to decide eligibility, apply soft penalties/bonuses, and emit ranked `SelectionResult` records. | `market_ctx`, manifests, [`PortfolioState`](../router/router_v1.py), strategy signals. |
+| v2 (planned) | (TBD, reusing `select_candidates` API) | Layer category budget awareness, richer correlation suppression, and execution health escalation on top of v1 while remaining backwards compatible for callers of `select_candidates`. | Everything v1 consumes plus new budget/correlation/health fields described below. |
+
+## Building portfolio context
+
+`core/router_pipeline.build_portfolio_state` is the single place where strategy manifests, portfolio telemetry snapshots, and runner metrics are fused into the [`PortfolioState`](../router/router_v1.py) structure consumed by v1 and the future v2 router.【F:core/router_pipeline.py†L1-L127】 The helper expects three inputs:
+
+1. **Manifests**: the iterable of `StrategyManifest` objects. Risk metadata such as `risk_per_trade_pct`, `router.priority`, `router.category_cap_pct`, `router.max_gross_exposure_pct`, `router.correlation_tags`, and guard thresholds (reject, slippage, correlation) are authoritative here.
+2. **Telemetry**: optional [`PortfolioTelemetry`](../core/router_pipeline.py) snapshot (typically produced by `scripts/build_router_snapshot.py`). Expected fields:
+   - `active_positions[strategy_id]` → open position counts (signed, v1 uses absolute values when deriving exposure).
+   - `category_utilisation_pct[category]` / `category_caps_pct[category]` → live utilisation and externally supplied caps.
+   - `gross_exposure_pct` / `gross_exposure_cap_pct` → overall gross usage and cap.
+   - `strategy_correlations[key][peer]` → pairwise correlations keyed by strategy ID or correlation tag.
+   - `execution_health[strategy_id]` → runtime health aggregates (see below for field names).
+3. **Runtime metrics**: optional runner exports keyed by manifest ID. When present, the function pulls `execution_health.reject_rate` and `execution_health.slippage_bps` into the aggregated telemetry so the router can gate/score on current execution quality.【F:core/router_pipeline.py†L99-L126】
+
+The function normalises floats via `_to_float`, backfills utilisation from active position exposure (count × `risk_per_trade_pct`), and calculates headroom values:
+
+- `category_headroom_pct[category] = cap - usage` for every known category.
+- `gross_exposure_headroom_pct = gross_cap_pct - gross_exposure_pct` when both inputs exist.【F:core/router_pipeline.py†L55-L98】
+
+These derived numbers are critical for v1 scoring bonuses and will become the inputs for v2 category budget tracking (see below).
+
+## Candidate evaluation in v1
+
+`router/router_v1.select_candidates` consumes market context, manifests, the populated `PortfolioState`, and the optional `strategy_signals` map to emit sorted `SelectionResult` rows with eligibility, score, and human-readable reasons.【F:router/router_v1.py†L116-L213】 The evaluation pipeline is:
+
+1. **Market gating**: enforce session, spread band, and RV band checks from manifest router settings (`allowed_sessions`, `allow_spread_bands`, `allow_rv_bands`). These controls mirror the original v0 behaviour for continuity.【F:router/router_v1.py†L118-L146】
+2. **Portfolio hard guards** (fail-fast when violated):
+   - Category utilisation vs. caps (`category_utilisation_pct`, `category_caps_pct`).【F:router/router_v1.py†L49-L69】
+   - Per-strategy concurrency (`active_positions` and `risk.max_concurrent_positions`).【F:router/router_v1.py†L71-L88】
+   - Gross exposure vs. cap (`gross_exposure_pct`, `gross_exposure_cap_pct`).【F:router/router_v1.py†L90-L107】
+   - Correlation cap breaches using the highest absolute correlation across strategy IDs and correlation tags.【F:router/router_v1.py†L109-L140】
+   - Execution health guardrails comparing `reject_rate` and `slippage_bps` to manifest thresholds.【F:router/router_v1.py†L142-L167】
+3. **Signal scoring**:
+   - Start from the strategy `score` (or fall back to `ev_lcb`) and add manifest `priority` to bias tiering.【F:router/router_v1.py†L169-L196】
+   - Apply soft correlation penalties: subtract the amount by which the max correlation exceeds the configured limit (if any).【F:router/router_v1.py†L198-L203】
+   - Apply headroom bonuses/penalties using `_headroom_score_adjustment` for both category and gross headroom, appending formatted reasons so operators see utilisation, cap, headroom, and score deltas in telemetry logs.【F:router/router_v1.py†L205-L233】
+   - Reward compliant execution health with a minor boost when the recorded reject rate sits below its guard threshold.【F:router/router_v1.py†L235-L242】
+4. **Reason logging**: propagate `ev_lcb` and headroom messages so downstream telemetry (e.g., `runs/router_pipeline/latest/telemetry.json`) preserves why a manifest was accepted or rejected.【F:router/router_v1.py†L244-L260】
+
+Expected `strategy_signals` fields:
+
+- `score`: preferred scoring signal (already float-normalised by the caller).
+- `ev_lcb`: fallback when `score` is missing plus a diagnostic reason entry.
+
+Every `SelectionResult.as_dict()` carries the manifest ID, eligibility, final score, accumulated reasons, and routing metadata (category, tags) so down-stream reporting stays structured.【F:router/router_v1.py†L27-L46】
+
+## Planned v2 enhancements
+
+To extend v1 without breaking callers, v2 will reuse the `PortfolioState`/`select_candidates` interface while enriching telemetry contracts and guard logic.
+
+### Category budgets
+
+- **Goal**: reserve and enforce per-category budget ceilings (e.g., "momentum strategies must not exceed 40% utilisation even when headroom exists elsewhere") and surface budget burn-down in the reasons list.
+- **Data requirements**:
+  - Extend `PortfolioTelemetry` with `category_budget_pct[category]` when portfolio governance publishes target allocations. When absent, fall back to manifest-level `router.category_cap_pct` (current behaviour).
+  - Populate `PortfolioState` with a derived `category_budget_headroom_pct` so v2 scoring can compare live utilisation against both hard caps and softer budget targets.
+- **Router behaviour**:
+  - Maintain existing hard guard (cap breach → ineligible) but add a soft budget guard that gradually penalises score once utilisation crosses the budget threshold even if the cap allows additional trades.
+  - Include budget utilisation ratios in the reasons string to keep telemetry dashboards aligned with governance thresholds.
+
+### Correlation guards
+
+- **Goal**: treat correlation data as a first-class guard by combining manifest-level correlation tags, observed pairwise correlations, and category awareness.
+- **Data requirements**:
+  - Continue reading `strategy_correlations[strategy_id or tag][peer]` from telemetry, but require that upstream metrics calculate rolling correlations in a consistent window (document via `scripts/build_router_snapshot.py`).
+  - Consider emitting a `correlation_window_minutes` field so operators know the lookback horizon attached to each matrix.
+- **Router behaviour**:
+  - Promote severe correlation breaches to hard failures when both participants are in the same budget bucket.
+  - Track cumulative correlation penalties to avoid double-counting when multiple tags reference the same peer set.
+  - Publish `reason` entries such as `"correlation 0.72 > cap 0.60 (bucket momentum)"` so monitoring can trigger alerts when correlation pressure rises.
+
+### Execution health integration
+
+- **Goal**: unify runtime metrics from `core.runner.BacktestRunner` with live router decisions, ensuring unhealthy execution automatically suppresses allocations.
+- **Data requirements**:
+  - Keep ingesting `reject_rate` and `slippage_bps` from `runtime_metrics` (as implemented today), and expand the schema to include `fill_latency_ms` or `avg_price_deviation_bps` when they become available.
+  - Ensure `scripts/build_router_snapshot.py` persists these metrics under `execution_health[strategy_id]` so the router and downstream monitoring dashboards observe the same numbers.
+- **Router behaviour**:
+  - Escalate from the current binary guard (`reject_rate > max_reject_rate` → ineligible) to a tiered response: degrade scores when the metric approaches the threshold, hard fail when exceeded, and optionally include cooldown timers before re-enabling.
+  - Record the exact metric snapshot (e.g., `reject_rate=0.045, guard=0.050, penalty=-0.10`) in the reason log so we can audit suppression decisions.
+
+## Integration checklist
+
+When publishing new router capabilities, update the following artefacts to maintain the handoff contract:
+
+- `docs/task_backlog.md` → link to this architecture note from the P2 router section so future sessions can find the design context.
+- `docs/checklists/p2_router.md` → reference this document under Ready/DoD guidance.
+- `state.md` / `docs/todo_next.md` → log when the architecture note is updated, keeping the shared workflow loop consistent with the Codex session rules.

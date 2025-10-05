@@ -22,6 +22,7 @@
 
 - **ルーター拡張** (Backlog: `docs/task_backlog.md` → [P2-マルチ戦略ポートフォリオ化](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化)) <!-- anchor: docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化 -->
   - `docs/checklists/p2_router.md` を利用し、カテゴリ配分・相関・キャパ制約を考慮したルーター拡張を進める。既存ルーター実装とテストの現状把握、設計ドキュメントの再読から着手。
+  - 2026-01-30: [docs/router_architecture.md](router_architecture.md) を追加し、v0/v1/v2 の責務・データフロー・テレメトリ要件を整理。チェックリストとバックログへリンクを設置。
   - Backlog Anchor: [ルーター拡張 (P2-02)](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化)
   - Vision / Runbook References:
     - [docs/logic_overview.md](docs/logic_overview.md)
