@@ -47,12 +47,27 @@ class SelectionResult:
 
 
 @dataclass
+class ExecutionMetricResult:
+    """Structured outcome for a single execution-health metric."""
+
+    metric: str
+    value: float
+    guard: float
+    ratio: Optional[float]
+    score_delta: float
+    disqualified: bool
+    message: str
+
+
+@dataclass
 class ExecutionHealthStatus:
     """Outcome of execution-health evaluation for a candidate."""
 
     disqualifying_reasons: List[str] = field(default_factory=list)
     log_messages: List[str] = field(default_factory=list)
     score_delta: float = 0.0
+    penalties: Dict[str, float] = field(default_factory=dict)
+    metric_results: List[ExecutionMetricResult] = field(default_factory=list)
 
 
 def _session_allowed(manifest: StrategyManifest, session: Optional[str]) -> bool:
@@ -279,6 +294,50 @@ def _format_execution_reason(
     return f"execution {metric} ({joined})"
 
 
+def _evaluate_execution_metric(
+    metric: str, value: float, guard: float
+) -> ExecutionMetricResult:
+    """Evaluate a single execution metric against its guard threshold."""
+
+    if guard <= 0:
+        message = _format_execution_reason(metric, value, guard, None, 0.0)
+        disqualified = value > guard
+        return ExecutionMetricResult(
+            metric=metric,
+            value=value,
+            guard=guard,
+            ratio=None,
+            score_delta=0.0,
+            disqualified=disqualified,
+            message=message,
+        )
+
+    ratio = value / guard
+    if ratio > 1.0:
+        message = _format_execution_reason(metric, value, guard, ratio, 0.0)
+        return ExecutionMetricResult(
+            metric=metric,
+            value=value,
+            guard=guard,
+            ratio=ratio,
+            score_delta=0.0,
+            disqualified=True,
+            message=message,
+        )
+
+    delta = _execution_health_score_adjustment(ratio)
+    message = _format_execution_reason(metric, value, guard, ratio, delta)
+    return ExecutionMetricResult(
+        metric=metric,
+        value=value,
+        guard=guard,
+        ratio=ratio,
+        score_delta=delta,
+        disqualified=False,
+        message=message,
+    )
+
+
 def _check_execution_health(
     manifest: StrategyManifest, portfolio: PortfolioState
 ) -> ExecutionHealthStatus:
@@ -303,36 +362,15 @@ def _check_execution_health(
     for metric, value, guard in metrics:
         if value is None or guard is None:
             continue
-        if guard <= 0:
-            if value > guard:
-                formatted_reason = (
-                    f"{metric} {_format_metric_value(metric, value)} > guard {_format_metric_value(metric, guard)}"
-                )
-                status.disqualifying_reasons.append(formatted_reason)
-                status.log_messages.append(
-                    _format_execution_reason(metric, value, guard, None, 0.0)
-                )
-            else:
-                message = _format_execution_reason(metric, value, guard, None, 0.0)
-                status.log_messages.append(message)
+        result = _evaluate_execution_metric(metric, value, guard)
+        status.metric_results.append(result)
+        status.log_messages.append(result.message)
+        if result.disqualified:
+            status.disqualifying_reasons.append(result.message)
+            status.penalties[metric] = 0.0
             continue
-
-        ratio = value / guard
-        if ratio > 1.0:
-            formatted_reason = (
-                f"{metric} {_format_metric_value(metric, value)} > guard {_format_metric_value(metric, guard)}"
-            )
-            status.disqualifying_reasons.append(formatted_reason)
-            status.log_messages.append(
-                _format_execution_reason(metric, value, guard, ratio, 0.0)
-            )
-            continue
-
-        delta = _execution_health_score_adjustment(ratio)
-        status.score_delta += delta
-        status.log_messages.append(
-            _format_execution_reason(metric, value, guard, ratio, delta)
-        )
+        status.penalties[metric] = result.score_delta
+        status.score_delta += result.score_delta
 
     return status
 
@@ -387,8 +425,9 @@ def select_candidates(
             if health_status.disqualifying_reasons:
                 eligible = False
                 reasons.extend(health_status.disqualifying_reasons)
-            if health_status.log_messages:
-                reasons.extend(health_status.log_messages)
+            for message in health_status.log_messages:
+                if message not in reasons:
+                    reasons.append(message)
             health_score_delta = health_status.score_delta
 
         signal_ctx = (strategy_signals or {}).get(manifest.id, {})

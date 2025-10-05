@@ -42,7 +42,7 @@ These derived numbers are critical for v1 scoring bonuses and will become the in
    - Per-strategy concurrency (`active_positions` and `risk.max_concurrent_positions`).【F:router/router_v1.py†L71-L88】
    - Gross exposure vs. cap (`gross_exposure_pct`, `gross_exposure_cap_pct`).【F:router/router_v1.py†L90-L107】
    - Correlation cap breaches using the highest absolute correlation across strategy IDs and correlation tags.【F:router/router_v1.py†L109-L140】
-   - Execution health guardrails comparing `reject_rate` and `slippage_bps` to manifest thresholds, returning an `ExecutionHealthStatus` payload with disqualification reasons and score deltas.【F:router/router_v1.py†L142-L233】
+   - Execution health guardrails comparing `reject_rate` and `slippage_bps` to manifest thresholds, returning an `ExecutionHealthStatus` payload with disqualification reasons, per-metric penalty entries, and cumulative score deltas.【F:router/router_v1.py†L142-L233】
 3. **Signal scoring**:
    - Start from the strategy `score` (or fall back to `ev_lcb`) and add manifest `priority` to bias tiering.【F:router/router_v1.py†L169-L196】
    - Apply soft correlation penalties: subtract the amount by which the max correlation exceeds the configured limit (if any).【F:router/router_v1.py†L198-L203】
@@ -91,7 +91,7 @@ To extend v1 without breaking callers, v2 will reuse the `PortfolioState`/`selec
   - Ensure `scripts/build_router_snapshot.py` persists these metrics under `execution_health[strategy_id]` so the router and downstream monitoring dashboards observe the same numbers.
 - **Router behaviour**:
   - `_check_execution_health` now provides a tiered response: metrics below 50% of the guard earn bonuses, values drifting into the 90–97% band incur soft penalties, and breaches still mark the candidate ineligible while logging the offending ratio.【F:router/router_v1.py†L142-L257】
-  - Reason strings include the measured value, guard, ratio, and resulting `score_delta` so monitoring dashboards can audit suppression and recovery decisions without inspecting raw telemetry dumps.【F:router/router_v1.py†L142-L257】
+  - The helper returns a structured payload that records per-metric penalties in `ExecutionHealthStatus.penalties`, attaches readable messages (value, guard, ratio, `score_delta`), and accumulates the net score delta consumed by `select_candidates` when adjusting candidate scores.【F:router/router_v1.py†L142-L257】
 
 ## Integration checklist
 
