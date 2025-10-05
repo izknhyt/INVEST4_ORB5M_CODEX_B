@@ -11,6 +11,14 @@
     "day": 40.0,
     "scalping": 25.0
   },
+  "category_budget_pct": {
+    "day": 35.0,
+    "scalping": 15.0
+  },
+  "category_budget_headroom_pct": {
+    "day": 16.5,
+    "scalping": 3.0
+  },
   "gross_exposure_pct": 30.5,
   "gross_exposure_cap_pct": 55.0,
   "strategy_correlations": {
