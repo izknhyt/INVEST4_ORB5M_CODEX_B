@@ -59,20 +59,41 @@ def build_portfolio_state(
     active_positions: Dict[str, int] = {
         str(key): int(value) for key, value in snapshot.active_positions.items()
     }
-    category_usage: Dict[str, float] = {
-        str(key): float(value) for key, value in snapshot.category_utilisation_pct.items()
-    }
-    category_caps: Dict[str, float] = {
-        str(key): float(value) for key, value in snapshot.category_caps_pct.items()
-    }
-    correlations: Dict[str, Dict[str, float]] = {
-        str(key): {str(inner_k): float(inner_v) for inner_k, inner_v in value.items()}
-        for key, value in snapshot.strategy_correlations.items()
-    }
-    execution_health: Dict[str, Dict[str, float]] = {
-        str(key): {str(inner_k): float(inner_v) for inner_k, inner_v in value.items()}
-        for key, value in snapshot.execution_health.items()
-    }
+    category_usage: Dict[str, float] = {}
+    for key, value in snapshot.category_utilisation_pct.items():
+        value_float = _to_float(value)
+        if value_float is None:
+            continue
+        category_usage[str(key)] = value_float
+
+    category_caps: Dict[str, float] = {}
+    for key, value in snapshot.category_caps_pct.items():
+        value_float = _to_float(value)
+        if value_float is None:
+            continue
+        category_caps[str(key)] = value_float
+
+    correlations: Dict[str, Dict[str, float]] = {}
+    for key, value in snapshot.strategy_correlations.items():
+        inner: Dict[str, float] = {}
+        for inner_k, inner_v in value.items():
+            inner_float = _to_float(inner_v)
+            if inner_float is None:
+                continue
+            inner[str(inner_k)] = inner_float
+        if inner:
+            correlations[str(key)] = inner
+
+    execution_health: Dict[str, Dict[str, float]] = {}
+    for key, value in snapshot.execution_health.items():
+        inner: Dict[str, float] = {}
+        for inner_k, inner_v in value.items():
+            inner_float = _to_float(inner_v)
+            if inner_float is None:
+                continue
+            inner[str(inner_k)] = inner_float
+        if inner:
+            execution_health[str(key)] = inner
 
     exposures: Dict[str, float] = {}
     for manifest in manifest_list:
