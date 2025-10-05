@@ -51,3 +51,29 @@ def test_router_pipeline_merges_limits_and_execution_health():
     assert result_map[day_manifest.id].eligible is True
     assert result_map[mean_manifest.id].eligible is False
     assert any("reject_rate" in reason for reason in result_map[mean_manifest.id].reasons)
+
+
+def test_router_pipeline_skips_invalid_telemetry_values():
+    day_manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
+    day_manifest.router.category_cap_pct = 50.0
+
+    telemetry = PortfolioTelemetry(
+        active_positions={day_manifest.id: 1},
+        category_utilisation_pct={day_manifest.category: ""},
+        category_caps_pct={day_manifest.category: "not-a-number"},
+    )
+    runtime_metrics = {
+        day_manifest.id: {
+            "execution_health": {"reject_rate": None, "slippage_bps": "5.5"}
+        }
+    }
+
+    portfolio = build_portfolio_state(
+        [day_manifest], telemetry=telemetry, runtime_metrics=runtime_metrics
+    )
+
+    # Invalid telemetry should be ignored while manifest-derived data remains intact.
+    assert day_manifest.category in portfolio.category_utilisation_pct
+    assert portfolio.category_caps_pct[day_manifest.category] == day_manifest.router.category_cap_pct
+    assert portfolio.execution_health[day_manifest.id]["slippage_bps"] == 5.5
+    assert "reject_rate" not in portfolio.execution_health[day_manifest.id]

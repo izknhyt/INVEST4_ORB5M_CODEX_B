@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-01-20: `core/router_pipeline.build_portfolio_state` のテレメトリ取り込みで `_to_float` を利用するよう更新し、非数値のカテゴリ利用率や `None` の拒否率を無視する回帰テストを `tests/test_router_pipeline.py` に追加。`python3 -m pytest tests/test_router_pipeline.py` を実行して 2 件パスを確認。
 - 2026-01-19: Updated `router/router_v1.select_candidates` so explicit `score` values (including 0.0) are preferred over EV LCB fallbacks and added a regression in `tests/test_router_v1.py` to lock the behaviour. Executed `python3 -m pytest tests/test_router_v1.py` to confirm all 9 cases pass.
 - 2026-01-18: `configs/strategies/templates/base_strategy.yaml` の router ガードを Day テンプレートに揃えて `priority` / `max_gross_exposure_pct` / `max_correlation` / `correlation_tags` / `max_reject_rate` / `max_slippage_bps` をコメント付きで追加し、README へ利用ガイドを追記。`python3 -m pytest tests/test_strategy_manifest.py` を実行してテンプレート読み込み回帰を確認。
 - 2026-01-18: `core/runner.py` に `ev_bypass` デバッグレコードを追加してウォームアップ残量 (`warmup_left` / `warmup_total`) をログ化し、`tests/test_runner.py` と `docs/backtest_runner_logging.md` / `docs/task_backlog.md` を同期。`python3 -m pytest tests/test_runner.py` を実行して 23 件パスを確認。
