@@ -100,16 +100,85 @@ def test_gross_exposure_cap_blocks_candidate():
     assert any("gross exposure" in reason for reason in res[0].reasons)
 
 
-def test_correlation_guard():
+def test_correlation_guard_same_bucket_disqualifies():
     manifest = load_day_manifest()
+    peer_manifest = load_manifest("configs/strategies/mean_reversion.yaml")
     manifest.router.max_correlation = 0.6
+    manifest.router.priority = 0.0
+    correlation_value = 0.72
+    bucket_budget = 40.0
     portfolio = PortfolioState(
-        strategy_correlations={manifest.id: {"active_day": 0.85}}
+        category_budget_pct={manifest.category: bucket_budget},
+        strategy_correlations={
+            manifest.id: {peer_manifest.id: correlation_value},
+        },
+        correlation_meta={
+            manifest.id: {
+                peer_manifest.id: {
+                    "strategy_id": peer_manifest.id,
+                    "category": peer_manifest.category,
+                    "category_budget_pct": bucket_budget,
+                }
+            }
+        },
     )
+
     ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "mid"}
-    res = select_candidates(ctx, [manifest], portfolio=portfolio)
-    assert res[0].eligible is False
-    assert any("correlation" in reason for reason in res[0].reasons)
+    result = select_candidates(ctx, [manifest], portfolio=portfolio)[0]
+
+    assert result.eligible is False
+    correlation_reasons = [r for r in result.reasons if "correlation" in r]
+    assert len(correlation_reasons) == 1
+    assert "bucket day" in correlation_reasons[0]
+    assert f"{correlation_value:.2f}" in correlation_reasons[0]
+
+
+def test_correlation_guard_cross_bucket_penalises_once():
+    manifest = load_day_manifest()
+    peer_manifest = load_manifest("configs/strategies/tokyo_micro_mean_reversion.yaml")
+    manifest.router.max_correlation = 0.5
+    manifest.router.priority = 0.0
+    manifest.router.correlation_tags = ("momentum", "asia")
+    portfolio = PortfolioState(
+        strategy_correlations={
+            manifest.id: {peer_manifest.id: 0.8},
+            "momentum": {peer_manifest.id: 0.75},
+            "asia": {peer_manifest.id: 0.7},
+        },
+        correlation_meta={
+            manifest.id: {
+                peer_manifest.id: {
+                    "strategy_id": peer_manifest.id,
+                    "category": peer_manifest.category,
+                    "category_budget_pct": 20.0,
+                }
+            },
+            "momentum": {
+                peer_manifest.id: {
+                    "strategy_id": peer_manifest.id,
+                    "category": peer_manifest.category,
+                    "category_budget_pct": 20.0,
+                }
+            },
+            "asia": {
+                peer_manifest.id: {
+                    "strategy_id": peer_manifest.id,
+                    "category": peer_manifest.category,
+                    "category_budget_pct": 20.0,
+                }
+            },
+        },
+        category_budget_pct={manifest.category: 40.0, peer_manifest.category: 20.0},
+    )
+
+    ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "mid"}
+    result = select_candidates(ctx, [manifest], portfolio=portfolio)[0]
+
+    assert result.eligible is True
+    correlation_reasons = [r for r in result.reasons if "correlation" in r]
+    assert len(correlation_reasons) == 1
+    assert "score_delta=-0.30" in correlation_reasons[0]
+    assert result.score == approx(-0.30)
 
 
 def test_execution_health_guard():

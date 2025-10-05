@@ -74,6 +74,7 @@ def build_portfolio_state(
 
     snapshot = telemetry or PortfolioTelemetry()
     manifest_list = list(manifests)
+    manifest_index = {manifest.id: manifest for manifest in manifest_list}
 
     active_positions: Dict[str, int] = {
         str(key): int(value) for key, value in snapshot.active_positions.items()
@@ -112,15 +113,37 @@ def build_portfolio_state(
         category_budget_headroom[str(key)] = value_float
 
     correlations: Dict[str, Dict[str, float]] = {}
+    correlation_meta: Dict[str, Dict[str, Dict[str, Optional[float]]]] = {}
     for key, value in snapshot.strategy_correlations.items():
         inner: Dict[str, float] = {}
+        meta_inner: Dict[str, Dict[str, Optional[float]]] = {}
         for inner_k, inner_v in value.items():
             inner_float = _to_float(inner_v)
             if inner_float is None:
                 continue
-            inner[str(inner_k)] = inner_float
+            peer_key = str(inner_k)
+            inner[peer_key] = inner_float
+            peer_manifest = manifest_index.get(peer_key)
+            budget_value: Optional[float] = None
+            peer_category: Optional[str] = None
+            if peer_manifest is not None:
+                peer_category = peer_manifest.category
+                budget_value = category_budget.get(peer_category)
+                if budget_value is None:
+                    budget_value = manifest_category_budget(peer_manifest)
+                if budget_value is None:
+                    cap_value = peer_manifest.router.category_cap_pct
+                    if cap_value is not None:
+                        budget_value = float(cap_value)
+            meta_inner[peer_key] = {
+                "strategy_id": str(peer_manifest.id) if peer_manifest else peer_key,
+                "category": peer_category,
+                "category_budget_pct": float(budget_value) if budget_value is not None else None,
+            }
         if inner:
             correlations[str(key)] = inner
+            if meta_inner:
+                correlation_meta[str(key)] = meta_inner
 
     execution_health: Dict[str, Dict[str, float]] = {}
     for key, value in snapshot.execution_health.items():
@@ -234,6 +257,7 @@ def build_portfolio_state(
         gross_exposure_cap_pct=gross_cap_pct,
         gross_exposure_headroom_pct=gross_headroom_pct,
         strategy_correlations=correlations,
+        correlation_meta=correlation_meta,
         execution_health=execution_health,
         correlation_window_minutes=correlation_window_minutes,
     )

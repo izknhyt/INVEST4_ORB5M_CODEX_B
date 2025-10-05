@@ -93,6 +93,34 @@ def test_router_pipeline_preserves_correlation_window_metadata():
     assert portfolio.correlation_window_minutes == approx(180.0)
 
 
+def test_router_pipeline_populates_correlation_metadata():
+    day_manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
+    mean_manifest = load_manifest("configs/strategies/mean_reversion.yaml")
+    day_manifest.router.category_budget_pct = 35.0
+    mean_manifest.router.category_budget_pct = 35.0
+
+    telemetry = PortfolioTelemetry(
+        strategy_correlations={
+            day_manifest.id: {mean_manifest.id: 0.55},
+            "momentum": {mean_manifest.id: 0.6},
+        }
+    )
+
+    portfolio = build_portfolio_state([day_manifest, mean_manifest], telemetry=telemetry)
+
+    meta = portfolio.correlation_meta
+    assert day_manifest.id in meta
+    assert "momentum" in meta
+    direct_meta = meta[day_manifest.id][mean_manifest.id]
+    assert direct_meta["strategy_id"] == mean_manifest.id
+    assert direct_meta["category"] == mean_manifest.category
+    assert direct_meta["category_budget_pct"] == approx(35.0)
+    tag_meta = meta["momentum"][mean_manifest.id]
+    assert tag_meta["strategy_id"] == mean_manifest.id
+    assert tag_meta["category"] == mean_manifest.category
+    assert tag_meta["category_budget_pct"] == approx(35.0)
+
+
 def test_router_pipeline_skips_invalid_telemetry_values():
     day_manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
     day_manifest.router.category_cap_pct = 50.0
