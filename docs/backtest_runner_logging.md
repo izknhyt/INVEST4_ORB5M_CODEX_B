@@ -53,7 +53,7 @@ Example: `runs/USDJPY_conservative_20250922_175708/records.csv` contains the app
 
 ## Equity curve baseline
 
-`Metrics` now seeds `equity_curve` with the runner's starting equity whenever `_reset_runtime_state` is invoked. The first element therefore reflects the CLI/runner `--equity` value (or constructor argument), and each subsequent trade appends the cumulative PnL delta. Clearing or reinitializing runtime state always restores the baseline before new trades are recorded so drawdown and Sharpe calculations reference the same starting point.
+`Metrics` now seeds `equity_curve` with the runner's starting equity (paired with the first trade's timestamp) whenever `_reset_runtime_state` is invoked. The structure is a list of `[timestamp, equity]` pairs so downstream tools can align fills with the bar chronology. Each subsequent trade appends the updated account equity using the bar timestamp supplied to `record_trade`, ensuring drawdown and Sharpe calculations reference the same baseline even after state resets.
 
 ## Investigation workflow example (EV rejection)
 
