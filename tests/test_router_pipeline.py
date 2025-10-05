@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 from pytest import approx
 
 from core.router_pipeline import PortfolioTelemetry, build_portfolio_state
@@ -171,3 +174,21 @@ def test_router_pipeline_merges_short_usage_with_existing_category_allocation():
     assert result.eligible is False
     assert any("category utilisation" in reason for reason in result.reasons)
     assert any("active positions" in reason for reason in result.reasons)
+
+
+def test_router_sample_metrics_equity_curve_is_ordered() -> None:
+    metrics_dir = Path("reports/portfolio_samples/router_demo/metrics")
+    assert metrics_dir.exists()
+    for metrics_path in sorted(metrics_dir.glob("*.json")):
+        payload = json.loads(metrics_path.read_text(encoding="utf-8"))
+        curve = payload.get("equity_curve")
+        assert isinstance(curve, list) and curve
+        timestamps = []
+        equities = []
+        for entry in curve:
+            assert isinstance(entry, list) and len(entry) >= 2
+            ts, equity = entry[0], entry[1]
+            assert isinstance(ts, str)
+            timestamps.append(ts)
+            equities.append(float(equity))
+        assert timestamps == sorted(timestamps)
