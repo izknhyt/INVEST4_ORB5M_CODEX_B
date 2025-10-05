@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-01-18: `configs/strategies/templates/base_strategy.yaml` の router ガードを Day テンプレートに揃えて `priority` / `max_gross_exposure_pct` / `max_correlation` / `correlation_tags` / `max_reject_rate` / `max_slippage_bps` をコメント付きで追加し、README へ利用ガイドを追記。`python3 -m pytest tests/test_strategy_manifest.py` を実行してテンプレート読み込み回帰を確認。
 - 2026-01-16: ルーター向けポートフォリオ監視を `analysis/portfolio_monitor.py` と `scripts/report_portfolio_summary.py` で整備し、`reports/portfolio_samples/router_demo/` のテレメトリ/メトリクスを用いたフィクスチャを追加。`python3 -m pytest` と `python3 scripts/report_portfolio_summary.py --input reports/portfolio_samples/router_demo --output reports/portfolio_summary.json --indent 2` を実行し、カテゴリ利用率・相関ヒートマップ・合成ドローダウンの算出と JSON 出力を確認。
 - 2026-01-17: `configs/strategies/loader.py` の `StrategyManifest.to_dict` へルーター優先度/エクスポージャ/相関/拒否率/スリッページ上限を含めるよう拡張し、`tests/test_strategy_manifest.py` にテンプレート manifest の round-trip テストを追加。`python3 -m pytest tests/test_strategy_manifest.py` を実行して 3 件パスを確認。
 - 2026-01-14: `core/router_pipeline.py` を新設して manifest リスク/ランナー指標から `PortfolioState` を構築し、`scripts/run_sim.py` が manifest 経由起動時に `router_v1.select_candidates` を呼び出すよう更新。`core/runner.Metrics` に runtime 集計（reject_rate / slippage）を追加し、`tests/test_router_pipeline.py` を新設。`python3 -m pytest tests/test_router_v1.py tests/test_router_pipeline.py` を実行して 9 件パスを確認。

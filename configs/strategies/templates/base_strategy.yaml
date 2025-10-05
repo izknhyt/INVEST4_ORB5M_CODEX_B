@@ -33,6 +33,12 @@ router:
   max_latency_ms: 80  # Execution latency cap for routing decisions.
   category_cap_pct: 40  # Portfolio budget cap for this category.
   tags: [breakout, usd, jpy]  # Router hints for orchestration.
+  priority: 0.0  # Relative scheduling weight (lower ranks first) used when multiple manifests compete for slots.
+  max_gross_exposure_pct: 40.0  # Aggregate gross exposure guard; omit to inherit the portfolio-level default.
+  max_correlation: 0.7  # Pairwise correlation ceiling enforced against manifests sharing correlation_tags.
+  correlation_tags: [day]  # Buckets correlation checks so unrelated strategies do not block each other.
+  max_reject_rate: 0.05  # Maximum acceptable order rejection ratio (e.g. 0.05 == 5%) before pausing routing.
+  max_slippage_bps: 12.0  # Execution quality guard in basis points for fills routed under this manifest.
 
 risk:
   risk_per_trade_pct: 0.25  # Fractional Kelly / sizing budget per position.
