@@ -144,31 +144,71 @@ def _max_drawdown(points: Sequence[Tuple[datetime, str, float]]) -> Dict[str, An
 
 
 def _serialise_category_summary(portfolio: PortfolioState) -> List[Dict[str, Any]]:
+    def _optional_float(value: Any) -> Optional[float]:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
     categories = sorted(
         set(portfolio.category_utilisation_pct)
         | set(portfolio.category_caps_pct)
         | set(portfolio.category_headroom_pct)
+        | set(portfolio.category_budget_pct)
+        | set(portfolio.category_budget_headroom_pct)
     )
+
     summary: List[Dict[str, Any]] = []
     for category in categories:
-        usage = float(portfolio.category_utilisation_pct.get(category, 0.0))
-        cap = portfolio.category_caps_pct.get(category)
-        headroom = portfolio.category_headroom_pct.get(category)
+        raw_usage = portfolio.category_utilisation_pct.get(category, 0.0)
+        usage = _optional_float(raw_usage)
+        if usage is None:
+            usage = 0.0
+
+        cap = _optional_float(portfolio.category_caps_pct.get(category))
+        headroom = _optional_float(portfolio.category_headroom_pct.get(category))
+        if cap is not None and headroom is None:
+            headroom = cap - usage
         utilisation_ratio = None
-        if cap is not None:
-            if headroom is None:
-                headroom = cap - usage
-            if cap > 0:
-                utilisation_ratio = usage / cap
-        summary.append(
-            {
-                "category": category,
-                "utilisation_pct": usage,
-                "cap_pct": cap,
-                "headroom_pct": headroom,
-                "utilisation_ratio": utilisation_ratio,
-            }
+        if cap is not None and cap != 0:
+            utilisation_ratio = usage / cap
+
+        budget = _optional_float(portfolio.category_budget_pct.get(category))
+        budget_headroom = _optional_float(
+            portfolio.category_budget_headroom_pct.get(category)
         )
+        if budget is not None and budget_headroom is None:
+            budget_headroom = budget - usage
+        budget_ratio = None
+        if budget is not None and budget != 0:
+            budget_ratio = usage / budget
+
+        budget_status: Optional[str] = None
+        budget_over: Optional[float] = None
+        if budget_headroom is not None:
+            if budget_headroom < 0:
+                budget_status = "breach"
+                budget_over = abs(budget_headroom)
+            elif budget_headroom <= 5.0:
+                budget_status = "warning"
+            else:
+                budget_status = "ok"
+
+        entry: Dict[str, Any] = {
+            "category": category,
+            "utilisation_pct": usage,
+            "cap_pct": cap,
+            "headroom_pct": headroom,
+            "utilisation_ratio": utilisation_ratio,
+            "budget_pct": budget,
+            "budget_headroom_pct": budget_headroom,
+            "budget_utilisation_ratio": budget_ratio,
+            "budget_status": budget_status,
+        }
+        if budget_over is not None:
+            entry["budget_over_pct"] = budget_over
+        summary.append(entry)
+
     return summary
 
 
