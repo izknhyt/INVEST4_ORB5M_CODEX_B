@@ -260,6 +260,7 @@ def build_portfolio_summary(
             "headroom_pct": gross_headroom,
         },
         "correlation_heatmap": _serialise_correlation(portfolio),
+        "correlation_window_minutes": portfolio.correlation_window_minutes,
         "execution_health": portfolio.execution_health,
         "drawdowns": {
             "aggregate": aggregate_drawdown,

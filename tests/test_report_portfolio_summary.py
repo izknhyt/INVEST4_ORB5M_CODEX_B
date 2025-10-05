@@ -76,6 +76,8 @@ def test_build_router_snapshot_cli_generates_portfolio_summary(tmp_path: Path) -
         "day_orb_5m_v1=1",
         "--positions",
         "tokyo_micro_mean_reversion_v0=2",
+        "--correlation-window-minutes",
+        "240",
         "--indent",
         "2",
     ]
@@ -89,6 +91,7 @@ def test_build_router_snapshot_cli_generates_portfolio_summary(tmp_path: Path) -
     assert telemetry["execution_health"]["day_orb_5m_v1"]["reject_rate"] == pytest.approx(0.01)
     assert telemetry["execution_health"]["tokyo_micro_mean_reversion_v0"]["slippage_bps"] == pytest.approx(6.0)
     assert telemetry["gross_exposure_pct"] == pytest.approx(0.33, rel=1e-6)
+    assert telemetry["correlation_window_minutes"] == pytest.approx(240.0)
 
     corr_value = telemetry["strategy_correlations"]["day_orb_5m_v1"]["tokyo_micro_mean_reversion_v0"]
     expected_corr = _compute_expected_correlation(
@@ -137,3 +140,14 @@ def test_build_router_snapshot_cli_generates_portfolio_summary(tmp_path: Path) -
         for row in summary["correlation_heatmap"]
     }
     assert heatmap[("day_orb_5m_v1", "tokyo_micro_mean_reversion_v0")] == pytest.approx(expected_corr, rel=1e-6)
+    assert summary["correlation_window_minutes"] == pytest.approx(240.0)
+
+
+def test_build_router_snapshot_help_lists_correlation_window_flag() -> None:
+    result = subprocess.run(
+        [sys.executable, "scripts/build_router_snapshot.py", "--help"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "--correlation-window-minutes" in result.stdout

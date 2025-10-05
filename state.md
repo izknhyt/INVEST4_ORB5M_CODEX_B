@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-02-05: `scripts/build_router_snapshot.py` に `--correlation-window-minutes` を追加して相関行列と窓幅メタデータをテレメトリへ保存し、`PortfolioTelemetry` / `PortfolioState` / ポートフォリオサマリー / ルーター文書を同期。`tests/test_report_portfolio_summary.py` に CLI 回帰（ヘルプ出力含む）を追加し、`python3 -m pytest` を実行して 191 件パスを確認。
 - 2026-02-04: Refined `router_v1._check_execution_health` to emit per-metric penalty maps and structured messages, updated `select_candidates` to deduplicate logs while applying the aggregated penalty, refreshed router docs/checklists with the new telemetry contract, extended `tests/test_router_v1.py` for bonus/penalty/disqualification assertions, and executed `python3 -m pytest tests/test_router_v1.py`.
 - 2026-02-03: Introduced tiered execution-health scoring in `router_v1._check_execution_health`, plumbed the structured status into `select_candidates`, refreshed router docs/checklist guidance, expanded `tests/test_router_v1.py` with bonus/penalty/disqualification coverage, and ran `python3 -m pytest tests/test_router_v1.py`.
 - 2026-02-02: Preserved telemetry-supplied `category_budget_headroom_pct` values when building `PortfolioState`, added regression coverage to `tests/test_router_pipeline.py`, refreshed router docs/checklist guidance, and executed `python3 -m pytest tests/test_router_pipeline.py tests/test_router_v1.py`.

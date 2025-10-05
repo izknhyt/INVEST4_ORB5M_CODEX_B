@@ -22,6 +22,7 @@ class PortfolioTelemetry:
     gross_exposure_cap_pct: Optional[float] = None
     strategy_correlations: Dict[str, Dict[str, float]] = field(default_factory=dict)
     execution_health: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    correlation_window_minutes: Optional[float] = None
 
 
 def _to_float(value: Any) -> Optional[float]:
@@ -191,6 +192,8 @@ def build_portfolio_state(
             if target:
                 execution_health[manifest.id] = target
 
+    correlation_window_minutes = _to_float(snapshot.correlation_window_minutes)
+
     return PortfolioState(
         category_utilisation_pct=category_usage,
         active_positions=active_positions,
@@ -203,6 +206,7 @@ def build_portfolio_state(
         gross_exposure_headroom_pct=gross_headroom_pct,
         strategy_correlations=correlations,
         execution_health=execution_health,
+        correlation_window_minutes=correlation_window_minutes,
     )
 
 

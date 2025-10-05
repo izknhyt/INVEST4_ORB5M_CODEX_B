@@ -21,6 +21,7 @@ This note captures how the portfolio router evolves from the legacy v0 gate to t
    - `category_budget_pct[category]` / `category_budget_headroom_pct[category]` → governance budgets and optional pre-computed headroom. When budgets are missing from telemetry the pipeline falls back to manifest defaults (budget → `router.category_budget_pct` or the cap when unset).
    - `gross_exposure_pct` / `gross_exposure_cap_pct` → overall gross usage and cap.
    - `strategy_correlations[key][peer]` → pairwise correlations keyed by strategy ID or correlation tag.
+   - `correlation_window_minutes` → rolling window (in minutes) used when building `strategy_correlations`.
    - `execution_health[strategy_id]` → runtime health aggregates (see below for field names).
 3. **Runtime metrics**: optional runner exports keyed by manifest ID. When present, the function pulls `execution_health.reject_rate` and `execution_health.slippage_bps` into the aggregated telemetry so the router can gate/score on current execution quality.【F:core/router_pipeline.py†L99-L126】
 
@@ -76,8 +77,7 @@ To extend v1 without breaking callers, v2 will reuse the `PortfolioState`/`selec
 
 - **Goal**: treat correlation data as a first-class guard by combining manifest-level correlation tags, observed pairwise correlations, and category awareness.
 - **Data requirements**:
-  - Continue reading `strategy_correlations[strategy_id or tag][peer]` from telemetry, but require that upstream metrics calculate rolling correlations in a consistent window (document via `scripts/build_router_snapshot.py`).
-  - Consider emitting a `correlation_window_minutes` field so operators know the lookback horizon attached to each matrix.
+  - Continue reading `strategy_correlations[strategy_id or tag][peer]` from telemetry, but require that upstream metrics calculate rolling correlations in a consistent window (now tracked by `correlation_window_minutes` from `scripts/build_router_snapshot.py`).
 - **Router behaviour**:
   - Promote severe correlation breaches to hard failures when both participants are in the same budget bucket.
   - Track cumulative correlation penalties to avoid double-counting when multiple tags reference the same peer set.
