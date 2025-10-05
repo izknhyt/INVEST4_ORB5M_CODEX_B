@@ -12,6 +12,17 @@ from configs.strategies.loader import StrategyManifest
 logger = logging.getLogger(__name__)
 
 
+_EXECUTION_METRIC_ORDER: Tuple[str, ...] = (
+    "reject_rate",
+    "slippage_bps",
+    "fill_latency_ms",
+)
+_EXECUTION_GUARD_ALIASES: Dict[str, Tuple[str, ...]] = {
+    "fill_latency_ms": ("max_latency_ms",),
+    "latency_ms": ("max_latency_ms",),
+}
+
+
 @dataclass
 class PortfolioState:
     category_utilisation_pct: Dict[str, float] = field(default_factory=dict)
@@ -58,6 +69,7 @@ class ExecutionMetricResult:
     score_delta: float
     disqualified: bool
     message: str
+    margin: Optional[float]
 
 
 @dataclass
@@ -286,10 +298,33 @@ def _execution_health_score_adjustment(ratio: float) -> float:
     return -0.15
 
 
-def _format_metric_value(metric: str, value: float) -> str:
-    fmt = "{:.3f}" if metric == "reject_rate" else "{:.1f}"
-    unit = "" if metric == "reject_rate" else "bps"
-    return f"{fmt.format(value)}{unit}"
+def _format_metric_value(metric: str, value: float, *, signed: bool = False) -> str:
+    """Format execution metrics with context-specific precision and units."""
+
+    suffix = ""
+    precision: int
+    if metric.endswith("_bps"):
+        precision = 1
+        suffix = "bps"
+    elif metric.endswith("_ms") or metric == "latency_ms":
+        precision = 1
+        suffix = "ms"
+    elif metric.endswith("_rate") or metric == "reject_rate":
+        precision = 3
+        suffix = ""
+    else:
+        precision = 2
+        suffix = ""
+
+    fmt = f"{{:.{precision}f}}"
+    magnitude = abs(value) if signed else value
+    formatted = fmt.format(magnitude)
+    if suffix:
+        formatted = f"{formatted}{suffix}"
+    if signed:
+        sign = "+" if value >= 0 else "-"
+        return f"{sign}{formatted}"
+    return formatted
 
 
 def _format_execution_reason(
@@ -298,11 +333,14 @@ def _format_execution_reason(
     guard: float,
     ratio: Optional[float],
     delta: float,
+    margin: Optional[float],
 ) -> str:
     parts = [
         f"value={_format_metric_value(metric, value)}",
         f"guard={_format_metric_value(metric, guard)}",
     ]
+    if margin is not None:
+        parts.append(f"margin={_format_metric_value(metric, margin, signed=True)}")
     if ratio is not None:
         parts.append(f"ratio={ratio:.2f}")
     parts.append(f"score_delta={delta:+.2f}")
@@ -315,8 +353,9 @@ def _evaluate_execution_metric(
 ) -> ExecutionMetricResult:
     """Evaluate a single execution metric against its guard threshold."""
 
+    margin = guard - value
     if guard <= 0:
-        message = _format_execution_reason(metric, value, guard, None, 0.0)
+        message = _format_execution_reason(metric, value, guard, None, 0.0, margin)
         disqualified = value > guard
         return ExecutionMetricResult(
             metric=metric,
@@ -326,11 +365,12 @@ def _evaluate_execution_metric(
             score_delta=0.0,
             disqualified=disqualified,
             message=message,
+            margin=margin,
         )
 
     ratio = value / guard
     if ratio > 1.0:
-        message = _format_execution_reason(metric, value, guard, ratio, 0.0)
+        message = _format_execution_reason(metric, value, guard, ratio, 0.0, margin)
         return ExecutionMetricResult(
             metric=metric,
             value=value,
@@ -339,10 +379,11 @@ def _evaluate_execution_metric(
             score_delta=0.0,
             disqualified=True,
             message=message,
+            margin=margin,
         )
 
     delta = _execution_health_score_adjustment(ratio)
-    message = _format_execution_reason(metric, value, guard, ratio, delta)
+    message = _format_execution_reason(metric, value, guard, ratio, delta, margin)
     return ExecutionMetricResult(
         metric=metric,
         value=value,
@@ -351,7 +392,33 @@ def _evaluate_execution_metric(
         score_delta=delta,
         disqualified=False,
         message=message,
+        margin=margin,
     )
+
+
+def _sanitise_metric_key(metric: str) -> str:
+    return "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in metric)
+
+
+def _guard_attr_candidates(metric: str) -> Tuple[str, ...]:
+    base_attr = f"max_{_sanitise_metric_key(metric)}"
+    aliases = _EXECUTION_GUARD_ALIASES.get(metric, ())
+    ordered: List[str] = []
+    for attr in (base_attr, *aliases):
+        if attr not in ordered:
+            ordered.append(attr)
+    return tuple(ordered)
+
+
+def _resolve_execution_guard(
+    manifest: StrategyManifest, metric: str
+) -> Optional[float]:
+    for attr in _guard_attr_candidates(metric):
+        guard = getattr(manifest.router, attr, None)
+        guard_value = _to_optional_float(guard)
+        if guard_value is not None:
+            return guard_value
+    return None
 
 
 def _check_execution_health(
@@ -362,31 +429,42 @@ def _check_execution_health(
     if not health:
         return status
 
-    metrics: Tuple[Tuple[str, Optional[float], Optional[float]], ...] = (
-        (
-            "reject_rate",
-            _to_optional_float(health.get("reject_rate")),
-            _to_optional_float(manifest.router.max_reject_rate),
-        ),
-        (
-            "slippage_bps",
-            _to_optional_float(health.get("slippage_bps")),
-            _to_optional_float(manifest.router.max_slippage_bps),
-        ),
-    )
-
-    for metric, value, guard in metrics:
-        if value is None or guard is None:
-            continue
-        result = _evaluate_execution_metric(metric, value, guard)
+    def _record(metric_name: str, metric_value: float, guard_value: float) -> None:
+        result = _evaluate_execution_metric(metric_name, metric_value, guard_value)
         status.metric_results.append(result)
         status.log_messages.append(result.message)
         if result.disqualified:
             status.disqualifying_reasons.append(result.message)
-            status.penalties[metric] = 0.0
+            status.penalties[metric_name] = 0.0
+        else:
+            status.penalties[metric_name] = result.score_delta
+            status.score_delta += result.score_delta
+
+    seen: set[str] = set()
+
+    for metric in _EXECUTION_METRIC_ORDER:
+        metric_name = str(metric)
+        guard = _resolve_execution_guard(manifest, metric_name)
+        if guard is None:
             continue
-        status.penalties[metric] = result.score_delta
-        status.score_delta += result.score_delta
+        value = _to_optional_float(health.get(metric_name))
+        if value is None:
+            continue
+        seen.add(metric_name)
+        _record(metric_name, value, guard)
+
+    for raw_metric, raw_value in sorted(health.items()):
+        metric_name = str(raw_metric)
+        if metric_name in seen:
+            continue
+        guard = _resolve_execution_guard(manifest, metric_name)
+        if guard is None:
+            continue
+        value = _to_optional_float(raw_value)
+        if value is None:
+            continue
+        seen.add(metric_name)
+        _record(metric_name, value, guard)
 
     return status
 

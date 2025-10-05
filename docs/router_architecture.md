@@ -23,7 +23,7 @@ This note captures how the portfolio router evolves from the legacy v0 gate to t
    - `strategy_correlations[key][peer]` → pairwise correlations keyed by strategy ID or correlation tag.
    - `correlation_window_minutes` → rolling window (in minutes) used when building `strategy_correlations`; set via `scripts/build_router_snapshot.py --correlation-window-minutes` so reviewers know which lookback produced the heatmap.
    - `execution_health[strategy_id]` → runtime health aggregates (see below for field names).
-3. **Runtime metrics**: optional runner exports keyed by manifest ID. When present, the function pulls `execution_health.reject_rate` and `execution_health.slippage_bps` into the aggregated telemetry so the router can gate/score on current execution quality.【F:core/router_pipeline.py†L99-L126】
+3. **Runtime metrics**: optional runner exports keyed by manifest ID. When present, the function pulls every numeric entry under `execution_health` (e.g. `reject_rate`, `slippage_bps`, `fill_latency_ms`) into the aggregated telemetry so the router can gate/score on current execution quality and emerging latency issues.【F:core/router_pipeline.py†L99-L211】
 
 The function normalises floats via `_to_float`, backfills utilisation from active position exposure (count × `risk_per_trade_pct`), and calculates headroom values:
 
@@ -43,7 +43,7 @@ These derived numbers are critical for v1 scoring bonuses and will become the in
    - Per-strategy concurrency (`active_positions` and `risk.max_concurrent_positions`).【F:router/router_v1.py†L71-L88】
    - Gross exposure vs. cap (`gross_exposure_pct`, `gross_exposure_cap_pct`).【F:router/router_v1.py†L90-L107】
    - Correlation cap breaches using the highest absolute correlation across strategy IDs and correlation tags.【F:router/router_v1.py†L109-L140】
-   - Execution health guardrails comparing `reject_rate` and `slippage_bps` to manifest thresholds, returning an `ExecutionHealthStatus` payload with disqualification reasons, per-metric penalty entries, and cumulative score deltas.【F:router/router_v1.py†L142-L233】
+   - Execution health guardrails comparing each metric present in the portfolio snapshot (reject rate, slippage, fill latency, etc.) against the manifest's guard (`max_reject_rate`, `max_slippage_bps`, `max_fill_latency_ms`/`max_latency_ms`). The helper now returns an `ExecutionHealthStatus` payload with disqualification reasons, per-metric penalty entries, and cumulative score deltas while recording the remaining `margin` (distance to the guard) in every log entry.【F:router/router_v1.py†L256-L381】
 3. **Signal scoring**:
    - Start from the strategy `score` (or fall back to `ev_lcb`) and add manifest `priority` to bias tiering.【F:router/router_v1.py†L169-L196】
    - Apply soft correlation penalties: subtract the amount by which the max correlation exceeds the configured limit (if any).【F:router/router_v1.py†L198-L203】
@@ -88,11 +88,11 @@ To extend v1 without breaking callers, v2 will reuse the `PortfolioState`/`selec
 
 - **Goal**: unify runtime metrics from `core.runner.BacktestRunner` with live router decisions, ensuring unhealthy execution automatically suppresses allocations.
 - **Data requirements**:
-  - Keep ingesting `reject_rate` and `slippage_bps` from `runtime_metrics` (as implemented today), and expand the schema to include `fill_latency_ms` or `avg_price_deviation_bps` when they become available.
+  - Keep ingesting `reject_rate` and `slippage_bps` from `runtime_metrics`, and automatically merge any additional numeric fields such as `fill_latency_ms` or `avg_price_deviation_bps` when they become available so downstream consumers retain a single contract.【F:core/router_pipeline.py†L99-L211】
   - Ensure `scripts/build_router_snapshot.py` persists these metrics under `execution_health[strategy_id]` so the router and downstream monitoring dashboards observe the same numbers.
 - **Router behaviour**:
-  - `_check_execution_health` now provides a tiered response: metrics below 50% of the guard earn bonuses, values drifting into the 90–97% band incur soft penalties, and breaches still mark the candidate ineligible while logging the offending ratio.【F:router/router_v1.py†L142-L257】
-  - The helper returns a structured payload that records per-metric penalties in `ExecutionHealthStatus.penalties`, attaches readable messages (value, guard, ratio, `score_delta`), and accumulates the net score delta consumed by `select_candidates` when adjusting candidate scores.【F:router/router_v1.py†L142-L257】
+  - `_check_execution_health` now provides a tiered response: metrics below 50% of the guard earn bonuses, values drifting into the 90–97% band incur soft penalties, and breaches still mark the candidate ineligible while logging the offending ratio and remaining `margin` to the guard.【F:router/router_v1.py†L275-L381】
+  - The helper returns a structured payload that records per-metric penalties in `ExecutionHealthStatus.penalties`, attaches readable messages (value, guard, margin, ratio, `score_delta`), and accumulates the net score delta consumed by `select_candidates` when adjusting candidate scores.【F:router/router_v1.py†L256-L381】
 
 ## Integration checklist
 

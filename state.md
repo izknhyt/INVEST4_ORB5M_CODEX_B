@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-02-08: `core/router_pipeline.build_portfolio_state` が `execution_health` の数値メトリクス（`reject_rate` / `slippage_bps` / `fill_latency_ms` など）を包括的に取り込み、`router_v1.select_candidates` で各ガード (`max_reject_rate` / `max_slippage_bps` / `max_fill_latency_ms` or `max_latency_ms`) までのマージンを算出・理由ログへ記録。閾値接近時の減点と逸脱時の詳細失格理由をテスト（`python3 -m pytest tests/test_router_v1.py tests/test_router_pipeline.py tests/test_strategy_manifest.py`）で確認し、manifest ローダー・テンプレート・ドキュメント（`docs/router_architecture.md`, `docs/checklists/p2_router.md`, `docs/task_backlog.md`）を同期。
 - 2026-02-07: manifest `governance.category_budget_pct` を `core/router_pipeline.manifest_category_budget` で吸い上げ、`scripts/build_router_snapshot.py` が `--category-budget-csv` で外部 CSV を統合できるようにした。`router_v1.select_candidates` はカテゴリ予算ヘッドルームに応じて `status=ok|warning|breach` を理由ログへ付与し、超過率に比例したソフトペナルティを適用。`tests/test_router_pipeline.py` / `tests/test_router_v1.py` を実行し、新しいカテゴリ予算ロジックの回帰を確認。
 - 2026-02-06: `scripts/build_router_snapshot.py` のドキュメントとヘルプ文に窓幅フラグの利用手順を追記し、`tests/test_router_pipeline.py` へ `correlation_window_minutes` 伝播の回帰テストを追加。
   `docs/router_architecture.md` で CLI 引数の指定箇所を明記し、`python3 -m pytest`（192 件）を完走してスイートの健全性を再確認。

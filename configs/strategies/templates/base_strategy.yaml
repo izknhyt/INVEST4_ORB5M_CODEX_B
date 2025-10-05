@@ -31,6 +31,7 @@ router:
   allow_spread_bands: [narrow, normal]  # Permitted spread regimes.
   allow_rv_bands: [mid, high]  # Permitted realised-volatility bands.
   max_latency_ms: 80  # Execution latency cap for routing decisions.
+  max_fill_latency_ms: 120  # Average fill latency guard; router penalises as values near this threshold.
   category_cap_pct: 40  # Portfolio budget cap for this category.
   tags: [breakout, usd, jpy]  # Router hints for orchestration.
   priority: 0.0  # Relative scheduling weight (lower ranks first) used when multiple manifests compete for slots.

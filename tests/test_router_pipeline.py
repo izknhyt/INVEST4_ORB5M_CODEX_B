@@ -15,6 +15,8 @@ def test_router_pipeline_merges_limits_and_execution_health():
     # Ensure router guards are active for the test scenario.
     day_manifest.router.category_cap_pct = 40.0
     day_manifest.router.category_budget_pct = 35.0
+    day_manifest.router.max_fill_latency_ms = 200.0
+    day_manifest.router.max_latency_ms = 200.0
     mean_manifest.router.category_cap_pct = 40.0
     mean_manifest.router.max_reject_rate = 0.05
     mean_manifest.router.max_correlation = 0.6
@@ -32,7 +34,13 @@ def test_router_pipeline_merges_limits_and_execution_health():
         },
     )
     runtime_metrics = {
-        day_manifest.id: {"execution_health": {"reject_rate": 0.01, "slippage_bps": 3.0}},
+        day_manifest.id: {
+            "execution_health": {
+                "reject_rate": 0.01,
+                "slippage_bps": 3.0,
+                "fill_latency_ms": 95.0,
+            }
+        },
         mean_manifest.id: {"execution_health": {"reject_rate": 0.09, "slippage_bps": 6.0}},
     }
 
@@ -62,6 +70,7 @@ def test_router_pipeline_merges_limits_and_execution_health():
     # Execution health is merged from BacktestRunner runtime metrics.
     assert portfolio.execution_health[day_manifest.id]["reject_rate"] == 0.01
     assert portfolio.execution_health[mean_manifest.id]["reject_rate"] == 0.09
+    assert portfolio.execution_health[day_manifest.id]["fill_latency_ms"] == 95.0
 
     market_ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "mid"}
     results = select_candidates(market_ctx, [day_manifest, mean_manifest], portfolio=portfolio)
@@ -97,7 +106,11 @@ def test_router_pipeline_skips_invalid_telemetry_values():
     )
     runtime_metrics = {
         day_manifest.id: {
-            "execution_health": {"reject_rate": None, "slippage_bps": "5.5"}
+            "execution_health": {
+                "reject_rate": None,
+                "slippage_bps": "5.5",
+                "fill_latency_ms": "not-a-number",
+            }
         }
     }
 
@@ -119,6 +132,7 @@ def test_router_pipeline_skips_invalid_telemetry_values():
     )
     assert portfolio.execution_health[day_manifest.id]["slippage_bps"] == 5.5
     assert "reject_rate" not in portfolio.execution_health[day_manifest.id]
+    assert "fill_latency_ms" not in portfolio.execution_health[day_manifest.id]
 
 
 def test_router_pipeline_respects_budget_headroom_from_telemetry():

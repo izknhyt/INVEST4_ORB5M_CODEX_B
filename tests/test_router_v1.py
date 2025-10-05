@@ -126,6 +126,7 @@ def test_execution_health_guard():
     assert "reject_rate" in joined
     assert "slippage" in joined
     assert "ratio=" in joined
+    assert "margin=-" in joined
     assert any("execution reject_rate" in reason for reason in res[0].reasons)
     assert any("execution slippage_bps" in reason for reason in res[0].reasons)
 
@@ -159,24 +160,33 @@ def test_execution_health_bonus_and_penalty_tiers():
     assert "execution reject_rate" in bonus_joined
     assert "score_delta=+0.05" in bonus_joined
     assert "execution slippage_bps" in bonus_joined
+    assert "margin=+" in bonus_joined
 
     assert penalty_result.eligible is True
     assert penalty_result.score == approx(0.80)
     penalty_joined = " ".join(penalty_result.reasons)
     assert "score_delta=-0.05" in penalty_joined
     assert "score_delta=-0.15" in penalty_joined
+    assert "margin=+" in penalty_joined
 
     bonus_status = _check_execution_health(manifest, bonus_state)
     assert bonus_status.penalties["reject_rate"] == approx(0.05)
     assert bonus_status.penalties["slippage_bps"] == approx(0.05)
     assert bonus_status.score_delta == approx(0.10)
     assert bonus_status.disqualifying_reasons == []
+    assert bonus_status.metric_results[0].margin == approx(
+        manifest.router.max_reject_rate - bonus_state.execution_health[manifest.id]["reject_rate"]
+    )
 
     penalty_status = _check_execution_health(manifest, penalty_state)
     assert penalty_status.penalties["reject_rate"] == approx(-0.05)
     assert penalty_status.penalties["slippage_bps"] == approx(-0.15)
     assert penalty_status.score_delta == approx(-0.20)
     assert penalty_status.disqualifying_reasons == []
+    assert penalty_status.metric_results[0].margin == approx(
+        manifest.router.max_reject_rate
+        - penalty_state.execution_health[manifest.id]["reject_rate"]
+    )
 
 
 def test_execution_health_disqualification_penalty_payload():
@@ -196,6 +206,53 @@ def test_execution_health_disqualification_penalty_payload():
     fail_joined = " ".join(status.log_messages)
     assert "guard=" in fail_joined
     assert "ratio=" in fail_joined
+    assert "margin=-" in fail_joined
+
+
+def test_execution_health_fill_latency_penalties_and_alias():
+    manifest = load_day_manifest()
+    manifest.router.priority = 0.0
+    manifest.router.max_reject_rate = None
+    manifest.router.max_slippage_bps = None
+    manifest.router.max_fill_latency_ms = 120.0
+    manifest.router.max_latency_ms = 150.0
+
+    ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "mid"}
+    signals = {manifest.id: {"score": 1.0}}
+
+    warning_state = PortfolioState(
+        execution_health={manifest.id: {"fill_latency_ms": 118.0}}
+    )
+    fail_state = PortfolioState(
+        execution_health={manifest.id: {"fill_latency_ms": 132.5}}
+    )
+
+    warning_result = select_candidates(
+        ctx, [manifest], portfolio=warning_state, strategy_signals=signals
+    )[0]
+    assert warning_result.eligible is True
+    assert warning_result.score == approx(0.85)
+    warning_joined = " ".join(warning_result.reasons)
+    assert "fill_latency_ms" in warning_joined
+    assert "margin=+" in warning_joined
+    assert "score_delta=-0.15" in warning_joined
+
+    fail_result = select_candidates(ctx, [manifest], portfolio=fail_state)[0]
+    assert fail_result.eligible is False
+    fail_joined = " ".join(fail_result.reasons)
+    assert "fill_latency_ms" in fail_joined
+    assert "margin=-" in fail_joined
+    assert any("ratio=" in reason for reason in fail_result.reasons)
+
+    # Alias: drop explicit fill latency guard and rely on max_latency_ms fallback.
+    manifest.router.max_fill_latency_ms = None
+    manifest.router.max_latency_ms = 130.0
+    alias_state = PortfolioState(
+        execution_health={manifest.id: {"fill_latency_ms": 140.0}}
+    )
+    alias_status = _check_execution_health(manifest, alias_state)
+    assert alias_status.disqualifying_reasons
+    assert any("margin=-" in reason for reason in alias_status.disqualifying_reasons)
 
 
 def test_priority_boosts_score():
