@@ -2,6 +2,9 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-02-21: Refactored `router/router_v1.select_candidates` to delegate per-manifest checks to `evaluate_candidate`, introduced
+  `CandidateEvaluation` for aggregating eligibility deltas/reasons, added regression coverage in `tests/test_router_v1.py`, and
+  executed `python3 -m pytest tests/test_router_v1.py` to confirm the helper matches previous behaviour.
 - 2026-02-20: Reset EV and slip-learning state inside `BacktestRunner.run` to avoid cross-run leakage, added a regression that reuses a runner twice with learned slippage, and executed `python3 -m pytest tests/test_runner.py` to confirm the fix.
 - 2026-02-19: Guarded `BacktestRunner._warmup_left` so calibration fills no longer decrement the counter, added a regression test covering the calibration warmup case, and executed `python3 -m pytest tests/test_runner.py` to verify the change.
 - 2026-02-18: Documented how `--doc-section In Progress|Pending Review` controls `docs/todo_next.md` placement across `docs/state_runbook.md` and `docs/codex_workflow.md`, added cross-links, refreshed the Pending Review note in `docs/todo_next.md`, and ran `python3 scripts/manage_task_cycle.py --dry-run start-task --doc-section "Pending Review" ...` to capture the dry-run output.

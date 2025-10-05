@@ -4,7 +4,9 @@ from core.router_pipeline import PortfolioTelemetry, build_portfolio_state
 from configs.strategies.loader import load_manifest
 from router.router_v1 import (
     PortfolioState,
+    CandidateEvaluation,
     _check_execution_health,
+    evaluate_candidate,
     select_candidates,
 )
 
@@ -472,3 +474,42 @@ def test_budget_penalty_adjusts_scores_and_reasons():
     assert "category budget headroom" in near_cap_reasons
     assert "score_delta=-0.80" in near_cap_reasons
     assert "status=breach" in near_cap_reasons
+
+
+def test_evaluate_candidate_accumulates_penalties_and_ev_reason():
+    manifest = load_day_manifest()
+    manifest.router.priority = 0.0
+    manifest.router.max_reject_rate = 0.05
+    manifest.router.max_slippage_bps = 10.0
+
+    market_ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "mid"}
+    portfolio = PortfolioState(
+        execution_health={manifest.id: {"reject_rate": 0.048, "slippage_bps": 9.8}}
+    )
+    signal_ctx = {"ev_lcb": 0.6}
+
+    evaluation = evaluate_candidate(manifest, market_ctx, portfolio, signal_ctx)
+
+    assert isinstance(evaluation, CandidateEvaluation)
+    assert evaluation.eligible is True
+    assert evaluation.base_score == approx(0.6)
+    assert evaluation.score_delta == approx(-0.20)
+    joined = " ".join(evaluation.reasons)
+    assert "execution reject_rate" in joined
+    assert "execution slippage_bps" in joined
+    assert any(reason.startswith("ev_lcb=") for reason in evaluation.reasons)
+    assert evaluation.final_score == approx(0.40)
+
+
+def test_evaluate_candidate_marks_ineligible_for_disallowed_session():
+    manifest = load_day_manifest()
+    manifest.router.priority = 0.0
+
+    market_ctx = {"session": "TOK", "spread_band": "narrow", "rv_band": "mid"}
+
+    evaluation = evaluate_candidate(manifest, market_ctx, portfolio=None, signal_ctx={})
+
+    assert evaluation.eligible is False
+    assert evaluation.base_score == approx(0.0)
+    assert evaluation.score_delta == approx(0.0)
+    assert any("session" in reason for reason in evaluation.reasons)
