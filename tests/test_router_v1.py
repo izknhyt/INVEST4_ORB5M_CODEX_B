@@ -1,7 +1,11 @@
 from pytest import approx
 
 from configs.strategies.loader import load_manifest
-from router.router_v1 import PortfolioState, select_candidates
+from router.router_v1 import (
+    PortfolioState,
+    _check_execution_health,
+    select_candidates,
+)
 
 
 def load_day_manifest():
@@ -161,6 +165,37 @@ def test_execution_health_bonus_and_penalty_tiers():
     penalty_joined = " ".join(penalty_result.reasons)
     assert "score_delta=-0.05" in penalty_joined
     assert "score_delta=-0.15" in penalty_joined
+
+    bonus_status = _check_execution_health(manifest, bonus_state)
+    assert bonus_status.penalties["reject_rate"] == approx(0.05)
+    assert bonus_status.penalties["slippage_bps"] == approx(0.05)
+    assert bonus_status.score_delta == approx(0.10)
+    assert bonus_status.disqualifying_reasons == []
+
+    penalty_status = _check_execution_health(manifest, penalty_state)
+    assert penalty_status.penalties["reject_rate"] == approx(-0.05)
+    assert penalty_status.penalties["slippage_bps"] == approx(-0.15)
+    assert penalty_status.score_delta == approx(-0.20)
+    assert penalty_status.disqualifying_reasons == []
+
+
+def test_execution_health_disqualification_penalty_payload():
+    manifest = load_day_manifest()
+    manifest.router.max_reject_rate = 0.05
+    manifest.router.max_slippage_bps = 10.0
+
+    fail_state = PortfolioState(
+        execution_health={manifest.id: {"reject_rate": 0.08, "slippage_bps": 11.5}}
+    )
+
+    status = _check_execution_health(manifest, fail_state)
+    assert status.disqualifying_reasons
+    assert status.penalties["reject_rate"] == approx(0.0)
+    assert status.penalties["slippage_bps"] == approx(0.0)
+    assert status.score_delta == approx(0.0)
+    fail_joined = " ".join(status.log_messages)
+    assert "guard=" in fail_joined
+    assert "ratio=" in fail_joined
 
 
 def test_priority_boosts_score():
