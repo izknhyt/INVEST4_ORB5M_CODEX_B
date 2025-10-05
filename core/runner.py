@@ -18,7 +18,17 @@ from dataclasses import asdict, dataclass, field
 
 from strategies.day_orb_5m import DayORB5m
 from core.strategy_api import Strategy
-from core.feature_store import atr as calc_atr, adx as calc_adx, opening_range, realized_vol
+from core.feature_store import (
+    atr as calc_atr,
+    adx as calc_adx,
+    opening_range,
+    realized_vol,
+    micro_zscore as calc_micro_zscore,
+    micro_trend as calc_micro_trend,
+    mid_price as calc_mid_price,
+    trend_score as calc_trend_score,
+    pullback as calc_pullback,
+)
 from core.fill_engine import ConservativeFill, BridgeFill, OrderSpec
 from core.ev_gate import BetaBinomialEV, TLowerEV
 from core.pips import pip_size, price_to_pips, pip_value as calc_pip_value
@@ -130,6 +140,11 @@ class FeatureBundle:
     or_high: Optional[float]
     or_low: Optional[float]
     realized_vol: float
+    micro_zscore: float = 0.0
+    micro_trend: float = 0.0
+    mid_price: float = 0.0
+    trend_score: float = 0.0
+    pullback: float = 0.0
 
 
 @dataclass
@@ -818,6 +833,21 @@ class BacktestRunner:
         atr14 = calc_atr(self.window[-15:]) if len(self.window) >= 15 else float("nan")
         adx14 = calc_adx(self.window[-15:]) if len(self.window) >= 15 else float("nan")
         or_h, or_l = opening_range(self.session_bars, n=self.rcfg.or_n)
+        micro_z = calc_micro_zscore(self.window)
+        micro_tr = calc_micro_trend(self.window)
+        mid_px = calc_mid_price(bar)
+        trend_val = calc_trend_score(self.window)
+        pullback_val = calc_pullback(self.session_bars)
+
+        def _sanitize(value: Any) -> float:
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                return 0.0
+            if not math.isfinite(numeric):
+                return 0.0
+            return numeric
+
         bar_input: Dict[str, Any] = {
             "o": bar["o"],
             "h": bar["h"],
@@ -827,6 +857,13 @@ class BacktestRunner:
             "window": self.session_bars[: self.rcfg.or_n],
             "new_session": new_session,
         }
+        bar_input.update(
+            micro_zscore=_sanitize(micro_z),
+            micro_trend=_sanitize(micro_tr),
+            mid_price=_sanitize(mid_px),
+            trend_score=_sanitize(trend_val),
+            pullback=_sanitize(pullback_val),
+        )
         if "zscore" in bar:
             zscore_val = bar["zscore"]
             try:
@@ -857,6 +894,11 @@ class BacktestRunner:
             or_high=or_h if or_h == or_h else None,
             or_low=or_l if or_l == or_l else None,
             realized_vol=rv_for_ctx,
+            micro_zscore=bar_input["micro_zscore"],
+            micro_trend=bar_input["micro_trend"],
+            mid_price=bar_input["mid_price"],
+            trend_score=bar_input["trend_score"],
+            pullback=bar_input["pullback"],
         )
 
     def _compute_exit_decision(

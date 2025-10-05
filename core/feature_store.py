@@ -95,3 +95,123 @@ def band(value: float, cuts: Sequence[float], labels: Sequence[str]) -> str:
         if value <= cutoff:
             return label
     return labels[-1]
+
+
+def _to_float(value: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _last_closes(bars: Sequence[Bar], window: int) -> Sequence[float]:
+    if window <= 0:
+        return []
+    if len(bars) < window:
+        return []
+    closes: list[float] = []
+    for bar in bars[-window:]:
+        closes.append(_to_float(bar.get("c", 0.0)))
+    return closes
+
+
+def _correlation(values: Sequence[float]) -> float:
+    n = len(values)
+    if n < 3:
+        return 0.0
+    mean_x = (n - 1) / 2.0
+    mean_y = sum(values) / n
+    cov = 0.0
+    var_x = 0.0
+    var_y = 0.0
+    for idx, val in enumerate(values):
+        dx = idx - mean_x
+        dy = val - mean_y
+        cov += dx * dy
+        var_x += dx * dx
+        var_y += dy * dy
+    if var_x <= 0.0 or var_y <= 0.0:
+        return 0.0
+    corr = cov / math.sqrt(var_x * var_y)
+    if corr != corr:
+        return 0.0
+    return max(-1.0, min(1.0, corr))
+
+
+def micro_zscore(bars: Sequence[Bar], window: int = 12) -> float:
+    """Return the short-window z-score of the most recent close."""
+
+    closes = _last_closes(bars, window)
+    if len(closes) < window:
+        return 0.0
+    mean = sum(closes) / window
+    var = sum((val - mean) ** 2 for val in closes) / window
+    std = math.sqrt(var)
+    if std <= 1e-9:
+        return 0.0
+    z = (closes[-1] - mean) / std
+    if z != z or not math.isfinite(z):
+        return 0.0
+    return max(-6.0, min(6.0, z))
+
+
+def micro_trend(bars: Sequence[Bar], window: int = 10) -> float:
+    """Return the correlation between price and time over a short window."""
+
+    closes = _last_closes(bars, window)
+    if len(closes) < window:
+        return 0.0
+    return _correlation(closes)
+
+
+def mid_price(bar: Mapping[str, float]) -> float:
+    """Return the bar mid price using ``(high + low) / 2``."""
+
+    high = _to_float(bar.get("h", 0.0))
+    low = _to_float(bar.get("l", 0.0))
+    return (high + low) / 2.0
+
+
+def trend_score(bars: Sequence[Bar], window: int = 36) -> float:
+    """Compute a bounded trend score using range positioning and correlation."""
+
+    closes = _last_closes(bars, window)
+    if len(closes) < window:
+        return 0.0
+    hi = max(closes)
+    lo = min(closes)
+    rng = hi - lo
+    if rng <= 0.0:
+        return 0.0
+    corr = _correlation(closes)
+    position = (closes[-1] - lo) / rng
+    directional = (position - 0.5) * 2.0
+    score = directional * abs(corr)
+    if score != score or not math.isfinite(score):
+        return 0.0
+    return max(-1.0, min(1.0, score))
+
+
+def pullback(bars: Sequence[Bar], window: int = 20) -> float:
+    """Return the normalized pullback from recent extremes (0 = none, 1 = deep)."""
+
+    if not bars:
+        return 0.0
+    lookback = bars[-window:] if len(bars) >= window else bars
+    highs: list[float] = []
+    lows: list[float] = []
+    for bar in lookback:
+        highs.append(_to_float(bar.get("h", 0.0)))
+        lows.append(_to_float(bar.get("l", 0.0)))
+    hi = max(highs)
+    lo = min(lows)
+    rng = hi - lo
+    if rng <= 0.0:
+        return 0.0
+    close = _to_float(lookback[-1].get("c", 0.0))
+    distance_high = max(0.0, hi - close)
+    distance_low = max(0.0, close - lo)
+    depth = min(distance_high, distance_low) / rng
+    if depth != depth or not math.isfinite(depth):
+        return 0.0
+    return max(0.0, min(1.0, depth))
