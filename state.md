@@ -2,6 +2,10 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-01-29: `scripts/build_router_snapshot.py` を追加し、manifest と最新 run のメトリクスから `runs/router_pipeline/latest`
+  に `telemetry.json` / `metrics/*.json` を生成できるようにした。`tests/test_report_portfolio_summary.py` を新設して CLI
+  フロー全体を検証し、`docs/logic_overview.md` / `docs/checklists/p2_router.md` にスナップショット更新手順を追記。
+  `python3 -m pytest tests/test_report_portfolio_summary.py` を実行して新テストを確認。
 - 2026-01-28: `core/runner.Metrics` がトレード記録時にバーの timestamp を保持し、`equity_curve` を `[ts, equity]` 形式で構築するよう更新。
   `scripts/run_sim.py` から出力される `metrics.json` にエクイティカーブを含め、ルーター用サンプルメトリクスと
   `tests/test_runner.py` / `tests/test_router_pipeline.py` のアサーションを新スキーマに合わせて調整。
