@@ -1205,8 +1205,6 @@ class BacktestRunner:
         if not intents:
             self.debug_counts["gate_block"] += 1
             return
-        if self._warmup_left > 0:
-            self._warmup_left -= 1
         intent = intents[0]
         spec = OrderSpec(
             side=intent.side,
@@ -1230,6 +1228,8 @@ class BacktestRunner:
         )
         if not result.get("fill"):
             return
+        if self._warmup_left > 0:
+            self._warmup_left -= 1
         trade_ctx_snapshot: Dict[str, Any] = {
             "session": ctx_dbg.get("session", features.ctx.get("session")),
             "rv_band": ctx_dbg.get("rv_band", features.ctx.get("rv_band")),

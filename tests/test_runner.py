@@ -575,6 +575,85 @@ class TestRunner(unittest.TestCase):
         self.assertEqual(record["tp_pips"], 2.0)
         self.assertEqual(record["sl_pips"], 1.0)
 
+    def test_warmup_counter_not_decremented_when_no_fill(self):
+        runner, pending, breakout, features, calibrating = self._prepare_breakout_environment(
+            warmup_left=3
+        )
+        stub_ev = self.DummyEV(ev_lcb=1.2, p_lcb=0.65)
+        runner._get_ev_manager = lambda key: stub_ev
+        runner.stg._pending_signal = pending
+        features.ctx["ev_oco"] = stub_ev
+        pip_value = pip_size(runner.symbol)
+        initial_warmup = runner._warmup_left
+        intent = OrderIntent(
+            pending["side"],
+            qty=1.0,
+            price=pending["entry"],
+            tif="IOC",
+            tag="day_orb5m#test",
+            oco={
+                "tp_pips": pending["tp_pips"],
+                "sl_pips": pending["sl_pips"],
+                "trail_pips": pending["trail_pips"],
+            },
+        )
+
+        with patch.object(runner, "_check_slip_and_sizing", return_value=True):
+            with patch.object(runner.stg, "signals", return_value=[intent]):
+                with patch.object(runner.fill_engine_c, "simulate", return_value={"fill": False}) as mock_sim:
+                    with patch.object(runner, "_process_fill_result") as mock_process:
+                        runner._maybe_enter_trade(
+                            bar=breakout,
+                            features=features,
+                            mode="conservative",
+                            pip_size_value=pip_value,
+                            calibrating=calibrating,
+                        )
+
+        self.assertEqual(runner._warmup_left, initial_warmup)
+        mock_sim.assert_called_once()
+        mock_process.assert_not_called()
+
+    def test_warmup_counter_decrements_after_successful_fill(self):
+        runner, pending, breakout, features, calibrating = self._prepare_breakout_environment(
+            warmup_left=3
+        )
+        stub_ev = self.DummyEV(ev_lcb=1.2, p_lcb=0.65)
+        runner._get_ev_manager = lambda key: stub_ev
+        runner.stg._pending_signal = pending
+        features.ctx["ev_oco"] = stub_ev
+        pip_value = pip_size(runner.symbol)
+        initial_warmup = runner._warmup_left
+        intent = OrderIntent(
+            pending["side"],
+            qty=1.0,
+            price=pending["entry"],
+            tif="IOC",
+            tag="day_orb5m#test",
+            oco={
+                "tp_pips": pending["tp_pips"],
+                "sl_pips": pending["sl_pips"],
+                "trail_pips": pending["trail_pips"],
+            },
+        )
+
+        fill_result = {"fill": True, "entry_px": breakout["c"]}
+        with patch.object(runner, "_check_slip_and_sizing", return_value=True):
+            with patch.object(runner.stg, "signals", return_value=[intent]):
+                with patch.object(runner.fill_engine_c, "simulate", return_value=fill_result) as mock_sim:
+                    with patch.object(runner, "_process_fill_result") as mock_process:
+                        runner._maybe_enter_trade(
+                            bar=breakout,
+                            features=features,
+                            mode="conservative",
+                            pip_size_value=pip_value,
+                            calibrating=calibrating,
+                        )
+
+        self.assertEqual(runner._warmup_left, initial_warmup - 1)
+        mock_sim.assert_called_once()
+        mock_process.assert_called_once()
+
     @patch("strategies.day_orb_5m.pass_gates", return_value=True)
     def test_calibration_signal_updates_cooldown_state(self, _mock_pass_gates):
         stg = DayORB5m()

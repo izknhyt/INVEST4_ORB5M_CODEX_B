@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-02-14: Updated `core/runner._maybe_enter_trade` so warmup trades decrement only after fills, added regression coverage in `tests/test_runner.py` for filled vs. unfilled simulations, and executed `python3 -m pytest tests/test_runner.py` to confirm the behaviour.
 - 2026-02-13: Surfaced category budget values/headroom/status in the portfolio summary, updated the router demo telemetry sample, extended `tests/test_report_portfolio_summary.py` to assert the new fields, and executed `python3 -m pytest tests/test_report_portfolio_summary.py`.
 - 2026-02-12: Preserved telemetry-sourced bucket metadata when constructing `PortfolioState` so correlation peers without a manifest retain their category/budget hints. Ensured router correlation evaluation consumes bucket metadata even when only telemetry provides it. Added regression tests in `tests/test_router_pipeline.py` and `tests/test_router_v1.py`, then ran `python3 -m pytest tests/test_router_pipeline.py tests/test_router_v1.py` to confirm the fixes.
 - 2026-02-10: 相関テレメトリへ `correlation_meta` を追加し、`router_v1.select_candidates` が同一バケット超過をハード失格・異バケット超過を減点へ切り分けるよう更新。`tests/test_router_pipeline.py` / `tests/test_router_v1.py` にバケット別挙動の回帰テストを追加し、`python3 -m pytest tests/test_router_pipeline.py tests/test_router_v1.py` を完走して新ロジックを確認。ドキュメント（`docs/router_architecture.md`, `docs/checklists/p2_router.md`）へテレメトリ契約変更を反映。
