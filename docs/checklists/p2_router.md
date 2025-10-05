@@ -14,6 +14,7 @@
 ## バックログ固有の DoD
 - [ ] カテゴリ別利用率と上限（category utilisation / caps）を manifest リスク情報とポートフォリオテレメトリから算出し、`PortfolioState` へ反映した。
 - [ ] コリレーションキャップおよびグロスエクスポージャー上限を取り込み、`router_v1` が期待するフィールド（`strategy_correlations`, `gross_exposure_pct`, `gross_exposure_cap_pct`）を欠損なく提供した。
+- [ ] カテゴリ/グロスヘッドルームを `PortfolioState` へ保持し、`router_v1.select_candidates` のスコアリングと理由ログに反映した。
 - [ ] BacktestRunner のランタイム指標から実行ヘルス（`reject_rate`, `slippage_bps`）を集計し、ルーター判定で利用できることを確認した。
 - [ ] 受け入れテスト（`python3 -m pytest tests/test_router_v1.py tests/test_router_pipeline.py`）を実行し、カテゴリ配分／相関ガード／執行ヘルスが期待通りに機能することを証明した。
 

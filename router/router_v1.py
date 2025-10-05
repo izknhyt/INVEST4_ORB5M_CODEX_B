@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from configs.strategies.loader import StrategyManifest
 
@@ -98,6 +98,76 @@ def _check_gross_exposure(manifest: StrategyManifest, portfolio: PortfolioState)
     if current >= cap:
         return f"gross exposure {current:.1f}% >= cap {cap:.1f}%"
     return None
+
+
+def _to_optional_float(value: Any) -> Optional[float]:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _resolve_category_headroom(
+    manifest: StrategyManifest, portfolio: PortfolioState
+) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+    category = manifest.category
+    usage = _to_optional_float(portfolio.category_utilisation_pct.get(category))
+    manifest_cap = _to_optional_float(manifest.router.category_cap_pct)
+    fallback_cap = _to_optional_float(portfolio.category_caps_pct.get(category))
+    cap = manifest_cap if manifest_cap is not None else fallback_cap
+    headroom = _to_optional_float(portfolio.category_headroom_pct.get(category))
+    if headroom is None and usage is not None and cap is not None:
+        headroom = cap - usage
+    return usage, cap, headroom
+
+
+def _resolve_gross_headroom(
+    manifest: StrategyManifest, portfolio: PortfolioState
+) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+    usage = _to_optional_float(portfolio.gross_exposure_pct)
+    manifest_cap = _to_optional_float(manifest.router.max_gross_exposure_pct)
+    fallback_cap = _to_optional_float(portfolio.gross_exposure_cap_pct)
+    cap = manifest_cap if manifest_cap is not None else fallback_cap
+    headroom = _to_optional_float(portfolio.gross_exposure_headroom_pct)
+    if headroom is None and usage is not None and cap is not None:
+        headroom = cap - usage
+    return usage, cap, headroom
+
+
+def _headroom_score_adjustment(headroom: Optional[float]) -> float:
+    if headroom is None:
+        return 0.0
+    if headroom <= 5.0:
+        return -0.5
+    if headroom <= 10.0:
+        return -0.2
+    if headroom >= 35.0:
+        return 0.2
+    if headroom >= 20.0:
+        return 0.1
+    return 0.0
+
+
+def _format_headroom_reason(
+    label: str,
+    usage: Optional[float],
+    cap: Optional[float],
+    headroom: Optional[float],
+    delta: float,
+) -> str:
+    details: List[str] = []
+    if headroom is not None:
+        details.append(f"headroom={headroom:.1f}%")
+    if usage is not None:
+        details.append(f"usage={usage:.1f}%")
+    if cap is not None:
+        details.append(f"cap={cap:.1f}%")
+    if delta != 0:
+        details.append(f"score_delta={delta:+.2f}")
+    else:
+        details.append("score_delta=+0.00")
+    joined = ", ".join(details)
+    return f"{label} headroom ({joined})"
 
 
 def _max_correlation(manifest: StrategyManifest, portfolio: PortfolioState) -> Optional[float]:
@@ -218,6 +288,26 @@ def select_candidates(
             if excess > 0:
                 score -= excess
         if portfolio:
+            usage, cap, headroom = _resolve_category_headroom(manifest, portfolio)
+            if headroom is not None or (usage is not None and cap is not None):
+                delta = _headroom_score_adjustment(headroom)
+                score += delta
+                reasons.append(
+                    _format_headroom_reason("category", usage, cap, headroom, delta)
+                )
+            gross_usage, gross_cap, gross_headroom = _resolve_gross_headroom(
+                manifest, portfolio
+            )
+            if gross_headroom is not None or (
+                gross_usage is not None and gross_cap is not None
+            ):
+                gross_delta = _headroom_score_adjustment(gross_headroom)
+                score += gross_delta
+                reasons.append(
+                    _format_headroom_reason(
+                        "gross", gross_usage, gross_cap, gross_headroom, gross_delta
+                    )
+                )
             health = portfolio.execution_health.get(manifest.id, {})
             reject = health.get("reject_rate")
             if (
