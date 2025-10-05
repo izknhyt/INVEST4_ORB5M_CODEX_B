@@ -249,6 +249,12 @@ class StrategyManifest:
                 "max_latency_ms": self.router.max_latency_ms,
                 "category_cap_pct": self.router.category_cap_pct,
                 "tags": list(self.router.tags),
+                "priority": self.router.priority,
+                "max_gross_exposure_pct": self.router.max_gross_exposure_pct,
+                "max_correlation": self.router.max_correlation,
+                "correlation_tags": list(self.router.correlation_tags),
+                "max_reject_rate": self.router.max_reject_rate,
+                "max_slippage_bps": self.router.max_slippage_bps,
             },
             "risk": {
                 "risk_per_trade_pct": self.risk.risk_per_trade_pct,
