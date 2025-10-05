@@ -59,6 +59,9 @@ def build_portfolio_state(
     active_positions: Dict[str, int] = {
         str(key): int(value) for key, value in snapshot.active_positions.items()
     }
+    absolute_active_counts: Dict[str, int] = {
+        key: abs(count) for key, count in active_positions.items()
+    }
     category_usage: Dict[str, float] = {}
     for key, value in snapshot.category_utilisation_pct.items():
         value_float = _to_float(value)
@@ -97,8 +100,7 @@ def build_portfolio_state(
 
     exposures: Dict[str, float] = {}
     for manifest in manifest_list:
-        active = active_positions.get(manifest.id, 0)
-        active_count = abs(active)
+        active_count = absolute_active_counts.get(manifest.id, 0)
         if active_count > 0:
             exposure = active_count * float(manifest.risk.risk_per_trade_pct)
             exposures[manifest.id] = exposures.get(manifest.id, 0.0) + exposure

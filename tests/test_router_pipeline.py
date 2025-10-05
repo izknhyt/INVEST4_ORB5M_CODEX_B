@@ -130,3 +130,27 @@ def test_router_pipeline_counts_shorts_for_limits():
     assert result.eligible is False
     assert any("category utilisation" in reason for reason in result.reasons)
     assert any("active positions" in reason for reason in result.reasons)
+
+
+def test_router_pipeline_merges_short_usage_with_existing_category_allocation():
+    manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
+    manifest.router.category_cap_pct = 0.25
+    manifest.risk.max_concurrent_positions = 1
+
+    telemetry = PortfolioTelemetry(
+        active_positions={manifest.id: -1},
+        category_utilisation_pct={manifest.category: 0.1},
+    )
+
+    portfolio = build_portfolio_state([manifest], telemetry=telemetry)
+
+    expected_usage = approx(0.1 + float(manifest.risk.risk_per_trade_pct))
+    assert portfolio.category_utilisation_pct[manifest.category] == expected_usage
+    assert portfolio.gross_exposure_pct == approx(float(manifest.risk.risk_per_trade_pct))
+
+    market_ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "mid"}
+    result = select_candidates(market_ctx, [manifest], portfolio=portfolio)[0]
+
+    assert result.eligible is False
+    assert any("category utilisation" in reason for reason in result.reasons)
+    assert any("active positions" in reason for reason in result.reasons)
