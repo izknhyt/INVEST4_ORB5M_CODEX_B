@@ -24,6 +24,35 @@
       "day_orb_5m_v1": 0.35
     }
   },
+  "correlation_meta": {
+    "day_orb_5m_v1": {
+      "tokyo_micro_mean_reversion_v0": {
+        "strategy_id": "tokyo_micro_mean_reversion_v0",
+        "category": "scalping",
+        "category_budget_pct": 15.0,
+        "bucket_category": "scalping",
+        "bucket_budget_pct": 15.0
+      }
+    },
+    "tokyo_micro_mean_reversion_v0": {
+      "day_orb_5m_v1": {
+        "strategy_id": "day_orb_5m_v1",
+        "category": "day",
+        "category_budget_pct": 40.0,
+        "bucket_category": "day",
+        "bucket_budget_pct": 40.0
+      }
+    },
+    "scalping": {
+      "day_orb_5m_v1": {
+        "strategy_id": "day_orb_5m_v1",
+        "category": "day",
+        "category_budget_pct": 40.0,
+        "bucket_category": "day",
+        "bucket_budget_pct": 40.0
+      }
+    }
+  },
   "execution_health": {
     "day_orb_5m_v1": {
       "reject_rate": 0.012,

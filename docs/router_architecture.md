@@ -79,7 +79,7 @@ To extend v1 without breaking callers, v2 will reuse the `PortfolioState`/`selec
 - **Goal**: treat correlation data as a first-class guard by combining manifest-level correlation tags, observed pairwise correlations, and category awareness.
 - **Data requirements**:
   - Continue reading `strategy_correlations[strategy_id or tag][peer]` from telemetry, but require that upstream metrics calculate rolling correlations in a consistent window (now tracked by `correlation_window_minutes` from `scripts/build_router_snapshot.py`).
-  - Publish `correlation_meta[source][peer]` alongside the raw matrix so each entry records the peer manifest ID, category, and governance budget bucket. The router depends on this metadata to determine whether a breach occurs within the same allocation bucket or across buckets.
+  - Publish `correlation_meta[source][peer]` alongside the raw matrix so each entry records the peer manifest ID, category, and governance budget bucket. `scripts/build_router_snapshot.py` persists this block into `telemetry.json`, and `analysis.portfolio_monitor` surfaces the `bucket_category` / `bucket_budget_pct` fields inside the correlation heatmap so reviewers can distinguish same-bucket breaches from cross-bucket pressure during offline analysis.【F:scripts/build_router_snapshot.py†L504-L523】【F:analysis/portfolio_monitor.py†L138-L170】
 - **Router behaviour**:
   - Treat correlation breaches differently based on bucket alignment: same-bucket pairs trigger hard disqualification, while cross-bucket pairs incur score penalties equal to the excess above the cap.
   - Deduplicate penalties per peer so overlapping `correlation_tags` do not stack multiple deductions for the same relationship.
