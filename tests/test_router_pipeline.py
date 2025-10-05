@@ -14,6 +14,7 @@ def test_router_pipeline_merges_limits_and_execution_health():
 
     # Ensure router guards are active for the test scenario.
     day_manifest.router.category_cap_pct = 40.0
+    day_manifest.router.category_budget_pct = 35.0
     mean_manifest.router.category_cap_pct = 40.0
     mean_manifest.router.max_reject_rate = 0.05
     mean_manifest.router.max_correlation = 0.6
@@ -24,6 +25,7 @@ def test_router_pipeline_merges_limits_and_execution_health():
         active_positions={day_manifest.id: 1},
         category_utilisation_pct={"day": 39.5},
         category_caps_pct={"day": 42.0},
+        category_budget_pct={"day": 33.0},
         gross_exposure_cap_pct=60.0,
         strategy_correlations={
             mean_manifest.id: {day_manifest.id: 0.4},
@@ -44,6 +46,12 @@ def test_router_pipeline_merges_limits_and_execution_health():
     assert portfolio.category_headroom_pct["day"] == approx(
         portfolio.category_caps_pct["day"] - portfolio.category_utilisation_pct["day"]
     )
+    assert portfolio.category_budget_pct["day"] == 33.0
+    assert portfolio.category_budget_headroom_pct["day"] == approx(
+        portfolio.category_budget_pct["day"]
+        - portfolio.category_utilisation_pct["day"]
+    )
+    assert portfolio.category_budget_pct[mean_manifest.category] == portfolio.category_budget_pct[day_manifest.category]
     assert portfolio.active_positions[day_manifest.id] == 1
     assert portfolio.gross_exposure_pct == day_manifest.risk.risk_per_trade_pct
     assert portfolio.gross_exposure_cap_pct == 60.0
@@ -67,11 +75,13 @@ def test_router_pipeline_merges_limits_and_execution_health():
 def test_router_pipeline_skips_invalid_telemetry_values():
     day_manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
     day_manifest.router.category_cap_pct = 50.0
+    day_manifest.router.category_budget_pct = 45.0
 
     telemetry = PortfolioTelemetry(
         active_positions={day_manifest.id: 1},
         category_utilisation_pct={day_manifest.category: ""},
         category_caps_pct={day_manifest.category: "not-a-number"},
+        category_budget_pct={day_manifest.category: "invalid"},
     )
     runtime_metrics = {
         day_manifest.id: {
@@ -90,6 +100,11 @@ def test_router_pipeline_skips_invalid_telemetry_values():
         portfolio.category_caps_pct[day_manifest.category]
         - portfolio.category_utilisation_pct[day_manifest.category]
     )
+    assert portfolio.category_budget_pct[day_manifest.category] == day_manifest.router.category_budget_pct
+    assert portfolio.category_budget_headroom_pct[day_manifest.category] == approx(
+        portfolio.category_budget_pct[day_manifest.category]
+        - portfolio.category_utilisation_pct[day_manifest.category]
+    )
     assert portfolio.execution_health[day_manifest.id]["slippage_bps"] == 5.5
     assert "reject_rate" not in portfolio.execution_health[day_manifest.id]
 
@@ -97,6 +112,7 @@ def test_router_pipeline_skips_invalid_telemetry_values():
 def test_router_pipeline_handles_none_reject_rate_and_blank_usage():
     manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
     manifest.router.category_cap_pct = 55.0
+    manifest.router.category_budget_pct = 55.0
 
     telemetry = PortfolioTelemetry(
         active_positions={manifest.id: 1},
@@ -111,16 +127,21 @@ def test_router_pipeline_handles_none_reject_rate_and_blank_usage():
         [manifest], telemetry=telemetry, runtime_metrics=runtime_metrics
     )
 
-    expected_exposure = approx(float(manifest.risk.risk_per_trade_pct))
-    assert portfolio.category_utilisation_pct[manifest.category] == expected_exposure
-    assert portfolio.gross_exposure_pct == expected_exposure
+    expected_exposure = float(manifest.risk.risk_per_trade_pct)
+    assert portfolio.category_utilisation_pct[manifest.category] == approx(expected_exposure)
+    assert portfolio.gross_exposure_pct == approx(expected_exposure)
     assert portfolio.gross_exposure_headroom_pct is None
+    assert portfolio.category_budget_pct[manifest.category] == manifest.router.category_budget_pct
+    assert portfolio.category_budget_headroom_pct[manifest.category] == approx(
+        portfolio.category_budget_pct[manifest.category] - expected_exposure
+    )
     assert "reject_rate" not in portfolio.execution_health.get(manifest.id, {})
 
 
 def test_router_pipeline_counts_shorts_for_limits():
     manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
     manifest.router.category_cap_pct = 0.4
+    manifest.router.category_budget_pct = 0.3
     manifest.risk.max_concurrent_positions = 1
 
     telemetry = PortfolioTelemetry(
@@ -139,6 +160,10 @@ def test_router_pipeline_counts_shorts_for_limits():
     assert portfolio.category_headroom_pct[manifest.category] == approx(
         manifest.router.category_cap_pct - expected_exposure
     )
+    assert portfolio.category_budget_pct[manifest.category] == manifest.router.category_budget_pct
+    assert portfolio.category_budget_headroom_pct[manifest.category] == approx(
+        manifest.router.category_budget_pct - expected_exposure
+    )
     assert portfolio.active_positions[manifest.id] == -2
 
     market_ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "mid"}
@@ -152,6 +177,7 @@ def test_router_pipeline_counts_shorts_for_limits():
 def test_router_pipeline_merges_short_usage_with_existing_category_allocation():
     manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
     manifest.router.category_cap_pct = 0.25
+    manifest.router.category_budget_pct = 0.2
     manifest.risk.max_concurrent_positions = 1
 
     telemetry = PortfolioTelemetry(
@@ -166,6 +192,10 @@ def test_router_pipeline_merges_short_usage_with_existing_category_allocation():
     assert portfolio.gross_exposure_pct == approx(float(manifest.risk.risk_per_trade_pct))
     assert portfolio.category_headroom_pct[manifest.category] == approx(
         manifest.router.category_cap_pct - expected_usage
+    )
+    assert portfolio.category_budget_pct[manifest.category] == manifest.router.category_budget_pct
+    assert portfolio.category_budget_headroom_pct[manifest.category] == approx(
+        manifest.router.category_budget_pct - expected_usage
     )
 
     market_ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "mid"}

@@ -16,6 +16,8 @@ class PortfolioTelemetry:
     active_positions: Dict[str, int] = field(default_factory=dict)
     category_utilisation_pct: Dict[str, float] = field(default_factory=dict)
     category_caps_pct: Dict[str, float] = field(default_factory=dict)
+    category_budget_pct: Dict[str, float] = field(default_factory=dict)
+    category_budget_headroom_pct: Dict[str, float] = field(default_factory=dict)
     gross_exposure_pct: Optional[float] = None
     gross_exposure_cap_pct: Optional[float] = None
     strategy_correlations: Dict[str, Dict[str, float]] = field(default_factory=dict)
@@ -76,6 +78,20 @@ def build_portfolio_state(
             continue
         category_caps[str(key)] = value_float
 
+    category_budget: Dict[str, float] = {}
+    for key, value in snapshot.category_budget_pct.items():
+        value_float = _to_float(value)
+        if value_float is None:
+            continue
+        category_budget[str(key)] = value_float
+
+    category_budget_headroom: Dict[str, float] = {}
+    for key, value in snapshot.category_budget_headroom_pct.items():
+        value_float = _to_float(value)
+        if value_float is None:
+            continue
+        category_budget_headroom[str(key)] = value_float
+
     correlations: Dict[str, Dict[str, float]] = {}
     for key, value in snapshot.strategy_correlations.items():
         inner: Dict[str, float] = {}
@@ -114,6 +130,15 @@ def build_portfolio_state(
             category_caps[manifest.category] = (
                 cap_float if prev_cap is None else min(prev_cap, cap_float)
             )
+        budget_value = manifest.router.category_budget_pct
+        if budget_value is None:
+            budget_value = manifest.router.category_cap_pct
+        if budget_value is not None:
+            budget_float = float(budget_value)
+            prev_budget = category_budget.get(manifest.category)
+            category_budget[manifest.category] = (
+                budget_float if prev_budget is None else min(prev_budget, budget_float)
+            )
         category_usage.setdefault(manifest.category, 0.0)
 
     gross_exposure_pct = _to_float(snapshot.gross_exposure_pct)
@@ -135,6 +160,13 @@ def build_portfolio_state(
     for category, cap in category_caps.items():
         usage = float(category_usage.get(category, 0.0))
         category_headroom[category] = cap - usage
+
+    for category, budget in list(category_budget.items()):
+        if budget is None:
+            category_budget.pop(category, None)
+            continue
+        usage = float(category_usage.get(category, 0.0))
+        category_budget_headroom[category] = budget - usage
 
     gross_headroom_pct: Optional[float] = None
     if gross_cap_pct is not None and gross_exposure_pct is not None:
@@ -163,6 +195,8 @@ def build_portfolio_state(
         active_positions=active_positions,
         category_caps_pct=category_caps,
         category_headroom_pct=category_headroom,
+        category_budget_pct=category_budget,
+        category_budget_headroom_pct=category_budget_headroom,
         gross_exposure_pct=gross_exposure_pct,
         gross_exposure_cap_pct=gross_cap_pct,
         gross_exposure_headroom_pct=gross_headroom_pct,

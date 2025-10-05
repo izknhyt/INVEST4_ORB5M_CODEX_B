@@ -18,6 +18,7 @@ This note captures how the portfolio router evolves from the legacy v0 gate to t
 2. **Telemetry**: optional [`PortfolioTelemetry`](../core/router_pipeline.py) snapshot (typically produced by `scripts/build_router_snapshot.py`). Expected fields:
    - `active_positions[strategy_id]` → open position counts (signed, v1 uses absolute values when deriving exposure).
    - `category_utilisation_pct[category]` / `category_caps_pct[category]` → live utilisation and externally supplied caps.
+   - `category_budget_pct[category]` / `category_budget_headroom_pct[category]` → governance budgets and optional pre-computed headroom. When budgets are missing from telemetry the pipeline falls back to manifest defaults (budget → `router.category_budget_pct` or the cap when unset).
    - `gross_exposure_pct` / `gross_exposure_cap_pct` → overall gross usage and cap.
    - `strategy_correlations[key][peer]` → pairwise correlations keyed by strategy ID or correlation tag.
    - `execution_health[strategy_id]` → runtime health aggregates (see below for field names).
@@ -26,6 +27,7 @@ This note captures how the portfolio router evolves from the legacy v0 gate to t
 The function normalises floats via `_to_float`, backfills utilisation from active position exposure (count × `risk_per_trade_pct`), and calculates headroom values:
 
 - `category_headroom_pct[category] = cap - usage` for every known category.
+- `category_budget_headroom_pct[category] = budget - usage` once budget values are known (manifest defaults ensure every manifest category receives a budget even when telemetry omits it).【F:core/router_pipeline.py†L44-L125】
 - `gross_exposure_headroom_pct = gross_cap_pct - gross_exposure_pct` when both inputs exist.【F:core/router_pipeline.py†L55-L98】
 
 These derived numbers are critical for v1 scoring bonuses and will become the inputs for v2 category budget tracking (see below).
@@ -45,6 +47,7 @@ These derived numbers are critical for v1 scoring bonuses and will become the in
    - Start from the strategy `score` (or fall back to `ev_lcb`) and add manifest `priority` to bias tiering.【F:router/router_v1.py†L169-L196】
    - Apply soft correlation penalties: subtract the amount by which the max correlation exceeds the configured limit (if any).【F:router/router_v1.py†L198-L203】
    - Apply headroom bonuses/penalties using `_headroom_score_adjustment` for both category and gross headroom, appending formatted reasons so operators see utilisation, cap, headroom, and score deltas in telemetry logs.【F:router/router_v1.py†L205-L233】
+   - Layer category budget awareness on top of headroom checks: `_resolve_category_budget` pulls telemetry/manifests, `_budget_score_adjustment` applies tiered penalties when utilisation exceeds the budget but remains under the hard cap, and `_format_headroom_reason` records the resulting headroom/score delta in the reasons list.【F:router/router_v1.py†L105-L233】
    - Reward compliant execution health with a minor boost when the recorded reject rate sits below its guard threshold.【F:router/router_v1.py†L235-L242】
 4. **Reason logging**: propagate `ev_lcb` and headroom messages so downstream telemetry (e.g., `runs/router_pipeline/latest/telemetry.json`) preserves why a manifest was accepted or rejected.【F:router/router_v1.py†L244-L260】
 
@@ -63,11 +66,11 @@ To extend v1 without breaking callers, v2 will reuse the `PortfolioState`/`selec
 
 - **Goal**: reserve and enforce per-category budget ceilings (e.g., "momentum strategies must not exceed 40% utilisation even when headroom exists elsewhere") and surface budget burn-down in the reasons list.
 - **Data requirements**:
-  - Extend `PortfolioTelemetry` with `category_budget_pct[category]` when portfolio governance publishes target allocations. When absent, fall back to manifest-level `router.category_cap_pct` (current behaviour).
-  - Populate `PortfolioState` with a derived `category_budget_headroom_pct` so v2 scoring can compare live utilisation against both hard caps and softer budget targets.
+  - Extend `PortfolioTelemetry` with `category_budget_pct[category]` and optional `category_budget_headroom_pct[category]` when portfolio governance publishes target allocations. When budgets are absent, manifest defaults populate `PortfolioState.category_budget_pct` so downstream logic always has a value to compare against.【F:core/router_pipeline.py†L32-L137】
+  - Populate `PortfolioState` with a derived `category_budget_headroom_pct` so scoring can compare live utilisation against both hard caps and softer budget targets.【F:core/router_pipeline.py†L104-L137】
 - **Router behaviour**:
-  - Maintain existing hard guard (cap breach → ineligible) but add a soft budget guard that gradually penalises score once utilisation crosses the budget threshold even if the cap allows additional trades.
-  - Include budget utilisation ratios in the reasons string to keep telemetry dashboards aligned with governance thresholds.
+  - Maintain existing hard guard (cap breach → ineligible) but add a soft budget guard that gradually penalises score once utilisation crosses the budget threshold even if the cap allows additional trades. `_budget_score_adjustment` enforces tiered penalties that intensify as overage grows and as cap headroom shrinks.【F:router/router_v1.py†L105-L233】
+  - Include budget utilisation ratios in the reasons string to keep telemetry dashboards aligned with governance thresholds (see `category budget headroom` entries in `SelectionResult.reasons`).【F:router/router_v1.py†L222-L233】
 
 ### Correlation guards
 
