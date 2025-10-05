@@ -217,8 +217,13 @@ class TestRunner(unittest.TestCase):
         metrics_partial = runner_partial.run_partial(bars[4:], mode="conservative")
 
         self.assertEqual(metrics_full.as_dict(), metrics_partial.as_dict())
-        self.assertAlmostEqual(metrics_full.equity_curve[0], 200_000.0)
-        self.assertAlmostEqual(metrics_partial.equity_curve[0], 200_000.0)
+        full_curve = metrics_full.as_dict()["equity_curve"]
+        partial_curve = metrics_partial.as_dict()["equity_curve"]
+        if full_curve:
+            self.assertAlmostEqual(full_curve[0][1], 200_000.0)
+            self.assertAlmostEqual(partial_curve[0][1], 200_000.0)
+        else:
+            self.assertEqual(full_curve, partial_curve)
 
         state = runner_partial.export_state()
         self.assertIn("runtime", state)
@@ -240,20 +245,26 @@ class TestRunner(unittest.TestCase):
         metrics_first = runner.run(list(bars), mode="conservative")
         metrics_second = runner.run(list(bars), mode="conservative")
 
-        self.assertGreaterEqual(len(metrics_first.equity_curve), 1)
-        self.assertEqual(metrics_first.equity_curve[0], 150_000.0)
-        self.assertEqual(metrics_second.equity_curve[0], 150_000.0)
-        self.assertListEqual(metrics_first.equity_curve[1:], metrics_second.equity_curve[1:])
+        first_curve = metrics_first.as_dict()["equity_curve"]
+        second_curve = metrics_second.as_dict()["equity_curve"]
+        if first_curve:
+            self.assertEqual(first_curve[0][1], 150_000.0)
+            self.assertEqual(second_curve[0][1], 150_000.0)
+            self.assertListEqual(first_curve[1:], second_curve[1:])
+        else:
+            self.assertEqual(first_curve, second_curve)
 
     def test_metrics_compute_sharpe_and_drawdown(self):
         metrics = Metrics()
         returns = [10.0, -5.0, 20.0, -15.0]
         metrics.trade_returns.extend(returns)
-        metrics.equity_curve = [0.0]
+        base_ts = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        metrics._equity_seed = (base_ts.isoformat().replace("+00:00", "Z"), 0.0)
         cumulative = 0.0
-        for r in returns:
+        for idx, r in enumerate(returns, start=1):
             cumulative += r
-            metrics.equity_curve.append(cumulative)
+            ts = (base_ts + timedelta(minutes=idx)).isoformat().replace("+00:00", "Z")
+            metrics.equity_curve.append((ts, cumulative))
         metrics.total_pips = sum(returns)
         result = metrics.as_dict()
         self.assertIn("sharpe", result)
@@ -261,26 +272,34 @@ class TestRunner(unittest.TestCase):
         self.assertAlmostEqual(result["sharpe"], 0.3713906763541037, places=6)
         self.assertAlmostEqual(result["max_drawdown"], -15.0, places=6)
         self.assertIsNone(result["win_rate"])
+        curve_ts = [point[0] for point in result["equity_curve"]]
+        self.assertEqual(curve_ts[0], metrics._equity_seed[0])
 
     def test_metrics_records_equity_curve_from_records_csv(self):
         metrics = Metrics()
         csv_path = Path(__file__).parent / "data" / "runner_sample_records.csv"
+        base_ts = datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc)
         with csv_path.open() as f:
             reader = csv.DictReader(f)
-            for row in reader:
+            for idx, row in enumerate(reader):
                 if row.get("stage") != "trade":
                     continue
                 pnl = float(row.get("pnl_pips", 0.0))
-                metrics.record_trade(pnl, pnl > 0)
+                ts = (base_ts + timedelta(minutes=idx)).isoformat().replace("+00:00", "Z")
+                metrics.record_trade(pnl, pnl > 0, timestamp=ts)
 
         result = metrics.as_dict()
         self.assertEqual(metrics.trades, 4)
         self.assertEqual(metrics.wins, 2)
         self.assertAlmostEqual(metrics.total_pips, 5.0)
+        curve = metrics.as_dict()["equity_curve"]
+        equities = [round(entry[1], 6) for entry in curve]
         self.assertListEqual(
-            [round(v, 6) for v in metrics.equity_curve],
+            equities,
             [0.0, 12.0, 7.0, 15.0, 5.0],
         )
+        timestamps = [entry[0] for entry in curve]
+        self.assertListEqual(sorted(timestamps), timestamps)
         self.assertAlmostEqual(result["sharpe"], 0.27660638840895513)
         self.assertAlmostEqual(result["max_drawdown"], -10.0)
         self.assertAlmostEqual(result["win_rate"], 0.5)

@@ -13,7 +13,7 @@ from collections import deque
 import json
 import hashlib
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from dataclasses import asdict, dataclass, field
 
 from strategies.day_orb_5m import DayORB5m
@@ -54,28 +54,63 @@ class Metrics:
     wins: int = 0
     total_pips: float = 0.0
     trade_returns: List[float] = field(default_factory=list)
-    equity_curve: List[float] = field(default_factory=list)
+    equity_curve: List[Tuple[str, float]] = field(default_factory=list)
     records: List[Dict[str, Any]] = field(default_factory=list)
     daily: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     debug: Dict[str, Any] = field(default_factory=dict)
     runtime: Dict[str, Any] = field(default_factory=dict)
     starting_equity: float = 0.0
+    _equity_seed: Optional[Tuple[str, float]] = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
-        if not self.equity_curve:
-            self.equity_curve.append(float(self.starting_equity))
+        self.starting_equity = float(self.starting_equity)
 
-    def record_trade(self, pnl_pips: float, hit: bool) -> None:
+    @staticmethod
+    def _normalise_timestamp(timestamp: Any) -> Tuple[str, Optional[datetime]]:
+        if isinstance(timestamp, datetime):
+            dt = timestamp
+        else:
+            ts_str = "unknown" if timestamp is None else str(timestamp)
+            iso_value = ts_str
+            if ts_str.endswith("Z"):
+                iso_value = ts_str[:-1] + "+00:00"
+            try:
+                dt = datetime.fromisoformat(iso_value)
+            except ValueError:
+                return ts_str, None
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(timezone.utc)
+        else:
+            dt = dt.replace(tzinfo=timezone.utc)
+        ts_out = dt.replace(tzinfo=None).isoformat() + "Z"
+        return ts_out, dt
+
+    @staticmethod
+    def _format_timestamp(dt: datetime) -> str:
+        return dt.replace(tzinfo=None).isoformat() + "Z"
+
+    def record_trade(self, pnl_pips: float, hit: bool, *, timestamp: Any) -> None:
         pnl_val = float(pnl_pips)
         self.trades += 1
         self.total_pips += pnl_val
         if hit:
             self.wins += 1
         self.trade_returns.append(pnl_val)
-        if not self.equity_curve:
-            self.equity_curve.append(float(self.starting_equity))
-        last_equity = self.equity_curve[-1]
-        self.equity_curve.append(last_equity + pnl_val)
+        ts_value, dt_value = self._normalise_timestamp(timestamp)
+        if self._equity_seed is None:
+            seed_ts = ts_value
+            if dt_value is not None:
+                seed_ts = self._format_timestamp(dt_value - timedelta(microseconds=1))
+            self._equity_seed = (seed_ts, self.starting_equity)
+        last_equity = (
+            self.equity_curve[-1][1]
+            if self.equity_curve
+            else self._equity_seed[1]
+            if self._equity_seed
+            else self.starting_equity
+        )
+        new_equity = last_equity + pnl_val
+        self.equity_curve.append((ts_value, new_equity))
 
     def as_dict(self):
         win_rate: Optional[float]
@@ -84,6 +119,11 @@ class Metrics:
         else:
             win_rate = None
 
+        curve: List[List[Any]] = []
+        if self._equity_seed is not None:
+            curve.append([self._equity_seed[0], self._equity_seed[1]])
+        curve.extend([[ts, equity] for ts, equity in self.equity_curve])
+
         data = {
             "trades": self.trades,
             "wins": self.wins,
@@ -91,6 +131,7 @@ class Metrics:
             "total_pips": self.total_pips,
             "sharpe": self._compute_sharpe(),
             "max_drawdown": self._compute_max_drawdown(),
+            "equity_curve": curve,
         }
         if self.runtime:
             data["runtime"] = self.runtime
@@ -110,11 +151,15 @@ class Metrics:
         return mean_ret / std_dev * math.sqrt(float(n))
 
     def _compute_max_drawdown(self) -> Optional[float]:
-        if not self.equity_curve:
+        values: List[float] = []
+        if self._equity_seed is not None:
+            values.append(self._equity_seed[1])
+        values.extend(point[1] for point in self.equity_curve)
+        if not values:
             return None
-        peak = self.equity_curve[0]
+        peak = values[0]
         max_drawdown = 0.0
-        for equity in self.equity_curve:
+        for equity in values:
             if equity > peak:
                 peak = equity
             drawdown = equity - peak
@@ -722,7 +767,7 @@ class BacktestRunner:
         pnl_px = (exit_px - entry_px) * signed
         pnl_pips = price_to_pips(pnl_px, self.symbol) - cost
         hit = exit_reason == "tp"
-        self._record_trade_metrics(pnl_pips, hit)
+        self._record_trade_metrics(pnl_pips, hit, timestamp=exit_ts)
         self._increment_daily("fills")
         if hit:
             self._increment_daily("wins")
@@ -1447,8 +1492,8 @@ class BacktestRunner:
             "ctx_snapshot": dict(trade_ctx_snapshot),
         }
 
-    def _record_trade_metrics(self, pnl_pips: float, hit: bool) -> None:
-        self.metrics.record_trade(pnl_pips, hit)
+    def _record_trade_metrics(self, pnl_pips: float, hit: bool, *, timestamp: Any) -> None:
+        self.metrics.record_trade(pnl_pips, hit, timestamp=timestamp)
 
     # ---------- State persistence ----------
     def _config_fingerprint(self) -> str:
