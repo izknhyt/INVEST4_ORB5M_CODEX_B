@@ -35,6 +35,7 @@ class PortfolioState:
     gross_exposure_cap_pct: Optional[float] = None
     gross_exposure_headroom_pct: Optional[float] = None
     strategy_correlations: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    correlation_meta: Dict[str, Dict[str, Dict[str, Any]]] = field(default_factory=dict)
     execution_health: Dict[str, Dict[str, float]] = field(default_factory=dict)
     correlation_window_minutes: Optional[float] = None
 
@@ -81,6 +82,25 @@ class ExecutionHealthStatus:
     score_delta: float = 0.0
     penalties: Dict[str, float] = field(default_factory=dict)
     metric_results: List[ExecutionMetricResult] = field(default_factory=list)
+
+
+@dataclass
+class CorrelationPeerEntry:
+    """Metadata about a correlated peer used for bucket-aware rules."""
+
+    strategy_id: str
+    value: float
+    category: Optional[str]
+    category_budget_pct: Optional[float]
+
+
+@dataclass
+class CorrelationStatus:
+    """Result of evaluating correlation breaches for a candidate."""
+
+    disqualified: bool = False
+    score_delta: float = 0.0
+    reasons: List[str] = field(default_factory=list)
 
 
 def _session_allowed(manifest: StrategyManifest, session: Optional[str]) -> bool:
@@ -178,6 +198,116 @@ def _resolve_category_budget(
     return usage, budget, headroom
 
 
+def _resolve_candidate_budget(manifest: StrategyManifest, portfolio: PortfolioState) -> Optional[float]:
+    category = manifest.category
+    budget = _to_optional_float(portfolio.category_budget_pct.get(category))
+    if budget is None:
+        budget = _to_optional_float(manifest.router.category_budget_pct)
+    if budget is None:
+        budget = _to_optional_float(manifest.router.category_cap_pct)
+    return budget
+
+
+def _format_bucket_label(category: Optional[str], budget: Optional[float]) -> Optional[str]:
+    if category is None:
+        return None
+    if budget is None:
+        return category
+    return f"{category} ({budget:.1f}%)"
+
+
+def _same_budget_bucket(
+    lhs_category: Optional[str],
+    lhs_budget: Optional[float],
+    rhs_category: Optional[str],
+    rhs_budget: Optional[float],
+) -> bool:
+    if lhs_category is None or rhs_category is None:
+        return False
+    if lhs_category != rhs_category:
+        return False
+    if lhs_budget is None or rhs_budget is None:
+        return True
+    return abs(lhs_budget - rhs_budget) <= 1e-9
+
+
+def _collect_correlation_peers(
+    manifest: StrategyManifest, portfolio: PortfolioState
+) -> Dict[str, CorrelationPeerEntry]:
+    if not portfolio.strategy_correlations:
+        return {}
+
+    keys: List[str] = [str(manifest.id)]
+    keys.extend(str(tag) for tag in manifest.router.correlation_tags)
+
+    peers: Dict[str, CorrelationPeerEntry] = {}
+    for source in keys:
+        corr_series = portfolio.strategy_correlations.get(source, {})
+        if not corr_series:
+            continue
+        meta_series = portfolio.correlation_meta.get(source, {})
+        for peer_key, raw_value in corr_series.items():
+            value = _to_optional_float(raw_value)
+            if value is None:
+                continue
+            meta = meta_series.get(peer_key, {})
+            strategy_id = str(meta.get("strategy_id") or peer_key)
+            category = meta.get("category")
+            budget = _to_optional_float(meta.get("category_budget_pct"))
+            existing = peers.get(strategy_id)
+            if existing is None or abs(value) > abs(existing.value):
+                peers[strategy_id] = CorrelationPeerEntry(
+                    strategy_id=strategy_id,
+                    value=value,
+                    category=category,
+                    category_budget_pct=budget,
+                )
+    return peers
+
+
+def _evaluate_correlation(
+    manifest: StrategyManifest, portfolio: PortfolioState
+) -> CorrelationStatus:
+    limit = manifest.router.max_correlation
+    if limit is None:
+        return CorrelationStatus()
+
+    limit_value = _to_optional_float(limit)
+    if limit_value is None:
+        return CorrelationStatus()
+
+    peers = _collect_correlation_peers(manifest, portfolio)
+    if not peers:
+        return CorrelationStatus()
+
+    candidate_budget = _resolve_candidate_budget(manifest, portfolio)
+    candidate_category = manifest.category
+
+    status = CorrelationStatus()
+    for entry in peers.values():
+        corr_value = abs(entry.value)
+        if corr_value <= limit_value:
+            continue
+        same_bucket = _same_budget_bucket(
+            candidate_category,
+            candidate_budget,
+            entry.category,
+            entry.category_budget_pct,
+        )
+        bucket_label = _format_bucket_label(entry.category, entry.category_budget_pct)
+        reason = f"correlation {corr_value:.2f} > cap {limit_value:.2f}"
+        if bucket_label:
+            reason = f"{reason} (bucket {bucket_label})"
+        if same_bucket:
+            status.disqualified = True
+            status.reasons.append(reason)
+        else:
+            penalty = corr_value - limit_value
+            status.score_delta -= penalty
+            status.reasons.append(f"{reason}, score_delta={-penalty:+.2f}")
+    return status
+
+
 def _resolve_gross_headroom(
     manifest: StrategyManifest, portfolio: PortfolioState
 ) -> Tuple[Optional[float], Optional[float], Optional[float]]:
@@ -259,29 +389,6 @@ def _format_headroom_reason(
         details.append("score_delta=+0.00")
     joined = ", ".join(details)
     return f"{label} headroom ({joined})"
-
-
-def _max_correlation(manifest: StrategyManifest, portfolio: PortfolioState) -> Optional[float]:
-    corr_map: Dict[str, float] = {}
-    if manifest.id in portfolio.strategy_correlations:
-        corr_map.update(portfolio.strategy_correlations.get(manifest.id, {}))
-    for tag in manifest.router.correlation_tags:
-        corr_map.update(portfolio.strategy_correlations.get(tag, {}))
-    if not corr_map:
-        return None
-    return max(abs(float(val)) for val in corr_map.values())
-
-
-def _check_correlation(manifest: StrategyManifest, portfolio: PortfolioState) -> Optional[str]:
-    limit = manifest.router.max_correlation
-    if limit is None:
-        return None
-    max_corr = _max_correlation(manifest, portfolio)
-    if max_corr is None:
-        return None
-    if max_corr > limit:
-        return f"correlation {max_corr:.2f} exceeds cap {limit:.2f}"
-    return None
 
 
 def _execution_health_score_adjustment(ratio: float) -> float:
@@ -511,10 +618,6 @@ def select_candidates(
             if gross_reason:
                 eligible = False
                 reasons.append(gross_reason)
-            corr_reason = _check_correlation(manifest, portfolio)
-            if corr_reason:
-                eligible = False
-                reasons.append(corr_reason)
             health_status = _check_execution_health(manifest, portfolio)
             if health_status.disqualifying_reasons:
                 eligible = False
@@ -523,6 +626,13 @@ def select_candidates(
                 if message not in reasons:
                     reasons.append(message)
             health_score_delta = health_status.score_delta
+            corr_status = _evaluate_correlation(manifest, portfolio)
+            if corr_status.disqualified:
+                eligible = False
+            if corr_status.reasons:
+                reasons.extend(corr_status.reasons)
+            if corr_status.score_delta != 0.0:
+                health_score_delta += corr_status.score_delta
 
         signal_ctx = (strategy_signals or {}).get(manifest.id, {})
         score_value: Optional[float] = None
@@ -541,11 +651,6 @@ def select_candidates(
             score += health_score_delta
 
         # Apply soft penalties (do not flip eligibility) when information exists.
-        corr_penalty = _max_correlation(manifest, portfolio) if portfolio else None
-        if corr_penalty is not None and manifest.router.max_correlation is not None:
-            excess = max(0.0, corr_penalty - manifest.router.max_correlation)
-            if excess > 0:
-                score -= excess
         if portfolio:
             usage, cap, headroom = _resolve_category_headroom(manifest, portfolio)
             if headroom is not None or (usage is not None and cap is not None):
