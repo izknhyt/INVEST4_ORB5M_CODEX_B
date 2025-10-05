@@ -60,6 +60,18 @@ class SelectionResult:
 
 
 @dataclass
+class CandidateEvaluation:
+    eligible: bool
+    base_score: float
+    score_delta: float
+    reasons: List[str]
+
+    @property
+    def final_score(self) -> float:
+        return self.base_score + self.score_delta
+
+
+@dataclass
 class ExecutionMetricResult:
     """Structured outcome for a single execution-health metric."""
 
@@ -580,125 +592,129 @@ def _check_execution_health(
     return status
 
 
-def select_candidates(
+def evaluate_candidate(
+    manifest: StrategyManifest,
     market_ctx: Dict[str, Any],
-    manifests: Iterable[StrategyManifest],
-    portfolio: Optional[PortfolioState] = None,
-    strategy_signals: Optional[Dict[str, Dict[str, Any]]] = None,
-) -> List[SelectionResult]:
-    """Filter + score manifests using current market/portfolio context."""
+    portfolio: Optional[PortfolioState],
+    signal_ctx: Optional[Dict[str, Any]],
+) -> CandidateEvaluation:
+    reasons: List[str] = []
+    eligible = True
+    score_delta = 0.0
+
+    market_ctx = market_ctx or {}
+    signal_ctx = signal_ctx or {}
+
     session = market_ctx.get("session")
     spread_band = market_ctx.get("spread_band")
     rv_band = market_ctx.get("rv_band")
 
-    results: List[SelectionResult] = []
-    for manifest in manifests:
-        reasons: List[str] = []
-        eligible = True
+    if not _session_allowed(manifest, session):
+        eligible = False
+        reasons.append(f"session {session} not allowed")
 
-        if not _session_allowed(manifest, session):
+    if not _band_allowed(manifest.router.allow_spread_bands, spread_band):
+        eligible = False
+        reasons.append(f"spread band {spread_band} not allowed")
+
+    if not _band_allowed(manifest.router.allow_rv_bands, rv_band):
+        eligible = False
+        reasons.append(f"rv band {rv_band} not allowed")
+
+    if portfolio is not None:
+        cap_reason = _check_category_cap(manifest, portfolio)
+        if cap_reason:
             eligible = False
-            reasons.append(f"session {session} not allowed")
+            reasons.append(cap_reason)
 
-        if not _band_allowed(manifest.router.allow_spread_bands, spread_band):
+        conc_reason = _check_concurrency(manifest, portfolio)
+        if conc_reason:
             eligible = False
-            reasons.append(f"spread band {spread_band} not allowed")
+            reasons.append(conc_reason)
 
-        if not _band_allowed(manifest.router.allow_rv_bands, rv_band):
+        gross_reason = _check_gross_exposure(manifest, portfolio)
+        if gross_reason:
             eligible = False
-            reasons.append(f"rv band {rv_band} not allowed")
+            reasons.append(gross_reason)
 
-        health_score_delta = 0.0
-        if portfolio is not None:
-            cap_reason = _check_category_cap(manifest, portfolio)
-            if cap_reason:
-                eligible = False
-                reasons.append(cap_reason)
-            conc_reason = _check_concurrency(manifest, portfolio)
-            if conc_reason:
-                eligible = False
-                reasons.append(conc_reason)
-            gross_reason = _check_gross_exposure(manifest, portfolio)
-            if gross_reason:
-                eligible = False
-                reasons.append(gross_reason)
-            health_status = _check_execution_health(manifest, portfolio)
-            if health_status.disqualifying_reasons:
-                eligible = False
-                reasons.extend(health_status.disqualifying_reasons)
-            for message in health_status.log_messages:
-                if message not in reasons:
-                    reasons.append(message)
-            health_score_delta = health_status.score_delta
-            corr_status = _evaluate_correlation(manifest, portfolio)
-            if corr_status.disqualified:
-                eligible = False
-            if corr_status.reasons:
-                reasons.extend(corr_status.reasons)
-            if corr_status.score_delta != 0.0:
-                health_score_delta += corr_status.score_delta
+        health_status = _check_execution_health(manifest, portfolio)
+        if health_status.disqualifying_reasons:
+            eligible = False
+            reasons.extend(health_status.disqualifying_reasons)
+        for message in health_status.log_messages:
+            if message not in reasons:
+                reasons.append(message)
+        score_delta += health_status.score_delta
 
-        signal_ctx = (strategy_signals or {}).get(manifest.id, {})
-        score_value: Optional[float] = None
-        if "score" in signal_ctx:
-            raw_score = signal_ctx["score"]
-            if raw_score is not None:
-                score_value = float(raw_score)
-        if score_value is None:
-            ev_raw = signal_ctx.get("ev_lcb")
-            if ev_raw is not None:
-                score_value = float(ev_raw)
-        score = score_value if score_value is not None else 0.0
-        score += manifest.router.priority
+        corr_status = _evaluate_correlation(manifest, portfolio)
+        if corr_status.disqualified:
+            eligible = False
+        if corr_status.reasons:
+            reasons.extend(corr_status.reasons)
+        score_delta += corr_status.score_delta
 
-        if health_score_delta != 0.0:
-            score += health_score_delta
-
-        # Apply soft penalties (do not flip eligibility) when information exists.
-        if portfolio:
-            usage, cap, headroom = _resolve_category_headroom(manifest, portfolio)
-            if headroom is not None or (usage is not None and cap is not None):
-                delta = _headroom_score_adjustment(headroom)
-                score += delta
-                reasons.append(
-                    _format_headroom_reason("category", usage, cap, headroom, delta)
-                )
-            budget_usage, budget_cap, budget_headroom = _resolve_category_budget(
-                manifest, portfolio
+        usage, cap, headroom = _resolve_category_headroom(manifest, portfolio)
+        if headroom is not None or (usage is not None and cap is not None):
+            delta = _headroom_score_adjustment(headroom)
+            score_delta += delta
+            reasons.append(
+                _format_headroom_reason("category", usage, cap, headroom, delta)
             )
-            cap_headroom = _to_optional_float(
-                portfolio.category_headroom_pct.get(manifest.category)
+
+        budget_usage, budget_cap, budget_headroom = _resolve_category_budget(
+            manifest, portfolio
+        )
+        cap_headroom = _to_optional_float(
+            portfolio.category_headroom_pct.get(manifest.category)
+        )
+        if (
+            budget_cap is not None
+            or budget_headroom is not None
+            or budget_usage is not None
+        ):
+            budget_delta = _budget_score_adjustment(budget_headroom, cap_headroom)
+            score_delta += budget_delta
+            reasons.append(
+                _format_headroom_reason(
+                    "category budget",
+                    budget_usage,
+                    budget_cap,
+                    budget_headroom,
+                    budget_delta,
+                    include_status=True,
+                )
             )
-            if budget_cap is not None or budget_headroom is not None or budget_usage is not None:
-                budget_delta = _budget_score_adjustment(
-                    budget_headroom, cap_headroom
+
+        gross_usage, gross_cap, gross_headroom = _resolve_gross_headroom(
+            manifest, portfolio
+        )
+        if gross_headroom is not None or (
+            gross_usage is not None and gross_cap is not None
+        ):
+            gross_delta = _headroom_score_adjustment(gross_headroom)
+            score_delta += gross_delta
+            reasons.append(
+                _format_headroom_reason(
+                    "gross", gross_usage, gross_cap, gross_headroom, gross_delta
                 )
-                score += budget_delta
-                reasons.append(
-                    _format_headroom_reason(
-                        "category budget",
-                        budget_usage,
-                        budget_cap,
-                        budget_headroom,
-                        budget_delta,
-                        include_status=True,
-                    )
-                )
-            gross_usage, gross_cap, gross_headroom = _resolve_gross_headroom(
-                manifest, portfolio
             )
-            if gross_headroom is not None or (
-                gross_usage is not None and gross_cap is not None
-            ):
-                gross_delta = _headroom_score_adjustment(gross_headroom)
-                score += gross_delta
-                reasons.append(
-                    _format_headroom_reason(
-                        "gross", gross_usage, gross_cap, gross_headroom, gross_delta
-                    )
-                )
-        ev_lcb_raw = signal_ctx.get("ev_lcb")
-        if ev_lcb_raw is not None and "ev_lcb" not in reasons:
+
+    score_value: Optional[float] = None
+    if "score" in signal_ctx:
+        raw_score = signal_ctx["score"]
+        if raw_score is not None:
+            score_value = float(raw_score)
+    if score_value is None:
+        ev_raw = signal_ctx.get("ev_lcb")
+        if ev_raw is not None:
+            score_value = float(ev_raw)
+
+    base_score = (score_value if score_value is not None else 0.0)
+    base_score += manifest.router.priority
+
+    ev_lcb_raw = signal_ctx.get("ev_lcb")
+    if ev_lcb_raw is not None:
+        if not any(reason.startswith("ev_lcb=") for reason in reasons):
             try:
                 ev_lcb_value = float(ev_lcb_raw)
             except (TypeError, ValueError):
@@ -708,13 +724,38 @@ def select_candidates(
             else:
                 reasons.append(f"ev_lcb={ev_lcb_value:.3f}")
 
-        results.append(SelectionResult(
-            manifest_id=manifest.id,
-            eligible=eligible,
-            score=score,
-            reasons=reasons,
-            manifest=manifest,
-        ))
+    return CandidateEvaluation(
+        eligible=eligible,
+        base_score=base_score,
+        score_delta=score_delta,
+        reasons=reasons,
+    )
+
+
+def select_candidates(
+    market_ctx: Dict[str, Any],
+    manifests: Iterable[StrategyManifest],
+    portfolio: Optional[PortfolioState] = None,
+    strategy_signals: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> List[SelectionResult]:
+    """Filter + score manifests using current market/portfolio context."""
+
+    results: List[SelectionResult] = []
+    signals_by_manifest = strategy_signals or {}
+
+    for manifest in manifests:
+        signal_ctx = signals_by_manifest.get(manifest.id, {})
+        evaluation = evaluate_candidate(manifest, market_ctx, portfolio, signal_ctx)
+
+        results.append(
+            SelectionResult(
+                manifest_id=manifest.id,
+                eligible=evaluation.eligible,
+                score=evaluation.final_score,
+                reasons=evaluation.reasons,
+                manifest=manifest,
+            )
+        )
 
     results.sort(key=lambda r: (r.eligible, r.score), reverse=True)
     return results
@@ -722,6 +763,8 @@ def select_candidates(
 
 __all__ = [
     "PortfolioState",
+    "CandidateEvaluation",
     "SelectionResult",
+    "evaluate_candidate",
     "select_candidates",
 ]
