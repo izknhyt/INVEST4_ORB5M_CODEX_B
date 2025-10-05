@@ -1,6 +1,6 @@
 import csv
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
@@ -9,7 +9,7 @@ from core.fill_engine import SameBarPolicy
 from core.runner import BacktestRunner, Metrics, RunnerConfig
 from core.pips import pip_size, price_to_pips
 from core.sizing import compute_qty_from_ctx
-from core.strategy_api import OrderIntent
+from core.strategy_api import OrderIntent, Strategy
 from strategies.day_orb_5m import DayORB5m
 
 
@@ -267,6 +267,98 @@ class TestRunner(unittest.TestCase):
             self.assertListEqual(first_curve[1:], second_curve[1:])
         else:
             self.assertEqual(first_curve, second_curve)
+
+    def test_run_resets_ev_and_slip_state_between_runs(self):
+        """Ensure learning state resets so repeated runs trade identically.
+
+        The strategy instance persists between ``run`` invocations, so the
+        helper emits the same single signal whenever its lone bar is observed.
+        """
+
+        class SingleBarStrategy(Strategy):
+            def __init__(self) -> None:
+                self.cfg = {"ctx": {}}
+                self._pending_signal: Optional[OrderIntent] = None
+
+            def on_start(self, cfg, instruments, state_store) -> None:
+                self.cfg = {"ctx": {}}
+                self._pending_signal = None
+
+            def on_bar(self, bar) -> None:
+                self._pending_signal = OrderIntent(
+                    side="BUY",
+                    qty=1.0,
+                    price=bar["c"],
+                    oco={"tp_pips": 1.0, "sl_pips": 1.0},
+                )
+
+            def signals(self):
+                if self._pending_signal is None:
+                    return []
+                return [self._pending_signal]
+
+        cfg = RunnerConfig(
+            warmup_trades=0,
+            threshold_lcb_pip=0.0,
+            include_expected_slip=True,
+            slip_learn=True,
+            slip_cap_pip=1.0,
+            risk_per_trade_pct=1.0,
+        )
+        symbol = "USDJPY"
+        runner = BacktestRunner(
+            equity=100_000.0,
+            symbol=symbol,
+            runner_cfg=cfg,
+            debug=True,
+            strategy_cls=SingleBarStrategy,
+        )
+        stub_ev = self.DummyEV(ev_lcb=5.0, p_lcb=0.6)
+        runner._get_ev_manager = lambda key: stub_ev
+        base_ts = datetime(2024, 1, 4, 9, 0, tzinfo=timezone.utc)
+        bars = [
+            make_bar(
+                base_ts,
+                symbol,
+                150.0,
+                150.1,
+                149.9,
+                150.0,
+                spread=0.005,
+            )
+        ]
+
+        slip_delta = 3.0 * pip_size(symbol)
+
+        def _force_losing_fill(bar_ctx, spec):
+            signed = 1 if spec.side == "BUY" else -1
+            entry_px = spec.entry + signed * slip_delta
+            exit_px = spec.entry - signed * slip_delta
+            return {
+                "fill": True,
+                "entry_px": entry_px,
+                "exit_px": exit_px,
+                "exit_reason": "sl",
+            }
+
+        with patch.object(
+            runner.fill_engine_c,
+            "simulate",
+            autospec=True,
+            side_effect=_force_losing_fill,
+        ):
+            metrics_first = runner.run(list(bars), mode="conservative")
+            first_trades = metrics_first.trades
+            first_debug = dict(metrics_first.debug)
+
+            metrics_second = runner.run(list(bars), mode="conservative")
+            second_trades = metrics_second.trades
+            second_debug = dict(metrics_second.debug)
+
+        self.assertEqual(first_trades, 1)
+        self.assertEqual(second_trades, 1)
+        self.assertEqual(first_debug, second_debug)
+        self.assertLess(metrics_second.total_pips, 0.0)
 
     def test_metrics_compute_sharpe_and_drawdown(self):
         metrics = Metrics()

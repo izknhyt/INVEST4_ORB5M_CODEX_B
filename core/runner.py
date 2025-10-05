@@ -430,12 +430,7 @@ class BacktestRunner:
         self.debug_sample_limit = max(0, int(debug_sample_limit))
         self.strategy_cls = strategy_cls or DayORB5m
         self.ev_profile = ev_profile or {}
-        self.ev_global = BetaBinomialEV(conf_level=0.95, decay=self.rcfg.ev_decay,
-                                        prior_alpha=self.rcfg.prior_alpha,
-                                        prior_beta=self.rcfg.prior_beta)
-        # bucket store for pooled EV
-        self.ev_buckets: Dict[tuple, BetaBinomialEV] = {}
-        self.ev_var = TLowerEV(conf_level=0.95, decay=self.rcfg.ev_decay)
+        self._init_ev_state()
         cons_policy = self.rcfg.resolve_same_bar_policy("conservative")
         bridge_policy = self.rcfg.resolve_same_bar_policy("bridge")
         self.fill_engine_c = ConservativeFill(cons_policy)
@@ -447,12 +442,7 @@ class BacktestRunner:
         self._reset_runtime_state()
         self._ev_profile_lookup: Dict[tuple, Dict[str, Any]] = {}
         # Slip/size expectation tracking
-        self.slip_a = {
-            "narrow": self.rcfg.slip_curve.get("narrow", {}).get("a", 0.0),
-            "normal": self.rcfg.slip_curve.get("normal", {}).get("a", 0.0),
-            "wide":   self.rcfg.slip_curve.get("wide", {}).get("a", 0.0),
-        }
-        self.qty_ewma: Dict[str, float] = {"narrow": 0.0, "normal": 0.0, "wide": 0.0}
+        self._reset_slip_learning()
 
         # strategy
         self.stg = self.strategy_cls()
@@ -460,6 +450,25 @@ class BacktestRunner:
         self._strategy_gate_hook = self._resolve_strategy_hook("strategy_gate")
         self._ev_threshold_hook = self._resolve_strategy_hook("ev_threshold")
         self._apply_ev_profile()
+
+    def _init_ev_state(self) -> None:
+        self.ev_global = BetaBinomialEV(
+            conf_level=0.95,
+            decay=self.rcfg.ev_decay,
+            prior_alpha=self.rcfg.prior_alpha,
+            prior_beta=self.rcfg.prior_beta,
+        )
+        # bucket store for pooled EV
+        self.ev_buckets = {}  # type: Dict[tuple, BetaBinomialEV]
+        self.ev_var = TLowerEV(conf_level=0.95, decay=self.rcfg.ev_decay)
+
+    def _reset_slip_learning(self) -> None:
+        self.slip_a = {
+            "narrow": self.rcfg.slip_curve.get("narrow", {}).get("a", 0.0),
+            "normal": self.rcfg.slip_curve.get("normal", {}).get("a", 0.0),
+            "wide": self.rcfg.slip_curve.get("wide", {}).get("a", 0.0),
+        }
+        self.qty_ewma = {"narrow": 0.0, "normal": 0.0, "wide": 0.0}
 
     def _reset_runtime_state(self) -> None:
         self.metrics = Metrics(starting_equity=self.equity)
@@ -1893,8 +1902,15 @@ class BacktestRunner:
         return self.metrics
 
     def run(self, bars: List[Dict[str, Any]], mode: str = "conservative") -> Metrics:
-        """Run a full batch simulation resetting runtime state first."""
+        """Run a full batch simulation resetting runtime and learning state first.
+
+        The strategy instance itself is reused across runs so strategy-level state
+        management should ensure fresh signals per bar when invoking ``run``
+        repeatedly.
+        """
         self._reset_runtime_state()
+        self._init_ev_state()
+        self._reset_slip_learning()
         self._ev_profile_lookup = {}
         self._apply_ev_profile()
         return self.run_partial(bars, mode=mode)
