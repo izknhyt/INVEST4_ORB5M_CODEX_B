@@ -2,6 +2,10 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-01-25: `analysis/portfolio_monitor._load_strategy_series` で manifest の相対パスをメトリクス所在ディレクトリ基準で解決するよう更新し、
+  `scripts/report_portfolio_summary.py` の CLI 実行でも同ロジックを共有。
+  マニフェスト名を書き換えたフィクスチャを一時ディレクトリへ複製する回帰テスト（`tests/test_portfolio_monitor.py`）を追加し、
+  `python3 -m pytest tests/test_portfolio_monitor.py tests/test_router_pipeline.py` で 8 件パスを確認。
 - 2026-01-24: `core/router_pipeline.build_portfolio_state` がアクティブポジションの絶対値を利用してカテゴリ利用率・グロスエクスポージャー
   を構成するよう調整し、`router/router_v1._check_concurrency` が非整数入力を防御しつつ絶対値比較するよう更新。ショートカウントが既
   存カテゴリ利用率へ加算される回帰 (`tests/test_router_pipeline.py`) を追加し、`python3 -m pytest tests/test_router_v1.py tests/test_router_pipeline.py`
