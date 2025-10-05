@@ -32,6 +32,22 @@ def _to_float(value: Any) -> Optional[float]:
         return None
 
 
+def manifest_category_budget(manifest: StrategyManifest) -> Optional[float]:
+    """Return the governance budget declared for a manifest's category."""
+
+    budget = manifest.router.category_budget_pct
+    if budget is not None:
+        return float(budget)
+
+    raw_block = manifest.raw.get("governance") if isinstance(manifest.raw, Mapping) else None
+    if isinstance(raw_block, Mapping):
+        value = _to_float(raw_block.get("category_budget_pct"))
+        if value is not None:
+            return value
+
+    return None
+
+
 def build_portfolio_state(
     manifests: Iterable[StrategyManifest],
     *,
@@ -131,7 +147,7 @@ def build_portfolio_state(
             category_caps[manifest.category] = (
                 cap_float if prev_cap is None else min(prev_cap, cap_float)
             )
-        budget_value = manifest.router.category_budget_pct
+        budget_value = manifest_category_budget(manifest)
         if budget_value is None:
             budget_value = manifest.router.category_cap_pct
         if budget_value is not None:
@@ -212,5 +228,6 @@ def build_portfolio_state(
 
 __all__ = [
     "PortfolioTelemetry",
+    "manifest_category_budget",
     "build_portfolio_state",
 ]

@@ -196,19 +196,18 @@ def _headroom_score_adjustment(headroom: Optional[float]) -> float:
 def _budget_score_adjustment(
     budget_headroom: Optional[float], cap_headroom: Optional[float]
 ) -> float:
-    if budget_headroom is None or budget_headroom >= 0:
+    if budget_headroom is None:
         return 0.0
-    overage = abs(budget_headroom)
-    if overage <= 2.0:
-        penalty = -0.10
-    elif overage <= 5.0:
-        penalty = -0.25
-    elif overage <= 10.0:
-        penalty = -0.40
-    else:
-        penalty = -0.60
+    if budget_headroom >= 0:
+        if budget_headroom <= 5.0:
+            return -0.05
+        return 0.0
+    excess = abs(budget_headroom)
+    penalty = -0.25 - min(excess / 10.0, 1.0) * 0.45
     if cap_headroom is not None and cap_headroom <= 5.0:
         penalty -= 0.10
+    if cap_headroom is not None and cap_headroom <= 0.0:
+        penalty -= 0.05
     return penalty
 
 
@@ -218,14 +217,30 @@ def _format_headroom_reason(
     cap: Optional[float],
     headroom: Optional[float],
     delta: float,
+    *,
+    include_status: bool = False,
 ) -> str:
     details: List[str] = []
+    status: Optional[str] = None
     if headroom is not None:
         details.append(f"headroom={headroom:.1f}%")
+        if include_status:
+            if headroom < 0:
+                status = "breach"
+            elif headroom <= 5.0:
+                status = "warning"
+            else:
+                status = "ok"
     if usage is not None:
         details.append(f"usage={usage:.1f}%")
     if cap is not None:
         details.append(f"cap={cap:.1f}%")
+    if include_status:
+        overage = abs(headroom) if headroom is not None and headroom < 0 else None
+        if status:
+            details.append(f"status={status}")
+        if overage is not None:
+            details.append(f"over={overage:.1f}%")
     if delta != 0:
         details.append(f"score_delta={delta:+.2f}")
     else:
@@ -479,6 +494,7 @@ def select_candidates(
                         budget_cap,
                         budget_headroom,
                         budget_delta,
+                        include_status=True,
                     )
                 )
             gross_usage, gross_cap, gross_headroom = _resolve_gross_headroom(

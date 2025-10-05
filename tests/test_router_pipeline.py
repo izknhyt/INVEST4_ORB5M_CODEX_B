@@ -236,6 +236,24 @@ def test_router_pipeline_merges_short_usage_with_existing_category_allocation():
     assert any("active positions" in reason for reason in result.reasons)
 
 
+def test_router_pipeline_uses_governance_budget_when_router_missing():
+    manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
+    manifest.router.category_cap_pct = 55.0
+    manifest.router.category_budget_pct = None
+    manifest.raw.setdefault("governance", {})["category_budget_pct"] = 44.0
+
+    telemetry = PortfolioTelemetry(
+        category_utilisation_pct={manifest.category: 12.5},
+    )
+
+    portfolio = build_portfolio_state([manifest], telemetry=telemetry)
+
+    assert portfolio.category_budget_pct[manifest.category] == approx(44.0)
+    assert portfolio.category_budget_headroom_pct[manifest.category] == approx(
+        44.0 - 12.5
+    )
+
+
 def test_router_sample_metrics_equity_curve_is_ordered() -> None:
     metrics_dir = Path("reports/portfolio_samples/router_demo/metrics")
     assert metrics_dir.exists()

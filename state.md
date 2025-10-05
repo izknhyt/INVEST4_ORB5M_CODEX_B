@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-02-07: manifest `governance.category_budget_pct` を `core/router_pipeline.manifest_category_budget` で吸い上げ、`scripts/build_router_snapshot.py` が `--category-budget-csv` で外部 CSV を統合できるようにした。`router_v1.select_candidates` はカテゴリ予算ヘッドルームに応じて `status=ok|warning|breach` を理由ログへ付与し、超過率に比例したソフトペナルティを適用。`tests/test_router_pipeline.py` / `tests/test_router_v1.py` を実行し、新しいカテゴリ予算ロジックの回帰を確認。
 - 2026-02-06: `scripts/build_router_snapshot.py` のドキュメントとヘルプ文に窓幅フラグの利用手順を追記し、`tests/test_router_pipeline.py` へ `correlation_window_minutes` 伝播の回帰テストを追加。
   `docs/router_architecture.md` で CLI 引数の指定箇所を明記し、`python3 -m pytest`（192 件）を完走してスイートの健全性を再確認。
 - 2026-02-05: `scripts/build_router_snapshot.py` に `--correlation-window-minutes` を追加して相関行列と窓幅メタデータをテレメトリへ保存し、`PortfolioTelemetry` / `PortfolioState` / ポートフォリオサマリー / ルーター文書を同期。`tests/test_report_portfolio_summary.py` に CLI 回帰（ヘルプ出力含む）を追加し、`python3 -m pytest` を実行して 191 件パスを確認。

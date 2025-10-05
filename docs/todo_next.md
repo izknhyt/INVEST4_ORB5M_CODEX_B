@@ -23,6 +23,7 @@
 - **ルーター拡張** (Backlog: `docs/task_backlog.md` → [P2-マルチ戦略ポートフォリオ化](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化)) <!-- anchor: docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化 -->
   - `docs/checklists/p2_router.md` を利用し、カテゴリ配分・相関・キャパ制約を考慮したルーター拡張を進める。既存ルーター実装とテストの現状把握、設計ドキュメントの再読から着手。
   - 2026-01-30: [docs/router_architecture.md](router_architecture.md) を追加し、v0/v1/v2 の責務・データフロー・テレメトリ要件を整理。チェックリストとバックログへリンクを設置。
+  - 2026-02-07: カテゴリ予算のガバナンス値を manifest `governance.category_budget_pct` や CSV から取り込み、`router_v1` の理由ログへ `status=ok|warning|breach` を記録する段階的ペナルティを実装。`tests/test_router_pipeline.py` / `tests/test_router_v1.py` でヘッドルーム算出とスコア調整を回帰。
   - Backlog Anchor: [ルーター拡張 (P2-02)](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化)
   - Vision / Runbook References:
     - [docs/logic_overview.md](docs/logic_overview.md)
