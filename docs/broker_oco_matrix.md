@@ -21,3 +21,4 @@ TODO:
 - `OrderSpec.same_bar_policy` を追加し、OANDA（Tick 順）、IG（保護優先）、SBI（逆指値優先）の差異を Conservative / Bridge で再現。
 - トレールはサーバ更新間隔を `trail_pips` とバー内最高値・最安値から推測し、同足中に保護幅を超えた場合は `exit_reason="trail"` で反映。
 - CLI `python3 analysis/broker_fills_cli.py --format markdown` で主要ケース（OANDA: tick 優先、IG: Stop 優先、SBI: 逆指値優先）を一括比較し、`core/fill_engine.py` の Conservative/Bridge 差分を把握できる。
+- 実行時の同足ポリシーは `RunnerConfig.fill_same_bar_policy_conservative` / `fill_same_bar_policy_bridge` で設定でき、CLI からは `--fill-same-bar-policy(-conservative|-bridge)` で上書き可能。Bridge モードの Brownian Bridge ミックス係数は `fill_bridge_lambda` / `fill_bridge_drift_scale`（CLI: `--fill-bridge-lambda`, `--fill-bridge-drift-scale`）で調整する。

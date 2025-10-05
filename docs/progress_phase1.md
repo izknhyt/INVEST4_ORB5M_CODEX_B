@@ -26,6 +26,7 @@
 - 2025-10-10: `analysis/broker_fills_cli.py` を追加し、OANDA / IG / SBI FXトレードの同足ヒット・トレール挙動を Conservative / Bridge と比較できる Markdown テーブルを生成。`python3 analysis/broker_fills_cli.py --format markdown` で期待順とモデル出力・ポリシー調整後の差分を一覧化。
 - 2025-10-10: `core/fill_engine.py` に `SameBarPolicy` / トレール即日更新ロジックを導入し、`tests/test_fill_engine.py` で代表ケース（Tick 優先 / 保護優先 / トレール更新）を固定。`python3 -m pytest tests/test_fill_engine.py` が通過することを確認。
 - 2025-12-02: `analysis/broker_fills.ipynb` を追加し、CLI と同じ比較表を Notebook 上でレビューできるワークフローを整備。`analysis/broker_fills_cli.py` に DataFrame 変換ヘルパーを追加し、レポート共有やスクリーンショット作成の再現性を向上。
+- 2026-02-13: `RunnerConfig` に同足ポリシー/Bridge パラメータのオーバーライドを追加し、`scripts/run_sim.py` から `--fill-same-bar-policy(-conservative|-bridge)` / `--fill-bridge-{lambda,drift-scale}` を指定できるよう更新。`tests/test_runner.py` / `tests/test_run_sim_cli.py` で新オプションの回帰を追加し、`docs/broker_oco_matrix.md` / `docs/benchmark_runbook.md` の運用手順を同期。
 
 ## TODO（フェーズ1 継続）
 - （現状なし）

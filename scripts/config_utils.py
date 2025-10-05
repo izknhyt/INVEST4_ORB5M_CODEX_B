@@ -53,6 +53,19 @@ def build_runner_config(args, base: RunnerConfig | None = None) -> RunnerConfig:
     if getattr(args, "size_floor", None) is not None:
         rcfg.size_floor_mult = float(args.size_floor)
 
+    if getattr(args, "fill_same_bar_policy", None) is not None:
+        policy_value = str(args.fill_same_bar_policy)
+        rcfg.fill_same_bar_policy_conservative = policy_value
+        rcfg.fill_same_bar_policy_bridge = policy_value
+    if getattr(args, "fill_same_bar_policy_conservative", None) is not None:
+        rcfg.fill_same_bar_policy_conservative = str(args.fill_same_bar_policy_conservative)
+    if getattr(args, "fill_same_bar_policy_bridge", None) is not None:
+        rcfg.fill_same_bar_policy_bridge = str(args.fill_same_bar_policy_bridge)
+    if getattr(args, "fill_bridge_lambda", None) is not None:
+        rcfg.fill_bridge_lambda = float(args.fill_bridge_lambda)
+    if getattr(args, "fill_bridge_drift_scale", None) is not None:
+        rcfg.fill_bridge_drift_scale = float(args.fill_bridge_drift_scale)
+
     if getattr(args, "or_n", None) is not None:
         try:
             rcfg.or_n = int(args.or_n)

@@ -29,7 +29,7 @@ from core.feature_store import (
     trend_score as calc_trend_score,
     pullback as calc_pullback,
 )
-from core.fill_engine import ConservativeFill, BridgeFill, OrderSpec
+from core.fill_engine import ConservativeFill, BridgeFill, OrderSpec, SameBarPolicy
 from core.ev_gate import BetaBinomialEV, TLowerEV
 from core.pips import pip_size, price_to_pips, pip_value as calc_pip_value
 from core.sizing import SizingConfig, compute_qty_from_ctx
@@ -46,6 +46,18 @@ def validate_bar(bar: Dict[str, Any]) -> bool:
     if not (l <= min(o, c) and h >= max(o, c) and l <= h):
         return False
     return True
+
+
+def _coerce_same_bar_policy(value: Union[str, SameBarPolicy]) -> SameBarPolicy:
+    if isinstance(value, SameBarPolicy):
+        return value
+    if value is None:
+        raise ValueError("same-bar policy cannot be None")
+    policy_key = str(value).strip().lower()
+    for policy in SameBarPolicy:
+        if policy_key in (policy.value, policy.name.lower()):
+            return policy
+    raise ValueError(f"Unknown same-bar policy '{value}'")
 
 
 @dataclass
@@ -288,6 +300,11 @@ class RunnerConfig:
     ev_mode: str = "lcb"
     # Minimal size multiplier when ev_mode='off'
     size_floor_mult: float = 0.01
+    # Fill engine configuration
+    fill_same_bar_policy_conservative: Union[str, SameBarPolicy] = SameBarPolicy.SL_FIRST.value
+    fill_same_bar_policy_bridge: Union[str, SameBarPolicy] = SameBarPolicy.PROBABILISTIC.value
+    fill_bridge_lambda: float = 0.35
+    fill_bridge_drift_scale: float = 2.5
 
     @property
     def or_n(self) -> int:
@@ -342,6 +359,16 @@ class RunnerConfig:
         if numeric_risk is not None and numeric_risk > 0:
             cfg.risk_per_trade_pct = numeric_risk
         return asdict(cfg)
+
+    def resolve_same_bar_policy(self, mode: str) -> SameBarPolicy:
+        if mode not in ("conservative", "bridge"):
+            raise ValueError(f"Unknown fill mode '{mode}' for same-bar policy resolution")
+        value: Union[str, SameBarPolicy]
+        if mode == "conservative":
+            value = self.fill_same_bar_policy_conservative
+        else:
+            value = self.fill_same_bar_policy_bridge
+        return _coerce_same_bar_policy(value)
 
 
 class BacktestRunner:
@@ -409,8 +436,14 @@ class BacktestRunner:
         # bucket store for pooled EV
         self.ev_buckets: Dict[tuple, BetaBinomialEV] = {}
         self.ev_var = TLowerEV(conf_level=0.95, decay=self.rcfg.ev_decay)
-        self.fill_engine_c = ConservativeFill()
-        self.fill_engine_b = BridgeFill()
+        cons_policy = self.rcfg.resolve_same_bar_policy("conservative")
+        bridge_policy = self.rcfg.resolve_same_bar_policy("bridge")
+        self.fill_engine_c = ConservativeFill(cons_policy)
+        self.fill_engine_b = BridgeFill(
+            same_bar_policy=bridge_policy,
+            lam=float(self.rcfg.fill_bridge_lambda),
+            drift_scale=float(self.rcfg.fill_bridge_drift_scale),
+        )
         self._reset_runtime_state()
         self._ev_profile_lookup: Dict[tuple, Dict[str, Any]] = {}
         # Slip/size expectation tracking

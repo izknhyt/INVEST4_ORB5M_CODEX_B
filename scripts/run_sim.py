@@ -29,6 +29,7 @@ if ROOT not in sys.path:
 from core.utils import yaml_compat as yaml
 from scripts._time_utils import utcnow_aware
 from core.runner import BacktestRunner, RunnerConfig
+from core.fill_engine import SameBarPolicy
 from core.router_pipeline import PortfolioTelemetry, build_portfolio_state
 from scripts.config_utils import build_runner_config
 from configs.strategies.loader import load_manifest, StrategyManifest
@@ -182,6 +183,12 @@ def parse_args(argv=None):
     p.add_argument("--rv-cuts", default=None, help="Override RV band cuts as 'c1,c2' (e.g., 0.005,0.015)")
     p.add_argument("--allow-low-rv", action="store_true", help="Allow rv_band=low to pass router gate")
     p.add_argument("--allowed-sessions", default=argparse.SUPPRESS, help="Comma-separated session codes to allow (e.g., 'LDN,NY'; empty for all)")
+    same_bar_choices = [policy.value for policy in SameBarPolicy]
+    p.add_argument("--fill-same-bar-policy", choices=same_bar_choices, default=None, help="Override same-bar TP/SL resolution for both fill engines")
+    p.add_argument("--fill-same-bar-policy-conservative", choices=same_bar_choices, default=None, help="Override same-bar TP/SL resolution for the conservative fill engine")
+    p.add_argument("--fill-same-bar-policy-bridge", choices=same_bar_choices, default=None, help="Override same-bar TP/SL resolution for the bridge fill engine")
+    p.add_argument("--fill-bridge-lambda", type=float, default=None, help="Override Brownian-bridge lambda mixing parameter")
+    p.add_argument("--fill-bridge-drift-scale", type=float, default=None, help="Override Brownian-bridge drift scaling factor")
     p.add_argument("--k-tp", type=float, default=None, help="Override k_tp (TP in ATR multiples)")
     p.add_argument("--k-sl", type=float, default=None, help="Override k_sl (SL in ATR multiples)")
     p.add_argument("--k-tr", type=float, default=None, help="Override k_tr (trail in ATR multiples)")
@@ -411,6 +418,11 @@ def main(argv=None):
             "k_tp": args.k_tp,
             "k_sl": args.k_sl,
             "k_tr": args.k_tr,
+            "fill_same_bar_policy": args.fill_same_bar_policy,
+            "fill_same_bar_policy_conservative": args.fill_same_bar_policy_conservative,
+            "fill_same_bar_policy_bridge": args.fill_same_bar_policy_bridge,
+            "fill_bridge_lambda": args.fill_bridge_lambda,
+            "fill_bridge_drift_scale": args.fill_bridge_drift_scale,
             "warmup": args.warmup,
             "prior_alpha": args.prior_alpha,
             "prior_beta": args.prior_beta,

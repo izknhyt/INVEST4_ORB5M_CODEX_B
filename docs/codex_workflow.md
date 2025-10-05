@@ -13,12 +13,18 @@ This guide summarizes the routine Codex agents should follow to keep tasks movin
 
 ## Pre-session Routine
 1. **Review the current situation**  
-   Read `state.md`, focusing on the `Next Task` entry and any outstanding questions or linked checklists.
+   Read `state.md`, focusing on the `Next Task` entry, open questions, and linked checklists. Confirm that the `Backlog Anchor` and `Pending Questions` slots match the intended work.
 2. **Confirm the backlog anchor**  
-   Pick the target task from `docs/task_backlog.md`, record its DoD, and verify whether it is already marked Ready in `docs/todo_next.md`.
+   Locate the task in `docs/task_backlog.md`, reread its DoD, and check `docs/todo_next.md` to ensure the task sits in the correct section (`Ready`, `In Progress`, or `Pending Review`). Adjust the target section via `--doc-section` when running automation.
 3. **Prepare templates**  
-   When adding a new `Next Task`, start from `docs/templates/next_task_entry.md`. For Ready tasks, duplicate `docs/templates/dod_checklist.md` into `docs/checklists/<task-slug>.md`.
-4. **Dry-run the start command**  
+   When adding a new `Next Task`, start from `docs/templates/next_task_entry.md`. For Ready tasks, duplicate `docs/templates/dod_checklist.md` into `docs/checklists/<task-slug>.md` so progress can be tracked with checkboxes.
+4. **Sandbox & approval check**  
+   Inspect the session context (for example, the IDE-provided `environment_context`) to confirm sandbox mode and approval policy. The current harness defaults to:
+   - Filesystem: `workspace-write`
+   - Network: `restricted`
+   - Approvals: `on-request`
+   Request approval when you need to rerun commands unsandboxed (e.g., external network access, privileged filesystem writes, destructive git operations). For routine read/pytest commands, approvals are unnecessary.
+5. **Dry-run the start command**  
    Execute the following command with `--dry-run` to validate anchors and dates before making real changes.
    ```bash
    python3 scripts/manage_task_cycle.py --dry-run start-task \
@@ -59,7 +65,7 @@ This guide summarizes the routine Codex agents should follow to keep tasks movin
        --task-id <ID>
    ```
 2. If the dry run looks correct, rerun without `--dry-run` so `state.md` (`## Log`) and `docs/todo_next.md` update in tandem.
-3. Update the DoD checklist, archive it when done, and add links to `docs/task_backlog.md` or the relevant runbook.
+3. Update the DoD checklist, archive it when done, and add links to `docs/task_backlog.md` or the relevant runbook. Ensure `docs/todo_next.md` moves the entry to the Archive section when the automation completes.
 4. Provide a Japanese summary in the final Codex response, including executed test commands and any follow-up actions.
 
 ## Ongoing Tips

@@ -63,6 +63,10 @@ runner:
     min_or_atr_ratio: 0.6  # RunnerConfig.min_or_atr_ratio → CLI --min-or-atr.
     allowed_sessions: [LDN, NY]  # RunnerConfig.allowed_sessions → CLI --allowed-sessions.
     warmup_trades: 50  # RunnerConfig.warmup_trades → CLI --warmup.
+    fill_same_bar_policy_conservative: sl_first  # RunnerConfig.fill_same_bar_policy_conservative → CLI --fill-same-bar-policy(-conservative).
+    fill_same_bar_policy_bridge: probabilistic  # RunnerConfig.fill_same_bar_policy_bridge → CLI --fill-same-bar-policy(-bridge).
+    fill_bridge_lambda: 0.35  # RunnerConfig.fill_bridge_lambda → CLI --fill-bridge-lambda.
+    fill_bridge_drift_scale: 2.5  # RunnerConfig.fill_bridge_drift_scale → CLI --fill-bridge-drift-scale.
     include_expected_slip: true  # RunnerConfig.include_expected_slip → CLI --include-expected-slip.
   cli_args:
     equity: 100000  # scripts/run_sim.py --equity

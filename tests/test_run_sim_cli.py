@@ -9,6 +9,7 @@ import unittest
 from unittest import mock
 
 from core.sizing import compute_qty_from_ctx
+from core.runner import RunnerConfig
 from scripts.run_sim import load_bars_csv, main as run_sim_main
 from strategies.mean_reversion import MeanReversionStrategy
 
@@ -224,6 +225,57 @@ class TestRunSimCLI(unittest.TestCase):
             self.assertIn("sharpe", data)
             self.assertIn("max_drawdown", data)
 
+    @mock.patch("scripts.run_sim.BacktestRunner")
+    def test_run_sim_cli_applies_fill_overrides(self, mock_runner):
+        class DummyMetrics:
+            def __init__(self):
+                self.records = []
+                self.daily = {}
+                self.runtime = {}
+                self.debug = {}
+
+            def as_dict(self):
+                return {"trades": 0, "wins": 0, "total_pips": 0.0}
+
+        mock_instance = mock_runner.return_value
+        mock_instance.strategy_cls = MeanReversionStrategy
+        mock_instance.ev_global = types.SimpleNamespace(decay=0.02)
+        mock_instance.run.return_value = DummyMetrics()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path = os.path.join(tmpdir, "bars.csv")
+            with open(csv_path, "w", encoding="utf-8") as f:
+                f.write(CSV_CONTENT)
+            json_out = os.path.join(tmpdir, "metrics.json")
+            args = [
+                "--csv", csv_path,
+                "--symbol", "USDJPY",
+                "--mode", "bridge",
+                "--equity", "100000",
+                "--json-out", json_out,
+                "--dump-max", "0",
+                "--fill-same-bar-policy", "tp_first",
+                "--fill-same-bar-policy-bridge", "sl_first",
+                "--fill-bridge-lambda", "0.7",
+                "--fill-bridge-drift-scale", "1.1",
+                "--no-auto-state",
+                "--no-ev-profile",
+                "--no-aggregate-ev",
+            ]
+
+            rc = run_sim_main(args)
+            self.assertEqual(rc, 0)
+
+            self.assertTrue(mock_runner.called)
+            call_args = mock_runner.call_args
+            self.assertIsNotNone(call_args)
+            rcfg = call_args.kwargs.get("runner_cfg")
+            self.assertIsInstance(rcfg, RunnerConfig)
+            self.assertEqual(rcfg.fill_same_bar_policy_conservative, "tp_first")
+            self.assertEqual(rcfg.fill_same_bar_policy_bridge, "sl_first")
+            self.assertAlmostEqual(rcfg.fill_bridge_lambda, 0.7)
+            self.assertAlmostEqual(rcfg.fill_bridge_drift_scale, 1.1)
+
     def test_run_sim_debug_records_capture_hook_failures(self):
         csv_fixture = os.path.join(os.path.dirname(__file__), "data", "hook_failure_fixture.csv")
         self.assertTrue(os.path.exists(csv_fixture))
@@ -283,4 +335,3 @@ class TestRunSimCLI(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

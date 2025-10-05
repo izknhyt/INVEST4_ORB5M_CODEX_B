@@ -187,6 +187,11 @@
   - 2025-10-16: 最新バーの供給が途絶しているため、P1-04 で API インジェスト基盤を設計・整備し、鮮度チェックのブロッカーを解消する計画。
 
 ## Log
+- [P1-06] 2026-02-13: Added fill-engine overrides (`fill_same_bar_policy_*`, `fill_bridge_lambda`, `fill_bridge_drift_scale`) to RunnerConfig and `scripts/run_sim.py`, exposed CLI flags, refreshed broker OCO docs/runbooks, and executed `python3 -m pytest tests/test_fill_engine.py tests/test_runner.py tests/test_run_sim_cli.py` to lock regression coverage.
+- [Ops] 2026-02-13: Updated `docs/codex_workflow.md` with sandbox/approval guidance (workspace-write + on-request), clarified `scripts/manage_task_cycle.py` dry-run usage, and aligned references with `docs/state_runbook.md` / template links.
+- [P2-MS] 2026-02-13: Re-ran Day ORB / Mean Reversion comparisons per `docs/checklists/multi_strategy_validation.md`, regenerated `runs/multi_strategy/` artefacts (`python3 scripts/run_sim.py ...`) including the `--no-ev-profile` variant, updated the checklist/table with the new metrics (`ev_reject=330` for Mean Reversion), and archived the task notes in `docs/todo_next.md` / `docs/task_backlog.md`.
+- [P2-02] 2026-02-13: Finalised the router expansion deliverables by syncing `docs/checklists/p2_router.md`, recording the work plan in `docs/progress_phase2.md`, updating the backlog/todo archives, and executing `python3 -m pytest tests/test_router_v1.py tests/test_router_pipeline.py` to confirm regression coverage.
+- [P1-05] 2026-02-13: Closed the backtest runner logging visibility task after revalidating `docs/backtest_runner_logging.md`, updating `docs/task_backlog.md` with the closure note, and executing `python3 -m pytest tests/test_runner.py tests/test_run_sim_cli.py` to confirm the counters/records coverage.
 - [P1-07] 2026-01-08: Closed Phase1 bug-check & refactor ops by extending `docs/checklists/p1-07_phase1_bug_refactor.md` with the investigation board, regression command list, refactor planning template, and manage-task-cycle examples. Archived the backlog entry, moved `docs/todo_next.md` Ready item to Archive, and removed the P1-07 anchor from `## Next Task`. Documentation-only update; tests not re-run.
 - [P1-07] 2025-12-30: Consolidated `core/runner.BacktestRunner` daily metrics bookkeeping by introducing shared helpers for counter increments and RV threshold refresh. Replaced ad-hoc dictionary guards with `_increment_daily`/`_ensure_daily_entry`, extracted `_update_rv_thresholds` with a reusable quantile helper, and verified `python3 -m pytest` passes (150 tests) after the refactor.
 - [P2-01] 2026-01-08: Added category-specific templates (`strategies/scalping_template.py`, `strategies/day_template.py`) and first candidate manifests (`tokyo_micro_mean_reversion`, `session_momentum_continuation`). Ran `python3 -m pytest tests/test_strategy_manifest.py` (2 passed) と `python3 -m pytest tests/test_run_sim_cli.py -k manifest` (1 passed, 4 deselected)。`python3 scripts/run_sim.py --strategy-manifest configs/strategies/tokyo_micro_mean_reversion.yaml --csv data/sample_orb.csv --symbol USDJPY --mode conservative --equity 100000 --json-out /tmp/tokyo_micro.json --dump-csv /tmp/tokyo_micro.csv --dump-daily /tmp/tokyo_micro_daily.csv --no-auto-state --no-aggregate-ev`、`python3 scripts/run_sim.py --strategy-manifest configs/strategies/session_momentum_continuation.yaml --csv data/sample_orb.csv --symbol USDJPY --mode conservative --equity 150000 --json-out /tmp/session_momo.json --dump-csv /tmp/session_momo.csv --dump-daily /tmp/session_momo_daily.csv --no-auto-state --no-aggregate-ev`、`python3 scripts/run_sim.py --strategy-manifest configs/strategies/day_orb_5m.yaml --csv data/sample_orb.csv --symbol USDJPY --mode conservative --equity 100000 --json-out /tmp/day_orb.json --dump-csv /tmp/day_orb.csv --dump-daily /tmp/day_orb_daily.csv --no-auto-state --no-aggregate-ev` を実行し、manifest 経由の CLI 配線とテンプレ整備を検証。
@@ -236,13 +241,13 @@
 
 - [P2-01] 2026-01-08: 戦略テンプレと manifest を整備し、pytest/run_sim で配線確認済み. DoD: [docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化).
 ## Next Task
-- Backlog Anchor: [P2-02 ルーター拡張](docs/task_backlog.md#p2-ルーター拡張)
+- Backlog Anchor: [Codex Session Operations Guide](docs/task_backlog.md#codex-session-operations-guide)
 - Vision / Runbook References:
-  - [readme/設計方針（投資_3_）v_1.md](readme/設計方針（投資_3_）v_1.md) (ADR-010/017/037)
-  - [docs/checklists/p2_router.md](docs/checklists/p2_router.md)
   - [docs/codex_workflow.md](docs/codex_workflow.md)
+  - [docs/state_runbook.md](docs/state_runbook.md)
+  - [docs/todo_next.md](docs/todo_next.md)
 - Pending Questions / Notes:
-  - [ ] カテゴリ配分ロジック（利用率、上限、優先度）と相関ガード（pair-wise or bucket-based）の算出方法を決める。
-  - [ ] Router に渡すメトリクス（EV LCB、サイズ上限、執行品質指標）のデータ経路を runner/manifest から整理する。
-  - [ ] 既存 router v0/v1 の役割分担を確認し、v2 拡張の設計メモをまとめる。
-- Scope (EN): Extend router scoring to support category budgets, correlation guards, and capacity constraints using manifest-provided metadata.
+  - [ ] Collect reviewer feedback on the updated sandbox/approval guidance and confirm whether additional network-related edge cases require examples.
+  - [ ] Verify that downstream docs (`docs/todo_next.md`, `docs/state_runbook.md`) remain aligned after the latest update.
+  - [ ] Decide if further automation samples (e.g., `finish-task` dry-run output) should be captured before archiving the task.
+- Scope (EN): Finalise the Codex session operations guide updates and confirm supporting docs remain in sync before closing the task.

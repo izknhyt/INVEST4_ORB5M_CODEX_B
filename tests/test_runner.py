@@ -5,6 +5,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
+from core.fill_engine import SameBarPolicy
 from core.runner import BacktestRunner, Metrics, RunnerConfig
 from core.pips import pip_size, price_to_pips
 from core.sizing import compute_qty_from_ctx
@@ -27,6 +28,19 @@ def make_bar(ts, symbol, o, h, l, c, spread):
 
 
 class TestRunner(unittest.TestCase):
+
+    def test_runner_respects_fill_config(self):
+        rcfg = RunnerConfig(
+            fill_same_bar_policy_conservative="tp_first",
+            fill_same_bar_policy_bridge="sl_first",
+            fill_bridge_lambda=0.55,
+            fill_bridge_drift_scale=1.8,
+        )
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY", runner_cfg=rcfg)
+        self.assertEqual(runner.fill_engine_c.default_policy, SameBarPolicy.TP_FIRST)
+        self.assertEqual(runner.fill_engine_b.default_policy, SameBarPolicy.SL_FIRST)
+        self.assertAlmostEqual(runner.fill_engine_b.lam, 0.55)
+        self.assertAlmostEqual(runner.fill_engine_b.drift_scale, 1.8)
 
     class DummyEV:
         def __init__(self, ev_lcb: float, p_lcb: float) -> None:
@@ -944,4 +958,3 @@ class TestRunner(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

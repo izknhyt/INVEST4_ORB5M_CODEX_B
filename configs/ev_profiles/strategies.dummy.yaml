@@ -3,10 +3,10 @@
     "strategy_key": "strategies.dummy.DummyStrategy",
     "symbol": "USDJPY",
     "mode": "conservative",
-    "generated_at": "2025-10-04T11:24:13Z",
+    "generated_at": "2025-10-05T13:30:59Z",
     "files_total": 1,
     "recent_count": 1,
-    "latest_state_ts": "2025-10-04T11:24:12Z",
+    "latest_state_ts": "2025-10-05T13:30:59Z",
     "alpha_prior": 1.0,
     "beta_prior": 1.0
   },

@@ -18,33 +18,6 @@
 
 
 
-
-
-- **ルーター拡張** (Backlog: `docs/task_backlog.md` → [P2-マルチ戦略ポートフォリオ化](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化)) <!-- anchor: docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化 -->
-  - `docs/checklists/p2_router.md` を利用し、カテゴリ配分・相関・キャパ制約を考慮したルーター拡張を進める。既存ルーター実装とテストの現状把握、設計ドキュメントの再読から着手。
-  - 2026-01-30: [docs/router_architecture.md](router_architecture.md) を追加し、v0/v1/v2 の責務・データフロー・テレメトリ要件を整理。チェックリストとバックログへリンクを設置。
-  - 2026-02-07: カテゴリ予算のガバナンス値を manifest `governance.category_budget_pct` や CSV から取り込み、`router_v1` の理由ログへ `status=ok|warning|breach` を記録する段階的ペナルティを実装。`tests/test_router_pipeline.py` / `tests/test_router_v1.py` でヘッドルーム算出とスコア調整を回帰。
-  - Backlog Anchor: [ルーター拡張 (P2-02)](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化)
-  - Vision / Runbook References:
-    - [docs/logic_overview.md](docs/logic_overview.md)
-    - [docs/simulation_plan.md](docs/simulation_plan.md)
-    - 主要ランブック: [docs/state_runbook.md](docs/state_runbook.md)
-  - Pending Questions:
-    - [ ] Clarify gating metrics, data dependencies, or open questions.
-  - DoD チェックリスト: [docs/templates/dod_checklist.md](docs/templates/dod_checklist.md) を [docs/checklists/p2_router.md](docs/checklists/p2_router.md) にコピーし、進捗リンクを更新する。
-
-
-- **ルーター拡張** — `state.md` 2026-01-08 <!-- anchor: docs/task_backlog.md#p2-ルーター拡張 -->
-  - docs/checklists/p2_router.md を参照
-  - Backlog Anchor: [ルーター拡張 (P2-02)](docs/task_backlog.md#p2-ルーター拡張)
-  - Vision / Runbook References:
-    - [docs/logic_overview.md](docs/logic_overview.md)
-    - [docs/simulation_plan.md](docs/simulation_plan.md)
-    - 主要ランブック: [docs/state_runbook.md](docs/state_runbook.md)
-  - Pending Questions:
-    - [ ] Clarify gating metrics, data dependencies, or open questions.
-  - DoD チェックリスト: [docs/templates/dod_checklist.md](docs/templates/dod_checklist.md) を [docs/checklists/p2-02.md](docs/checklists/p2-02.md) にコピーし、進捗リンクを更新する。
-
 ### Ready
 
 
@@ -52,13 +25,16 @@
 
 ### Pending Review
 - **Workflow Integration Guide** (Backlog: `docs/task_backlog.md` → "ワークフロー統合" section) — `state.md` 2024-06-18, 2025-09-29 <!-- anchor: docs/task_backlog.md#codex-session-operations-guide -->
-  - Updated the synchronization rules between `docs/todo_next.md` and `state.md`. Added `docs/codex_workflow.md` to capture Codex session procedures. Confirm readiness for adoption before moving to Archive.
-- **マルチ戦略比較バリデーション** (Backlog: `docs/task_backlog.md` → P2「マルチ戦略ポートフォリオ化」) — `state.md` 2025-09-29 <!-- anchor: docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化 -->
-  - Day ORB (63 trades, EV reject 1,544) と Mean Reversion (40 trades, gate_block 402, EV reject 0) を `data/sample_orb.csv` で比較し、`docs/checklists/multi_strategy_validation.md` の表を実測値で更新。
-  - Mean Reversion は `zscore` カラムの追加でトレード生成が確認でき、EV プロファイル有無で `ev_reject` 差分が無いことを再現。日次 CSV にゲート/EV カウントを保存済み。次は RV High ブロック条件とウォームアップ回数の調整案を検討。
-  - 2025-12-02: `strategies/mean_reversion.py` へ本実装を移行し、`configs/strategies/mean_reversion.yaml` / `configs/ev_profiles/mean_reversion.yaml` を刷新。`analysis/broker_fills.ipynb` を公開してブローカー比較のレビュー手段を統一し、pytest で回帰を追加済み。レビュー完了後に Archive へ移動予定。
+  - Updated the synchronization rules between `docs/todo_next.md` and `state.md`. Added `docs/codex_workflow.md` to capture Codex session procedures。2026-02-13 時点で sandbox/approval ガイドと `scripts/manage_task_cycle.py` のドライラン例を最新化済み。最終レビュー後に Archive へ移動予定。
 
 ## Archive（達成済み）
+
+- **ルーター拡張** (Backlog: `docs/task_backlog.md` → [P2-マルチ戦略ポートフォリオ化](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化)) — 2026-02-13 完了 <!-- anchor: docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化 -->
+  - Finalised PortfolioState budgeting, correlation scoring, and execution-health penalties. Synced `docs/checklists/p2_router.md`, refreshed `docs/progress_phase2.md` deliverable notes, updated backlog progress, and ran `python3 -m pytest tests/test_router_v1.py tests/test_router_pipeline.py` before closing。
+- **マルチ戦略比較バリデーション** (Backlog: `docs/task_backlog.md` → [P2-マルチ戦略ポートフォリオ化](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化)) — 2026-02-13 完了
+  - Regenerated `runs/multi_strategy/` artefacts, compared Day ORB vs Mean Reversion (`ev_reject=0` vs `330`), and confirmed `--no-ev-profile` の挙動が不変。`docs/checklists/multi_strategy_validation.md` のサマリ表と実測メモを更新し、チェックリスト完了状態を維持。
+- **Fill エンジン / ブローカー仕様アライン** (Backlog: `docs/task_backlog.md` → [P1-06](docs/task_backlog.md#p1-06-fill-エンジン--ブローカー仕様アライン)) — 2026-02-13 完了
+  - Added fill-engine overrides (`fill_same_bar_policy_*`, `fill_bridge_lambda`, `fill_bridge_drift_scale`) to RunnerConfig and CLI (`--fill-same-bar-policy[-conservative|-bridge]`, `--fill-bridge-lambda`, `--fill-bridge-drift-scale`). Updated docs (`docs/broker_oco_matrix.md`, `docs/benchmark_runbook.md`, `docs/progress_phase1.md`) and regression suites (`tests/test_runner.py`, `tests/test_run_sim_cli.py`) before closing。
 - ~~**フェーズ1 バグチェック & リファクタリング運用整備**~~ ✅ — `state.md` 2026-01-08 <!-- anchor: docs/task_backlog.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備 -->
   - `docs/checklists/p1-07_phase1_bug_refactor.md` に調査チェックボード・テスト手順・リファクタリング計画テンプレを追加し、運用チェック項目を全て埋めた。`scripts/manage_task_cycle.py` の start/finish 例も掲載。
   - `docs/task_backlog.md` から P1-07 をアーカイブし、`docs/todo_next.md` / `state.md` の Ready / Next Task ブロックを整理。今後はチェックボードの行追加と `state.md` ログ更新のみで継続できる。
