@@ -1,13 +1,53 @@
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Dict, Tuple
 
 import pytest
 
 from analysis.portfolio_monitor import build_portfolio_summary
 
 FIXTURE_DIR = Path("reports/portfolio_samples/router_demo")
+
+
+def _override_manifest_name(path: Path, new_name: str) -> None:
+    lines = path.read_text(encoding="utf-8").splitlines()
+    updated = []
+    replaced = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("name:") and not replaced:
+            indent = line[: len(line) - len(line.lstrip())]
+            updated.append(f"{indent}name: {new_name}")
+            replaced = True
+        else:
+            updated.append(line)
+    if not replaced:
+        raise AssertionError(f"name field not found in {path}")
+    path.write_text("\n".join(updated) + "\n", encoding="utf-8")
+
+
+def _prepare_snapshot(tmp_path: Path) -> Tuple[Path, Dict[str, str]]:
+    repo_root = Path(__file__).resolve().parents[1]
+    sample_dir = repo_root / "reports" / "portfolio_samples" / "router_demo"
+    snapshot_dir = tmp_path / "snapshot"
+    shutil.copytree(sample_dir, snapshot_dir)
+
+    metrics_dir = snapshot_dir / "metrics"
+    sentinel_names: Dict[str, str] = {}
+    for metrics_file in metrics_dir.glob("*.json"):
+        payload = json.loads(metrics_file.read_text(encoding="utf-8"))
+        manifest_relative = Path(payload["manifest_path"])
+        manifest_src = repo_root / manifest_relative
+        manifest_dest = metrics_file.parent / manifest_relative
+        manifest_dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(manifest_src, manifest_dest)
+        new_name = f"TEMP::{manifest_dest.stem}"
+        _override_manifest_name(manifest_dest, new_name)
+        sentinel_names[payload["manifest_id"]] = new_name
+    return snapshot_dir, sentinel_names
 
 
 @pytest.mark.parametrize("base_dir", [FIXTURE_DIR])
@@ -52,3 +92,34 @@ def test_report_portfolio_summary_cli(tmp_path: Path) -> None:
     with output_path.open() as handle:
         payload = json.load(handle)
     assert payload["input_dir"].endswith(str(FIXTURE_DIR))
+
+
+def test_portfolio_summary_resolves_relative_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    snapshot_dir, sentinel_names = _prepare_snapshot(tmp_path)
+
+    working_dir = tmp_path / "workdir"
+    working_dir.mkdir()
+    monkeypatch.chdir(working_dir)
+
+    summary = build_portfolio_summary(snapshot_dir)
+    resolved = {item["manifest_id"]: item["name"] for item in summary["strategies"]}
+    assert resolved == sentinel_names
+
+    output_path = working_dir / "summary.json"
+    script_path = Path(__file__).resolve().parents[1] / "scripts" / "report_portfolio_summary.py"
+    cmd = [
+        sys.executable,
+        str(script_path),
+        "--input",
+        str(snapshot_dir),
+        "--output",
+        str(output_path),
+        "--indent",
+        "0",
+    ]
+    subprocess.run(cmd, check=True, cwd=working_dir)
+    script_summary = json.loads(output_path.read_text(encoding="utf-8"))
+    script_resolved = {item["manifest_id"]: item["name"] for item in script_summary["strategies"]}
+    assert script_resolved == sentinel_names

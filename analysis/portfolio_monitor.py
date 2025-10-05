@@ -61,10 +61,13 @@ def _normalise_equity_curve(raw: Sequence[Any]) -> List[Tuple[datetime, str, flo
 def _load_strategy_series(path: Path) -> Tuple[StrategyManifest, List[Tuple[datetime, str, float]]]:
     with path.open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
-    manifest_path = payload.get("manifest_path")
+    manifest_path_value = payload.get("manifest_path")
     manifest_id = payload.get("manifest_id")
-    if not manifest_path:
+    if not manifest_path_value:
         raise ValueError(f"metrics file {path} missing manifest_path")
+    manifest_path = Path(manifest_path_value)
+    if not manifest_path.is_absolute():
+        manifest_path = (path.parent / manifest_path).resolve()
     manifest = load_manifest(str(manifest_path))
     if manifest_id and manifest.id != manifest_id:
         raise ValueError(
