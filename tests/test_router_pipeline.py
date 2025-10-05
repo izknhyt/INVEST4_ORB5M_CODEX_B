@@ -1,3 +1,5 @@
+from pytest import approx
+
 from core.router_pipeline import PortfolioTelemetry, build_portfolio_state
 from configs.strategies.loader import load_manifest
 from router.router_v1 import select_candidates
@@ -77,3 +79,31 @@ def test_router_pipeline_skips_invalid_telemetry_values():
     assert portfolio.category_caps_pct[day_manifest.category] == day_manifest.router.category_cap_pct
     assert portfolio.execution_health[day_manifest.id]["slippage_bps"] == 5.5
     assert "reject_rate" not in portfolio.execution_health[day_manifest.id]
+
+
+def test_router_pipeline_counts_shorts_for_limits():
+    manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
+    manifest.router.category_cap_pct = 0.4
+    manifest.risk.max_concurrent_positions = 1
+
+    telemetry = PortfolioTelemetry(
+        active_positions={manifest.id: -2},
+        category_utilisation_pct={},
+    )
+
+    portfolio = build_portfolio_state([manifest], telemetry=telemetry)
+
+    # Utilisation and gross exposure should use the absolute position count.
+    expected_exposure = 2 * float(manifest.risk.risk_per_trade_pct)
+    assert portfolio.category_utilisation_pct[manifest.category] == approx(
+        expected_exposure
+    )
+    assert portfolio.gross_exposure_pct == approx(expected_exposure)
+    assert portfolio.active_positions[manifest.id] == -2
+
+    market_ctx = {"session": "LDN", "spread_band": "narrow", "rv_band": "mid"}
+    result = select_candidates(market_ctx, [manifest], portfolio=portfolio)[0]
+
+    assert result.eligible is False
+    assert any("category utilisation" in reason for reason in result.reasons)
+    assert any("active positions" in reason for reason in result.reasons)
