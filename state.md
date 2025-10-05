@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-01-19: Updated `router/router_v1.select_candidates` so explicit `score` values (including 0.0) are preferred over EV LCB fallbacks and added a regression in `tests/test_router_v1.py` to lock the behaviour. Executed `python3 -m pytest tests/test_router_v1.py` to confirm all 9 cases pass.
 - 2026-01-18: `configs/strategies/templates/base_strategy.yaml` の router ガードを Day テンプレートに揃えて `priority` / `max_gross_exposure_pct` / `max_correlation` / `correlation_tags` / `max_reject_rate` / `max_slippage_bps` をコメント付きで追加し、README へ利用ガイドを追記。`python3 -m pytest tests/test_strategy_manifest.py` を実行してテンプレート読み込み回帰を確認。
 - 2026-01-18: `core/runner.py` に `ev_bypass` デバッグレコードを追加してウォームアップ残量 (`warmup_left` / `warmup_total`) をログ化し、`tests/test_runner.py` と `docs/backtest_runner_logging.md` / `docs/task_backlog.md` を同期。`python3 -m pytest tests/test_runner.py` を実行して 23 件パスを確認。
 - 2026-01-16: ルーター向けポートフォリオ監視を `analysis/portfolio_monitor.py` と `scripts/report_portfolio_summary.py` で整備し、`reports/portfolio_samples/router_demo/` のテレメトリ/メトリクスを用いたフィクスチャを追加。`python3 -m pytest` と `python3 scripts/report_portfolio_summary.py --input reports/portfolio_samples/router_demo --output reports/portfolio_summary.json --indent 2` を実行し、カテゴリ利用率・相関ヒートマップ・合成ドローダウンの算出と JSON 出力を確認。
