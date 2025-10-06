@@ -2,6 +2,11 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-02-25: Tracked live equity inside `BacktestRunner` so trade PnL (in quote
+  currency) updates position sizing, recorded the currency PnL on metrics,
+  refreshed sizing contexts to use the mutable balance, added a regression in
+  `tests/test_runner.py::test_position_size_updates_with_live_equity`, and ran
+  `python3 -m pytest tests/test_runner.py` for confirmation.
 - 2026-02-24: Restricted realized volatility inputs to the latest ``n+1`` bars in
   `core/runner._compute_features`, updated `core/feature_store.realized_vol` to accept
   optional windows while re-slicing to ``n+1`` bars, added regression coverage via

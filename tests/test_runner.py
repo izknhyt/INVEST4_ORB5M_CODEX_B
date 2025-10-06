@@ -590,6 +590,113 @@ class TestRunner(unittest.TestCase):
         self.assertAlmostEqual(slip_off, expected_slip)
         self.assertEqual(runner_off.slip_a["normal"], prev_a_off)
         self.assertEqual(runner_off.qty_ewma["normal"], prev_qty_off)
+
+    def test_position_size_updates_with_live_equity(self):
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
+        pip = pip_size("USDJPY")
+        base_bar = {"spread": 0.0}
+        ctx_initial = runner._build_ctx(
+            bar=base_bar,
+            session="TOK",
+            atr14=1.0,
+            or_h=None,
+            or_l=None,
+            realized_vol_value=0.0,
+        )
+        sl_pips = 10.0
+        tp_pips = 20.0
+        qty_initial = compute_qty_from_ctx(
+            ctx_initial,
+            sl_pips,
+            mode="production",
+            tp_pips=tp_pips,
+            p_lcb=0.6,
+        )
+        self.assertGreater(qty_initial, 0.0)
+
+        def _snapshot_from_ctx(ctx):
+            return {
+                "pip_value": ctx.get("pip_value"),
+                "cost_base": ctx.get("base_cost_pips", ctx.get("cost_pips", 0.0)),
+                "spread_band": ctx.get("spread_band"),
+                "session": ctx.get("session"),
+                "rv_band": ctx.get("rv_band"),
+            }
+
+        runner._last_timestamp = "2024-01-01T00:00:00Z"
+        runner._finalize_trade(
+            exit_ts="2024-01-01T00:05:00Z",
+            entry_ts="2024-01-01T00:00:00Z",
+            side="BUY",
+            entry_px=100.0,
+            exit_px=100.0 - sl_pips * pip,
+            exit_reason="sl",
+            ctx_snapshot=_snapshot_from_ctx(ctx_initial),
+            ctx=ctx_initial,
+            qty_sample=qty_initial,
+            slip_actual=0.0,
+            ev_key=ctx_initial["ev_key"],
+            tp_pips=tp_pips,
+            sl_pips=sl_pips,
+            debug_stage="trade",
+        )
+
+        ctx_after_loss = runner._build_ctx(
+            bar=base_bar,
+            session="TOK",
+            atr14=1.0,
+            or_h=None,
+            or_l=None,
+            realized_vol_value=0.0,
+        )
+        qty_after_loss = compute_qty_from_ctx(
+            ctx_after_loss,
+            sl_pips,
+            mode="production",
+            tp_pips=tp_pips,
+            p_lcb=0.6,
+        )
+        self.assertLess(qty_after_loss, qty_initial)
+
+        runner._last_timestamp = "2024-01-01T00:10:00Z"
+        runner._finalize_trade(
+            exit_ts="2024-01-01T00:15:00Z",
+            entry_ts="2024-01-01T00:10:00Z",
+            side="BUY",
+            entry_px=100.0,
+            exit_px=100.0 + tp_pips * pip,
+            exit_reason="tp",
+            ctx_snapshot=_snapshot_from_ctx(ctx_after_loss),
+            ctx=ctx_after_loss,
+            qty_sample=qty_after_loss,
+            slip_actual=0.0,
+            ev_key=ctx_after_loss["ev_key"],
+            tp_pips=tp_pips,
+            sl_pips=sl_pips,
+            debug_stage="trade",
+        )
+
+        ctx_after_win = runner._build_ctx(
+            bar=base_bar,
+            session="TOK",
+            atr14=1.0,
+            or_h=None,
+            or_l=None,
+            realized_vol_value=0.0,
+        )
+        qty_after_win = compute_qty_from_ctx(
+            ctx_after_win,
+            sl_pips,
+            mode="production",
+            tp_pips=tp_pips,
+            p_lcb=0.6,
+        )
+        self.assertGreater(qty_after_win, qty_after_loss)
+        self.assertGreater(len(runner.metrics.equity_curve), 0)
+        self.assertAlmostEqual(
+            runner.metrics.equity_curve[-1][1],
+            runner._equity_live,
+        )
     def test_evaluate_entry_conditions_and_ev_pass_on_breakout(self):
         runner, pending, breakout, features, calibrating = self._prepare_breakout_environment(
             warmup_left=0
