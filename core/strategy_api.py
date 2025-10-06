@@ -36,6 +36,14 @@ class Strategy(ABC):
         ...
 
     def update_context(self, ctx: Mapping[str, Any]) -> None:
+        """Store the latest runtime context provided by the runner.
+
+        Sub-classes overriding this method should call
+        ``super().update_context(ctx)`` so the cached dictionary stays in sync
+        with the runner pipeline while allowing per-strategy bookkeeping to
+        hook into context changes.
+        """
+
         self._runtime_ctx = dict(ctx)
 
     def resolve_runtime_context(

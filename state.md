@@ -2,6 +2,10 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-03-15: Routed runner context updates through ``Strategy.update_context`` so
+  signals consume post-gate data without mutating ``cfg`` payloads, refreshed
+  DayORB5m-related regressions plus CLI/feature strategy tests for the API
+  change, and executed ``python3 -m pytest``.
 - 2026-03-14: Routed strategy runtime context through the new ``signals(ctx)``
   API, updated DayORB5m/templates/mean reversion implementations plus runner
   regressions, and refreshed strategy-facing tests for the call signature.
