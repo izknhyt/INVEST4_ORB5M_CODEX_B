@@ -361,6 +361,9 @@
 - 2026-03-16: Skipped EV/warmup restoration when `config_fingerprint` mismatches the active `RunnerConfig`, added a
   regression in `tests/test_runner.py::test_load_state_skips_on_config_fingerprint_mismatch` to lock the guard,
   verified `scripts/run_sim.py` produces trades again under mismatched state snapshots, and executed `python3 -m pytest`.
+- 2026-03-18: Persisted slip EWMA quantities when exporting/loading runner state so expected slip projections survive resets,
+  added `tests/test_runner.py::test_slip_state_persists_qty_ewma_for_expected_slip` to cover the workflow, and ran
+  `python3 -m pytest tests/test_runner.py` for validation.
 - 2026-03-10: Enabled `RunnerExecutionManager.process_fill_result` to return structured `PositionState` objects, updated
   `BacktestRunner._process_fill_result` delegations and regression tests to assert serialization/identity, and ran
   `python3 -m pytest tests/test_runner.py` to confirm behaviour.

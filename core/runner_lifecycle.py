@@ -91,6 +91,18 @@ class RunnerLifecycleManager:
         for k, ev in runner.ev_buckets.items():
             key = f"{k[0]}:{k[1]}:{k[2]}"
             buckets[key] = {"alpha": ev.alpha, "beta": ev.beta}
+        slip_a = getattr(runner, "slip_a", None)
+        if isinstance(slip_a, Mapping):
+            slip_a_payload: Any = dict(slip_a)
+        else:
+            slip_a_payload = slip_a
+
+        qty_ewma = getattr(runner, "qty_ewma", None)
+        if isinstance(qty_ewma, Mapping):
+            qty_ewma_payload: Any = dict(qty_ewma)
+        else:
+            qty_ewma_payload = qty_ewma
+
         state = {
             "meta": {
                 "symbol": runner.symbol,
@@ -107,9 +119,10 @@ class RunnerLifecycleManager:
             },
             "ev_buckets": buckets,
             "slip": {
-                "a": getattr(runner, "slip_a", None),
+                "a": slip_a_payload,
                 "curve": runner.rcfg.slip_curve,
                 "ewma_alpha": getattr(runner.rcfg, "slip_ewma_alpha", 0.1),
+                "ewma": qty_ewma_payload,
             },
             "rv_thresh": runner.rv_thresh,
             "runtime": {
@@ -201,10 +214,22 @@ class RunnerLifecycleManager:
             slip = state.get("slip", {})
             slip_a = slip.get("a")
             if isinstance(slip_a, Mapping):
-                runner.slip_a = dict(slip_a)
+                base_slip_a = dict(getattr(runner, "slip_a", {}))
+                for band, value in slip_a.items():
+                    try:
+                        base_slip_a[band] = float(value)
+                    except (TypeError, ValueError):
+                        continue
+                runner.slip_a = base_slip_a
             qty_a = slip.get("ewma")
             if isinstance(qty_a, Mapping):
-                runner.qty_ewma = dict(qty_a)
+                base_qty = dict(getattr(runner, "qty_ewma", {}))
+                for band, value in qty_a.items():
+                    try:
+                        base_qty[band] = float(value)
+                    except (TypeError, ValueError):
+                        continue
+                runner.qty_ewma = base_qty
 
             rv_th = state.get("rv_thresh")
             if rv_th:
