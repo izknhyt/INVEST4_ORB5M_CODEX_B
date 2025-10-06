@@ -23,6 +23,7 @@ from core.fill_engine import ConservativeFill, BridgeFill, OrderSpec, SameBarPol
 from core.ev_gate import BetaBinomialEV, TLowerEV
 from core.pips import pip_size, price_to_pips, pip_value as calc_pip_value
 from core.sizing import SizingConfig, compute_qty_from_ctx
+from core.runner_entry import EntryGate, EVGate, SizingGate
 from core.runner_state import PositionState
 from router.router_v0 import pass_gates
 from core.runner_features import FeatureBundle, FeaturePipeline
@@ -1122,29 +1123,32 @@ class BacktestRunner:
             self._append_debug_record("no_breakout", ts=self._last_timestamp)
             return
         self._increment_daily("breakouts")
-        ctx_dbg = self._evaluate_entry_conditions(
+        entry_gate = EntryGate(self)
+        entry_result = entry_gate.evaluate(
             pending=pending,
             features=features,
         )
-        if ctx_dbg is None:
+        if not entry_result.outcome.passed or entry_result.context is None:
             return
-        ev_eval = self._evaluate_ev_threshold(
+        ctx_dbg = entry_result.context
+        ev_gate = EVGate(self)
+        ev_result = ev_gate.evaluate(
             ctx_dbg=ctx_dbg,
             pending=pending,
             calibrating=calibrating,
             timestamp=self._last_timestamp,
         )
-        if ev_eval is None:
+        if not ev_result.outcome.passed:
             return
-        ev_mgr_dbg, _, _, ev_bypass = ev_eval
-        if not self._check_slip_and_sizing(
+        sizing_gate = SizingGate(self)
+        sizing_result = sizing_gate.evaluate(
             ctx_dbg=ctx_dbg,
             pending=pending,
-            ev_mgr=ev_mgr_dbg,
+            ev_result=ev_result,
             calibrating=calibrating,
-            ev_bypass=ev_bypass,
             timestamp=self._last_timestamp,
-        ):
+        )
+        if not sizing_result.outcome.passed:
             return
         intents = list(self.stg.signals())
         if not intents:
@@ -1209,175 +1213,6 @@ class BacktestRunner:
             self._warmup_left -= 1
 
 
-    def _evaluate_entry_conditions(
-        self,
-        *,
-        pending: Any,
-        features: FeatureBundle,
-    ) -> Optional[Dict[str, Any]]:
-        ctx_dbg = dict(features.ctx)
-        pending_side, _, _ = self._extract_pending_fields(pending)
-        gate_allowed, gate_reason = self._call_strategy_gate(
-            ctx_dbg,
-            pending,
-            ts=self._last_timestamp,
-            side=pending_side,
-        )
-        if not gate_allowed:
-            self.debug_counts["gate_block"] += 1
-            self._increment_daily("gate_block")
-            reason_stage = None
-            or_ratio = None
-            min_or_ratio = None
-            rv_band = None
-            if isinstance(gate_reason, Mapping):
-                reason_stage = gate_reason.get("stage")
-                or_ratio = gate_reason.get("or_atr_ratio")
-                min_or_ratio = gate_reason.get("min_or_atr_ratio")
-                rv_band = gate_reason.get("rv_band")
-            self._append_debug_record(
-                "strategy_gate",
-                ts=self._last_timestamp,
-                side=pending_side,
-                reason_stage=reason_stage,
-                or_atr_ratio=or_ratio,
-                min_or_atr_ratio=min_or_ratio,
-                rv_band=rv_band,
-                allow_low_rv=ctx_dbg.get("allow_low_rv"),
-            )
-            return None
-        if not pass_gates(ctx_dbg):
-            self.debug_counts["gate_block"] += 1
-            self._increment_daily("gate_block")
-            self._append_debug_record(
-                "gate_block",
-                ts=self._last_timestamp,
-                side=pending_side,
-                rv_band=ctx_dbg.get("rv_band"),
-                spread_band=ctx_dbg.get("spread_band"),
-                or_atr_ratio=ctx_dbg.get("or_atr_ratio"),
-                reason="router_gate",
-            )
-            return None
-        self._increment_daily("gate_pass")
-        return ctx_dbg
-
-    def _evaluate_ev_threshold(
-        self,
-        *,
-        ctx_dbg: Dict[str, Any],
-        pending: Any,
-        calibrating: bool,
-        timestamp: Optional[str],
-    ) -> Optional[Tuple[Any, float, float, bool]]:
-        pending_side, tp_pips, sl_pips = self._extract_pending_fields(pending)
-        ev_key = ctx_dbg.get(
-            "ev_key",
-            (
-                ctx_dbg.get("session"),
-                ctx_dbg.get("spread_band"),
-                ctx_dbg.get("rv_band"),
-            ),
-        )
-        ev_mgr = self._get_ev_manager(ev_key)
-        ev_mode_value = str(ctx_dbg.get("ev_mode", "")).lower()
-        if ev_mode_value == "off":
-            threshold_lcb = float("-inf")
-        else:
-            threshold_lcb = self._call_ev_threshold(
-                ctx_dbg,
-                pending,
-                self.rcfg.threshold_lcb_pip,
-                ts=timestamp,
-                side=pending_side,
-            )
-        ctx_dbg["threshold_lcb_pip"] = threshold_lcb
-        ev_lcb = (
-            ev_mgr.ev_lcb_oco(
-                float(tp_pips),
-                float(sl_pips),
-                ctx_dbg["cost_pips"],
-            )
-            if (tp_pips is not None and sl_pips is not None and not calibrating)
-            else 1e9
-        )
-        ev_bypass = False
-        if not calibrating and ev_lcb < threshold_lcb:
-            if self._warmup_left > 0:
-                ev_bypass = True
-                warmup_remaining = int(self._warmup_left)
-                self.debug_counts["ev_bypass"] += 1
-                self._append_debug_record(
-                    "ev_bypass",
-                    ts=timestamp,
-                    side=pending_side,
-                    ev_lcb=ev_lcb,
-                    threshold_lcb=threshold_lcb,
-                    warmup_left=warmup_remaining,
-                    warmup_total=int(self.rcfg.warmup_trades),
-                    cost_pips=ctx_dbg.get("cost_pips"),
-                    tp_pips=tp_pips,
-                    sl_pips=sl_pips,
-                )
-            else:
-                self.debug_counts["ev_reject"] += 1
-                self._increment_daily("ev_reject")
-                self._append_debug_record(
-                    "ev_reject",
-                    ts=timestamp,
-                    side=pending_side,
-                    ev_lcb=ev_lcb,
-                    threshold_lcb=threshold_lcb,
-                    cost_pips=ctx_dbg.get("cost_pips"),
-                    tp_pips=tp_pips,
-                    sl_pips=sl_pips,
-                )
-                return None
-        else:
-            self._increment_daily("ev_pass")
-        ctx_dbg["ev_lcb"] = ev_lcb
-        ctx_dbg["threshold_lcb"] = threshold_lcb
-        ctx_dbg["ev_pass"] = not ev_bypass
-        return ev_mgr, ev_lcb, threshold_lcb, ev_bypass
-
-    def _check_slip_and_sizing(
-        self,
-        *,
-        ctx_dbg: Mapping[str, Any],
-        pending: Any,
-        ev_mgr: Any,
-        calibrating: bool,
-        ev_bypass: bool,
-        timestamp: Optional[str],
-    ) -> bool:
-        pending_side, tp_pips, sl_pips = self._extract_pending_fields(pending)
-        slip_cap = ctx_dbg.get("slip_cap_pip", self.rcfg.slip_cap_pip)
-        expected_slip = ctx_dbg.get("expected_slip_pip", 0.0)
-        if expected_slip > slip_cap:
-            self.debug_counts["gate_block"] += 1
-            self._increment_daily("gate_block")
-            self._append_debug_record(
-                "slip_cap",
-                ts=timestamp,
-                side=pending_side,
-                expected_slip_pip=expected_slip,
-                slip_cap_pip=slip_cap,
-            )
-            return False
-        if not ev_bypass and not calibrating and tp_pips is not None and sl_pips is not None:
-            ctx_for_sizing: Dict[str, Any] = dict(ctx_dbg)
-            ctx_for_sizing.setdefault("equity", self._equity_live)
-            qty_dbg = compute_qty_from_ctx(
-                ctx_for_sizing,
-                float(sl_pips),
-                mode="production",
-                tp_pips=float(tp_pips),
-                p_lcb=ev_mgr.p_lcb(),
-            )
-            if qty_dbg <= 0:
-                self.debug_counts["zero_qty"] += 1
-                return False
-        return True
 
     def _process_fill_result(
         self,

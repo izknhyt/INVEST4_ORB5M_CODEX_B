@@ -7,6 +7,10 @@
   are centralised. Updated `BacktestRunner._compute_features` to delegate to the pipeline, added
   direct unit tests in `tests/test_runner_features.py`, refreshed runner regressions, and executed
   `python3 -m pytest tests/test_runner.py tests/test_runner_features.py` for confirmation.
+- 2026-03-04: Introduced `core/runner_entry` with structured gate/EV/sizing dataclasses, refactored
+  `BacktestRunner._maybe_enter_trade` to compose `EntryGate`/`EVGate`/`SizingGate`, removed ad-hoc
+  `None` checks, and expanded `tests/test_runner.py` with pipeline success/failure coverage.
+  Confirmed behaviour with `python3 -m pytest tests/test_runner.py`.
 - 2026-03-02: Introduced `PositionState` for runner position tracking, refactored
   `BacktestRunner` to store active/calibration positions via the dataclass with
   export/load support, refreshed `tests/test_runner.py` to cover the new state
