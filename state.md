@@ -5,6 +5,9 @@
 - 2025-10-06: Renamed the runner entry/EV/sizing evaluation dataclasses to `EntryEvaluation` / `EVEvaluation` / `SizingEvaluation`,
   updated BacktestRunner pipelines and regression tests to consume the new names, and ran
   `python3 -m pytest tests/test_runner.py` to confirm the refactor.
+- 2026-03-24: Seeded `scripts/run_sim.py` CLI namespaces with manifest `runner.cli_args` defaults while
+  preserving user overrides, added regression coverage in `tests/test_run_sim_cli.py`, refreshed
+  `configs/strategies/README.md`, and executed `python3 -m pytest tests/test_run_sim_cli.py`.
 - 2025-10-06: Added `Strategy.get_pending_signal()` so runner execution no longer reaches into
   `_pending_signal`, implemented the accessor across DayORB/mean reversion/scalping templates,
   refreshed docs/test fixtures, and executed `python3 -m pytest` to validate the integration.

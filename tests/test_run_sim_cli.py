@@ -259,6 +259,200 @@ class TestRunSimCLI(unittest.TestCase):
             self.assertIn("max_drawdown", data)
 
     @mock.patch("scripts.run_sim.BacktestRunner")
+    def test_manifest_cli_args_apply_defaults(self, mock_runner):
+        class DummyMetrics:
+            def __init__(self):
+                self.records = []
+                self.runtime = {}
+                self.debug = {}
+                self.daily = {
+                    "2024-01-01": {
+                        "breakouts": 0,
+                        "gate_pass": 0,
+                        "gate_block": 0,
+                        "ev_pass": 0,
+                        "ev_reject": 0,
+                        "fills": 0,
+                        "wins": 0,
+                        "pnl_pips": 0.0,
+                    }
+                }
+
+            def as_dict(self):
+                return {"trades": 0, "wins": 0, "total_pips": 0.0}
+
+        runner_instance = mock_runner.return_value
+        runner_instance.strategy_cls = MeanReversionStrategy
+        runner_instance.ev_global = types.SimpleNamespace(decay=0.15)
+        runner_instance.run.return_value = DummyMetrics()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path = os.path.join(tmpdir, "bars.csv")
+            with open(csv_path, "w", encoding="utf-8") as f:
+                f.write(CSV_CONTENT)
+            json_out = os.path.join(tmpdir, "metrics.json")
+            dump_daily_path = os.path.join(tmpdir, "daily.csv")
+            manifest_yaml = textwrap.dedent(
+                f"""
+                meta:
+                  id: defaults_test
+                  name: Defaults Test
+                  version: "1.0"
+                  category: day
+                strategy:
+                  class_path: strategies.mean_reversion.MeanReversionStrategy
+                  instruments:
+                    - symbol: USDJPY
+                      timeframe: 5m
+                      mode: conservative
+                  parameters:
+                    or_n: 2
+                router:
+                  allowed_sessions: [LDN, NY]
+                risk:
+                  risk_per_trade_pct: 0.1
+                  max_daily_dd_pct: 5.0
+                  notional_cap: 250000
+                  max_concurrent_positions: 1
+                  warmup_trades: 0
+                runner:
+                  cli_args:
+                    dump_daily: {json.dumps(dump_daily_path)}
+                    mode: bridge
+                    dump_max: 42
+                    include_expected_slip: true
+                    allowed_sessions: "LDN,NY"
+                state:
+                  archive_namespace: defaults/test
+                """
+            )
+            manifest_path = os.path.join(tmpdir, "manifest.yaml")
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                f.write(manifest_yaml)
+
+            args = [
+                "--csv", csv_path,
+                "--equity", "100000",
+                "--json-out", json_out,
+                "--strategy-manifest", manifest_path,
+                "--no-auto-state",
+                "--no-ev-profile",
+                "--no-aggregate-ev",
+            ]
+
+            rc = run_sim_main(args)
+
+            self.assertEqual(rc, 0)
+            runner_instance.run.assert_called_once()
+            _, run_kwargs = runner_instance.run.call_args
+            self.assertEqual(run_kwargs.get("mode"), "bridge")
+
+            call_args = mock_runner.call_args
+            self.assertIsNotNone(call_args)
+            rcfg = call_args.kwargs.get("runner_cfg")
+            self.assertIsInstance(rcfg, RunnerConfig)
+            self.assertEqual(rcfg.allowed_sessions, ("LDN", "NY"))
+            self.assertTrue(rcfg.include_expected_slip)
+
+            with open(json_out, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.assertEqual(data.get("dump_daily"), dump_daily_path)
+            self.assertTrue(os.path.exists(dump_daily_path))
+
+    @mock.patch("scripts.run_sim.BacktestRunner")
+    def test_manifest_cli_args_respect_user_overrides(self, mock_runner):
+        class DummyMetrics:
+            def __init__(self):
+                self.records = []
+                self.runtime = {}
+                self.debug = {}
+                self.daily = {
+                    "2024-01-02": {
+                        "breakouts": 0,
+                        "gate_pass": 0,
+                        "gate_block": 0,
+                        "ev_pass": 0,
+                        "ev_reject": 0,
+                        "fills": 0,
+                        "wins": 0,
+                        "pnl_pips": 0.0,
+                    }
+                }
+
+            def as_dict(self):
+                return {"trades": 0, "wins": 0, "total_pips": 0.0}
+
+        runner_instance = mock_runner.return_value
+        runner_instance.strategy_cls = MeanReversionStrategy
+        runner_instance.ev_global = types.SimpleNamespace(decay=0.25)
+        runner_instance.run.return_value = DummyMetrics()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path = os.path.join(tmpdir, "bars.csv")
+            with open(csv_path, "w", encoding="utf-8") as f:
+                f.write(CSV_CONTENT)
+            json_out = os.path.join(tmpdir, "metrics.json")
+            user_dump_daily = os.path.join(tmpdir, "user_daily.csv")
+            manifest_yaml = textwrap.dedent(
+                """
+                meta:
+                  id: defaults_override
+                  name: Defaults Override
+                  version: "1.0"
+                  category: day
+                strategy:
+                  class_path: strategies.mean_reversion.MeanReversionStrategy
+                  instruments:
+                    - symbol: USDJPY
+                      timeframe: 5m
+                      mode: conservative
+                  parameters:
+                    or_n: 2
+                router:
+                  allowed_sessions: [LDN, NY]
+                risk:
+                  risk_per_trade_pct: 0.2
+                  max_daily_dd_pct: 6.0
+                  notional_cap: 300000
+                  max_concurrent_positions: 1
+                  warmup_trades: 0
+                runner:
+                  cli_args:
+                    dump_daily: manifest_daily.csv
+                    mode: bridge
+                state:
+                  archive_namespace: defaults/override
+                """
+            )
+            manifest_path = os.path.join(tmpdir, "manifest.yaml")
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                f.write(manifest_yaml)
+
+            args = [
+                "--csv", csv_path,
+                "--equity", "100000",
+                "--json-out", json_out,
+                "--strategy-manifest", manifest_path,
+                "--dump-daily", user_dump_daily,
+                "--mode", "conservative",
+                "--no-auto-state",
+                "--no-ev-profile",
+                "--no-aggregate-ev",
+            ]
+
+            rc = run_sim_main(args)
+
+            self.assertEqual(rc, 0)
+            runner_instance.run.assert_called_once()
+            _, run_kwargs = runner_instance.run.call_args
+            self.assertEqual(run_kwargs.get("mode"), "conservative")
+
+            with open(json_out, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.assertEqual(data.get("dump_daily"), user_dump_daily)
+            self.assertTrue(os.path.exists(user_dump_daily))
+
+    @mock.patch("scripts.run_sim.BacktestRunner")
     def test_run_sim_cli_applies_fill_overrides(self, mock_runner):
         class DummyMetrics:
             def __init__(self):

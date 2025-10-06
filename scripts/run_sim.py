@@ -170,7 +170,98 @@ def _iso8601_arg(value: str) -> datetime:
         raise argparse.ArgumentTypeError(f"Invalid ISO8601 timestamp: {value}") from exc
 
 
-def parse_args(argv=None):
+_MISSING = object()
+
+
+def _collect_user_overrides(argv: List[str], parser: argparse.ArgumentParser) -> set[str]:
+    if not argv:
+        return set()
+    option_to_action: Dict[str, argparse.Action] = {}
+    for action in parser._actions:
+        dest = getattr(action, "dest", None)
+        if not dest or dest is argparse.SUPPRESS:
+            continue
+        for opt in getattr(action, "option_strings", ()):  # type: ignore[attr-defined]
+            option_to_action[opt] = action
+
+    overrides: set[str] = set()
+    idx = 0
+    while idx < len(argv):
+        token = argv[idx]
+        if token == "--":
+            break
+        action = option_to_action.get(token)
+        if action is None and token.startswith("--") and "=" in token:
+            opt, _ = token.split("=", 1)
+            action = option_to_action.get(opt)
+            if action is not None:
+                overrides.add(action.dest)
+            idx += 1
+            continue
+        if action is None:
+            idx += 1
+            continue
+        overrides.add(action.dest)
+        nargs = action.nargs
+        if nargs in (None, 1):
+            idx += 2
+        elif nargs in (0,):
+            idx += 1
+        elif nargs in ("?",):
+            idx += 2
+        elif nargs == argparse.REMAINDER:
+            break
+        elif isinstance(nargs, int):
+            idx += 1 + max(nargs, 0)
+        else:
+            idx += 1
+    return overrides
+
+
+def _apply_manifest_cli_defaults(
+    args: argparse.Namespace,
+    cli_defaults: Dict[str, Any],
+    parser: argparse.ArgumentParser,
+    user_overrides: set[str],
+) -> None:
+    """Overlay manifest-provided CLI defaults without clobbering user inputs."""
+    if not cli_defaults:
+        return
+
+    defaults: Dict[str, Any] = {}
+    for action in parser._actions:
+        dest = getattr(action, "dest", None)
+        if not dest or dest is argparse.SUPPRESS:
+            continue
+        defaults[dest] = action.default
+
+    for dest, value in cli_defaults.items():
+        if dest in user_overrides:
+            continue
+        if dest not in defaults and not hasattr(args, dest):
+            # Unknown CLI destination; ignore silently.
+            continue
+        default_value = defaults.get(dest, _MISSING)
+        has_attr = hasattr(args, dest)
+        if not has_attr:
+            if default_value is argparse.SUPPRESS:
+                # Absent attribute with SUPPRESS default → treat as unset.
+                setattr(args, dest, value)
+                continue
+            if default_value is _MISSING:
+                continue
+            setattr(args, dest, value)
+            continue
+
+        current_value = getattr(args, dest, _MISSING)
+        if default_value is argparse.SUPPRESS:
+            # Attribute only appears when user explicitly supplied it.
+            continue
+        if current_value is _MISSING or current_value == default_value:
+            setattr(args, dest, value)
+
+
+def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Run minimal ORB 5m simulation over CSV")
     p.add_argument("--csv", required=False, default=None, help="Path to OHLC5m CSV (with header)")
     p.add_argument("--symbol", required=False, help="Symbol to filter (e.g., USDJPY)")
@@ -229,11 +320,19 @@ def parse_args(argv=None):
     p.add_argument("--ev-optimize-beta-prior", type=float, default=1.0, help="Beta prior for EV optimisation")
     p.add_argument("--ev-optimize-output-yaml", default=None, help="Where to write updated EV profile YAML (default: overwrite current profile)")
     p.add_argument("--ev-optimize-output-json", default=None, help="Optional JSON dump of optimisation results")
-    return p.parse_args(argv)
+    return p
+
+
+def parse_args(argv=None):
+    parser = build_parser()
+    return parser.parse_args(argv)
 
 
 def main(argv=None):
-    args = parse_args(argv)
+    parser = build_parser()
+    raw_argv = list(argv) if argv is not None else sys.argv[1:]
+    user_overrides = _collect_user_overrides(raw_argv, parser)
+    args = parser.parse_args(argv)
     manifest: Optional[StrategyManifest] = None
     rcfg_base: Optional[RunnerConfig] = None
     manifest_state_namespace: Optional[str] = None
@@ -244,6 +343,7 @@ def main(argv=None):
         args.strategy = manifest.strategy.class_path
         if manifest.state.ev_profile and not getattr(args, "ev_profile", None):
             args.ev_profile = manifest.state.ev_profile
+        _apply_manifest_cli_defaults(args, manifest.runner.cli_args, parser, user_overrides)
         if args.symbol is None and manifest.strategy.instruments:
             args.symbol = manifest.strategy.instruments[0].symbol
         if manifest.strategy.instruments:
