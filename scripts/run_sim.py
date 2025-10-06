@@ -618,6 +618,12 @@ def main(argv=None):
         out["state_archive_path"] = archive_save_path
 
     aggregate_status: Optional[Dict[str, Any]] = None
+    archive_namespace_arg: Optional[str] = None
+    if archive_dir is not None:
+        try:
+            archive_namespace_arg = str(Path(archive_dir).resolve().relative_to(Path(args.state_archive).resolve()))
+        except ValueError:
+            archive_namespace_arg = str(Path(archive_dir))
     if not args.no_aggregate_ev and archive_save_path:
         agg_cmd = [
             sys.executable,
@@ -628,6 +634,8 @@ def main(argv=None):
             "--archive", str(args.state_archive),
             "--recent", str(max(1, args.aggregate_recent)),
         ]
+        if archive_namespace_arg:
+            agg_cmd.extend(["--archive-namespace", archive_namespace_arg])
         if args.ev_profile:
             agg_cmd.extend(["--out-yaml", args.ev_profile])
         agg_cmd.extend(["--out-csv", "analysis/ev_profile_summary.csv"])
