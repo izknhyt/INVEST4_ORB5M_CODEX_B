@@ -16,7 +16,8 @@ import subprocess
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from itertools import chain
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 import os
 import sys
@@ -118,36 +119,61 @@ def _runner_config_from_manifest(manifest: StrategyManifest) -> RunnerConfig:
     return rcfg
 
 
-def load_bars_csv(path: str) -> List[Dict[str, Any]]:
-    bars: List[Dict[str, Any]] = []
-    with open(path, newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            try:
-                bar = {
-                    "timestamp": row["timestamp"],
-                    "symbol": row["symbol"],
-                    "tf": row.get("tf", "5m"),
-                    "o": float(row["o"]),
-                    "h": float(row["h"]),
-                    "l": float(row["l"]),
-                    "c": float(row["c"]),
-                    "v": float(row.get("v", 0.0)),
-                    "spread": float(row.get("spread", 0.0)),
-                }
-            except (KeyError, ValueError):
-                continue
-            for key, value in row.items():
-                if key in {"timestamp", "symbol", "tf", "o", "h", "l", "c", "v", "spread"}:
-                    continue
-                if value in (None, ""):
-                    continue
+def load_bars_csv(
+    path: str,
+    *,
+    symbol: Optional[str] = None,
+    start_ts: Optional[datetime] = None,
+    end_ts: Optional[datetime] = None,
+) -> Iterator[Dict[str, Any]]:
+    def _iter() -> Iterator[Dict[str, Any]]:
+        with open(path, newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
                 try:
-                    bar[key] = float(value)
-                except ValueError:
-                    bar[key] = value
-            bars.append(bar)
-    return bars
+                    bar = {
+                        "timestamp": row["timestamp"],
+                        "symbol": row["symbol"],
+                        "tf": row.get("tf", "5m"),
+                        "o": float(row["o"]),
+                        "h": float(row["h"]),
+                        "l": float(row["l"]),
+                        "c": float(row["c"]),
+                        "v": float(row.get("v", 0.0)),
+                        "spread": float(row.get("spread", 0.0)),
+                    }
+                except (KeyError, ValueError):
+                    continue
+
+                if symbol and bar.get("symbol") != symbol:
+                    continue
+
+                ts_filter_required = start_ts is not None or end_ts is not None
+                if ts_filter_required:
+                    ts_value = bar.get("timestamp")
+                    if not ts_value:
+                        continue
+                    try:
+                        bar_dt = _normalize_datetime(_parse_iso8601(str(ts_value)))
+                    except ValueError:
+                        continue
+                    if start_ts and bar_dt < start_ts:
+                        continue
+                    if end_ts and bar_dt > end_ts:
+                        continue
+
+                for key, value in row.items():
+                    if key in {"timestamp", "symbol", "tf", "o", "h", "l", "c", "v", "spread"}:
+                        continue
+                    if value in (None, ""):
+                        continue
+                    try:
+                        bar[key] = float(value)
+                    except ValueError:
+                        bar[key] = value
+                yield bar
+
+    return _iter()
 
 
 def _parse_iso8601(value: str) -> datetime:
@@ -364,31 +390,19 @@ def main(argv=None):
         else:
             print(json.dumps({"error":"csv_not_specified","suggestions":candidates[:5]}))
             return 1
-    bars = load_bars_csv(args.csv)
-    if args.symbol:
-        bars = [b for b in bars if b.get("symbol") == args.symbol]
     start_ts = _normalize_datetime(args.start_ts) if getattr(args, "start_ts", None) else None
     end_ts = _normalize_datetime(args.end_ts) if getattr(args, "end_ts", None) else None
-    if start_ts or end_ts:
-        filtered: List[Dict[str, Any]] = []
-        for bar in bars:
-            ts_value = bar.get("timestamp")
-            if not ts_value:
-                continue
-            try:
-                bar_dt = _normalize_datetime(_parse_iso8601(str(ts_value)))
-            except ValueError:
-                continue
-            if start_ts and bar_dt < start_ts:
-                continue
-            if end_ts and bar_dt > end_ts:
-                continue
-            filtered.append(bar)
-        bars = filtered
-    if not bars:
+    bars_iter = load_bars_csv(
+        args.csv,
+        symbol=args.symbol,
+        start_ts=start_ts,
+        end_ts=end_ts,
+    )
+    first_bar = next(bars_iter, None)
+    if first_bar is None:
         print(json.dumps({"error": "no bars"}))
         return 1
-    symbol = args.symbol or bars[0].get("symbol")
+    symbol = args.symbol or first_bar.get("symbol")
     rcfg = build_runner_config(args, base=rcfg_base)
     debug_for_dump = args.debug or bool(args.dump_csv) or bool(args.dump_daily) or bool(args.out_dir)
     from importlib import import_module
@@ -441,7 +455,8 @@ def main(argv=None):
                 loaded_state_path = str(latest_state)
             except Exception:
                 loaded_state_path = None
-    metrics = runner.run(bars, mode=args.mode)
+    bars_for_runner = chain([first_bar], bars_iter)
+    metrics = runner.run(bars_for_runner, mode=args.mode)
     router_results = None
     if manifest is not None:
         runtime_mapping: Dict[str, Dict[str, Any]] = {}

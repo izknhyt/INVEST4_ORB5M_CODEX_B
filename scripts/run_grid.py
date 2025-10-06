@@ -177,9 +177,7 @@ def run_grid(argv=None) -> Dict[str,Any]:
                 if fn.lower().endswith(".csv"):
                     suggestions.append(os.path.join("data", fn))
         return {"error": "csv_not_found", "path": args.csv, "suggestions": suggestions[:5]}
-    bars = load_bars_csv(args.csv)
-    if args.symbol:
-        bars = [b for b in bars if b.get("symbol") == args.symbol]
+    bars = list(load_bars_csv(args.csv, symbol=args.symbol))
     if not bars:
         return {"error": "no bars"}
     symbol = args.symbol or bars[0].get("symbol")
