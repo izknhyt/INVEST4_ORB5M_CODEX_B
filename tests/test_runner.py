@@ -135,6 +135,127 @@ class TestRunner(unittest.TestCase):
             mock_process.assert_called_once()
             self.assertIs(result_state, sentinel_state)
 
+    def test_dataclass_state_flow_updates_metrics_and_ev(self):
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
+        pip_size_value = pip_size(runner.symbol)
+        entry_px = 150.0
+        tp_pips = 10.0
+        sl_pips = 5.0
+        ev_key = ("LDN", "normal", "mid")
+        intent = MagicMock()
+        intent.side = "BUY"
+        intent.price = entry_px
+        intent.qty = 1.0
+        spec = OrderSpec(
+            side=intent.side,
+            entry=intent.price,
+            tp_pips=tp_pips,
+            sl_pips=sl_pips,
+            trail_pips=0.0,
+        )
+        entry_ts = datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc)
+        entry_bar = make_bar(entry_ts, runner.symbol, entry_px, entry_px + 0.05, entry_px - 0.05, entry_px, spread=0.02)
+        ctx_common = {
+            "session": "LDN",
+            "spread_band": "normal",
+            "rv_band": "mid",
+            "pip_value": 10.0,
+            "expected_slip_pip": 0.0,
+            "base_cost_pips": 0.0,
+            "cost_pips": 0.0,
+            "ev_key": ev_key,
+        }
+        snapshot = TradeContextSnapshot(
+            session="LDN",
+            spread_band="normal",
+            rv_band="mid",
+            pip_value=10.0,
+            cost_base=0.0,
+            expected_slip_pip=0.0,
+        )
+
+        calib_state = runner.execution.process_fill_result(
+            intent=intent,
+            spec=spec,
+            result={"fill": True, "entry_px": entry_px},
+            bar=entry_bar,
+            ctx=ctx_common,
+            ctx_dbg=MagicMock(),
+            trade_ctx_snapshot=snapshot,
+            calibrating=True,
+            pip_size_value=pip_size_value,
+        )
+
+        self.assertIsInstance(calib_state, CalibrationPositionState)
+        self.assertEqual(len(runner.calib_positions), 1)
+        self.assertIsInstance(runner.calib_positions[0], CalibrationPositionState)
+
+        ev_manager = MagicMock()
+        runner._get_ev_manager = MagicMock(return_value=ev_manager)
+
+        exit_bar = make_bar(
+            entry_ts + timedelta(minutes=5),
+            runner.symbol,
+            entry_px,
+            entry_px + tp_pips * pip_size_value,
+            entry_px - 0.02,
+            entry_px,
+            spread=0.02,
+        )
+        runner._resolve_calibration_positions(
+            bar=exit_bar,
+            ctx=ctx_common,
+            new_session=False,
+            calibrating=False,
+            mode="conservative",
+            pip_size_value=pip_size_value,
+        )
+        ev_manager.update.assert_called_once_with(True)
+        self.assertFalse(runner.calib_positions)
+        self.assertEqual(runner.metrics.trades, 0)
+
+        ev_manager.reset_mock()
+
+        active_state = runner.execution.process_fill_result(
+            intent=intent,
+            spec=spec,
+            result={"fill": True, "entry_px": entry_px},
+            bar=entry_bar,
+            ctx=ctx_common,
+            ctx_dbg=MagicMock(),
+            trade_ctx_snapshot=snapshot,
+            calibrating=False,
+            pip_size_value=pip_size_value,
+        )
+
+        self.assertIsInstance(active_state, ActivePositionState)
+        self.assertIs(runner.pos, active_state)
+
+        exit_trade_bar = make_bar(
+            entry_ts + timedelta(minutes=10),
+            runner.symbol,
+            entry_px,
+            entry_px + tp_pips * pip_size_value,
+            entry_px - 0.02,
+            entry_px + tp_pips * pip_size_value,
+            spread=0.02,
+        )
+
+        runner._handle_active_position(
+            bar=exit_trade_bar,
+            ctx=ctx_common,
+            mode="conservative",
+            pip_size_value=pip_size_value,
+            new_session=False,
+        )
+
+        self.assertIsNone(runner.pos)
+        self.assertEqual(runner.metrics.trades, 1)
+        self.assertEqual(runner.metrics.wins, 1)
+        self.assertAlmostEqual(runner.metrics.total_pips, tp_pips)
+        self.assertAlmostEqual(runner.metrics.total_pnl_value, tp_pips * ctx_common["pip_value"])
+        ev_manager.update.assert_called_once_with(True)
+
     class DummyEV:
         def __init__(self, ev_lcb: float, p_lcb: float) -> None:
             self._ev_lcb = ev_lcb
