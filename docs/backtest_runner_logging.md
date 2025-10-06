@@ -13,6 +13,8 @@ Tests (`tests/test_runner.py::test_runner_delegates_to_lifecycle_and_execution_m
 
 ## Decision flow (`strategy_gate` → `ev_threshold` → EV → sizing)
 
+`RunnerExecutionManager` first calls `Strategy.get_pending_signal()` after invoking `Strategy.on_bar`. Strategies that buffer the latest setup should expose it through this accessor so the runner never touches private attributes such as `_pending_signal` directly.
+
 1. **Strategy gate hook** – When a pending signal exists, `BacktestRunner` calls `strategy_gate(ctx, pending)` if the strategy exposes it. Hook errors are counted under `strategy_gate_error` and recorded with the `strategy_gate_error` stage so the run never aborts.
 2. **Router gate** – If the hook allows the trade, the shared `pass_gates` router validates spread, RV bands, and ATR ratio. Any block increments `gate_block` and produces a `gate_block` record with `reason="router_gate"`.
 3. **Strategy EV threshold hook** – The runner resolves a per-signal EV floor via `ev_threshold(ctx, pending, threshold)` when available. Failures increment `ev_threshold_error` and fall back to the CLI threshold.

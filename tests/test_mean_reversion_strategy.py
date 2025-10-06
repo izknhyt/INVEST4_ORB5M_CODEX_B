@@ -51,9 +51,11 @@ class MeanReversionStrategyTest(unittest.TestCase):
     def test_emits_order_with_atr_defaults(self) -> None:
         bar = {"c": 150.1, "atr14": 0.2, "zscore": 2.0}
         self.strategy.on_bar(bar)
-        self.assertIsNotNone(self.strategy._pending_signal)
+        pending = self.strategy.get_pending_signal()
+        self.assertIsNotNone(pending)
         ctx = self._base_ctx()
-        self.assertTrue(self.strategy.strategy_gate(ctx, self.strategy._pending_signal))
+        assert pending is not None
+        self.assertTrue(self.strategy.strategy_gate(ctx, pending))
         self.strategy.update_context(ctx)
         intents = list(self.strategy.signals())
         self.assertEqual(len(intents), 1)
@@ -75,9 +77,10 @@ class MeanReversionStrategyTest(unittest.TestCase):
     def test_strategy_gate_blocks_high_rv_and_adx(self) -> None:
         bar = {"c": 150.0, "atr14": 0.15, "zscore": -2.0}
         self.strategy.on_bar(bar)
-        pending = self.strategy._pending_signal
+        pending = self.strategy.get_pending_signal()
         ctx = self._base_ctx()
         ctx["rv_band"] = "high"
+        assert pending is not None
         allowed = self.strategy.strategy_gate(ctx, pending)
         self.assertFalse(allowed)
         self.assertEqual(self.strategy._last_gate_reason["stage"], "rv_filter")
@@ -90,7 +93,8 @@ class MeanReversionStrategyTest(unittest.TestCase):
     def test_ev_threshold_responds_to_zscore_and_profiles(self) -> None:
         bar = {"c": 150.0, "atr14": 0.15, "zscore": -2.5}
         self.strategy.on_bar(bar)
-        pending = self.strategy._pending_signal
+        pending = self.strategy.get_pending_signal()
+        assert pending is not None
         ctx = self._base_ctx()
         ctx["ev_profile_stats"] = {
             "recent": {"p_mean": 0.75, "observations": 12},

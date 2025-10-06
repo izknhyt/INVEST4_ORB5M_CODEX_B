@@ -5,6 +5,9 @@
 - 2025-10-06: Renamed the runner entry/EV/sizing evaluation dataclasses to `EntryEvaluation` / `EVEvaluation` / `SizingEvaluation`,
   updated BacktestRunner pipelines and regression tests to consume the new names, and ran
   `python3 -m pytest tests/test_runner.py` to confirm the refactor.
+- 2025-10-06: Added `Strategy.get_pending_signal()` so runner execution no longer reaches into
+  `_pending_signal`, implemented the accessor across DayORB/mean reversion/scalping templates,
+  refreshed docs/test fixtures, and executed `python3 -m pytest` to validate the integration.
 - 2026-03-16: Added helpers to serialise/deserialise `ActivePositionState` / `CalibrationPositionState`
   during runner state export/load, refactored calibration resolution to reuse typed dataclasses,
   and extended `tests/test_runner.py` with coverage that verifies metrics/EV updates under the dataclass

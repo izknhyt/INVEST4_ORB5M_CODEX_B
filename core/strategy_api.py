@@ -35,6 +35,19 @@ class Strategy(ABC):
     def signals(self, ctx: Optional[Mapping[str, Any]] = None) -> Iterable[OrderIntent]:
         ...
 
+    @abstractmethod
+    def get_pending_signal(self) -> Optional[Any]:
+        """Return the latest unconfirmed signal produced by the strategy.
+
+        The runner polls this accessor prior to executing entry/EV/sizing
+        checks. Sub-classes may override to expose additional metadata or to
+        normalise internal representations (e.g. mapping helper structs back to
+        dictionaries). The default implementation returns ``None`` so template
+        strategies that do not buffer signals can opt in lazily.
+        """
+
+        return None
+
     def update_context(self, ctx: Mapping[str, Any]) -> None:
         """Store the latest runtime context provided by the runner.
 

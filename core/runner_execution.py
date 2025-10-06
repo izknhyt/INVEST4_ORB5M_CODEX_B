@@ -218,7 +218,7 @@ class RunnerExecutionManager:
     ) -> None:
         runner = self._runner
         runner.stg.on_bar(features.bar_input)
-        pending = getattr(runner.stg, "_pending_signal", None)
+        pending = runner.stg.get_pending_signal()
         if pending is None:
             runner.debug_counts["no_breakout"] += 1
             runner._append_debug_record("no_breakout", ts=runner._last_timestamp)

@@ -134,8 +134,12 @@ class DayORB5m(Strategy):
                 elif (bar["l"] <= or_l) and ((not require_close) or (bar["c"] <= or_l)):
                     self._pending_signal = {"side":"SELL","tp_pips":tp_pips,"sl_pips":sl_pips,"trail_pips":trail_pips,"entry":or_l}
 
+    def get_pending_signal(self) -> Optional[Dict[str, Any]]:
+        return self._pending_signal
+
     def signals(self, ctx: Optional[Mapping[str, Any]] = None) -> Iterable[OrderIntent]:
-        if not self._pending_signal:
+        pending = self.get_pending_signal()
+        if not pending:
             return []
         # Context should include router gates + EV + sizing related configs
         ctx_data = self.resolve_runtime_context(ctx)
@@ -145,7 +149,7 @@ class DayORB5m(Strategy):
             return []
         if not pass_gates(ctx_data):
             return []
-        sig = self._pending_signal
+        sig = pending
 
         # Calibration mode: bypass EV sizing and emit minimal intent for fill simulation
         if ctx_data.get("calibrating") or ctx_data.get("ev_mode") == "off":

@@ -35,6 +35,9 @@ class DeterministicFailureStrategy(Strategy):
             "sl_pips": 5.0,
         }
 
+    def get_pending_signal(self) -> Optional[Dict[str, Any]]:
+        return self._pending_signal
+
     def signals(self, ctx: Optional[Mapping[str, Any]] = None) -> Iterable[OrderIntent]:
         if ctx is not None:
             self.update_context(ctx)
