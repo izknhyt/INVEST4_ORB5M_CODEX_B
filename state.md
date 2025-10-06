@@ -2,6 +2,10 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-03-14: Routed strategy runtime context through the new ``signals(ctx)``
+  API, updated DayORB5m/templates/mean reversion implementations plus runner
+  regressions, and refreshed strategy-facing tests for the call signature.
+  Ran ``python3 -m pytest``.
 - 2026-03-13: Refined the feature pipeline sanitisation by normalising optional
   opening range bounds, expanded `tests/test_runner_features.py` to cover
   realized volatility history updates, session resets, and mapping behaviour of

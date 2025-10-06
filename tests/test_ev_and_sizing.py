@@ -96,9 +96,8 @@ class TestStrategyIntegration(unittest.TestCase):
         }
 
         # Attach ctx and emit
-        stg.update_context(ctx)
         stg.on_bar(breakout_bar)
-        sigs = list(stg.signals())
+        sigs = list(stg.signals(ctx))
         self.assertEqual(len(sigs), 1)
         self.assertGreater(sigs[0].qty, 0.0)
         self.assertIn("oco", sigs[0].__dict__)

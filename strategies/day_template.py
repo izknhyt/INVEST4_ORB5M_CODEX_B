@@ -8,7 +8,7 @@ for router gating / sizing integration.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, Optional, Mapping
 
 from core.sizing import compute_qty_from_ctx
 from core.strategy_api import OrderIntent, Strategy
@@ -59,20 +59,20 @@ class DayStrategyTemplate(Strategy):
         self.state["last_signal_bar"] = self.state["bar_idx"]
 
     # ------------------------------------------------------------------ Strategy API
-    def signals(self) -> Iterable[OrderIntent]:
+    def signals(self, ctx: Optional[Mapping[str, Any]] = None) -> Iterable[OrderIntent]:
         if not self._pending_signal:
             return []
-        ctx = self.get_context()
-        if not pass_gates(ctx):
+        ctx_data = self.resolve_runtime_context(ctx)
+        if not pass_gates(ctx_data):
             return []
 
-        cooldown = int(ctx.get("cooldown_bars", self.cfg.get("cooldown_bars", 4)))
+        cooldown = int(ctx_data.get("cooldown_bars", self.cfg.get("cooldown_bars", 4)))
         if cooldown > 0 and (self.state["bar_idx"] - self.state["last_signal_bar"] < cooldown):
             return []
 
         signal = self._apply_signal_defaults(dict(self._pending_signal))
         sl_pips = max(0.1, float(signal.get("sl_pips", self.cfg.get("default_sl_pips", 18.0))))
-        qty = compute_qty_from_ctx(ctx, sl_pips)
+        qty = compute_qty_from_ctx(ctx_data, sl_pips)
         if qty <= 0:
             return []
 

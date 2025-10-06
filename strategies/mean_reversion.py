@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Mapping
 
 from core.pips import pip_size
 from core.sizing import compute_qty_from_ctx
@@ -144,21 +144,21 @@ class MeanReversionStrategy(Strategy):
                 threshold = max(0.0, threshold - confidence * expected)
         return threshold
 
-    def signals(self) -> Iterable[OrderIntent]:
+    def signals(self, ctx: Optional[Mapping[str, Any]] = None) -> Iterable[OrderIntent]:
         if not self._pending_signal:
             return []
-        ctx = self.get_context()
-        if not pass_gates(ctx):
+        ctx_data = self.resolve_runtime_context(ctx)
+        if not pass_gates(ctx_data):
             return []
 
         sig = self._pending_signal
-        cooldown = int(self.cfg.get("cooldown_bars", ctx.get("cooldown_bars", 0)))
+        cooldown = int(self.cfg.get("cooldown_bars", ctx_data.get("cooldown_bars", 0)))
         if cooldown > 0 and (self.state["bar_idx"] - self.state["last_signal_bar"] < cooldown):
             return []
 
-        if ctx.get("calibrating") or ctx.get("ev_mode") == "off":
-            qty = compute_qty_from_ctx(ctx, sig["sl_pips"], mode="calibration")
-            if ctx.get("ev_mode") == "off" and qty <= 0:
+        if ctx_data.get("calibrating") or ctx_data.get("ev_mode") == "off":
+            qty = compute_qty_from_ctx(ctx_data, sig["sl_pips"], mode="calibration")
+            if ctx_data.get("ev_mode") == "off" and qty <= 0:
                 return []
             tag = f"mean_reversion#{sig['side']}#calib"
             self.state["last_signal_bar"] = self.state["bar_idx"]
@@ -173,9 +173,9 @@ class MeanReversionStrategy(Strategy):
                 )
             ]
 
-        warmup_left = int(ctx.get("warmup_left", 0))
+        warmup_left = int(ctx_data.get("warmup_left", 0))
         if warmup_left > 0:
-            qty = compute_qty_from_ctx(ctx, sig["sl_pips"], mode="warmup")
+            qty = compute_qty_from_ctx(ctx_data, sig["sl_pips"], mode="warmup")
             if qty <= 0:
                 return []
             tag = f"mean_reversion#{sig['side']}#warmup"
@@ -191,12 +191,12 @@ class MeanReversionStrategy(Strategy):
                 )
             ]
 
-        ev = ctx.get("ev_oco")
+        ev = ctx_data.get("ev_oco")
         if ev is None:
             return []
         p_lcb = ev.p_lcb()
         qty = compute_qty_from_ctx(
-            ctx,
+            ctx_data,
             sig["sl_pips"],
             mode="production",
             tp_pips=sig["tp_pips"],

@@ -57,8 +57,6 @@ def test_tokyo_micro_mean_reversion_emits_signal_with_micro_features(scalping_ct
         ["USDJPY"],
         {},
     )
-    strategy.update_context(scalping_ctx)
-
     bar = {
         "o": 112.610,
         "h": 112.645,
@@ -74,7 +72,7 @@ def test_tokyo_micro_mean_reversion_emits_signal_with_micro_features(scalping_ct
     strategy.on_bar(bar)
 
     with patch("strategies.scalping_template.compute_qty_from_ctx", return_value=1.0):
-        intents = list(strategy.signals())
+        intents = list(strategy.signals(scalping_ctx))
 
     assert len(intents) == 1
     intent = intents[0]
@@ -99,8 +97,6 @@ def test_session_momentum_continuation_emits_signal_with_trend_features(day_ctx:
         ["USDJPY"],
         {},
     )
-    strategy.update_context(day_ctx)
-
     bar = {
         "o": 1.2035,
         "h": 1.2070,
@@ -117,7 +113,7 @@ def test_session_momentum_continuation_emits_signal_with_trend_features(day_ctx:
     strategy.on_bar(bar)
 
     with patch("strategies.day_template.compute_qty_from_ctx", return_value=2.0):
-        intents = list(strategy.signals())
+        intents = list(strategy.signals(day_ctx))
 
     assert len(intents) == 1
     intent = intents[0]

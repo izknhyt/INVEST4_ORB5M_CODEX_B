@@ -222,17 +222,17 @@ class TestRunSimCLI(unittest.TestCase):
                 "--no-aggregate-ev",
             ]
 
-            def _signals_wrapper(self):
-                intents = original_signals(self)
-                ctx = self.get_context()
-                if intents and ctx.get("ev_oco") is not None:
+            def _signals_wrapper(self, ctx=None):
+                intents = original_signals(self, ctx)
+                ctx_snapshot = self.resolve_runtime_context(ctx)
+                if intents and ctx_snapshot.get("ev_oco") is not None:
                     sig = intents[0]
                     expected = compute_qty_from_ctx(
-                        ctx,
+                        ctx_snapshot,
                         sig.oco["sl_pips"],
                         mode="production",
                         tp_pips=sig.oco["tp_pips"],
-                        p_lcb=ctx["ev_oco"].p_lcb(),
+                        p_lcb=ctx_snapshot["ev_oco"].p_lcb(),
                     )
                     qty_checks.append((sig.qty, expected))
                 return intents

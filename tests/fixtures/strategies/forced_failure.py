@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Mapping, Optional
 
 from core.strategy_api import OrderIntent, Strategy
 
@@ -35,7 +35,9 @@ class DeterministicFailureStrategy(Strategy):
             "sl_pips": 5.0,
         }
 
-    def signals(self) -> Iterable[OrderIntent]:
+    def signals(self, ctx: Optional[Mapping[str, Any]] = None) -> Iterable[OrderIntent]:
+        if ctx is not None:
+            self.update_context(ctx)
         # Emit a deterministic intent so downstream sizing/fill paths remain stable.
         self._pending_signal = None
         return [
