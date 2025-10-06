@@ -7,6 +7,11 @@
   refreshed sizing contexts to use the mutable balance, added a regression in
   `tests/test_runner.py::test_position_size_updates_with_live_equity`, and ran
   `python3 -m pytest tests/test_runner.py` for confirmation.
+- 2026-02-26: Preserved external runner state snapshots by deep-copying inputs in
+  `BacktestRunner.load_state`, restoring warmup/EV/slip state during `run`, added
+  regression `tests/test_runner.py::test_run_restores_loaded_state_snapshot`, and
+  executed `python3 -m pytest tests/test_runner.py` to verify persistence across
+  runs.
 - 2026-02-24: Restricted realized volatility inputs to the latest ``n+1`` bars in
   `core/runner._compute_features`, updated `core/feature_store.realized_vol` to accept
   optional windows while re-slicing to ``n+1`` bars, added regression coverage via
