@@ -2,6 +2,11 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-03-01: Updated `_process_fill_result` so calibration/live TP/SL prices derive from
+  filled entries, ensuring slip-adjusted distances persist in runner state, added
+  regression `tests/test_runner.py::test_entry_slip_preserves_tp_sl_distances_and_pnl`
+  covering realised PnL after non-zero slip, and executed `python3 -m pytest
+  tests/test_runner.py`.
 - 2026-02-28: Updated `BacktestRunner` so `RunnerConfig(ev_mode="off")` bypasses the EV threshold by
   clamping the recorded threshold LCB to negative infinity, keeping debug/context logs consistent,
   and added regression `tests/test_runner.py::test_ev_gate_off_mode_bypasses_threshold_checks` to

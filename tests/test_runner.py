@@ -6,7 +6,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
-from core.fill_engine import SameBarPolicy
+from core.fill_engine import OrderSpec, SameBarPolicy
 from core.feature_store import realized_vol as calc_realized_vol
 from core.runner import BacktestRunner, ExitDecision, Metrics, RunnerConfig
 from core.pips import pip_size, price_to_pips
@@ -585,6 +585,108 @@ class TestRunner(unittest.TestCase):
         self.assertGreater(high_daily["pnl_value"], low_daily["pnl_value"])
         self.assertIn("pnl_value", runner_high.records[-1])
         self.assertIn("qty", runner_high.records[-1])
+
+    def test_entry_slip_preserves_tp_sl_distances_and_pnl(self):
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
+        pip = pip_size("USDJPY")
+        tp_pips = 6.0
+        sl_pips = 3.0
+        slip_pips = 0.4
+        base_price = 150.0
+        filled_entry = base_price + slip_pips * pip
+        intent = OrderIntent(
+            side="BUY",
+            qty=1.0,
+            price=base_price,
+            oco={"tp_pips": tp_pips, "sl_pips": sl_pips, "trail_pips": 0.0},
+        )
+        spec = OrderSpec(
+            side="BUY",
+            entry=base_price,
+            tp_pips=tp_pips,
+            sl_pips=sl_pips,
+            trail_pips=0.0,
+        )
+        entry_bar = make_bar(
+            datetime(2024, 1, 6, 9, 0, tzinfo=timezone.utc),
+            "USDJPY",
+            base_price,
+            base_price + 0.5,
+            base_price - 0.5,
+            base_price + 0.1,
+            spread=0.02,
+        )
+        ctx = {
+            "session": "LDN",
+            "spread_band": "normal",
+            "rv_band": "med",
+            "pip_value": 1.0,
+        }
+        ctx_dbg = {"expected_slip_pip": slip_pips}
+        trade_ctx_snapshot = {"pip_value": 1.0}
+        fill_result = {"fill": True, "entry_px": filled_entry}
+
+        runner._process_fill_result(
+            intent=intent,
+            spec=spec,
+            result=dict(fill_result),
+            bar=entry_bar,
+            ctx=ctx,
+            ctx_dbg=ctx_dbg,
+            trade_ctx_snapshot={},
+            calibrating=True,
+            pip_size_value=pip,
+        )
+        self.assertEqual(len(runner.calib_positions), 1)
+        calib_pos = runner.calib_positions[-1]
+        self.assertAlmostEqual(calib_pos["entry_px"], filled_entry)
+        self.assertAlmostEqual(calib_pos["tp_px"] - filled_entry, tp_pips * pip)
+        self.assertAlmostEqual(filled_entry - calib_pos["sl_px"], sl_pips * pip)
+
+        runner.calib_positions.clear()
+
+        runner._process_fill_result(
+            intent=intent,
+            spec=spec,
+            result=fill_result,
+            bar=entry_bar,
+            ctx=ctx,
+            ctx_dbg=ctx_dbg,
+            trade_ctx_snapshot=trade_ctx_snapshot,
+            calibrating=False,
+            pip_size_value=pip,
+        )
+        self.assertIsNotNone(runner.pos)
+        pos = runner.pos
+        self.assertAlmostEqual(pos["entry_px"], filled_entry)
+        self.assertAlmostEqual(pos["tp_px"] - filled_entry, tp_pips * pip)
+        self.assertAlmostEqual(filled_entry - pos["sl_px"], sl_pips * pip)
+        self.assertGreater(pos["entry_slip_pip"], 0.0)
+
+        exit_bar = make_bar(
+            datetime(2024, 1, 6, 9, 5, tzinfo=timezone.utc),
+            "USDJPY",
+            pos["tp_px"],
+            pos["tp_px"] + pip,
+            pos["sl_px"] + pip,
+            pos["tp_px"],
+            spread=0.02,
+        )
+
+        handled = runner._handle_active_position(
+            bar=exit_bar,
+            ctx=ctx,
+            mode="conservative",
+            pip_size_value=pip,
+            new_session=False,
+        )
+        self.assertTrue(handled)
+        self.assertIsNone(runner.pos)
+        self.assertAlmostEqual(runner.metrics.total_pips, tp_pips)
+        self.assertEqual(len(runner.records), 1)
+        trade_record = runner.records[-1]
+        self.assertAlmostEqual(trade_record["pnl_pips"], tp_pips)
+        self.assertAlmostEqual(runner.metrics.total_pnl_value, tp_pips)
 
     def test_check_slip_and_sizing_zero_qty_uses_helpers(self):
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")

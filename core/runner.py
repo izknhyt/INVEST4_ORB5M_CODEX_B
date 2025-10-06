@@ -1570,13 +1570,13 @@ class BacktestRunner:
                 },
             )
             return
-        entry_px = result.get("entry_px")
-        tp_px = intent.price + (
-            spec.tp_pips * pip_size_value if intent.side == "BUY" else -spec.tp_pips * pip_size_value
-        )
-        sl_px0 = intent.price - (
-            spec.sl_pips * pip_size_value if intent.side == "BUY" else -spec.sl_pips * pip_size_value
-        )
+        entry_px_result = result.get("entry_px")
+        entry_px = entry_px_result if entry_px_result is not None else intent.price
+        if entry_px is None:
+            raise ValueError("Filled entry price is required to initialise position state")
+        direction = 1.0 if intent.side == "BUY" else -1.0
+        tp_px = entry_px + direction * spec.tp_pips * pip_size_value
+        sl_px0 = entry_px - direction * spec.sl_pips * pip_size_value
         if calibrating:
             self.calib_positions.append(
                 {
