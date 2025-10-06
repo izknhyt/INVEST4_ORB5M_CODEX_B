@@ -2,6 +2,12 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-02-22: Refactored `core/router_pipeline.build_portfolio_state` by introducing helper
+  functions for numeric map normalisation, correlation map generation, exposure/headroom
+  aggregation, gross exposure calculation, and runtime metric merging. Added regression
+  tests in `tests/test_router_pipeline.py` to validate the helper outputs (including the
+  existing headroom tolerance) and executed `python3 -m pytest tests/test_router_pipeline.py`
+  to confirm behaviour is unchanged.
 - 2026-02-21: Refactored `router/router_v1.select_candidates` to delegate per-manifest checks to `evaluate_candidate`, introduced
   `CandidateEvaluation` for aggregating eligibility deltas/reasons, added regression coverage in `tests/test_router_v1.py`, and
   executed `python3 -m pytest tests/test_router_v1.py` to confirm the helper matches previous behaviour.
