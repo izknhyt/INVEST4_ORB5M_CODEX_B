@@ -2,6 +2,12 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-03-13: Refined the feature pipeline sanitisation by normalising optional
+  opening range bounds, expanded `tests/test_runner_features.py` to cover
+  realized volatility history updates, session resets, and mapping behaviour of
+  `RunnerContext`, and asserted the runner regression flows consume the
+  pipeline-provided context. Ran `python3 -m pytest
+  tests/test_runner_features.py tests/test_runner.py`.
 - 2026-03-12: Re-synced entry/EV/sizing pipelines so strategy-gate TP/SL
   adjustments propagate to EV threshold and sizing calculations by re-running
   `_extract_pending_fields` post-gate, and added a regression covering mutated

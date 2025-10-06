@@ -125,7 +125,9 @@ class FeaturePipeline:
         self._ingest_bar(bar, new_session=new_session)
         realized_vol_value = self._compute_realized_vol(session)
         atr14, adx14 = self._compute_atr_adx()
-        or_high, or_low = opening_range(self._session_bars, n=self._rcfg.or_n)
+        or_high_raw, or_low_raw = opening_range(self._session_bars, n=self._rcfg.or_n)
+        or_high = self._sanitize_optional(or_high_raw)
+        or_low = self._sanitize_optional(or_low_raw)
         micro_features = self._compute_micro_features(bar)
 
         bar_input = self._build_bar_input(
@@ -138,8 +140,8 @@ class FeaturePipeline:
             bar=bar,
             session=session,
             atr14=bar_input["atr14"],
-            or_h=or_high if self._is_finite(or_high) else None,
-            or_l=or_low if self._is_finite(or_low) else None,
+            or_h=or_high,
+            or_l=or_low,
             realized_vol_value=realized_vol_value,
         )
         if calibrating:
@@ -157,8 +159,8 @@ class FeaturePipeline:
             entry_ctx=entry_ctx,
             atr14=atr14,
             adx14=adx14,
-            or_high=or_high if self._is_finite(or_high) else None,
-            or_low=or_low if self._is_finite(or_low) else None,
+            or_high=or_high,
+            or_low=or_low,
             realized_vol=realized_vol_value,
             micro_zscore=bar_input["micro_zscore"],
             micro_trend=bar_input["micro_trend"],
@@ -256,3 +258,9 @@ class FeaturePipeline:
     @staticmethod
     def _is_finite(value: Optional[float]) -> bool:
         return value is not None and not math.isnan(value)
+
+    @classmethod
+    def _sanitize_optional(cls, value: Optional[float]) -> Optional[float]:
+        if value is None:
+            return None
+        return value if cls._is_finite(value) else None
