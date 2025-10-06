@@ -2,6 +2,11 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-02-24: Restricted realized volatility inputs to the latest ``n+1`` bars in
+  `core/runner._compute_features`, updated `core/feature_store.realized_vol` to accept
+  optional windows while re-slicing to ``n+1`` bars, added regression coverage via
+  `tests/test_runner.py::test_realized_vol_recent_window_updates_band`, and executed
+  `python3 -m pytest tests/test_runner.py`.
 - 2026-02-23: Introduced `SelectionContext` to orchestrate per-candidate routing checks in
   `router/router_v1`, delegated session/band/portfolio health/headroom scoring into helper
   methods, updated `select_candidates` to run the shared pipeline, extended

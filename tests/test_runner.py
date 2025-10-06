@@ -1,4 +1,5 @@
 import csv
+import math
 from pathlib import Path
 from typing import List, Optional
 import unittest
@@ -6,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 from core.fill_engine import SameBarPolicy
+from core.feature_store import realized_vol as calc_realized_vol
 from core.runner import BacktestRunner, ExitDecision, Metrics, RunnerConfig
 from core.pips import pip_size, price_to_pips
 from core.sizing import compute_qty_from_ctx
@@ -156,6 +158,69 @@ class TestRunner(unittest.TestCase):
         d = metrics.as_dict()
         # At least attempted one trade
         self.assertGreaterEqual(d["trades"], 0)
+
+    def test_realized_vol_recent_window_updates_band(self):
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
+        base_ts = datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc)
+        closes = [100.0]
+        for _ in range(12):
+            closes.append(closes[-1] + 0.01)
+        closes.append(closes[-1] + 3.0)
+
+        features_before = None
+        features_after = None
+        window_before = None
+        window_after = None
+        session_before: Optional[str] = None
+        session_after: Optional[str] = None
+
+        for idx, close in enumerate(closes):
+            open_px = closes[idx - 1] if idx > 0 else close
+            high_px = max(open_px, close) + 0.01
+            low_px = min(open_px, close) - 0.01
+            bar = make_bar(
+                base_ts + timedelta(minutes=5 * idx),
+                "USDJPY",
+                open_px,
+                high_px,
+                low_px,
+                close,
+                spread=0.02,
+            )
+            new_session, session, calibrating = runner._update_daily_state(bar)
+            features = runner._compute_features(
+                bar,
+                session=session,
+                new_session=new_session,
+                calibrating=calibrating,
+            )
+            if idx == 12:
+                features_before = features
+                window_before = [dict(b) for b in runner.window[-13:]]
+                session_before = session
+            if idx == 13:
+                features_after = features
+                window_after = [dict(b) for b in runner.window[-13:]]
+                session_after = session
+
+        self.assertIsNotNone(features_before)
+        self.assertIsNotNone(features_after)
+        self.assertIsNotNone(window_before)
+        self.assertIsNotNone(window_after)
+        self.assertIsNotNone(session_before)
+        self.assertIsNotNone(session_after)
+
+        expected_before = calc_realized_vol(window_before, n=12)
+        expected_after = calc_realized_vol(window_after, n=12)
+        self.assertFalse(math.isnan(expected_before))
+        self.assertFalse(math.isnan(expected_after))
+        self.assertAlmostEqual(features_before.realized_vol, expected_before)
+        self.assertAlmostEqual(features_after.realized_vol, expected_after)
+        self.assertGreater(expected_after, expected_before)
+
+        self.assertEqual(features_before.ctx["rv_band"], "mid")
+        self.assertEqual(features_after.ctx["rv_band"], "high")
+        self.assertNotEqual(features_before.ctx["rv_band"], features_after.ctx["rv_band"])
 
     def test_build_ctx_casts_risk_per_trade_pct_from_string(self):
         cfg = RunnerConfig(risk_per_trade_pct="1.2")
