@@ -1,4 +1,5 @@
 from __future__ import annotations
+import math
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Mapping, Optional, TYPE_CHECKING, Union, cast
 
@@ -30,6 +31,22 @@ class RunnerExecutionManager:
 
     def __init__(self, runner: "BacktestRunner") -> None:
         self._runner = runner
+
+    @staticmethod
+    def _coerce_probability(value: Any) -> Optional[float]:
+        if value is None:
+            return None
+        try:
+            prob = float(value)
+        except (TypeError, ValueError):
+            return None
+        if math.isnan(prob):
+            return None
+        if prob < 0.0:
+            return 0.0
+        if prob > 1.0:
+            return 1.0
+        return prob
 
     # ----- Position management ----------------------------------------------------
     def compute_exit_decision(
@@ -129,7 +146,7 @@ class RunnerExecutionManager:
             debug_extra: Optional[Mapping[str, Any]] = None
             if decision.p_tp is not None:
                 debug_extra = {"same_bar_p_tp": decision.p_tp}
-            self.finalize_trade(
+            finalize_args = dict(
                 exit_ts=bar.get("timestamp"),
                 entry_ts=current_pos.entry_ts,
                 side=current_pos.side,
@@ -146,6 +163,10 @@ class RunnerExecutionManager:
                 debug_stage="trade_exit",
                 debug_extra=debug_extra,
             )
+            prob = self._coerce_probability(decision.p_tp)
+            if prob is not None:
+                finalize_args["p_tp"] = prob
+            self.finalize_trade(**finalize_args)
 
         return True
 
@@ -177,8 +198,12 @@ class RunnerExecutionManager:
                 ctx.get("rv_band"),
             )
             if decision.exited:
-                hit = decision.exit_reason == "tp"
-                runner._get_ev_manager(ev_key).update(bool(hit))
+                manager = runner._get_ev_manager(ev_key)
+                prob = self._coerce_probability(decision.p_tp)
+                if prob is not None:
+                    manager.update_weighted(prob)
+                else:
+                    manager.update(decision.exit_reason == "tp")
                 continue
             updated_state = cast(
                 CalibrationPositionState, decision.updated_pos or pos_state
@@ -296,14 +321,18 @@ class RunnerExecutionManager:
             entry_px = result["entry_px"]
             exit_px = result["exit_px"]
             exit_reason = result.get("exit_reason")
+            prob = self._coerce_probability(result.get("p_tp"))
             if calibrating:
-                hit = exit_reason == "tp"
                 ev_key = ctx.get("ev_key") or (
                     ctx.get("session"),
                     ctx.get("spread_band"),
                     ctx.get("rv_band"),
                 )
-                runner._get_ev_manager(ev_key).update(bool(hit))
+                manager = runner._get_ev_manager(ev_key)
+                if prob is not None:
+                    manager.update_weighted(prob)
+                else:
+                    manager.update(exit_reason == "tp")
                 return None
             qty_sample, slip_actual = runner._update_slip_learning(
                 order=intent,
@@ -311,7 +340,7 @@ class RunnerExecutionManager:
                 intended_price=intent.price,
                 ctx=ctx,
             )
-            self.finalize_trade(
+            finalize_args = dict(
                 exit_ts=bar.get("timestamp"),
                 entry_ts=bar.get("timestamp"),
                 side=intent.side,
@@ -331,6 +360,9 @@ class RunnerExecutionManager:
                     "sl_pips": spec.sl_pips,
                 },
             )
+            if prob is not None:
+                finalize_args["p_tp"] = prob
+            self.finalize_trade(**finalize_args)
             return None
         entry_px_result = result.get("entry_px")
         entry_px = entry_px_result if entry_px_result is not None else intent.price
@@ -453,6 +485,7 @@ class RunnerExecutionManager:
         sl_pips: float,
         debug_stage: str,
         debug_extra: Optional[Mapping[str, Any]] = None,
+        p_tp: Optional[float] = None,
     ) -> None:
         runner = self._runner
         ctx_snapshot_map = snapshot_to_dict(ctx_snapshot)
@@ -481,6 +514,7 @@ class RunnerExecutionManager:
             qty_effective = 0.0
         pnl_pips = pnl_pips_unit * qty_effective
         hit = exit_reason == "tp"
+        prob = self._coerce_probability(p_tp)
         pip_value_ctx = ctx_snapshot_map.get("pip_value")
         if pip_value_ctx is None:
             pip_value_ctx = ctx.get("pip_value", 10.0)
@@ -508,7 +542,11 @@ class RunnerExecutionManager:
         rv_band = ctx.get("rv_band")
         resolved_key = ev_key or ctx.get("ev_key") or (session, spread_band, rv_band)
         if resolved_key:
-            runner._get_ev_manager(tuple(resolved_key)).update(hit)
+            manager = runner._get_ev_manager(tuple(resolved_key))
+            if prob is not None:
+                manager.update_weighted(prob)
+            else:
+                manager.update(hit)
         self.log_trade_record(
             exit_ts=exit_ts,
             entry_ts=entry_ts,
