@@ -191,7 +191,7 @@ class TestRunSimCLI(unittest.TestCase):
 
             def _signals_wrapper(self):
                 intents = original_signals(self)
-                ctx = dict(self.cfg.get("ctx", {}))
+                ctx = self.get_context()
                 if intents and ctx.get("ev_oco") is not None:
                     sig = intents[0]
                     expected = compute_qty_from_ctx(

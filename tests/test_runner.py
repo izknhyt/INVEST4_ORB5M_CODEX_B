@@ -448,11 +448,12 @@ class TestRunner(unittest.TestCase):
 
         class SingleBarStrategy(Strategy):
             def __init__(self) -> None:
-                self.cfg = {"ctx": {}}
+                super().__init__()
+                self.cfg = {}
                 self._pending_signal: Optional[OrderIntent] = None
 
             def on_start(self, cfg, instruments, state_store) -> None:
-                self.cfg = {"ctx": {}}
+                self.cfg = dict(cfg)
                 self._pending_signal = None
 
             def on_bar(self, bar) -> None:
@@ -1522,6 +1523,7 @@ class TestRunner(unittest.TestCase):
             }
         }
         stg.on_start(cfg, ["USDJPY"], {})
+        stg.update_context(cfg["ctx"])
         stg.state["bar_idx"] = 12
         stg._pending_signal = {
             "side": "SELL",
@@ -1567,6 +1569,7 @@ class TestRunner(unittest.TestCase):
             }
         }
         stg.on_start(cfg, ["USDJPY"], {})
+        stg.update_context(cfg["ctx"])
         stg.state["bar_idx"] = 25
         stg._pending_signal = {
             "side": "BUY",

@@ -57,7 +57,7 @@ def test_tokyo_micro_mean_reversion_emits_signal_with_micro_features(scalping_ct
         ["USDJPY"],
         {},
     )
-    strategy.cfg["ctx"] = scalping_ctx
+    strategy.update_context(scalping_ctx)
 
     bar = {
         "o": 112.610,
@@ -99,7 +99,7 @@ def test_session_momentum_continuation_emits_signal_with_trend_features(day_ctx:
         ["USDJPY"],
         {},
     )
-    strategy.cfg["ctx"] = day_ctx
+    strategy.update_context(day_ctx)
 
     bar = {
         "o": 1.2035,

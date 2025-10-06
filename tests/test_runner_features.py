@@ -26,14 +26,14 @@ def runner() -> BacktestRunner:
     return BacktestRunner(equity=100_000.0, symbol="USDJPY")
 
 
-def test_pipeline_returns_runner_context_and_updates_strategy_cfg(runner: BacktestRunner) -> None:
+def test_pipeline_returns_runner_context_and_updates_strategy(runner: BacktestRunner) -> None:
     pipeline = FeaturePipeline(
         rcfg=runner.rcfg,
         window=runner.window,
         session_bars=runner.session_bars,
         rv_hist=runner.rv_hist,
-        strategy_cfg=runner.stg.cfg,
         ctx_builder=runner._build_ctx,
+        context_consumer=runner.stg.update_context,
     )
     ts = datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc)
     bar = make_bar(ts, 150.0)
@@ -46,7 +46,7 @@ def test_pipeline_returns_runner_context_and_updates_strategy_cfg(runner: Backte
 
     assert isinstance(ctx, RunnerContext)
     assert features.ctx is ctx
-    assert runner.stg.cfg["ctx"] == ctx.to_dict()
+    assert runner.stg.runtime_ctx == ctx.to_dict()
     assert ctx["session"] == "LDN"
     assert "rv_band" in ctx
     assert ctx.get("calibrating") is None
@@ -63,8 +63,8 @@ def test_pipeline_sanitises_invalid_micro_features(runner: BacktestRunner, monke
         window=runner.window,
         session_bars=runner.session_bars,
         rv_hist=runner.rv_hist,
-        strategy_cfg=runner.stg.cfg,
         ctx_builder=runner._build_ctx,
+        context_consumer=runner.stg.update_context,
     )
     ts = datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc)
     bar = make_bar(ts, 150.0)

@@ -102,15 +102,15 @@ class FeaturePipeline:
         window: List[Dict[str, Any]],
         session_bars: List[Dict[str, Any]],
         rv_hist: MutableMapping[str, Any],
-        strategy_cfg: MutableMapping[str, Any],
         ctx_builder: Callable[..., Dict[str, Any]],
+        context_consumer: Optional[Callable[[Dict[str, Any]], None]] = None,
     ) -> None:
         self._rcfg = rcfg
         self._window = window
         self._session_bars = session_bars
         self._rv_hist = rv_hist
-        self._strategy_cfg = strategy_cfg
         self._ctx_builder = ctx_builder
+        self._context_consumer = context_consumer
 
     def compute(
         self,
@@ -145,7 +145,8 @@ class FeaturePipeline:
             ctx_dict["threshold_lcb_pip"] = threshold_override
             ctx_dict["calibrating"] = True
         runner_ctx = RunnerContext(ctx_dict)
-        self._strategy_cfg["ctx"] = runner_ctx.to_dict()
+        if self._context_consumer is not None:
+            self._context_consumer(runner_ctx.to_dict())
 
         feature_bundle = FeatureBundle(
             bar_input=bar_input,

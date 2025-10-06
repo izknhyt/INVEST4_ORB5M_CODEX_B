@@ -7,6 +7,12 @@
   are centralised. Updated `BacktestRunner._compute_features` to delegate to the pipeline, added
   direct unit tests in `tests/test_runner_features.py`, refreshed runner regressions, and executed
   `python3 -m pytest tests/test_runner.py tests/test_runner_features.py` for confirmation.
+- 2026-03-05: Decoupled strategy runtime context from configuration by adding
+  `Strategy.update_context`, routing BacktestRunner and FeaturePipeline updates through the new API,
+  and updating DayORB5m/templated strategies plus runner/CLI regressions. Ran
+  `python3 -m pytest tests/test_runner.py tests/test_runner_features.py tests/test_run_sim_cli.py
+  tests/test_ev_and_sizing.py tests/test_mean_reversion_strategy.py tests/test_strategy_feature_integration.py`
+  to confirm behaviour.
 - 2026-03-04: Introduced `core/runner_entry` with structured gate/EV/sizing dataclasses, refactored
   `BacktestRunner._maybe_enter_trade` to compose `EntryGate`/`EVGate`/`SizingGate`, removed ad-hoc
   `None` checks, and expanded `tests/test_runner.py` with pipeline success/failure coverage.
