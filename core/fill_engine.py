@@ -239,13 +239,27 @@ class ConservativeFill(_BaseFill):
 
 
 class BridgeFill(_BaseFill):
+    DEFAULT_LAM: float = 0.35
+    DEFAULT_DRIFT_SCALE: float = 2.5
+
     def __init__(
         self,
         same_bar_policy: SameBarPolicy = SameBarPolicy.PROBABILISTIC,
-        lam: float = 0.35,
-        drift_scale: float = 2.5,
+        lam: float = DEFAULT_LAM,
+        drift_scale: float = DEFAULT_DRIFT_SCALE,
     ) -> None:
         super().__init__(same_bar_policy, lam=lam, drift_scale=drift_scale)
+
+    @staticmethod
+    def _config_value(config: Any, attr: str, fallback: float) -> float:
+        try:
+            value = getattr(config, attr)
+        except AttributeError:
+            return fallback
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return fallback
 
     @staticmethod
     def compute_same_bar_probability(
@@ -311,6 +325,57 @@ class BridgeFill(_BaseFill):
             pip_size=pip_size,
             lam=lam,
             drift_scale=drift_scale,
+        )
+        exit_px = p_tp * float(tp_px) + (1 - p_tp) * float(stop_px)
+        return exit_px, p_tp
+
+    @classmethod
+    def compute_same_bar_probability_from_config(
+        cls,
+        *,
+        runner_config: Any,
+        side: str,
+        entry_px: float,
+        tp_px: float,
+        stop_px: float,
+        bar: Mapping[str, float],
+        pip_size: float,
+    ) -> float:
+        lam = cls._config_value(runner_config, "fill_bridge_lambda", cls.DEFAULT_LAM)
+        drift_scale = cls._config_value(
+            runner_config, "fill_bridge_drift_scale", cls.DEFAULT_DRIFT_SCALE
+        )
+        return cls.compute_same_bar_probability(
+            side=side,
+            entry_px=entry_px,
+            tp_px=tp_px,
+            stop_px=stop_px,
+            bar=bar,
+            pip_size=pip_size,
+            lam=lam,
+            drift_scale=drift_scale,
+        )
+
+    @classmethod
+    def compute_same_bar_exit_from_config(
+        cls,
+        *,
+        runner_config: Any,
+        side: str,
+        entry_px: float,
+        tp_px: float,
+        stop_px: float,
+        bar: Mapping[str, float],
+        pip_size: float,
+    ) -> Tuple[float, float]:
+        p_tp = cls.compute_same_bar_probability_from_config(
+            runner_config=runner_config,
+            side=side,
+            entry_px=entry_px,
+            tp_px=tp_px,
+            stop_px=stop_px,
+            bar=bar,
+            pip_size=pip_size,
         )
         exit_px = p_tp * float(tp_px) + (1 - p_tp) * float(stop_px)
         return exit_px, p_tp

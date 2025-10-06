@@ -2406,6 +2406,68 @@ class TestRunner(unittest.TestCase):
         finally:
             runner.execution.finalize_trade = original_finalize
 
+    def test_compute_exit_decision_bridge_same_bar_uses_config(self):
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
+        pip_value = pip_size(runner.symbol)
+        entry = 150.0
+        tp = entry + 0.20
+        sl = entry - 0.20
+        bar = {
+            "o": entry,
+            "h": entry + 0.30,
+            "l": entry - 0.30,
+            "c": entry + 0.10,
+        }
+
+        def make_state() -> ActivePositionState:
+            return ActivePositionState(
+                side="BUY",
+                entry_px=entry,
+                tp_px=tp,
+                sl_px=sl,
+                trail_pips=0.0,
+                qty=1.0,
+                entry_ts="2024-01-01T08:00:00+00:00",
+                ctx_snapshot=TradeContextSnapshot(),
+                ev_key=None,
+                tp_pips=(tp - entry) / pip_value,
+                sl_pips=(entry - sl) / pip_value,
+            )
+
+        def run_case(lam: float, drift_scale: float) -> Tuple[float, float]:
+            runner.rcfg.fill_bridge_lambda = lam
+            runner.rcfg.fill_bridge_drift_scale = drift_scale
+            decision = runner.execution.compute_exit_decision(
+                pos=make_state(),
+                bar=bar,
+                mode="bridge",
+                pip_size_value=pip_value,
+                new_session=False,
+            )
+            self.assertTrue(decision.exited)
+            self.assertIsNotNone(decision.p_tp)
+            expected_p = BridgeFill.compute_same_bar_probability(
+                side="BUY",
+                entry_px=entry,
+                tp_px=tp,
+                stop_px=sl,
+                bar=bar,
+                pip_size=pip_value,
+                lam=lam,
+                drift_scale=drift_scale,
+            )
+            expected_exit = expected_p * tp + (1 - expected_p) * sl
+            self.assertAlmostEqual(decision.p_tp, expected_p)
+            self.assertAlmostEqual(decision.exit_px, expected_exit)
+            expected_reason = "tp" if expected_p >= 0.5 else "sl"
+            self.assertEqual(decision.exit_reason, expected_reason)
+            return decision.p_tp, decision.exit_px or 0.0
+
+        base_p, base_exit = run_case(0.35, 2.5)
+        alt_p, alt_exit = run_case(0.7, 0.8)
+        self.assertNotAlmostEqual(base_p, alt_p)
+        self.assertNotAlmostEqual(base_exit, alt_exit)
+
     def test_same_bar_ev_manager_uses_probability_weighting(self):
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
         pip_value = pip_size(runner.symbol)

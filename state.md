@@ -374,6 +374,10 @@
 - 2026-03-21: Propagated same-bar TP probabilities through `RunnerExecutionManager` so EV buckets consume
   fractional updates via `update_weighted`, updated trade finalisation to forward the probability, added
   bridge/conservative regressions in `tests/test_runner.py`, and ran `python3 -m pytest tests/test_runner.py`.
+- 2026-03-22: Exposed Bridge same-bar TP probability/exit helpers that read `RunnerConfig` parameters,
+  refactored `RunnerExecutionManager.compute_exit_decision` to use the shared helper, added bridge collision
+  regression in `tests/test_runner.py` confirming `fill_bridge_lambda` / `fill_bridge_drift_scale` influence
+  `exit_px` and `p_tp`, and executed `python3 -m pytest tests/test_runner.py`.
 - 2026-03-10: Enabled `RunnerExecutionManager.process_fill_result` to return structured `PositionState` objects, updated
   `BacktestRunner._process_fill_result` delegations and regression tests to assert serialization/identity, and ran
   `python3 -m pytest tests/test_runner.py` to confirm behaviour.
