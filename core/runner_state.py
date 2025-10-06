@@ -22,7 +22,7 @@ class PositionState:
     ev_key: Optional[Any] = None
     expected_slip_pip: float = 0.0
     entry_slip_pip: float = 0.0
-    ctx_snapshot: Dict[str, Any] = field(default_factory=dict)
+    ctx_snapshot: Any = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.entry_px = float(self.entry_px)
@@ -43,6 +43,10 @@ class PositionState:
         self.entry_slip_pip = float(self.entry_slip_pip or 0.0)
         if self.ctx_snapshot is None:
             self.ctx_snapshot = {}
+        elif hasattr(self.ctx_snapshot, "as_dict"):
+            # Preserve structured snapshots (e.g. TradeContextSnapshot)
+            # without coercing them back into plain dictionaries.
+            self.ctx_snapshot = self.ctx_snapshot
         elif not isinstance(self.ctx_snapshot, dict):
             self.ctx_snapshot = dict(self.ctx_snapshot)
 
@@ -63,6 +67,12 @@ class PositionState:
         return replace(self, hold=self.hold + 1)
 
     def as_dict(self) -> Dict[str, Any]:
+        snapshot = self.ctx_snapshot
+        if hasattr(snapshot, "as_dict"):
+            snapshot_dict = snapshot.as_dict()
+        else:
+            snapshot_dict = copy.deepcopy(snapshot)
+
         data = {
             "side": self.side,
             "entry_px": self.entry_px,
@@ -79,7 +89,7 @@ class PositionState:
             "ev_key": self.ev_key,
             "expected_slip_pip": self.expected_slip_pip,
             "entry_slip_pip": self.entry_slip_pip,
-            "ctx_snapshot": copy.deepcopy(self.ctx_snapshot),
+            "ctx_snapshot": snapshot_dict,
         }
         return data
 

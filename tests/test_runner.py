@@ -9,7 +9,14 @@ from unittest.mock import MagicMock, patch
 
 from core.fill_engine import OrderSpec, SameBarPolicy
 from core.feature_store import realized_vol as calc_realized_vol
-from core.runner import BacktestRunner, ExitDecision, Metrics, RunnerConfig
+from core.runner import (
+    ActivePositionState,
+    BacktestRunner,
+    CalibrationPositionState,
+    ExitDecision,
+    Metrics,
+    RunnerConfig,
+)
 from core.runner_entry import (
     EntryGate,
     EVGate,
@@ -20,7 +27,6 @@ from core.runner_entry import (
     SizingEvaluation,
     TradeContextSnapshot,
 )
-from core.runner_state import PositionState
 from core.pips import pip_size, price_to_pips
 from core.sizing import compute_qty_from_ctx
 from core.strategy_api import OrderIntent, Strategy
@@ -274,7 +280,7 @@ class TestRunner(unittest.TestCase):
 
     def test_export_and_apply_state_round_trips_position_state(self):
         runner = BacktestRunner(equity=50_000.0, symbol="USDJPY")
-        active_state = PositionState(
+        active_state = ActivePositionState(
             side="BUY",
             entry_px=150.0,
             tp_px=150.3,
@@ -290,9 +296,9 @@ class TestRunner(unittest.TestCase):
             ev_key=("LDN", "normal", "mid"),
             expected_slip_pip=0.2,
             entry_slip_pip=0.1,
-            ctx_snapshot={"pip_value": 9.5, "session": "LDN"},
+            ctx_snapshot=TradeContextSnapshot(pip_value=9.5, session="LDN"),
         )
-        calib_state = PositionState(
+        calib_state = CalibrationPositionState(
             side="SELL",
             entry_px=150.4,
             tp_px=150.1,
@@ -302,6 +308,7 @@ class TestRunner(unittest.TestCase):
             ll=150.05,
             hold=2,
             ev_key=("NY", "wide", "high"),
+            ctx_snapshot=TradeContextSnapshot(session="NY"),
         )
         runner.pos = active_state
         runner.calib_positions = [calib_state]
@@ -317,17 +324,18 @@ class TestRunner(unittest.TestCase):
         restored._apply_state_dict(state)
 
         self.assertIsNotNone(restored.pos)
-        self.assertIsInstance(restored.pos, PositionState)
+        self.assertIsInstance(restored.pos, ActivePositionState)
         assert restored.pos is not None
         self.assertEqual(restored.pos.side, active_state.side)
         self.assertAlmostEqual(restored.pos.tp_px, active_state.tp_px)
-        self.assertEqual(restored.pos.ctx_snapshot["session"], "LDN")
+        self.assertIsInstance(restored.pos.ctx_snapshot, TradeContextSnapshot)
+        self.assertEqual(restored.pos.ctx_snapshot.session, "LDN")
         self.assertEqual(len(restored.calib_positions), 1)
-        self.assertIsInstance(restored.calib_positions[0], PositionState)
+        self.assertIsInstance(restored.calib_positions[0], CalibrationPositionState)
         self.assertEqual(restored.calib_positions[0].ev_key, calib_state.ev_key)
 
         state["position"]["ctx_snapshot"]["session"] = "NY"
-        self.assertEqual(runner.pos.ctx_snapshot["session"], "LDN")
+        self.assertEqual(runner.pos.ctx_snapshot.session, "LDN")
 
     def test_build_ctx_casts_risk_per_trade_pct_from_string(self):
         cfg = RunnerConfig(risk_per_trade_pct="1.2")
@@ -714,10 +722,11 @@ class TestRunner(unittest.TestCase):
         )
         self.assertEqual(len(runner.calib_positions), 1)
         calib_pos = runner.calib_positions[-1]
-        self.assertIsInstance(calib_pos, PositionState)
+        self.assertIsInstance(calib_pos, CalibrationPositionState)
         self.assertAlmostEqual(calib_pos.entry_px, filled_entry)
         self.assertAlmostEqual(calib_pos.tp_px - filled_entry, tp_pips * pip)
         self.assertAlmostEqual(filled_entry - calib_pos.sl_px, sl_pips * pip)
+        self.assertIsInstance(calib_pos.ctx_snapshot, TradeContextSnapshot)
 
         runner.calib_positions.clear()
 
@@ -734,11 +743,12 @@ class TestRunner(unittest.TestCase):
         )
         self.assertIsNotNone(runner.pos)
         pos = runner.pos
-        self.assertIsInstance(pos, PositionState)
+        self.assertIsInstance(pos, ActivePositionState)
         self.assertAlmostEqual(pos.entry_px, filled_entry)
         self.assertAlmostEqual(pos.tp_px - filled_entry, tp_pips * pip)
         self.assertAlmostEqual(filled_entry - pos.sl_px, sl_pips * pip)
         self.assertGreater(pos.entry_slip_pip, 0.0)
+        self.assertIsInstance(pos.ctx_snapshot, TradeContextSnapshot)
 
         exit_bar = make_bar(
             datetime(2024, 1, 6, 9, 5, tzinfo=timezone.utc),
@@ -1469,7 +1479,7 @@ class TestRunner(unittest.TestCase):
         runner.rcfg.calibrate_days = 1
         ev_key = ("LDN", "normal", "mid")
         runner.calib_positions = [
-            PositionState(
+            CalibrationPositionState(
                 side="BUY",
                 entry_px=150.0,
                 tp_px=150.5,
@@ -1652,7 +1662,7 @@ class TestRunner(unittest.TestCase):
                 ),
             ):
                 with self.subTest(side=side):
-                    runner.pos = PositionState(
+                    runner.pos = ActivePositionState(
                         side=side,
                         entry_px=150.00,
                         tp_px=150.80 if side == "BUY" else 149.20,
@@ -1660,7 +1670,7 @@ class TestRunner(unittest.TestCase):
                         trail_pips=10.0,
                         qty=1.0,
                         entry_ts="2024-01-01T08:00:00+00:00",
-                        ctx_snapshot={},
+                        ctx_snapshot=TradeContextSnapshot(),
                         ev_key=None,
                         tp_pips=80.0,
                         sl_pips=100.0,
@@ -1713,7 +1723,7 @@ class TestRunner(unittest.TestCase):
                     entry = 150.00
                     tp = entry + 0.20 if side == "BUY" else entry - 0.20
                     sl = entry - 0.20 if side == "BUY" else entry + 0.20
-                    runner.pos = PositionState(
+                    runner.pos = ActivePositionState(
                         side=side,
                         entry_px=entry,
                         tp_px=tp,
@@ -1721,7 +1731,7 @@ class TestRunner(unittest.TestCase):
                         trail_pips=0.0,
                         qty=1.0,
                         entry_ts="2024-01-01T08:00:00+00:00",
-                        ctx_snapshot={},
+                        ctx_snapshot=TradeContextSnapshot(),
                         ev_key=None,
                         tp_pips=abs(tp - entry) / pip_value,
                         sl_pips=abs(entry - sl) / pip_value,
@@ -1756,7 +1766,7 @@ class TestRunner(unittest.TestCase):
                     entry = 150.00
                     tp = entry + 0.50 if side == "BUY" else entry - 0.50
                     sl = entry - 0.50 if side == "BUY" else entry + 0.50
-                    runner.pos = PositionState(
+                    runner.pos = ActivePositionState(
                         side=side,
                         entry_px=entry,
                         tp_px=tp,
@@ -1764,7 +1774,7 @@ class TestRunner(unittest.TestCase):
                         trail_pips=0.0,
                         qty=1.0,
                         entry_ts="2024-01-01T08:00:00+00:00",
-                        ctx_snapshot={},
+                        ctx_snapshot=TradeContextSnapshot(),
                         ev_key=None,
                         tp_pips=abs(tp - entry) / pip_value,
                         sl_pips=abs(entry - sl) / pip_value,
@@ -1806,7 +1816,7 @@ class TestRunner(unittest.TestCase):
         dummy_ev = DummyEv()
         runner._get_ev_manager = lambda key: dummy_ev
         runner.calib_positions = [
-            PositionState(
+            CalibrationPositionState(
                 side="BUY",
                 entry_px=150.00,
                 tp_px=150.20,
@@ -1856,7 +1866,7 @@ class TestRunner(unittest.TestCase):
         dummy_ev = DummyEv()
         runner._get_ev_manager = lambda key: dummy_ev
         runner.calib_positions = [
-            PositionState(
+            CalibrationPositionState(
                 side="SELL",
                 entry_px=150.00,
                 tp_px=149.70,
