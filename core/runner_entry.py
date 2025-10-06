@@ -179,7 +179,7 @@ class SizingContext(EVContext):
 
 
 @dataclass
-class EntryEvaluationResult:
+class EntryEvaluation:
     outcome: GateCheckOutcome
     context: EntryContext
     pending_side: str
@@ -191,7 +191,7 @@ class EntryEvaluationResult:
 
 
 @dataclass
-class EVEvaluationResult:
+class EVEvaluation:
     outcome: GateCheckOutcome
     manager: Optional[Any]
     context: EVContext
@@ -207,7 +207,7 @@ class EVEvaluationResult:
 
 
 @dataclass
-class SizingEvaluationResult:
+class SizingEvaluation:
     outcome: GateCheckOutcome
     context: SizingContext
 
@@ -293,7 +293,7 @@ class EntryGate:
     def __init__(self, runner: "BacktestRunner") -> None:
         self._runner = runner
 
-    def evaluate(self, *, pending: Any, features: "FeatureBundle") -> EntryEvaluationResult:
+    def evaluate(self, *, pending: Any, features: "FeatureBundle") -> EntryEvaluation:
         entry_ctx = features.entry_ctx
         if entry_ctx is None:
             raise ValueError("Feature bundle did not include an entry context")
@@ -331,7 +331,7 @@ class EntryGate:
                 rv_band=metadata.get("rv_band"),
                 allow_low_rv=entry_ctx.allow_low_rv,
             )
-            return EntryEvaluationResult(
+            return EntryEvaluation(
                 outcome=GateCheckOutcome(
                     passed=False,
                     reason="strategy_gate",
@@ -359,7 +359,7 @@ class EntryGate:
                 or_atr_ratio=entry_ctx.or_atr_ratio,
                 reason="router_gate",
             )
-            return EntryEvaluationResult(
+            return EntryEvaluation(
                 outcome=GateCheckOutcome(
                     passed=False,
                     reason="router_gate",
@@ -371,7 +371,7 @@ class EntryGate:
                 sl_pips=sl_pips,
             )
         self._runner._increment_daily("gate_pass")
-        return EntryEvaluationResult(
+        return EntryEvaluation(
             outcome=GateCheckOutcome(passed=True),
             context=entry_ctx,
             pending_side=resolved_side,
@@ -387,11 +387,11 @@ class EVGate:
     def evaluate(
         self,
         *,
-        entry: EntryEvaluationResult,
+        entry: EntryEvaluation,
         pending: Any,
         calibrating: bool,
         timestamp: Optional[str],
-    ) -> EVEvaluationResult:
+    ) -> EVEvaluation:
         ctx = entry.context
         pending_side_raw, tp_pips_raw, sl_pips_raw = self._runner._extract_pending_fields(
             pending
@@ -462,7 +462,7 @@ class EVGate:
                 ev_ctx.ev_lcb = ev_lcb
                 ev_ctx.ev_pass = False
                 ev_ctx.bypass = False
-                return EVEvaluationResult(
+                return EVEvaluation(
                     outcome=GateCheckOutcome(
                         passed=False,
                         reason="ev_reject",
@@ -488,7 +488,7 @@ class EVGate:
         ev_ctx.ev_lcb = ev_lcb
         ev_ctx.ev_pass = not ev_bypass
         ev_ctx.bypass = ev_bypass
-        return EVEvaluationResult(
+        return EVEvaluation(
             outcome=GateCheckOutcome(passed=True),
             manager=ev_mgr,
             context=ev_ctx,
@@ -509,10 +509,10 @@ class SizingGate:
         self,
         *,
         ctx: EVContext,
-        ev_result: EVEvaluationResult,
+        ev_result: EVEvaluation,
         calibrating: bool,
         timestamp: Optional[str],
-    ) -> SizingEvaluationResult:
+    ) -> SizingEvaluation:
         sizing_ctx = SizingContext.from_ev(ctx)
         pending_side = ev_result.pending_side
         tp_pips = ev_result.tp_pips
@@ -533,7 +533,7 @@ class SizingGate:
                 expected_slip_pip=expected_slip,
                 slip_cap_pip=slip_cap,
             )
-            return SizingEvaluationResult(
+            return SizingEvaluation(
                 outcome=GateCheckOutcome(
                     passed=False,
                     reason="slip_cap",
@@ -562,7 +562,7 @@ class SizingGate:
             sizing_ctx.qty = qty_dbg
             if qty_dbg <= 0:
                 self._runner.debug_counts["zero_qty"] += 1
-                return SizingEvaluationResult(
+                return SizingEvaluation(
                     outcome=GateCheckOutcome(
                         passed=False,
                         reason="zero_qty",
@@ -570,7 +570,7 @@ class SizingGate:
                     ),
                     context=sizing_ctx,
                 )
-        return SizingEvaluationResult(
+        return SizingEvaluation(
             outcome=GateCheckOutcome(passed=True),
             context=sizing_ctx,
         )
