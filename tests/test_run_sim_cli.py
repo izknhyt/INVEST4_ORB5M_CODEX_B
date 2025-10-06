@@ -10,6 +10,8 @@ from unittest import mock
 
 from core.sizing import compute_qty_from_ctx
 from core.runner import RunnerConfig
+from core.runner_execution import RunnerExecutionManager
+from core.runner_lifecycle import RunnerLifecycleManager
 from scripts.run_sim import load_bars_csv, main as run_sim_main
 from strategies.mean_reversion import MeanReversionStrategy
 
@@ -90,7 +92,33 @@ class TestRunSimCLI(unittest.TestCase):
 
             def _wrapped(self, bars, *run_args, **run_kwargs):
                 captured["bars"] = bars
-                return original_run(self, bars, *run_args, **run_kwargs)
+                captured["lifecycle_type"] = type(self.lifecycle)
+                captured["execution_type"] = type(self.execution)
+                with mock.patch.object(
+                    self.lifecycle,
+                    "reset_runtime_state",
+                    wraps=self.lifecycle.reset_runtime_state,
+                ) as mock_reset, mock.patch.object(
+                    self.lifecycle,
+                    "init_ev_state",
+                    wraps=self.lifecycle.init_ev_state,
+                ) as mock_init, mock.patch.object(
+                    self.lifecycle,
+                    "reset_slip_learning",
+                    wraps=self.lifecycle.reset_slip_learning,
+                ) as mock_slip, mock.patch.object(
+                    self.lifecycle,
+                    "restore_loaded_state_snapshot",
+                    wraps=self.lifecycle.restore_loaded_state_snapshot,
+                ) as mock_restore:
+                    result = original_run(self, bars, *run_args, **run_kwargs)
+                captured["lifecycle_calls"] = (
+                    mock_reset.call_count,
+                    mock_init.call_count,
+                    mock_slip.call_count,
+                    mock_restore.call_count,
+                )
+                return result
 
             with mock.patch.object(backtest_runner_cls, "run", autospec=True, side_effect=_wrapped) as patched_run:
                 rc = run_sim_main(args)
@@ -99,6 +127,11 @@ class TestRunSimCLI(unittest.TestCase):
             bars_arg = captured.get("bars")
             self.assertIsNotNone(bars_arg)
             self.assertEqual(len(bars_arg), 3)
+            self.assertIs(captured.get("lifecycle_type"), RunnerLifecycleManager)
+            self.assertIs(captured.get("execution_type"), RunnerExecutionManager)
+            lifecycle_calls = captured.get("lifecycle_calls")
+            self.assertIsNotNone(lifecycle_calls)
+            self.assertTrue(all(count >= 1 for count in lifecycle_calls))
             with open(json_out, "r", encoding="utf-8") as f:
                 data = json.load(f)
             self.assertIn("sharpe", data)

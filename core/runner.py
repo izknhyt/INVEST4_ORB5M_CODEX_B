@@ -10,8 +10,6 @@ NOTE: Placeholder thresholds and simplified assumptions to keep dependencies min
 from __future__ import annotations
 from typing import Any, Callable, ClassVar, Dict, List, Mapping, Optional, Tuple, Set, Union
 from collections import deque
-import copy
-import json
 import hashlib
 import math
 from datetime import datetime, timezone, timedelta
@@ -33,7 +31,9 @@ from core.runner_entry import (
     TradeContextSnapshot,
     build_trade_context_snapshot,
 )
-from core.runner_state import PositionState
+from core.runner_execution import ExitDecision, RunnerExecutionManager
+from core.runner_lifecycle import RunnerLifecycleManager
+from core.runner_state import ActivePositionState, CalibrationPositionState, PositionState
 from router.router_v0 import pass_gates
 from core.runner_features import FeatureBundle, FeaturePipeline
 
@@ -191,110 +191,6 @@ class Metrics:
             if drawdown < max_drawdown:
                 max_drawdown = drawdown
         return max_drawdown
-
-
-@dataclass
-class ExitDecision:
-    exited: bool
-    exit_px: Optional[float]
-    exit_reason: Optional[str]
-    updated_pos: Optional[PositionState]
-
-
-def _coerce_trade_ctx(value: Optional[Mapping[str, Any] | TradeContextSnapshot | Any]) -> TradeContextSnapshot:
-    if isinstance(value, TradeContextSnapshot):
-        return value
-    if value is None:
-        return TradeContextSnapshot()
-    if hasattr(value, "as_dict"):
-        try:
-            return TradeContextSnapshot(**value.as_dict())  # type: ignore[arg-type]
-        except Exception:
-            return TradeContextSnapshot()
-    if isinstance(value, Mapping):
-        return TradeContextSnapshot(**dict(value))
-    try:
-        return TradeContextSnapshot(**dict(value))  # type: ignore[arg-type]
-    except Exception:
-        return TradeContextSnapshot()
-
-
-def _snapshot_to_dict(value: Union[Mapping[str, Any], TradeContextSnapshot, None]) -> Dict[str, Any]:
-    if isinstance(value, TradeContextSnapshot):
-        return value.as_dict()
-    if value is None:
-        return {}
-    if hasattr(value, "as_dict"):
-        try:
-            return dict(value.as_dict())  # type: ignore[arg-type]
-        except Exception:
-            return {}
-    try:
-        return dict(value)
-    except Exception:
-        return {}
-
-
-@dataclass
-class CalibrationPositionState(PositionState):
-    ctx_snapshot: Optional[TradeContextSnapshot] = None
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        if isinstance(self.ctx_snapshot, dict):
-            self.ctx_snapshot = _coerce_trade_ctx(self.ctx_snapshot)
-        elif self.ctx_snapshot is not None and not isinstance(
-            self.ctx_snapshot, TradeContextSnapshot
-        ):
-            self.ctx_snapshot = _coerce_trade_ctx(self.ctx_snapshot)
-
-    def ctx_snapshot_dict(self) -> Dict[str, Any]:
-        if isinstance(self.ctx_snapshot, TradeContextSnapshot):
-            return self.ctx_snapshot.as_dict()
-        return {}
-
-    def as_dict(self) -> Dict[str, Any]:
-        data = super().as_dict()
-        if isinstance(self.ctx_snapshot, TradeContextSnapshot):
-            data["ctx_snapshot"] = self.ctx_snapshot.as_dict()
-        elif not data.get("ctx_snapshot"):
-            data["ctx_snapshot"] = {}
-        return data
-
-    @classmethod
-    def from_dict(cls, payload: Mapping[str, Any]) -> "CalibrationPositionState":
-        base = PositionState.from_dict(payload)
-        data = base.as_dict()
-        snapshot_payload = payload.get("ctx_snapshot") or {}
-        snapshot = None
-        if snapshot_payload:
-            snapshot = _coerce_trade_ctx(snapshot_payload)
-        return cls(**{**data, "ctx_snapshot": snapshot})
-
-
-@dataclass
-class ActivePositionState(PositionState):
-    ctx_snapshot: TradeContextSnapshot = field(default_factory=TradeContextSnapshot)
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        self.ctx_snapshot = _coerce_trade_ctx(self.ctx_snapshot)
-
-    def ctx_snapshot_dict(self) -> Dict[str, Any]:
-        return self.ctx_snapshot.as_dict()
-
-    def as_dict(self) -> Dict[str, Any]:
-        data = super().as_dict()
-        data["ctx_snapshot"] = self.ctx_snapshot.as_dict()
-        return data
-
-    @classmethod
-    def from_dict(cls, payload: Mapping[str, Any]) -> "ActivePositionState":
-        base = PositionState.from_dict(payload)
-        data = base.as_dict()
-        snapshot_payload = payload.get("ctx_snapshot") or {}
-        snapshot = _coerce_trade_ctx(snapshot_payload)
-        return cls(**{**data, "ctx_snapshot": snapshot})
 
 
 @dataclass
@@ -545,7 +441,9 @@ class BacktestRunner:
         self.debug_sample_limit = max(0, int(debug_sample_limit))
         self.strategy_cls = strategy_cls or DayORB5m
         self.ev_profile = ev_profile or {}
-        self._init_ev_state()
+        self.lifecycle = RunnerLifecycleManager(self)
+        self.execution = RunnerExecutionManager(self)
+        self.lifecycle.init_ev_state()
         cons_policy = self.rcfg.resolve_same_bar_policy("conservative")
         bridge_policy = self.rcfg.resolve_same_bar_policy("bridge")
         self.fill_engine_c = ConservativeFill(cons_policy)
@@ -554,10 +452,10 @@ class BacktestRunner:
             lam=float(self.rcfg.fill_bridge_lambda),
             drift_scale=float(self.rcfg.fill_bridge_drift_scale),
         )
-        self._reset_runtime_state()
+        self.lifecycle.reset_runtime_state()
         self._ev_profile_lookup: Dict[tuple, Dict[str, Any]] = {}
         # Slip/size expectation tracking
-        self._reset_slip_learning()
+        self.lifecycle.reset_slip_learning()
 
         # strategy
         self.stg = self.strategy_cls()
@@ -565,52 +463,24 @@ class BacktestRunner:
         self._strategy_gate_hook = self._resolve_strategy_hook("strategy_gate")
         self._ev_threshold_hook = self._resolve_strategy_hook("ev_threshold")
         self._apply_ev_profile()
-        self._loaded_state_snapshot: Optional[Dict[str, Any]] = None
-        self._restore_loaded_state: bool = False
 
     def _init_ev_state(self) -> None:
-        self.ev_global = BetaBinomialEV(
-            conf_level=0.95,
-            decay=self.rcfg.ev_decay,
-            prior_alpha=self.rcfg.prior_alpha,
-            prior_beta=self.rcfg.prior_beta,
-        )
-        # bucket store for pooled EV
-        self.ev_buckets = {}  # type: Dict[tuple, BetaBinomialEV]
-        self.ev_var = TLowerEV(conf_level=0.95, decay=self.rcfg.ev_decay)
+        self.lifecycle.init_ev_state()
 
     def _reset_slip_learning(self) -> None:
-        self.slip_a = {
-            "narrow": self.rcfg.slip_curve.get("narrow", {}).get("a", 0.0),
-            "normal": self.rcfg.slip_curve.get("normal", {}).get("a", 0.0),
-            "wide": self.rcfg.slip_curve.get("wide", {}).get("a", 0.0),
-        }
-        self.qty_ewma = {"narrow": 0.0, "normal": 0.0, "wide": 0.0}
+        self.lifecycle.reset_slip_learning()
 
     def _reset_runtime_state(self) -> None:
-        self._equity_live = float(self.equity)
-        self.metrics = Metrics(starting_equity=self._equity_live)
-        self.records: List[Dict[str, Any]] = []
-        self.window: List[Dict[str, Any]] = []
-        self.session_bars: List[Dict[str, Any]] = []
-        self.debug_counts: Dict[str, int] = {key: 0 for key in self.DEBUG_COUNT_KEYS}
-        self.debug_records: List[Dict[str, Any]] = []
-        self.daily: Dict[str, Dict[str, Any]] = {}
-        self._current_daily_entry: Optional[Dict[str, Union[int, float]]] = None
-        self.rv_hist: Dict[str, Any] = {
-            "TOK": deque(maxlen=self.rcfg.rv_q_lookback_bars),
-            "LDN": deque(maxlen=self.rcfg.rv_q_lookback_bars),
-            "NY": deque(maxlen=self.rcfg.rv_q_lookback_bars),
-        }
-        self.rv_thresh: Dict[str, Optional[tuple]] = {"TOK": None, "LDN": None, "NY": None}
-        self.calib_positions: List[CalibrationPositionState] = []
-        self.pos: Optional[ActivePositionState] = None
-        self._warmup_left = max(0, int(self.rcfg.warmup_trades))
-        self._last_session: Optional[str] = None
-        self._last_day: Optional[int] = None
-        self._current_date: Optional[str] = None
-        self._day_count: int = 0
-        self._last_timestamp: Optional[str] = None
+        self.lifecycle.reset_runtime_state()
+
+    def _build_rv_window(self) -> deque:
+        return deque(maxlen=self.rcfg.rv_q_lookback_bars)
+
+    def _create_metrics(self) -> Metrics:
+        return Metrics(starting_equity=self._equity_live)
+
+    def _hash_payload(self, payload: str) -> str:
+        return hashlib.sha256(payload.encode()).hexdigest()[:16]
 
     def _resolve_strategy_hook(self, attr_name: str) -> Optional[Callable[..., Any]]:
         hook = getattr(self.stg, attr_name, None)
@@ -855,40 +725,21 @@ class BacktestRunner:
         qty: float,
         ctx_snapshot: Union[Mapping[str, Any], TradeContextSnapshot, None] = None,
     ) -> None:
-        ctx_snapshot_map = _snapshot_to_dict(ctx_snapshot)
-        record = {
-            "ts": exit_ts,
-            "entry_ts": entry_ts,
-            "stage": "trade",
-            "side": side,
-            "tp_pips": tp_pips,
-            "sl_pips": sl_pips,
-            "cost_pips": cost_pips,
-            "slip_est": slip_est,
-            "slip_real": slip_real,
-            "exit": exit_reason,
-            "pnl_pips": pnl_pips,
-            "pnl_value": pnl_value,
-            "qty": qty,
-        }
-        for key in (
-            "session",
-            "rv_band",
-            "spread_band",
-            "or_atr_ratio",
-            "min_or_atr_ratio",
-            "ev_lcb",
-            "threshold_lcb",
-            "ev_pass",
-            "expected_slip_pip",
-            "zscore",
-        ):
-            value = ctx_snapshot_map.get(key)
-            if value is not None:
-                record[key] = value
-        if ctx_snapshot_map.get("cost_base") is not None:
-            record["cost_base"] = ctx_snapshot_map["cost_base"]
-        self.records.append(record)
+        self.execution.log_trade_record(
+            exit_ts=exit_ts,
+            entry_ts=entry_ts,
+            side=side,
+            tp_pips=tp_pips,
+            sl_pips=sl_pips,
+            cost_pips=cost_pips,
+            slip_est=slip_est,
+            slip_real=slip_real,
+            exit_reason=exit_reason,
+            pnl_pips=pnl_pips,
+            pnl_value=pnl_value,
+            qty=qty,
+            ctx_snapshot=ctx_snapshot,
+        )
 
     def _finalize_trade(
         self,
@@ -909,94 +760,23 @@ class BacktestRunner:
         debug_stage: str,
         debug_extra: Optional[Mapping[str, Any]] = None,
     ) -> None:
-        ctx_snapshot_map = _snapshot_to_dict(ctx_snapshot)
-        base_cost = ctx_snapshot_map.get(
-            "cost_base", ctx.get("base_cost_pips", ctx.get("cost_pips", 0.0))
-        )
-        est_slip_used = 0.0
-        if getattr(self.rcfg, "include_expected_slip", False):
-            band = ctx_snapshot_map.get(
-                "spread_band", ctx.get("spread_band", "normal")
-            )
-            coeff = float(
-                self.slip_a.get(
-                    band, self.rcfg.slip_curve.get(band, {}).get("a", 0.0)
-                )
-            )
-            intercept = float(
-                self.rcfg.slip_curve.get(band, {}).get("b", 0.0)
-            )
-            est_slip_used = max(0.0, coeff * qty_sample + intercept)
-        cost = base_cost + est_slip_used
-        signed = 1 if side == "BUY" else -1
-        pnl_px = (exit_px - entry_px) * signed
-        pnl_pips_unit = price_to_pips(pnl_px, self.symbol) - cost
-        try:
-            qty_effective = float(qty_sample)
-        except (TypeError, ValueError):
-            qty_effective = 0.0
-        pnl_pips = pnl_pips_unit * qty_effective
-        hit = exit_reason == "tp"
-        pip_value_ctx = ctx_snapshot_map.get("pip_value")
-        if pip_value_ctx is None:
-            pip_value_ctx = ctx.get("pip_value", 10.0)
-        try:
-            pip_value_float = float(pip_value_ctx)
-        except (TypeError, ValueError):
-            pip_value_float = 0.0
-        pnl_value = pnl_pips_unit * pip_value_float * qty_effective
-        self._equity_live += pnl_value
-        self._record_trade_metrics(
-            pnl_pips,
-            hit,
-            timestamp=exit_ts,
-            pnl_value=pnl_value,
-        )
-        self._increment_daily("fills")
-        if hit:
-            self._increment_daily("wins")
-        self._increment_daily("pnl_pips", pnl_pips)
-        self._increment_daily("pnl_value", pnl_value)
-        self._increment_daily("slip_est", est_slip_used)
-        self._increment_daily("slip_real", slip_actual)
-        self._log_trade_record(
+        self.execution.finalize_trade(
             exit_ts=exit_ts,
             entry_ts=entry_ts,
             side=side,
+            entry_px=entry_px,
+            exit_px=exit_px,
+            exit_reason=exit_reason,
+            ctx_snapshot=ctx_snapshot,
+            ctx=ctx,
+            qty_sample=qty_sample,
+            slip_actual=slip_actual,
+            ev_key=ev_key,
             tp_pips=tp_pips,
             sl_pips=sl_pips,
-            cost_pips=cost,
-            slip_est=est_slip_used,
-            slip_real=slip_actual,
-            exit_reason=exit_reason,
-            pnl_pips=pnl_pips,
-            pnl_value=pnl_value,
-            qty=qty_effective,
-            ctx_snapshot=ctx_snapshot_map,
+            debug_stage=debug_stage,
+            debug_extra=debug_extra,
         )
-        debug_fields: Dict[str, Any] = {
-            "ts": self._last_timestamp,
-            "side": side,
-            "cost_pips": cost,
-            "slip_est": est_slip_used,
-            "slip_real": slip_actual,
-            "exit": exit_reason,
-            "pnl_pips": pnl_pips,
-            "pnl_value": pnl_value,
-        }
-        if debug_extra:
-            debug_fields.update(debug_extra)
-        self._append_debug_record(debug_stage, **debug_fields)
-        session = ctx.get("session", "TOK")
-        spread_band = ctx.get("spread_band", "normal")
-        rv_band = ctx.get("rv_band")
-        resolved_key = ev_key or ctx.get("ev_key") or (
-            session,
-            spread_band,
-            rv_band,
-        )
-        self._get_ev_manager(resolved_key).update(hit)
-        self.ev_var.update(pnl_pips)
 
     def _update_daily_state(
         self, bar: Dict[str, Any]
@@ -1079,57 +859,13 @@ class BacktestRunner:
         pip_size_value: float,
         new_session: bool,
     ) -> ExitDecision:
-        state = pos.apply_trailing_stop(
-            high=bar["h"],
-            low=bar["l"],
-            pip_size=pip_size_value,
+        return self.execution.compute_exit_decision(
+            pos=pos,
+            bar=bar,
+            mode=mode,
+            pip_size_value=pip_size_value,
+            new_session=new_session,
         )
-        side = state.side
-        entry_px = state.entry_px
-        tp_px = state.tp_px
-        sl_px = state.sl_px
-        direction = 1.0 if side == "BUY" else -1.0
-
-        exit_px: Optional[float] = None
-        exit_reason: Optional[str] = None
-        sl_hit = bar["l"] <= sl_px if side == "BUY" else bar["h"] >= sl_px
-        tp_hit = bar["h"] >= tp_px if side == "BUY" else bar["l"] <= tp_px
-
-        if sl_hit and tp_hit:
-            if mode == "conservative":
-                exit_px, exit_reason = sl_px, "sl"
-            else:
-                rng = max(bar["h"] - bar["l"], pip_size_value)
-                drift = direction * (bar["c"] - bar["o"]) / rng if rng > 0 else 0.0
-                d_tp = max(((tp_px - entry_px) * direction) / pip_size_value, 1e-9)
-                d_sl = max(((entry_px - sl_px) * direction) / pip_size_value, 1e-9)
-                base = d_sl / (d_tp + d_sl)
-                p_tp = min(
-                    0.999,
-                    max(0.001, 0.65 * base + 0.35 * 0.5 * (1.0 + math.tanh(2.5 * drift))),
-                )
-                exit_px = p_tp * tp_px + (1 - p_tp) * sl_px
-                exit_reason = "tp" if p_tp >= 0.5 else "sl"
-            exited = True
-        elif sl_hit:
-            exit_px, exit_reason, exited = sl_px, "sl", True
-        elif tp_hit:
-            exit_px, exit_reason, exited = tp_px, "tp", True
-        else:
-            exited = False
-
-        if not exited:
-            updated_state = state.increment_hold()
-            hold = updated_state.hold
-            max_hold = getattr(self.rcfg, "max_hold_bars", 96)
-            if new_session or hold >= max_hold:
-                exit_px = bar["o"]
-                exit_reason = "session_end" if new_session else "timeout"
-                exited = True
-
-        if exited:
-            return ExitDecision(True, exit_px, exit_reason, None)
-        return ExitDecision(False, None, None, updated_state)
 
     def _handle_active_position(
         self,
@@ -1140,40 +876,13 @@ class BacktestRunner:
         pip_size_value: float,
         new_session: bool,
     ) -> bool:
-        if getattr(self, "pos", None) is None:
-            return False
-
-        current_pos: ActivePositionState = self.pos
-        decision = self._compute_exit_decision(
-            pos=current_pos,
+        return self.execution.handle_active_position(
             bar=bar,
+            ctx=ctx,
             mode=mode,
             pip_size_value=pip_size_value,
             new_session=new_session,
         )
-        self.pos = decision.updated_pos
-
-        if decision.exited and decision.exit_px is not None:
-            qty_sample = current_pos.qty if current_pos.qty else 1.0
-            slip_actual = current_pos.entry_slip_pip
-            self._finalize_trade(
-                exit_ts=bar.get("timestamp"),
-                entry_ts=current_pos.entry_ts,
-                side=current_pos.side,
-                entry_px=current_pos.entry_px,
-                exit_px=decision.exit_px,
-                exit_reason=decision.exit_reason,
-                ctx_snapshot=current_pos.ctx_snapshot_dict(),
-                ctx=ctx,
-                qty_sample=qty_sample,
-                slip_actual=slip_actual,
-                ev_key=current_pos.ev_key,
-                tp_pips=current_pos.tp_pips or 0.0,
-                sl_pips=current_pos.sl_pips or 0.0,
-                debug_stage="trade_exit",
-            )
-
-        return True
 
     def _resolve_calibration_positions(
         self,
@@ -1185,33 +894,14 @@ class BacktestRunner:
         mode: str,
         pip_size_value: float,
     ) -> None:
-        if not self.calib_positions:
-            return
-        # Continue resolving calibration trades even after the calibration
-        # window ends so their outcomes update pooled EV statistics.
-        still: List[CalibrationPositionState] = []
-        for pos_state in self.calib_positions:
-            decision = self._compute_exit_decision(
-                pos=pos_state,
-                bar=bar,
-                mode=mode,
-                pip_size_value=pip_size_value,
-                new_session=new_session,
-            )
-            ev_key = pos_state.ev_key or ctx.get("ev_key") or (
-                ctx.get("session"),
-                ctx.get("spread_band"),
-                ctx.get("rv_band"),
-            )
-            if decision.exited:
-                hit = decision.exit_reason == "tp"
-                self._get_ev_manager(ev_key).update(bool(hit))
-                continue
-            updated_state = decision.updated_pos or pos_state
-            if not isinstance(updated_state, CalibrationPositionState):
-                updated_state = CalibrationPositionState.from_dict(updated_state.as_dict())
-            still.append(updated_state)
-        self.calib_positions = still
+        self.execution.resolve_calibration_positions(
+            bar=bar,
+            ctx=ctx,
+            new_session=new_session,
+            calibrating=calibrating,
+            mode=mode,
+            pip_size_value=pip_size_value,
+        )
 
     def _evaluate_entry_conditions(
         self,
@@ -1276,81 +966,13 @@ class BacktestRunner:
         pip_size_value: float,
         calibrating: bool,
     ) -> None:
-        self.stg.on_bar(features.bar_input)
-        pending = getattr(self.stg, "_pending_signal", None)
-        if pending is None:
-            self.debug_counts["no_breakout"] += 1
-            self._append_debug_record("no_breakout", ts=self._last_timestamp)
-            return
-        self._increment_daily("breakouts")
-        entry_result = self._evaluate_entry_conditions(
-            pending=pending,
-            features=features,
-        )
-        if not entry_result.outcome.passed or entry_result.context is None:
-            return
-        ctx_dbg = entry_result.context
-        ev_result = self._evaluate_ev_threshold(
-            ctx_dbg=ctx_dbg,
-            pending=pending,
-            calibrating=calibrating,
-            timestamp=self._last_timestamp,
-        )
-        if not ev_result.outcome.passed:
-            return
-        sizing_result = self._check_slip_and_sizing(
-            ctx_dbg=ctx_dbg,
-            pending=pending,
-            ev_result=ev_result,
-            calibrating=calibrating,
-            timestamp=self._last_timestamp,
-        )
-        if not sizing_result.outcome.passed:
-            return
-        intents = list(self.stg.signals())
-        if not intents:
-            self.debug_counts["gate_block"] += 1
-            return
-        intent = intents[0]
-        spec = OrderSpec(
-            side=intent.side,
-            entry=intent.price,
-            tp_pips=intent.oco["tp_pips"],
-            sl_pips=intent.oco["sl_pips"],
-            trail_pips=intent.oco.get("trail_pips", 0.0),
-            slip_cap_pip=features.ctx["slip_cap_pip"],
-        )
-        fill_engine = self.fill_engine_c if mode == "conservative" else self.fill_engine_b
-        result = fill_engine.simulate(
-            {
-                "o": bar["o"],
-                "h": bar["h"],
-                "l": bar["l"],
-                "c": bar["c"],
-                "pip": pip_size_value,
-                "spread": bar["spread"],
-            },
-            spec,
-        )
-        if not result.get("fill"):
-            return
-        trade_ctx_snapshot = self._compose_trade_context_snapshot(
-            ctx_dbg=ctx_dbg,
-            features=features,
-        )
-        self._process_fill_result(
-            intent=intent,
-            spec=spec,
-            result=result,
+        self.execution.maybe_enter_trade(
             bar=bar,
-            ctx=features.ctx,
-            ctx_dbg=ctx_dbg,
-            trade_ctx_snapshot=trade_ctx_snapshot,
-            calibrating=calibrating,
+            features=features,
+            mode=mode,
             pip_size_value=pip_size_value,
+            calibrating=calibrating,
         )
-        if not calibrating and self._warmup_left > 0:
-            self._warmup_left -= 1
 
 
 
@@ -1367,92 +989,16 @@ class BacktestRunner:
         calibrating: bool,
         pip_size_value: float,
     ) -> None:
-        if "exit_px" in result:
-            entry_px = result["entry_px"]
-            exit_px = result["exit_px"]
-            exit_reason = result.get("exit_reason")
-            if calibrating:
-                hit = exit_reason == "tp"
-                ev_key = ctx.get("ev_key") or (
-                    ctx.get("session"),
-                    ctx.get("spread_band"),
-                    ctx.get("rv_band"),
-                )
-                self._get_ev_manager(ev_key).update(bool(hit))
-                return
-            qty_sample, slip_actual = self._update_slip_learning(
-                order=intent,
-                actual_price=entry_px,
-                intended_price=intent.price,
-                ctx=ctx,
-            )
-            self._finalize_trade(
-                exit_ts=bar.get("timestamp"),
-                entry_ts=bar.get("timestamp"),
-                side=intent.side,
-                entry_px=entry_px,
-                exit_px=exit_px,
-                exit_reason=exit_reason,
-                ctx_snapshot=trade_ctx_snapshot,
-                ctx=ctx,
-                qty_sample=qty_sample,
-                slip_actual=slip_actual,
-                ev_key=ctx.get("ev_key"),
-                tp_pips=spec.tp_pips,
-                sl_pips=spec.sl_pips,
-                debug_stage="trade",
-                debug_extra={
-                    "tp_pips": spec.tp_pips,
-                    "sl_pips": spec.sl_pips,
-                },
-            )
-            return
-        entry_px_result = result.get("entry_px")
-        entry_px = entry_px_result if entry_px_result is not None else intent.price
-        if entry_px is None:
-            raise ValueError("Filled entry price is required to initialise position state")
-        direction = 1.0 if intent.side == "BUY" else -1.0
-        tp_px = entry_px + direction * spec.tp_pips * pip_size_value
-        sl_px0 = entry_px - direction * spec.sl_pips * pip_size_value
-        if calibrating:
-            self.calib_positions.append(
-                CalibrationPositionState(
-                    side=intent.side,
-                    entry_px=entry_px,
-                    tp_px=tp_px,
-                    sl_px=sl_px0,
-                    trail_pips=spec.trail_pips,
-                    tp_pips=spec.tp_pips,
-                    sl_pips=spec.sl_pips,
-                    hh=bar["h"],
-                    ll=bar["l"],
-                    ev_key=ctx.get("ev_key"),
-                    ctx_snapshot=trade_ctx_snapshot,
-                )
-            )
-            return
-        _, entry_slip_pip = self._update_slip_learning(
-            order=intent,
-            actual_price=entry_px,
-            intended_price=intent.price,
+        self.execution.process_fill_result(
+            intent=intent,
+            spec=spec,
+            result=result,
+            bar=bar,
             ctx=ctx,
-        )
-        self.pos = ActivePositionState(
-            side=intent.side,
-            entry_px=entry_px,
-            tp_px=tp_px,
-            sl_px=sl_px0,
-            tp_pips=spec.tp_pips,
-            sl_pips=spec.sl_pips,
-            trail_pips=spec.trail_pips,
-            hh=bar["h"],
-            ll=bar["l"],
-            ev_key=ctx.get("ev_key"),
-            qty=getattr(intent, "qty", 1.0) or 1.0,
-            expected_slip_pip=ctx.get("expected_slip_pip", 0.0),
-            entry_slip_pip=entry_slip_pip,
-            entry_ts=bar.get("timestamp"),
-            ctx_snapshot=trade_ctx_snapshot,
+            ctx_dbg=ctx_dbg,
+            trade_ctx_snapshot=trade_ctx_snapshot,
+            calibrating=calibrating,
+            pip_size_value=pip_size_value,
         )
 
     def _record_trade_metrics(
@@ -1463,7 +1009,7 @@ class BacktestRunner:
         timestamp: Any,
         pnl_value: Optional[float] = None,
     ) -> None:
-        self.metrics.record_trade(
+        self.execution.record_trade_metrics(
             pnl_pips,
             hit,
             timestamp=timestamp,
@@ -1472,175 +1018,22 @@ class BacktestRunner:
 
     # ---------- State persistence ----------
     def _config_fingerprint(self) -> str:
-        cfg = {
-            "symbol": self.symbol,
-            "threshold_lcb_pip": self.rcfg.threshold_lcb_pip,
-            "min_or_atr_ratio": self.rcfg.min_or_atr_ratio,
-            "rv_band_cuts": self.rcfg.rv_band_cuts,
-            "or_n": self.rcfg.or_n,
-            "decay": self.ev_global.decay,
-            "conf": self.ev_global.conf_level,
-        }
-        s = json.dumps(cfg, sort_keys=True)
-        return hashlib.sha256(s.encode()).hexdigest()[:16]
+        return self.lifecycle.config_fingerprint()
 
     def export_state(self) -> Dict[str, Any]:
-        buckets: Dict[str, Dict[str, float]] = {}
-        for k, ev in self.ev_buckets.items():
-            key = f"{k[0]}:{k[1]}:{k[2]}"
-            buckets[key] = {"alpha": ev.alpha, "beta": ev.beta}
-        state = {
-            "meta": {
-                "symbol": self.symbol,
-                "config_fingerprint": self._config_fingerprint(),
-                "last_timestamp": self._last_timestamp,
-            },
-            "ev_global": {
-                "alpha": self.ev_global.alpha,
-                "beta": self.ev_global.beta,
-                "prior_alpha": self.ev_global.prior_alpha,
-                "prior_beta": self.ev_global.prior_beta,
-                "decay": self.ev_global.decay,
-                "conf": self.ev_global.conf_level,
-            },
-            "ev_buckets": buckets,
-            "slip": {
-                "a": getattr(self, "slip_a", None),
-                "curve": self.rcfg.slip_curve,
-                "ewma_alpha": getattr(self.rcfg, "slip_ewma_alpha", 0.1),
-            },
-            "rv_thresh": self.rv_thresh,
-            "runtime": {
-                "warmup_left": self._warmup_left,
-                "day_count": self._day_count,
-                "current_date": self._current_date,
-                "last_session": self._last_session,
-            },
-        }
-        if self.pos is not None:
-            state["position"] = self.pos.as_dict()
-        if self.calib_positions:
-            state["calibration_positions"] = [
-                pos_state.as_dict() for pos_state in self.calib_positions
-            ]
-        return state
+        return self.lifecycle.export_state()
 
     def _apply_state_dict(self, state: Mapping[str, Any]) -> None:
-        try:
-            meta = state.get("meta", {})
-            # Optionally check fingerprint compatibility
-            try:
-                fp_state = meta.get("config_fingerprint")
-                fp_now = self._config_fingerprint()
-                if fp_state and fp_state != fp_now:
-                    msg = f"state config_fingerprint mismatch (state={fp_state}, current={fp_now})"
-                    # record to debug metrics for downstream visibility
-                    try:
-                        self.metrics.debug.setdefault("warnings", []).append(msg)
-                    except Exception:
-                        pass
-                    # also print a lightweight warning to stderr for operators
-                    try:
-                        import sys as _sys
-                        print(f"[runner] WARNING: {msg}", file=_sys.stderr)
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-            if meta.get("last_timestamp"):
-                self._last_timestamp = meta.get("last_timestamp")
-            evg = state.get("ev_global", {})
-            self.ev_global.alpha = float(evg.get("alpha", self.ev_global.alpha))
-            self.ev_global.beta = float(evg.get("beta", self.ev_global.beta))
-            self.ev_global.prior_alpha = float(evg.get("prior_alpha", self.ev_global.prior_alpha))
-            self.ev_global.prior_beta = float(evg.get("prior_beta", self.ev_global.prior_beta))
-            # Buckets
-            for key, v in state.get("ev_buckets", {}).items():
-                try:
-                    sess, spread, rv = key.split(":", 2)
-                    k = (sess, spread, rv)
-                    if k not in self.ev_buckets:
-                        self.ev_buckets[k] = BetaBinomialEV(conf_level=self.ev_global.conf_level,
-                                                            decay=self.ev_global.decay,
-                                                            prior_alpha=self.ev_global.prior_alpha,
-                                                            prior_beta=self.ev_global.prior_beta)
-                    self.ev_buckets[k].alpha = float(v.get("alpha", 1.0))
-                    self.ev_buckets[k].beta = float(v.get("beta", 1.0))
-                except Exception:
-                    continue
-            # Slip
-            slip = state.get("slip", {})
-            a = slip.get("a")
-            if a:
-                self.slip_a = a
-            # RV thresholds
-            rv_th = state.get("rv_thresh")
-            if rv_th:
-                self.rv_thresh = rv_th
-            runtime = state.get("runtime", {})
-            if "warmup_left" in runtime:
-                try:
-                    self._warmup_left = max(0, int(runtime.get("warmup_left", self._warmup_left)))
-                except Exception:
-                    pass
-            if "day_count" in runtime:
-                try:
-                    self._day_count = max(0, int(runtime.get("day_count", self._day_count)))
-                except Exception:
-                    pass
-            if runtime.get("current_date"):
-                self._current_date = runtime.get("current_date")
-            if runtime.get("last_session"):
-                self._last_session = runtime.get("last_session")
-            position_state = state.get("position")
-            if position_state:
-                try:
-                    self.pos = ActivePositionState.from_dict(position_state)
-                except Exception:
-                    self.pos = None
-            else:
-                self.pos = None
-            calib_payload = state.get("calibration_positions", [])
-            restored_calib: List[CalibrationPositionState] = []
-            for raw in calib_payload:
-                try:
-                    restored_calib.append(CalibrationPositionState.from_dict(raw))
-                except Exception:
-                    continue
-            self.calib_positions = restored_calib
-        except Exception:
-            # Fallback: ignore loading errors to avoid crashing
-            pass
+        self.lifecycle.apply_state_dict(state)
 
     def load_state(self, state: Dict[str, Any]) -> None:
-        self._apply_state_dict(state)
-        snapshot: Optional[Dict[str, Any]] = None
-        try:
-            snapshot = copy.deepcopy(state)
-        except Exception:
-            try:
-                snapshot = json.loads(json.dumps(state))
-            except Exception:
-                snapshot = None
-        self._loaded_state_snapshot = snapshot if snapshot is not None else None
-        self._restore_loaded_state = self._loaded_state_snapshot is not None
+        self.lifecycle.load_state(state)
 
     def _restore_loaded_state_snapshot(self) -> None:
-        if not self._restore_loaded_state:
-            return
-        if not self._loaded_state_snapshot:
-            self._restore_loaded_state = False
-            return
-        self._apply_state_dict(self._loaded_state_snapshot)
-        self._restore_loaded_state = False
+        self.lifecycle.restore_loaded_state_snapshot()
 
     def load_state_file(self, path: str) -> None:
-        try:
-            with open(path, "r") as f:
-                data = json.load(f)
-            self.load_state(data)
-        except Exception:
-            pass
+        self.lifecycle.load_state_file(path)
 
     def _band_spread(self, spread_pips: float) -> str:
         bands = self.rcfg.spread_bands

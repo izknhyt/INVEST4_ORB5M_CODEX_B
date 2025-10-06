@@ -5,6 +5,9 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
 
 ## 保存手順
 1. `BacktestRunner` 実行終了後、`runner.export_state()` を呼び出す。
+    - JSON として保存し、再現実験や再起動用のスナップショットとする。
+    - 既存の state を再利用する場合は `runner.load_state_file(path)` を利用し、`RunnerConfig` とシンボルの整合を確認する。
+    - これらの処理は `core.runner_lifecycle.RunnerLifecycleManager` に委譲されたため、実装の詳細は `core/runner_lifecycle.py` を確認する。
 2. 返却された辞書を JSON として保存する。`scripts/run_sim.py` は既定で `ops/state_archive/<strategy>/<symbol>/<mode>/` 以下へ時刻付きファイルを自動保存し、`--out-dir` 指定時は run フォルダにも `state.json` を残す。保存成功時には `scripts/aggregate_ev.py` が自動で呼び出され、EVプロファイル (YAML/CSV) を更新する。
 3. 自動アーカイブを無効化したい場合は `--no-auto-state` を付ける。保存先を変えたいときは `--state-archive path/to/dir` を利用する。EVプロファイル更新をスキップしたい場合は `--no-aggregate-ev` を併用する。
 4. 運用では日次または週次で最新の state を確認し、事故時に復元できるようバージョン管理する。
@@ -13,6 +16,8 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
 - CLI 実行時に自動で最新 state が読み込まれる（`ops/state_archive/<strategy>/<symbol>/<mode>/` で最も新しい JSON）。
 - 自動ロードを避けたい場合は `--no-auto-state` を指定する。
 - コードから: `runner.load_state_file(path)` または `runner.load_state(state_dict)` を利用。
+- `RunnerLifecycleManager` が `_apply_state_dict` を通じてウォームアップ残数や EV バケットの整合性を復元するため、
+  状態のフォーマット変更時は `core/runner_lifecycle.py` の対応を確認する。
 
 ## オンデマンド起動フロー（ノートPC向け）
 - PC 起動/ログイン時に以下の順で CLI を実行すると、停止中の期間を自動補完して通常運用へ復帰できます。

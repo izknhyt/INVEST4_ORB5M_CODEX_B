@@ -2,6 +2,15 @@
 
 This note documents how `BacktestRunner` evaluates signals and how to interpret the artifacts that appear when `--dump-csv` / `--dump-daily` are enabled.
 
+## Lifecycle / execution split
+
+`BacktestRunner` now composes two helper classes so the logging workflow stays focused on reporting:
+
+* `core.runner_lifecycle.RunnerLifecycleManager` resets runtime metrics, restores persisted state, and seeds EV/slip learning before every run. Methods such as `_reset_runtime_state`, `export_state`, and `load_state` simply delegate to the lifecycle manager, which keeps the snapshot logic in one place.
+* `core.runner_execution.RunnerExecutionManager` owns the trade lifecycle. Entry evaluation (`_maybe_enter_trade`), fill handling (`_process_fill_result`), and exit processing (`_handle_active_position`) all call into the execution manager. The manager updates daily aggregates, EV pools, and debug records so existing CSV/JSON outputs remain unchanged.
+
+Tests (`tests/test_runner.py::test_runner_delegates_to_lifecycle_and_execution_managers`, `tests/test_run_sim_cli.py::test_run_sim_respects_time_window`) assert that CLI entrypoints still route through the managers. When troubleshooting logs, continue to inspect `BacktestRunner.metrics`—the delegation is transparent to downstream tooling.
+
 ## Decision flow (`strategy_gate` → `ev_threshold` → EV → sizing)
 
 1. **Strategy gate hook** – When a pending signal exists, `BacktestRunner` calls `strategy_gate(ctx, pending)` if the strategy exposes it. Hook errors are counted under `strategy_gate_error` and recorded with the `strategy_gate_error` stage so the run never aborts.
