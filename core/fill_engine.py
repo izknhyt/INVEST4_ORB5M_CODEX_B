@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 
 
 class SameBarPolicy(str, Enum):
@@ -51,22 +51,19 @@ class _BaseFill:
         entry: float,
         tp_px: float,
         stop_px: float,
-        bar: Dict[str, float],
+        bar: Mapping[str, float],
         pip: float,
     ) -> float:
-        d_tp = max(abs(tp_px - entry) / max(pip, 1e-9), 1e-9)
-        d_sl = max(abs(entry - stop_px) / max(pip, 1e-9), 1e-9)
-        base = d_sl / (d_tp + d_sl)
-        rng = max(bar["h"] - bar["l"], pip)
-        if rng <= 0:
-            rng = pip
-        if side == "BUY":
-            drift = (bar["c"] - bar["o"]) / rng
-        else:
-            drift = (bar["o"] - bar["c"]) / rng
-        drift_term = math.tanh(self.drift_scale * drift)
-        drift_prior = 0.5 * (1.0 + drift_term)
-        return min(0.999, max(0.001, (1 - self.lam) * base + self.lam * drift_prior))
+        return BridgeFill.compute_same_bar_probability(
+            side=side,
+            entry_px=entry,
+            tp_px=tp_px,
+            stop_px=stop_px,
+            bar=bar,
+            pip_size=pip,
+            lam=self.lam,
+            drift_scale=self.drift_scale,
+        )
 
     @staticmethod
     def _eval_trailing(
@@ -249,6 +246,74 @@ class BridgeFill(_BaseFill):
         drift_scale: float = 2.5,
     ) -> None:
         super().__init__(same_bar_policy, lam=lam, drift_scale=drift_scale)
+
+    @staticmethod
+    def compute_same_bar_probability(
+        *,
+        side: str,
+        entry_px: float,
+        tp_px: float,
+        stop_px: float,
+        bar: Mapping[str, float],
+        pip_size: float,
+        lam: float,
+        drift_scale: float,
+    ) -> float:
+        """Compute the TP probability for same-bar TP/SL collisions."""
+
+        pip = max(float(pip_size or 0.0), 1e-9)
+        entry = float(entry_px)
+        tp = float(tp_px)
+        stop = float(stop_px)
+        d_tp = max(abs(tp - entry) / pip, 1e-9)
+        d_sl = max(abs(entry - stop) / pip, 1e-9)
+        base = d_sl / (d_tp + d_sl)
+
+        high = float(bar.get("h", entry))
+        low = float(bar.get("l", entry))
+        rng = max(high - low, pip)
+        if rng <= 0:
+            rng = pip
+
+        open_px = float(bar.get("o", entry))
+        close_px = float(bar.get("c", open_px))
+        if side == "BUY":
+            drift = (close_px - open_px) / rng
+        else:
+            drift = (open_px - close_px) / rng
+
+        lam_clamped = max(0.0, min(1.0, float(lam)))
+        drift_term = math.tanh(float(drift_scale) * drift)
+        drift_prior = 0.5 * (1.0 + drift_term)
+        prob = (1 - lam_clamped) * base + lam_clamped * drift_prior
+        return min(0.999, max(0.001, prob))
+
+    @staticmethod
+    def compute_same_bar_exit_price(
+        *,
+        side: str,
+        entry_px: float,
+        tp_px: float,
+        stop_px: float,
+        bar: Mapping[str, float],
+        pip_size: float,
+        lam: float,
+        drift_scale: float,
+    ) -> Tuple[float, float]:
+        """Return the blended exit price and TP probability for same-bar hits."""
+
+        p_tp = BridgeFill.compute_same_bar_probability(
+            side=side,
+            entry_px=entry_px,
+            tp_px=tp_px,
+            stop_px=stop_px,
+            bar=bar,
+            pip_size=pip_size,
+            lam=lam,
+            drift_scale=drift_scale,
+        )
+        exit_px = p_tp * float(tp_px) + (1 - p_tp) * float(stop_px)
+        return exit_px, p_tp
 
     def simulate(self, bar: Dict[str, float], spec: OrderSpec) -> Dict[str, float]:
         def _mutator(result: Dict[str, float], context: Dict[str, Any]) -> None:
