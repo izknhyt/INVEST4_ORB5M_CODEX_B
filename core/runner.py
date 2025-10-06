@@ -101,13 +101,21 @@ class Metrics:
     def _format_timestamp(dt: datetime) -> str:
         return dt.replace(tzinfo=None).isoformat() + "Z"
 
-    def record_trade(self, pnl_pips: float, hit: bool, *, timestamp: Any) -> None:
+    def record_trade(
+        self,
+        pnl_pips: float,
+        hit: bool,
+        *,
+        timestamp: Any,
+        pnl_value: Optional[float] = None,
+    ) -> None:
         pnl_val = float(pnl_pips)
+        pnl_equity = float(pnl_value) if pnl_value is not None else pnl_val
         self.trades += 1
         self.total_pips += pnl_val
         if hit:
             self.wins += 1
-        self.trade_returns.append(pnl_val)
+        self.trade_returns.append(pnl_equity)
         ts_value, dt_value = self._normalise_timestamp(timestamp)
         if self._equity_seed is None:
             seed_ts = ts_value
@@ -121,7 +129,7 @@ class Metrics:
             if self._equity_seed
             else self.starting_equity
         )
-        new_equity = last_equity + pnl_val
+        new_equity = last_equity + pnl_equity
         self.equity_curve.append((ts_value, new_equity))
 
     def as_dict(self):
@@ -423,7 +431,8 @@ class BacktestRunner:
                  debug: bool = False, debug_sample_limit: int = 0,
                  strategy_cls: Optional[type[Strategy]] = None,
                  ev_profile: Optional[Dict[str, Any]] = None):
-        self.equity = equity
+        self.equity = float(equity)
+        self._equity_live = float(equity)
         self.symbol = symbol
         self.rcfg = runner_cfg or RunnerConfig()
         self.debug = debug
@@ -471,7 +480,8 @@ class BacktestRunner:
         self.qty_ewma = {"narrow": 0.0, "normal": 0.0, "wide": 0.0}
 
     def _reset_runtime_state(self) -> None:
-        self.metrics = Metrics(starting_equity=self.equity)
+        self._equity_live = float(self.equity)
+        self.metrics = Metrics(starting_equity=self._equity_live)
         self.records: List[Dict[str, Any]] = []
         self.window: List[Dict[str, Any]] = []
         self.session_bars: List[Dict[str, Any]] = []
@@ -809,7 +819,21 @@ class BacktestRunner:
         pnl_px = (exit_px - entry_px) * signed
         pnl_pips = price_to_pips(pnl_px, self.symbol) - cost
         hit = exit_reason == "tp"
-        self._record_trade_metrics(pnl_pips, hit, timestamp=exit_ts)
+        pip_value_ctx = ctx_snapshot.get("pip_value")
+        if pip_value_ctx is None:
+            pip_value_ctx = ctx.get("pip_value", 10.0)
+        try:
+            pip_value_float = float(pip_value_ctx)
+        except (TypeError, ValueError):
+            pip_value_float = 0.0
+        pnl_value = pnl_pips * pip_value_float * float(qty_sample)
+        self._equity_live += pnl_value
+        self._record_trade_metrics(
+            pnl_pips,
+            hit,
+            timestamp=exit_ts,
+            pnl_value=pnl_value,
+        )
         self._increment_daily("fills")
         if hit:
             self._increment_daily("wins")
@@ -1255,6 +1279,7 @@ class BacktestRunner:
             "threshold_lcb": ctx_dbg.get("threshold_lcb"),
             "ev_pass": ctx_dbg.get("ev_pass"),
             "expected_slip_pip": features.ctx.get("expected_slip_pip", 0.0),
+            "pip_value": features.ctx.get("pip_value"),
             "cost_base": features.ctx.get(
                 "base_cost_pips", features.ctx.get("cost_pips", 0.0)
             ),
@@ -1429,7 +1454,7 @@ class BacktestRunner:
             return False
         if not ev_bypass and not calibrating and tp_pips is not None and sl_pips is not None:
             ctx_for_sizing: Dict[str, Any] = dict(ctx_dbg)
-            ctx_for_sizing.setdefault("equity", self.equity)
+            ctx_for_sizing.setdefault("equity", self._equity_live)
             qty_dbg = compute_qty_from_ctx(
                 ctx_for_sizing,
                 float(sl_pips),
@@ -1542,8 +1567,20 @@ class BacktestRunner:
             "ctx_snapshot": dict(trade_ctx_snapshot),
         }
 
-    def _record_trade_metrics(self, pnl_pips: float, hit: bool, *, timestamp: Any) -> None:
-        self.metrics.record_trade(pnl_pips, hit, timestamp=timestamp)
+    def _record_trade_metrics(
+        self,
+        pnl_pips: float,
+        hit: bool,
+        *,
+        timestamp: Any,
+        pnl_value: Optional[float] = None,
+    ) -> None:
+        self.metrics.record_trade(
+            pnl_pips,
+            hit,
+            timestamp=timestamp,
+            pnl_value=pnl_value,
+        )
 
     # ---------- State persistence ----------
     def _config_fingerprint(self) -> str:
@@ -1817,7 +1854,7 @@ class BacktestRunner:
             # ev_oco object provides p_lcb/ev_lcb_oco/update
             "ev_oco": None,
             "base_cost_pips": spread_pips,
-            "equity": self.equity,
+            "equity": self._equity_live,
             "pip_value": pip_value_ctx,
             "sizing_cfg": self.rcfg.build_sizing_cfg(),
         }
