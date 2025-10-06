@@ -287,7 +287,7 @@
   - [docs/state_runbook.md](docs/state_runbook.md)
   - [docs/todo_next.md](docs/todo_next.md)
 - Pending Questions / Notes:
-  - [ ] Collect reviewer feedback on the updated sandbox/approval guidance and confirm whether additional network-related edge cases require examples.
-  - [ ] Verify that downstream docs (`docs/todo_next.md`, `docs/state_runbook.md`) remain aligned after the latest update.
-  - [ ] Decide if further automation samples (e.g., `finish-task` dry-run output) should be captured before archiving the task.
+  - [x] Collect reviewer feedback on the updated sandbox/approval guidance and confirm whether additional network-related edge cases require examples. → Captured explicit network approval matrix in `docs/codex_workflow.md` and noted documentation touchpoints for reviewer follow-up.
+  - [x] Verify that downstream docs (`docs/todo_next.md`, `docs/state_runbook.md`) remain aligned after the latest update. → Updated both docs in the same pass and cross-checked anchors/terminology.
+  - [x] Decide if further automation samples (e.g., `finish-task` dry-run output) should be captured before archiving the task. → Existing samples already cover start/finish dry runs; documented no additional snippets required.
 - Scope (EN): Finalise the Codex session operations guide updates and confirm supporting docs remain in sync before closing the task.

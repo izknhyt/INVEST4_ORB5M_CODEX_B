@@ -17,7 +17,7 @@
 ### In Progress
 
 - **Workflow Integration Guide** (Backlog: `docs/task_backlog.md` → "ワークフロー統合" section) — `state.md` 2024-06-18, 2025-09-29, 2026-02-13 <!-- anchor: docs/task_backlog.md#codex-session-operations-guide -->
-  - Updated the synchronization rules between `docs/todo_next.md` and `state.md`. Added `docs/codex_workflow.md` to capture Codex session procedures。2026-02-13 時点で sandbox/approval ガイドと `scripts/manage_task_cycle.py` のドライラン例を最新化済み。最終レビュー後に Archive へ移動予定。
+  - Documented the sandbox approval matrix (package installs, API calls, large transfers, privileged writes) and linked it from `docs/state_runbook.md`. Verified that the workflow trio (`docs/codex_workflow.md`, `docs/state_runbook.md`, `docs/todo_next.md`) now shares consistent anchors/terminology. Ready to capture reviewer feedback before archiving。
 
 ### Ready
 
