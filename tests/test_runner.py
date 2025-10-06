@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 from core.fill_engine import OrderSpec, SameBarPolicy
 from core.feature_store import realized_vol as calc_realized_vol
 from core.runner import BacktestRunner, ExitDecision, Metrics, RunnerConfig
+from core.runner_state import PositionState
 from core.pips import pip_size, price_to_pips
 from core.sizing import compute_qty_from_ctx
 from core.strategy_api import OrderIntent, Strategy
@@ -254,6 +255,63 @@ class TestRunner(unittest.TestCase):
         self.assertAlmostEqual(restored_runner.ev_buckets[key].alpha, expected_bucket_alpha)
         self.assertAlmostEqual(restored_runner.ev_buckets[key].beta, expected_bucket_beta)
         self.assertIsInstance(metrics, Metrics)
+
+    def test_export_and_apply_state_round_trips_position_state(self):
+        runner = BacktestRunner(equity=50_000.0, symbol="USDJPY")
+        active_state = PositionState(
+            side="BUY",
+            entry_px=150.0,
+            tp_px=150.3,
+            sl_px=149.7,
+            trail_pips=5.0,
+            qty=2.0,
+            tp_pips=30.0,
+            sl_pips=30.0,
+            hh=150.15,
+            ll=149.65,
+            hold=4,
+            entry_ts="2024-01-01T08:00:00Z",
+            ev_key=("LDN", "normal", "mid"),
+            expected_slip_pip=0.2,
+            entry_slip_pip=0.1,
+            ctx_snapshot={"pip_value": 9.5, "session": "LDN"},
+        )
+        calib_state = PositionState(
+            side="SELL",
+            entry_px=150.4,
+            tp_px=150.1,
+            sl_px=150.7,
+            trail_pips=3.0,
+            hh=150.45,
+            ll=150.05,
+            hold=2,
+            ev_key=("NY", "wide", "high"),
+        )
+        runner.pos = active_state
+        runner.calib_positions = [calib_state]
+
+        state = runner.export_state()
+        self.assertIn("position", state)
+        self.assertEqual(state["position"]["side"], "BUY")
+        self.assertIn("calibration_positions", state)
+        self.assertEqual(len(state["calibration_positions"]), 1)
+        self.assertEqual(state["calibration_positions"][0]["side"], "SELL")
+
+        restored = BacktestRunner(equity=50_000.0, symbol="USDJPY")
+        restored._apply_state_dict(state)
+
+        self.assertIsNotNone(restored.pos)
+        self.assertIsInstance(restored.pos, PositionState)
+        assert restored.pos is not None
+        self.assertEqual(restored.pos.side, active_state.side)
+        self.assertAlmostEqual(restored.pos.tp_px, active_state.tp_px)
+        self.assertEqual(restored.pos.ctx_snapshot["session"], "LDN")
+        self.assertEqual(len(restored.calib_positions), 1)
+        self.assertIsInstance(restored.calib_positions[0], PositionState)
+        self.assertEqual(restored.calib_positions[0].ev_key, calib_state.ev_key)
+
+        state["position"]["ctx_snapshot"]["session"] = "NY"
+        self.assertEqual(runner.pos.ctx_snapshot["session"], "LDN")
 
     def test_build_ctx_casts_risk_per_trade_pct_from_string(self):
         cfg = RunnerConfig(risk_per_trade_pct="1.2")
@@ -639,9 +697,10 @@ class TestRunner(unittest.TestCase):
         )
         self.assertEqual(len(runner.calib_positions), 1)
         calib_pos = runner.calib_positions[-1]
-        self.assertAlmostEqual(calib_pos["entry_px"], filled_entry)
-        self.assertAlmostEqual(calib_pos["tp_px"] - filled_entry, tp_pips * pip)
-        self.assertAlmostEqual(filled_entry - calib_pos["sl_px"], sl_pips * pip)
+        self.assertIsInstance(calib_pos, PositionState)
+        self.assertAlmostEqual(calib_pos.entry_px, filled_entry)
+        self.assertAlmostEqual(calib_pos.tp_px - filled_entry, tp_pips * pip)
+        self.assertAlmostEqual(filled_entry - calib_pos.sl_px, sl_pips * pip)
 
         runner.calib_positions.clear()
 
@@ -658,18 +717,19 @@ class TestRunner(unittest.TestCase):
         )
         self.assertIsNotNone(runner.pos)
         pos = runner.pos
-        self.assertAlmostEqual(pos["entry_px"], filled_entry)
-        self.assertAlmostEqual(pos["tp_px"] - filled_entry, tp_pips * pip)
-        self.assertAlmostEqual(filled_entry - pos["sl_px"], sl_pips * pip)
-        self.assertGreater(pos["entry_slip_pip"], 0.0)
+        self.assertIsInstance(pos, PositionState)
+        self.assertAlmostEqual(pos.entry_px, filled_entry)
+        self.assertAlmostEqual(pos.tp_px - filled_entry, tp_pips * pip)
+        self.assertAlmostEqual(filled_entry - pos.sl_px, sl_pips * pip)
+        self.assertGreater(pos.entry_slip_pip, 0.0)
 
         exit_bar = make_bar(
             datetime(2024, 1, 6, 9, 5, tzinfo=timezone.utc),
             "USDJPY",
-            pos["tp_px"],
-            pos["tp_px"] + pip,
-            pos["sl_px"] + pip,
-            pos["tp_px"],
+            pos.tp_px,
+            pos.tp_px + pip,
+            pos.sl_px + pip,
+            pos.tp_px,
             spread=0.02,
         )
 
@@ -1224,17 +1284,16 @@ class TestRunner(unittest.TestCase):
         runner.rcfg.calibrate_days = 1
         ev_key = ("LDN", "normal", "mid")
         runner.calib_positions = [
-            {
-                "side": "BUY",
-                "entry_px": 150.0,
-                "tp_px": 150.5,
-                "sl_px": 149.5,
-                "trail_pips": 0.0,
-                "hh": 150.2,
-                "ll": 149.8,
-                "hold": 0,
-                "ev_key": ev_key,
-            }
+            PositionState(
+                side="BUY",
+                entry_px=150.0,
+                tp_px=150.5,
+                sl_px=149.5,
+                trail_pips=0.0,
+                hh=150.2,
+                ll=149.8,
+                ev_key=ev_key,
+            )
         ]
         bar = make_bar(
             datetime(2024, 1, 2, 8, 5, tzinfo=timezone.utc),
@@ -1404,19 +1463,19 @@ class TestRunner(unittest.TestCase):
                 ),
             ):
                 with self.subTest(side=side):
-                    runner.pos = {
-                        "side": side,
-                        "entry_px": 150.00,
-                        "tp_px": 150.80 if side == "BUY" else 149.20,
-                        "sl_px": 149.00 if side == "BUY" else 151.00,
-                        "trail_pips": 10.0,
-                        "qty": 1.0,
-                        "entry_ts": "2024-01-01T08:00:00+00:00",
-                        "ctx_snapshot": {},
-                        "ev_key": None,
-                        "tp_pips": 80.0,
-                        "sl_pips": 100.0,
-                    }
+                    runner.pos = PositionState(
+                        side=side,
+                        entry_px=150.00,
+                        tp_px=150.80 if side == "BUY" else 149.20,
+                        sl_px=149.00 if side == "BUY" else 151.00,
+                        trail_pips=10.0,
+                        qty=1.0,
+                        entry_ts="2024-01-01T08:00:00+00:00",
+                        ctx_snapshot={},
+                        ev_key=None,
+                        tp_pips=80.0,
+                        sl_pips=100.0,
+                    )
                     runner._finalize_trade = MagicMock()
                     result = runner._handle_active_position(
                         bar=bar,
@@ -1465,19 +1524,19 @@ class TestRunner(unittest.TestCase):
                     entry = 150.00
                     tp = entry + 0.20 if side == "BUY" else entry - 0.20
                     sl = entry - 0.20 if side == "BUY" else entry + 0.20
-                    runner.pos = {
-                        "side": side,
-                        "entry_px": entry,
-                        "tp_px": tp,
-                        "sl_px": sl,
-                        "trail_pips": 0.0,
-                        "qty": 1.0,
-                        "entry_ts": "2024-01-01T08:00:00+00:00",
-                        "ctx_snapshot": {},
-                        "ev_key": None,
-                        "tp_pips": abs(tp - entry) / pip_value,
-                        "sl_pips": abs(entry - sl) / pip_value,
-                    }
+                    runner.pos = PositionState(
+                        side=side,
+                        entry_px=entry,
+                        tp_px=tp,
+                        sl_px=sl,
+                        trail_pips=0.0,
+                        qty=1.0,
+                        entry_ts="2024-01-01T08:00:00+00:00",
+                        ctx_snapshot={},
+                        ev_key=None,
+                        tp_pips=abs(tp - entry) / pip_value,
+                        sl_pips=abs(entry - sl) / pip_value,
+                    )
                     runner._finalize_trade = MagicMock()
                     runner._handle_active_position(
                         bar=bar,
@@ -1508,20 +1567,20 @@ class TestRunner(unittest.TestCase):
                     entry = 150.00
                     tp = entry + 0.50 if side == "BUY" else entry - 0.50
                     sl = entry - 0.50 if side == "BUY" else entry + 0.50
-                    runner.pos = {
-                        "side": side,
-                        "entry_px": entry,
-                        "tp_px": tp,
-                        "sl_px": sl,
-                        "trail_pips": 0.0,
-                        "qty": 1.0,
-                        "entry_ts": "2024-01-01T08:00:00+00:00",
-                        "ctx_snapshot": {},
-                        "ev_key": None,
-                        "tp_pips": abs(tp - entry) / pip_value,
-                        "sl_pips": abs(entry - sl) / pip_value,
-                        "hold": 1,
-                    }
+                    runner.pos = PositionState(
+                        side=side,
+                        entry_px=entry,
+                        tp_px=tp,
+                        sl_px=sl,
+                        trail_pips=0.0,
+                        qty=1.0,
+                        entry_ts="2024-01-01T08:00:00+00:00",
+                        ctx_snapshot={},
+                        ev_key=None,
+                        tp_pips=abs(tp - entry) / pip_value,
+                        sl_pips=abs(entry - sl) / pip_value,
+                        hold=1,
+                    )
                     runner._finalize_trade = MagicMock()
                     bar = {
                         "o": entry,
@@ -1558,17 +1617,16 @@ class TestRunner(unittest.TestCase):
         dummy_ev = DummyEv()
         runner._get_ev_manager = lambda key: dummy_ev
         runner.calib_positions = [
-            {
-                "side": "BUY",
-                "entry_px": 150.00,
-                "tp_px": 150.20,
-                "sl_px": 149.80,
-                "trail_pips": 0.0,
-                "hh": 150.00,
-                "ll": 150.00,
-                "hold": 0,
-                "ev_key": ("LDN", "normal", "mid"),
-            }
+            PositionState(
+                side="BUY",
+                entry_px=150.00,
+                tp_px=150.20,
+                sl_px=149.80,
+                trail_pips=0.0,
+                hh=150.00,
+                ll=150.00,
+                ev_key=("LDN", "normal", "mid"),
+            )
         ]
         bar = {
             "o": 150.00,
@@ -1609,17 +1667,16 @@ class TestRunner(unittest.TestCase):
         dummy_ev = DummyEv()
         runner._get_ev_manager = lambda key: dummy_ev
         runner.calib_positions = [
-            {
-                "side": "SELL",
-                "entry_px": 150.00,
-                "tp_px": 149.70,
-                "sl_px": 150.30,
-                "trail_pips": 0.0,
-                "hh": 150.00,
-                "ll": 150.00,
-                "hold": 0,
-                "ev_key": None,
-            }
+            PositionState(
+                side="SELL",
+                entry_px=150.00,
+                tp_px=149.70,
+                sl_px=150.30,
+                trail_pips=0.0,
+                hh=150.00,
+                ll=150.00,
+                ev_key=None,
+            )
         ]
         bar = {
             "o": 150.05,

@@ -2,6 +2,10 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-03-02: Introduced `PositionState` for runner position tracking, refactored
+  `BacktestRunner` to store active/calibration positions via the dataclass with
+  export/load support, refreshed `tests/test_runner.py` to cover the new state
+  flow, and ran `python3 -m pytest tests/test_runner.py`.
 - 2026-03-01: Updated `_process_fill_result` so calibration/live TP/SL prices derive from
   filled entries, ensuring slip-adjusted distances persist in runner state, added
   regression `tests/test_runner.py::test_entry_slip_preserves_tp_sl_distances_and_pnl`
