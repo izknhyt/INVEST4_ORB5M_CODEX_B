@@ -28,6 +28,9 @@ from core.runner_entry import (
     EVEvaluation,
     SizingEvaluation,
     TradeContextSnapshot,
+    EntryContext,
+    EVContext,
+    SizingContext,
 )
 from core.pips import pip_size, price_to_pips
 from core.sizing import compute_qty_from_ctx
@@ -152,7 +155,7 @@ class TestRunner(unittest.TestCase):
         debug_sample_limit: int = 0,
         runner_cfg: Optional[RunnerConfig] = None,
     ):
-        import core.runner as runner_module
+        import router.router_v0 as router_v0_module
 
         symbol = "USDJPY"
         runner = BacktestRunner(
@@ -214,9 +217,9 @@ class TestRunner(unittest.TestCase):
             "trail_pips": 0.0,
             "entry": breakout["c"],
         }
-        original_pass_gates = runner_module.pass_gates
-        runner_module.pass_gates = lambda ctx: True
-        self.addCleanup(lambda: setattr(runner_module, "pass_gates", original_pass_gates))
+        original_pass_gates = router_v0_module.pass_gates
+        router_v0_module.pass_gates = lambda ctx: True
+        self.addCleanup(lambda: setattr(router_v0_module, "pass_gates", original_pass_gates))
         import core.runner_entry as entry_module
 
         original_entry_pass = entry_module.pass_gates
@@ -418,7 +421,7 @@ class TestRunner(unittest.TestCase):
             realized_vol_value=0.01,
         )
 
-        self.assertAlmostEqual(ctx["sizing_cfg"]["risk_per_trade_pct"], 1.2)
+        self.assertAlmostEqual(ctx.sizing_cfg["risk_per_trade_pct"], 1.2)
 
     def test_build_ctx_uses_base_notional_string(self):
         cfg = RunnerConfig()
@@ -437,7 +440,7 @@ class TestRunner(unittest.TestCase):
         )
 
         expected = float(cfg.base_notional) * pip_size(runner.symbol)
-        self.assertAlmostEqual(ctx["pip_value"], expected)
+        self.assertAlmostEqual(ctx.pip_value, expected)
 
     def test_build_ctx_invalid_base_notional_falls_back(self):
         cfg = RunnerConfig()
@@ -455,7 +458,7 @@ class TestRunner(unittest.TestCase):
             realized_vol_value=0.01,
         )
 
-        self.assertAlmostEqual(ctx["pip_value"], 10.0)
+        self.assertAlmostEqual(ctx.pip_value, 10.0)
 
     def test_run_partial_matches_full_run(self):
         symbol = "USDJPY"
@@ -843,32 +846,53 @@ class TestRunner(unittest.TestCase):
 
     def test_check_slip_and_sizing_zero_qty_uses_helpers(self):
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
-        ctx_dbg = {
-            "slip_cap_pip": 1.5,
-            "expected_slip_pip": 0.1,
-            "pip_value": 10.0,
-            "equity": runner.equity,
-            "sizing_cfg": {
-                "risk_per_trade_pct": 0.25,
-                "kelly_fraction": 0.25,
-                "units_cap": 5.0,
-                "max_trade_loss_pct": 0.5,
-            },
-        }
         pending = {"side": "BUY", "tp_pips": 2.0, "sl_pips": 1.0}
         ev_mgr = self.DummyEV(ev_lcb=0.0, p_lcb=0.3)
         sizing_gate = SizingGate(runner)
+        bar = make_bar(
+            datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc),
+            "USDJPY",
+            150.0,
+            150.2,
+            149.8,
+            150.1,
+            spread=0.02,
+        )
+        entry_ctx = runner._build_ctx(
+            bar=bar,
+            session="LDN",
+            atr14=0.5,
+            or_h=150.2,
+            or_l=149.8,
+            realized_vol_value=0.01,
+        )
+        entry_ctx.slip_cap_pip = 1.5
+        entry_ctx.expected_slip_pip = 0.1
+        entry_ctx.equity = runner.equity
+        entry_ctx.pip_value = 10.0
+        entry_ctx.sizing_cfg = {
+            "risk_per_trade_pct": 0.25,
+            "kelly_fraction": 0.25,
+            "units_cap": 5.0,
+            "max_trade_loss_pct": 0.5,
+        }
+        entry_ctx.cost_pips = entry_ctx.base_cost_pips + entry_ctx.expected_slip_pip
+        entry_ctx.ev_manager = ev_mgr
+        ev_ctx = EVContext.from_entry(entry_ctx)
+        ev_ctx.ev_lcb = 0.0
+        ev_ctx.threshold_lcb = 0.0
+        ev_ctx.ev_pass = True
         ev_result = EVEvaluation(
             outcome=GateCheckOutcome(passed=True),
             manager=ev_mgr,
             ev_lcb=0.0,
             threshold_lcb=0.0,
             bypass=False,
-            context=ctx_dbg,
+            context=ev_ctx,
         )
 
         result = sizing_gate.evaluate(
-            ctx_dbg=ctx_dbg,
+            ctx=ev_ctx,
             pending=pending,
             ev_result=ev_result,
             calibrating=False,
@@ -879,7 +903,7 @@ class TestRunner(unittest.TestCase):
         self.assertEqual(runner.debug_counts["zero_qty"], 1)
 
         qty_helper = compute_qty_from_ctx(
-            ctx_dbg,
+            ev_ctx.to_mapping(),
             pending["sl_pips"],
             mode="production",
             tp_pips=pending["tp_pips"],
@@ -889,31 +913,52 @@ class TestRunner(unittest.TestCase):
 
     def test_check_slip_and_sizing_slip_guard_blocks(self):
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
-        ctx_dbg = {
-            "slip_cap_pip": 0.5,
-            "expected_slip_pip": 1.0,
-            "pip_value": 10.0,
-            "sizing_cfg": {
-                "risk_per_trade_pct": 0.25,
-                "kelly_fraction": 0.25,
-                "units_cap": 5.0,
-                "max_trade_loss_pct": 0.5,
-            },
-        }
         pending = {"side": "SELL", "tp_pips": 2.0, "sl_pips": 1.0}
         ev_mgr = self.DummyEV(ev_lcb=0.0, p_lcb=0.6)
         sizing_gate = SizingGate(runner)
+        bar = make_bar(
+            datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc),
+            "USDJPY",
+            150.0,
+            150.2,
+            149.8,
+            150.1,
+            spread=0.02,
+        )
+        entry_ctx = runner._build_ctx(
+            bar=bar,
+            session="LDN",
+            atr14=0.5,
+            or_h=150.2,
+            or_l=149.8,
+            realized_vol_value=0.01,
+        )
+        entry_ctx.slip_cap_pip = 0.5
+        entry_ctx.expected_slip_pip = 1.0
+        entry_ctx.pip_value = 10.0
+        entry_ctx.sizing_cfg = {
+            "risk_per_trade_pct": 0.25,
+            "kelly_fraction": 0.25,
+            "units_cap": 5.0,
+            "max_trade_loss_pct": 0.5,
+        }
+        entry_ctx.cost_pips = entry_ctx.base_cost_pips + entry_ctx.expected_slip_pip
+        entry_ctx.ev_manager = ev_mgr
+        ev_ctx = EVContext.from_entry(entry_ctx)
+        ev_ctx.ev_lcb = 0.0
+        ev_ctx.threshold_lcb = 0.0
+        ev_ctx.ev_pass = True
         ev_result = EVEvaluation(
             outcome=GateCheckOutcome(passed=True),
             manager=ev_mgr,
             ev_lcb=0.0,
             threshold_lcb=0.0,
             bypass=False,
-            context=ctx_dbg,
+            context=ev_ctx,
         )
 
         result = sizing_gate.evaluate(
-            ctx_dbg=ctx_dbg,
+            ctx=ev_ctx,
             pending=pending,
             ev_result=ev_result,
             calibrating=False,
@@ -988,7 +1033,7 @@ class TestRunner(unittest.TestCase):
         sl_pips = 10.0
         tp_pips = 20.0
         qty_initial = compute_qty_from_ctx(
-            ctx_initial,
+            ctx_initial.to_mapping(),
             sl_pips,
             mode="production",
             tp_pips=tp_pips,
@@ -996,13 +1041,13 @@ class TestRunner(unittest.TestCase):
         )
         self.assertGreater(qty_initial, 0.0)
 
-        def _snapshot_from_ctx(ctx):
+        def _snapshot_from_ctx(ctx: EntryContext):
             return {
-                "pip_value": ctx.get("pip_value"),
-                "cost_base": ctx.get("base_cost_pips", ctx.get("cost_pips", 0.0)),
-                "spread_band": ctx.get("spread_band"),
-                "session": ctx.get("session"),
-                "rv_band": ctx.get("rv_band"),
+                "pip_value": ctx.pip_value,
+                "cost_base": ctx.base_cost_pips,
+                "spread_band": ctx.spread_band,
+                "session": ctx.session,
+                "rv_band": ctx.rv_band,
             }
 
         runner._last_timestamp = "2024-01-01T00:00:00Z"
@@ -1014,10 +1059,10 @@ class TestRunner(unittest.TestCase):
             exit_px=100.0 - sl_pips * pip,
             exit_reason="sl",
             ctx_snapshot=_snapshot_from_ctx(ctx_initial),
-            ctx=ctx_initial,
+            ctx=ctx_initial.to_mapping(),
             qty_sample=qty_initial,
             slip_actual=0.0,
-            ev_key=ctx_initial["ev_key"],
+            ev_key=ctx_initial.ev_key,
             tp_pips=tp_pips,
             sl_pips=sl_pips,
             debug_stage="trade",
@@ -1032,7 +1077,7 @@ class TestRunner(unittest.TestCase):
             realized_vol_value=0.0,
         )
         qty_after_loss = compute_qty_from_ctx(
-            ctx_after_loss,
+            ctx_after_loss.to_mapping(),
             sl_pips,
             mode="production",
             tp_pips=tp_pips,
@@ -1049,10 +1094,10 @@ class TestRunner(unittest.TestCase):
             exit_px=100.0 + tp_pips * pip,
             exit_reason="tp",
             ctx_snapshot=_snapshot_from_ctx(ctx_after_loss),
-            ctx=ctx_after_loss,
+            ctx=ctx_after_loss.to_mapping(),
             qty_sample=qty_after_loss,
             slip_actual=0.0,
-            ev_key=ctx_after_loss["ev_key"],
+            ev_key=ctx_after_loss.ev_key,
             tp_pips=tp_pips,
             sl_pips=sl_pips,
             debug_stage="trade",
@@ -1067,7 +1112,7 @@ class TestRunner(unittest.TestCase):
             realized_vol_value=0.0,
         )
         qty_after_win = compute_qty_from_ctx(
-            ctx_after_win,
+            ctx_after_win.to_mapping(),
             sl_pips,
             mode="production",
             tp_pips=tp_pips,
@@ -1085,17 +1130,21 @@ class TestRunner(unittest.TestCase):
         )
         stub_ev = self.DummyEV(ev_lcb=1.2, p_lcb=0.65)
         runner._get_ev_manager = lambda key: stub_ev
+        features.entry_ctx.ev_manager = stub_ev
+        features.ctx["ev_oco"] = stub_ev
+        self.assertIs(features.entry_ctx.ev_manager, stub_ev)
         entry_gate = EntryGate(runner)
         entry_result = entry_gate.evaluate(
             pending=pending,
             features=features,
         )
         self.assertTrue(entry_result.outcome.passed)
-        ctx_dbg = entry_result.context
-        self.assertIsNotNone(ctx_dbg)
+        entry_ctx = entry_result.context
+        self.assertIsNotNone(entry_ctx)
+        assert entry_ctx is not None
         ev_gate = EVGate(runner)
         ev_result = ev_gate.evaluate(
-            ctx_dbg=ctx_dbg,
+            ctx=entry_ctx,
             pending=pending,
             calibrating=calibrating,
             timestamp=runner._last_timestamp,
@@ -1104,10 +1153,12 @@ class TestRunner(unittest.TestCase):
         self.assertIs(ev_result.manager, stub_ev)
         self.assertGreater(ev_result.ev_lcb, ev_result.threshold_lcb)
         self.assertFalse(ev_result.bypass)
-        self.assertTrue(ctx_dbg.get("ev_pass"))
+        self.assertIsNotNone(ev_result.context)
+        assert ev_result.context is not None
+        self.assertTrue(ev_result.context.ev_pass)
         sizing_gate = SizingGate(runner)
         sizing_result = sizing_gate.evaluate(
-            ctx_dbg=ctx_dbg,
+            ctx=ev_result.context,
             pending=pending,
             ev_result=ev_result,
             calibrating=calibrating,
@@ -1121,15 +1172,19 @@ class TestRunner(unittest.TestCase):
         )
         stub_ev = self.DummyEV(ev_lcb=0.05, p_lcb=0.55)
         runner._get_ev_manager = lambda key: stub_ev
+        features.entry_ctx.ev_manager = stub_ev
+        features.ctx["ev_oco"] = stub_ev
+        self.assertIs(features.entry_ctx.ev_manager, stub_ev)
         entry_result = EntryGate(runner).evaluate(
             pending=pending,
             features=features,
         )
         self.assertTrue(entry_result.outcome.passed)
-        ctx_dbg = entry_result.context
-        self.assertIsNotNone(ctx_dbg)
+        entry_ctx = entry_result.context
+        self.assertIsNotNone(entry_ctx)
+        assert entry_ctx is not None
         ev_result = EVGate(runner).evaluate(
-            ctx_dbg=ctx_dbg,
+            ctx=entry_ctx,
             pending=pending,
             calibrating=calibrating,
             timestamp=runner._last_timestamp,
@@ -1145,16 +1200,20 @@ class TestRunner(unittest.TestCase):
         )
         stub_ev = self.DummyEV(ev_lcb=0.05, p_lcb=0.55)
         runner._get_ev_manager = lambda key: stub_ev
+        features.entry_ctx.ev_manager = stub_ev
+        features.ctx["ev_oco"] = stub_ev
+        self.assertIs(features.entry_ctx.ev_manager, stub_ev)
         entry_result = EntryGate(runner).evaluate(
             pending=pending,
             features=features,
         )
         self.assertTrue(entry_result.outcome.passed)
-        ctx_dbg = entry_result.context
-        self.assertIsNotNone(ctx_dbg)
-        self.assertEqual(ctx_dbg.get("ev_mode"), "off")
+        entry_ctx = entry_result.context
+        self.assertIsNotNone(entry_ctx)
+        assert entry_ctx is not None
+        self.assertEqual(entry_ctx.ev_mode, "off")
         ev_result = EVGate(runner).evaluate(
-            ctx_dbg=ctx_dbg,
+            ctx=entry_ctx,
             pending=pending,
             calibrating=calibrating,
             timestamp=runner._last_timestamp,
@@ -1164,9 +1223,12 @@ class TestRunner(unittest.TestCase):
         self.assertFalse(ev_result.bypass)
         self.assertTrue(math.isinf(ev_result.threshold_lcb))
         self.assertLess(ev_result.threshold_lcb, 0.0)
-        self.assertTrue(math.isinf(ctx_dbg.get("threshold_lcb_pip")))
-        self.assertEqual(ctx_dbg.get("threshold_lcb"), ev_result.threshold_lcb)
-        self.assertTrue(ctx_dbg.get("ev_pass"))
+        ev_ctx = ev_result.context
+        self.assertIsNotNone(ev_ctx)
+        assert ev_ctx is not None
+        self.assertTrue(math.isinf(entry_ctx.threshold_lcb_pip))
+        self.assertEqual(ev_ctx.threshold_lcb, ev_result.threshold_lcb)
+        self.assertTrue(ev_ctx.ev_pass)
         self.assertEqual(runner.debug_counts["ev_reject"], 0)
 
     def test_order_intent_with_oco_fields_supports_ev_and_sizing_guards(self):
@@ -1187,19 +1249,25 @@ class TestRunner(unittest.TestCase):
             features=features,
         )
         self.assertTrue(entry_result.outcome.passed)
-        ctx_dbg = entry_result.context
-        self.assertIsNotNone(ctx_dbg)
+        entry_ctx = entry_result.context
+        self.assertIsNotNone(entry_ctx)
+        assert entry_ctx is not None
         ev_result = EVGate(runner).evaluate(
-            ctx_dbg=ctx_dbg,
+            ctx=entry_ctx,
             pending=intent,
             calibrating=calibrating,
             timestamp=runner._last_timestamp,
         )
         self.assertFalse(ev_result.outcome.passed)
         self.assertEqual(runner.debug_counts["ev_reject"], 1)
-        ctx_dbg.setdefault("expected_slip_pip", 0.0)
-        ctx_dbg.setdefault("slip_cap_pip", runner.rcfg.slip_cap_pip)
-        ctx_dbg.setdefault("cost_pips", 0.0)
+        ev_ctx = ev_result.context
+        self.assertIsNotNone(ev_ctx)
+        assert ev_ctx is not None
+        if ev_ctx.expected_slip_pip is None:
+            ev_ctx.expected_slip_pip = 0.0
+        ev_ctx.slip_cap_pip = runner.rcfg.slip_cap_pip
+        if ev_ctx.cost_pips is None:
+            ev_ctx.cost_pips = 0.0
         sizing_gate = SizingGate(runner)
         with patch("core.runner_entry.compute_qty_from_ctx", return_value=1.0) as mock_compute:
             forced_ev_result = EVEvaluation(
@@ -1208,10 +1276,10 @@ class TestRunner(unittest.TestCase):
                 ev_lcb=ev_result.ev_lcb,
                 threshold_lcb=ev_result.threshold_lcb,
                 bypass=False,
-                context=ctx_dbg,
+                context=ev_ctx,
             )
             sizing_result = sizing_gate.evaluate(
-                ctx_dbg=ctx_dbg,
+                ctx=ev_ctx,
                 pending=intent,
                 ev_result=forced_ev_result,
                 calibrating=False,
@@ -1231,24 +1299,31 @@ class TestRunner(unittest.TestCase):
         )
         stub_ev = self.DummyEV(ev_lcb=0.05, p_lcb=0.55)
         runner._get_ev_manager = lambda key: stub_ev
+        features.entry_ctx.ev_manager = stub_ev
+        features.ctx["ev_oco"] = stub_ev
+        self.assertIs(features.entry_ctx.ev_manager, stub_ev)
         entry_result = EntryGate(runner).evaluate(
             pending=pending,
             features=features,
         )
         self.assertTrue(entry_result.outcome.passed)
-        ctx_dbg = entry_result.context
-        self.assertIsNotNone(ctx_dbg)
+        entry_ctx = entry_result.context
+        self.assertIsNotNone(entry_ctx)
+        assert entry_ctx is not None
         ev_result = EVGate(runner).evaluate(
-            ctx_dbg=ctx_dbg,
+            ctx=entry_ctx,
             pending=pending,
             calibrating=calibrating,
             timestamp=runner._last_timestamp,
         )
         self.assertTrue(ev_result.outcome.passed)
         self.assertTrue(ev_result.bypass)
-        self.assertFalse(ctx_dbg.get("ev_pass"))
+        ev_ctx = ev_result.context
+        self.assertIsNotNone(ev_ctx)
+        assert ev_ctx is not None
+        self.assertFalse(ev_ctx.ev_pass)
         sizing_result = SizingGate(runner).evaluate(
-            ctx_dbg=ctx_dbg,
+            ctx=ev_ctx,
             pending=pending,
             ev_result=ev_result,
             calibrating=calibrating,
@@ -1264,7 +1339,7 @@ class TestRunner(unittest.TestCase):
         self.assertEqual(record["warmup_left"], 5)
         self.assertEqual(record["warmup_total"], runner.rcfg.warmup_trades)
         self.assertAlmostEqual(record["ev_lcb"], stub_ev._ev_lcb)
-        self.assertAlmostEqual(record["threshold_lcb"], ctx_dbg["threshold_lcb"])
+        self.assertAlmostEqual(record["threshold_lcb"], ev_ctx.threshold_lcb)
         self.assertEqual(record["tp_pips"], 2.0)
         self.assertEqual(record["sl_pips"], 1.0)
 
@@ -1309,13 +1384,21 @@ class TestRunner(unittest.TestCase):
         )
         pip_value = pip_size(runner.symbol)
         stub_ev = self.DummyEV(ev_lcb=1.2, p_lcb=0.65)
-        ctx_dbg = dict(features.ctx)
-        ctx_dbg.setdefault("slip_cap_pip", runner.rcfg.slip_cap_pip)
-        ctx_dbg.setdefault("expected_slip_pip", 0.0)
-        ctx_dbg.setdefault("cost_pips", ctx_dbg.get("cost_pips", 0.0))
+        entry_ctx = EntryContext(**features.entry_ctx._constructor_kwargs())
+        entry_ctx.ev_manager = stub_ev
+        if entry_ctx.expected_slip_pip is None:
+            entry_ctx.expected_slip_pip = 0.0
+        if entry_ctx.cost_pips is None:
+            entry_ctx.cost_pips = entry_ctx.base_cost_pips
+        features.entry_ctx = entry_ctx
+        ev_ctx = EVContext.from_entry(entry_ctx)
+        ev_ctx.ev_lcb = 1.2
+        ev_ctx.threshold_lcb = 0.6
+        ev_ctx.ev_pass = True
+        sizing_ctx = SizingContext.from_ev(ev_ctx)
         entry_result = EntryEvaluation(
             outcome=GateCheckOutcome(passed=True),
-            context=ctx_dbg,
+            context=entry_ctx,
             pending_side=pending["side"],
         )
         ev_result = EVEvaluation(
@@ -1324,9 +1407,9 @@ class TestRunner(unittest.TestCase):
             ev_lcb=1.2,
             threshold_lcb=0.6,
             bypass=False,
-            context=ctx_dbg,
+            context=ev_ctx,
         )
-        sizing_result = SizingEvaluation(GateCheckOutcome(passed=True))
+        sizing_result = SizingEvaluation(GateCheckOutcome(passed=True), context=sizing_ctx)
         intent = OrderIntent(
             pending["side"],
             qty=1.0,
@@ -1405,6 +1488,7 @@ class TestRunner(unittest.TestCase):
         pending["entry"] = no_fill_entry
         runner.stg._pending_signal = pending
         features.ctx["ev_oco"] = stub_ev
+        features.entry_ctx.ev_manager = stub_ev
         features.ctx.setdefault("slip_cap_pip", runner.rcfg.slip_cap_pip)
         features.ctx.setdefault("expected_slip_pip", 0.0)
         pip_value = pip_size(runner.symbol)
@@ -1450,6 +1534,7 @@ class TestRunner(unittest.TestCase):
         pending["entry"] = fill_entry
         runner.stg._pending_signal = pending
         features.ctx["ev_oco"] = stub_ev
+        features.entry_ctx.ev_manager = stub_ev
         features.ctx.setdefault("slip_cap_pip", runner.rcfg.slip_cap_pip)
         features.ctx.setdefault("expected_slip_pip", 0.0)
         pip_value = pip_size(runner.symbol)
@@ -1501,6 +1586,7 @@ class TestRunner(unittest.TestCase):
         pending["entry"] = fill_entry
         runner.stg._pending_signal = pending
         features.ctx["ev_oco"] = stub_ev
+        features.entry_ctx.ev_manager = stub_ev
         features.ctx.setdefault("slip_cap_pip", runner.rcfg.slip_cap_pip)
         features.ctx.setdefault("expected_slip_pip", 0.0)
         pip_value = pip_size(runner.symbol)
@@ -1685,7 +1771,7 @@ class TestRunner(unittest.TestCase):
         base_ctx = features.ctx
         self.assertIn("threshold_lcb_pip", base_ctx)
         self.assertEqual(base_ctx["threshold_lcb_pip"], -1e9)
-        expected_slip = base_ctx.get("expected_slip_pip")
+        expected_slip = features.entry_ctx.expected_slip_pip
         self.assertIsNotNone(expected_slip)
         self.assertGreater(expected_slip, 0.0)
         entry_result = EntryGate(runner).evaluate(
@@ -1693,10 +1779,11 @@ class TestRunner(unittest.TestCase):
             features=features,
         )
         self.assertTrue(entry_result.outcome.passed)
-        ctx_dbg = entry_result.context
-        self.assertIsNotNone(ctx_dbg)
-        self.assertEqual(ctx_dbg.get("threshold_lcb_pip"), -1e9)
-        self.assertEqual(ctx_dbg.get("expected_slip_pip"), expected_slip)
+        entry_ctx = entry_result.context
+        self.assertIsNotNone(entry_ctx)
+        assert entry_ctx is not None
+        self.assertEqual(entry_ctx.threshold_lcb_pip, -1e9)
+        self.assertEqual(entry_ctx.expected_slip_pip, expected_slip)
 
     def test_handle_active_position_trail_exit_buy_and_sell(self):
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")

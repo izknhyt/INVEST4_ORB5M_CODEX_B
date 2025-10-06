@@ -30,11 +30,13 @@ from core.runner_entry import (
     SizingEvaluation,
     TradeContextSnapshot,
     build_trade_context_snapshot,
+    EntryContext,
+    EVContext,
+    SizingContext,
 )
 from core.runner_execution import ExitDecision, RunnerExecutionManager
 from core.runner_lifecycle import RunnerLifecycleManager
 from core.runner_state import ActivePositionState, CalibrationPositionState, PositionState
-from router.router_v0 import pass_gates
 from core.runner_features import FeatureBundle, FeaturePipeline
 
 
@@ -583,18 +585,49 @@ class BacktestRunner:
             if low is not None and high is not None and low <= high:
                 self.rv_thresh[session_name] = (low, high)
 
+    def _update_entry_context_from_mapping(
+        self, ctx: EntryContext, data: Mapping[str, Any]
+    ) -> None:
+        alias_map = {"ev_oco": "ev_manager"}
+        field_names = EntryContext.__dataclass_fields__.keys()
+        for key, value in data.items():
+            attr = alias_map.get(key, key)
+            if attr not in field_names:
+                continue
+            if attr == "allowed_sessions":
+                if value is None:
+                    ctx.allowed_sessions = None
+                elif isinstance(value, tuple):
+                    ctx.allowed_sessions = value
+                elif isinstance(value, (list, set)):
+                    ctx.allowed_sessions = tuple(value)
+                else:
+                    ctx.allowed_sessions = (str(value),)
+                continue
+            if attr == "sizing_cfg" and isinstance(value, Mapping):
+                setattr(ctx, attr, dict(value))
+                continue
+            if attr == "ev_key":
+                if isinstance(value, tuple):
+                    ctx.ev_key = value  # type: ignore[assignment]
+                elif isinstance(value, (list, set)):
+                    ctx.ev_key = tuple(value)  # type: ignore[assignment]
+                continue
+            setattr(ctx, attr, value)
+
     def _call_strategy_gate(
         self,
-        ctx_dbg: Dict[str, Any],
-        pending: Dict[str, Any],
+        ctx: EntryContext,
+        pending: Any,
         *,
         ts: Optional[str],
         side: Optional[str],
     ) -> Tuple[bool, Optional[Dict[str, Any]]]:
         if self._strategy_gate_hook is None:
             return True, None
+        ctx_payload = ctx.to_mapping()
         try:
-            allowed = bool(self._strategy_gate_hook(ctx_dbg, pending))
+            allowed = bool(self._strategy_gate_hook(ctx_payload, pending))
         except Exception as exc:  # pragma: no cover - defensive diagnostics
             self.debug_counts["strategy_gate_error"] += 1
             self._append_debug_record(
@@ -604,6 +637,7 @@ class BacktestRunner:
                 error=str(exc),
             )
             return True, None
+        self._update_entry_context_from_mapping(ctx, ctx_payload)
         reason = getattr(self.stg, "_last_gate_reason", None)
         if isinstance(reason, dict):
             return allowed, reason
@@ -650,8 +684,8 @@ class BacktestRunner:
 
     def _call_ev_threshold(
         self,
-        ctx_dbg: Dict[str, Any],
-        pending: Dict[str, Any],
+        ctx: EntryContext,
+        pending: Any,
         base_threshold: float,
         *,
         ts: Optional[str],
@@ -659,8 +693,9 @@ class BacktestRunner:
     ) -> float:
         if self._ev_threshold_hook is None:
             return base_threshold
+        ctx_payload = ctx.to_mapping()
         try:
-            threshold = float(self._ev_threshold_hook(ctx_dbg, pending, base_threshold))
+            threshold = float(self._ev_threshold_hook(ctx_payload, pending, base_threshold))
         except Exception as exc:  # pragma: no cover - defensive diagnostics
             self.debug_counts["ev_threshold_error"] += 1
             self._append_debug_record(
@@ -671,6 +706,7 @@ class BacktestRunner:
                 error=str(exc),
             )
             return base_threshold
+        self._update_entry_context_from_mapping(ctx, ctx_payload)
         if not math.isfinite(threshold):
             self.debug_counts["ev_threshold_error"] += 1
             self._append_debug_record(
@@ -914,13 +950,13 @@ class BacktestRunner:
     def _evaluate_ev_threshold(
         self,
         *,
-        ctx_dbg: Dict[str, Any],
+        ctx: EntryContext,
         pending: Any,
         calibrating: bool,
         timestamp: Optional[str],
     ) -> EVEvaluation:
         return EVGate(self).evaluate(
-            ctx_dbg=ctx_dbg,
+            ctx=ctx,
             pending=pending,
             calibrating=calibrating,
             timestamp=timestamp,
@@ -929,14 +965,14 @@ class BacktestRunner:
     def _check_slip_and_sizing(
         self,
         *,
-        ctx_dbg: Mapping[str, Any],
+        ctx: EVContext,
         pending: Any,
         ev_result: EVEvaluation,
         calibrating: bool,
         timestamp: Optional[str],
     ) -> SizingEvaluation:
         return SizingGate(self).evaluate(
-            ctx_dbg=ctx_dbg,
+            ctx=ctx,
             pending=pending,
             ev_result=ev_result,
             calibrating=calibrating,
@@ -946,12 +982,11 @@ class BacktestRunner:
     def _compose_trade_context_snapshot(
         self,
         *,
-        ctx_dbg: Mapping[str, Any],
+        ctx: Union[EntryContext, EVContext, SizingContext],
         features: FeatureBundle,
     ) -> TradeContextSnapshot:
         return build_trade_context_snapshot(
-            ctx_dbg=ctx_dbg,
-            features_ctx=features.ctx,
+            ctx=ctx,
             bar_input=features.bar_input,
         )
 
@@ -984,7 +1019,7 @@ class BacktestRunner:
         result: Mapping[str, Any],
         bar: Mapping[str, Any],
         ctx: Mapping[str, Any],
-        ctx_dbg: Mapping[str, Any],
+        ctx_dbg: Union[EntryContext, EVContext, SizingContext],
         trade_ctx_snapshot: TradeContextSnapshot,
         calibrating: bool,
         pip_size_value: float,
@@ -1127,7 +1162,7 @@ class BacktestRunner:
         or_h: Optional[float],
         or_l: Optional[float],
         realized_vol_value: float,
-    ) -> Dict[str, Any]:
+    ) -> EntryContext:
         ps = pip_size(self.symbol)
         spread_pips = bar["spread"] / ps  # assume spread is price units; convert to pips
 
@@ -1165,49 +1200,53 @@ class BacktestRunner:
         if ev_mode_value == "off":
             threshold_ctx = float("-inf")
 
-        ctx = {
-            "session": session,
-            "spread_band": self._band_spread(spread_pips),
-            "rv_band": self._band_rv(realized_vol_value, session),
-            "slip_cap_pip": self.rcfg.slip_cap_pip,
-            "threshold_lcb_pip": threshold_ctx,
-            "or_atr_ratio": or_ratio,
-            "min_or_atr_ratio": self.rcfg.min_or_atr_ratio,
-            "allow_low_rv": self.rcfg.allow_low_rv,
-            "warmup_left": self._warmup_left,
-            "warmup_mult": 0.05,
-            "cooldown_bars": self.rcfg.cooldown_bars,
-            "ev_mode": ev_mode_value,
-            "size_floor_mult": self.rcfg.size_floor_mult,
-            # EV & sizing
-            # pooled EV manager per bucket
-            # ev_oco object provides p_lcb/ev_lcb_oco/update
-            "ev_oco": None,
-            "base_cost_pips": spread_pips,
-            "equity": self._equity_live,
-            "pip_value": pip_value_ctx,
-            "sizing_cfg": self.rcfg.build_sizing_cfg(),
-        }
+        spread_band = self._band_spread(spread_pips)
+        rv_band = self._band_rv(realized_vol_value, session)
+        allowed_sessions: Optional[Tuple[str, ...]] = None
         if self.rcfg.allowed_sessions:
-            ctx["allowed_sessions"] = self.rcfg.allowed_sessions
-        key = self._ev_key(ctx["session"], ctx["spread_band"], ctx["rv_band"])
-        ctx["ev_key"] = key
-        ctx["ev_oco"] = self._get_ev_manager(key)
-        if key in self._ev_profile_lookup:
-            ctx["ev_profile_stats"] = self._ev_profile_lookup[key]
+            allowed_sessions = tuple(self.rcfg.allowed_sessions)
+        key = self._ev_key(session, spread_band, rv_band)
+        ev_manager = self._get_ev_manager(key)
+        ev_profile_stats = self._ev_profile_lookup.get(key)
         # Expected slip cost derived from learnt coefficients (per spread band)
         expected_slip = 0.0
         if getattr(self.rcfg, "include_expected_slip", False):
-            band = ctx["spread_band"]
-            coeff = float(self.slip_a.get(band, self.rcfg.slip_curve.get(band, {}).get("a", 0.0)))
-            intercept = float(self.rcfg.slip_curve.get(band, {}).get("b", 0.0))
-            qty_est = self.qty_ewma.get(band, 0.0)
+            coeff = float(
+                self.slip_a.get(
+                    spread_band, self.rcfg.slip_curve.get(spread_band, {}).get("a", 0.0)
+                )
+            )
+            intercept = float(self.rcfg.slip_curve.get(spread_band, {}).get("b", 0.0))
+            qty_est = self.qty_ewma.get(spread_band, 0.0)
             if qty_est <= 0.0:
                 qty_est = 1.0
             expected_slip = max(0.0, coeff * qty_est + intercept)
-        ctx["expected_slip_pip"] = expected_slip
-        ctx["cost_pips"] = ctx["base_cost_pips"] + expected_slip
-        return ctx
+        cost_pips = spread_pips + expected_slip
+        return EntryContext(
+            session=session,
+            spread_band=spread_band,
+            rv_band=rv_band,
+            slip_cap_pip=self.rcfg.slip_cap_pip,
+            threshold_lcb_pip=threshold_ctx,
+            or_atr_ratio=or_ratio,
+            min_or_atr_ratio=self.rcfg.min_or_atr_ratio,
+            allow_low_rv=self.rcfg.allow_low_rv,
+            warmup_left=self._warmup_left,
+            warmup_mult=0.05,
+            cooldown_bars=self.rcfg.cooldown_bars,
+            ev_mode=ev_mode_value,
+            size_floor_mult=self.rcfg.size_floor_mult,
+            base_cost_pips=spread_pips,
+            expected_slip_pip=expected_slip,
+            cost_pips=cost_pips,
+            equity=self._equity_live,
+            pip_value=pip_value_ctx,
+            sizing_cfg=self.rcfg.build_sizing_cfg(),
+            ev_key=key,
+            ev_manager=ev_manager,
+            ev_profile_stats=ev_profile_stats,
+            allowed_sessions=allowed_sessions,
+        )
 
     def _session_of_ts(self, ts: str) -> str:
         """Very simple UTC-based session mapping.

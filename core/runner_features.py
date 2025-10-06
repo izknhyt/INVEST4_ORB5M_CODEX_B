@@ -25,6 +25,7 @@ from core.feature_store import (
     trend_score as calc_trend_score,
     pullback as calc_pullback,
 )
+from core.runner_entry import EntryContext
 
 
 @dataclass
@@ -77,6 +78,7 @@ class RunnerContext(MutableMappingABC[str, Any]):
 class FeatureBundle:
     bar_input: Dict[str, Any]
     ctx: RunnerContext
+    entry_ctx: EntryContext
     atr14: float
     adx14: float
     or_high: Optional[float]
@@ -132,7 +134,7 @@ class FeaturePipeline:
             atr14=atr14,
             micro_features=micro_features,
         )
-        ctx_dict = self._ctx_builder(
+        entry_ctx = self._ctx_builder(
             bar=bar,
             session=session,
             atr14=bar_input["atr14"],
@@ -141,16 +143,18 @@ class FeaturePipeline:
             realized_vol_value=realized_vol_value,
         )
         if calibrating:
-            threshold_override = float("-inf") if ctx_dict.get("ev_mode") == "off" else -1e9
-            ctx_dict["threshold_lcb_pip"] = threshold_override
-            ctx_dict["calibrating"] = True
-        runner_ctx = RunnerContext(ctx_dict)
+            threshold_override = float("-inf") if entry_ctx.ev_mode == "off" else -1e9
+            entry_ctx.threshold_lcb_pip = threshold_override
+            entry_ctx.calibrating = True
+        ctx_mapping = entry_ctx.to_mapping()
+        runner_ctx = RunnerContext(ctx_mapping)
         if self._context_consumer is not None:
             self._context_consumer(runner_ctx.to_dict())
 
         feature_bundle = FeatureBundle(
             bar_input=bar_input,
             ctx=runner_ctx,
+            entry_ctx=entry_ctx,
             atr14=atr14,
             adx14=adx14,
             or_high=or_high if self._is_finite(or_high) else None,

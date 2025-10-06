@@ -5,7 +5,7 @@ from typing import Any, Dict, Iterable, Mapping, Optional, TYPE_CHECKING, Union
 
 from core.fill_engine import OrderSpec
 from core.pips import price_to_pips
-from core.runner_entry import TradeContextSnapshot
+from core.runner_entry import EntryContext, EVContext, SizingContext, TradeContextSnapshot
 from core.runner_state import (
     ActivePositionState,
     CalibrationPositionState,
@@ -199,17 +199,20 @@ class RunnerExecutionManager:
         )
         if not entry_result.outcome.passed or entry_result.context is None:
             return
-        ctx_dbg = entry_result.context
+        entry_ctx = entry_result.context
+        features.ctx.update(entry_ctx.to_mapping())
         ev_result = runner._evaluate_ev_threshold(
-            ctx_dbg=ctx_dbg,
+            ctx=entry_ctx,
             pending=pending,
             calibrating=calibrating,
             timestamp=runner._last_timestamp,
         )
         if not ev_result.outcome.passed:
             return
+        ev_ctx = ev_result.context or EVContext.from_entry(entry_ctx)
+        features.ctx.update(ev_ctx.to_mapping())
         sizing_result = runner._check_slip_and_sizing(
-            ctx_dbg=ctx_dbg,
+            ctx=ev_ctx,
             pending=pending,
             ev_result=ev_result,
             calibrating=calibrating,
@@ -217,6 +220,8 @@ class RunnerExecutionManager:
         )
         if not sizing_result.outcome.passed:
             return
+        sizing_ctx = sizing_result.context or SizingContext.from_ev(ev_ctx)
+        features.ctx.update(sizing_ctx.to_mapping())
         intents = list(runner.stg.signals())
         if not intents:
             runner.debug_counts["gate_block"] += 1
@@ -245,7 +250,7 @@ class RunnerExecutionManager:
         if not result.get("fill"):
             return
         trade_ctx_snapshot = runner._compose_trade_context_snapshot(
-            ctx_dbg=ctx_dbg,
+            ctx=sizing_ctx,
             features=features,
         )
         self.process_fill_result(
@@ -254,7 +259,7 @@ class RunnerExecutionManager:
             result=result,
             bar=bar,
             ctx=features.ctx,
-            ctx_dbg=ctx_dbg,
+            ctx_dbg=sizing_ctx,
             trade_ctx_snapshot=trade_ctx_snapshot,
             calibrating=calibrating,
             pip_size_value=pip_size_value,
@@ -270,7 +275,7 @@ class RunnerExecutionManager:
         result: Mapping[str, Any],
         bar: Mapping[str, Any],
         ctx: Mapping[str, Any],
-        ctx_dbg: Mapping[str, Any],
+        ctx_dbg: Union[EntryContext, EVContext, SizingContext],
         trade_ctx_snapshot: TradeContextSnapshot,
         calibrating: bool,
         pip_size_value: float,

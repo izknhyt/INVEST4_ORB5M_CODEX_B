@@ -46,6 +46,8 @@ def test_pipeline_returns_runner_context_and_updates_strategy(runner: BacktestRu
 
     assert isinstance(ctx, RunnerContext)
     assert features.ctx is ctx
+    assert features.entry_ctx.session == "LDN"
+    assert features.entry_ctx.rv_band == ctx["rv_band"]
     assert runner.stg.runtime_ctx == ctx.to_dict()
     assert ctx["session"] == "LDN"
     assert "rv_band" in ctx
@@ -82,3 +84,5 @@ def test_pipeline_sanitises_invalid_micro_features(runner: BacktestRunner, monke
     assert features.pullback == 0.0
     assert ctx["threshold_lcb_pip"] == -1e9
     assert ctx["calibrating"] is True
+    assert features.entry_ctx.calibrating is True
+    assert features.entry_ctx.threshold_lcb_pip == -1e9
