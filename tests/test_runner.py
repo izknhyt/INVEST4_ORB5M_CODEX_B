@@ -66,6 +66,7 @@ class TestRunner(unittest.TestCase):
         include_expected_slip: bool = False,
         debug: bool = False,
         debug_sample_limit: int = 0,
+        runner_cfg: Optional[RunnerConfig] = None,
     ):
         import core.runner as runner_module
 
@@ -75,6 +76,7 @@ class TestRunner(unittest.TestCase):
             symbol=symbol,
             debug=debug,
             debug_sample_limit=debug_sample_limit,
+            runner_cfg=runner_cfg,
         )
         runner._strategy_gate_hook = None
         runner._ev_threshold_hook = None
@@ -858,6 +860,37 @@ class TestRunner(unittest.TestCase):
         )
         self.assertIsNone(ev_eval)
         self.assertEqual(runner.debug_counts["ev_reject"], 1)
+
+    def test_ev_gate_off_mode_bypasses_threshold_checks(self):
+        rcfg = RunnerConfig(ev_mode="off", threshold_lcb_pip=999.0)
+        runner, pending, breakout, features, calibrating = self._prepare_breakout_environment(
+            warmup_left=0,
+            runner_cfg=rcfg,
+        )
+        stub_ev = self.DummyEV(ev_lcb=0.05, p_lcb=0.55)
+        runner._get_ev_manager = lambda key: stub_ev
+        ctx_dbg = runner._evaluate_entry_conditions(
+            pending=pending,
+            features=features,
+        )
+        self.assertIsNotNone(ctx_dbg)
+        self.assertEqual(ctx_dbg.get("ev_mode"), "off")
+        ev_eval = runner._evaluate_ev_threshold(
+            ctx_dbg=ctx_dbg,
+            pending=pending,
+            calibrating=calibrating,
+            timestamp=runner._last_timestamp,
+        )
+        self.assertIsNotNone(ev_eval)
+        ev_mgr, ev_lcb, threshold_lcb, ev_bypass = ev_eval
+        self.assertIs(ev_mgr, stub_ev)
+        self.assertFalse(ev_bypass)
+        self.assertTrue(math.isinf(threshold_lcb))
+        self.assertLess(threshold_lcb, 0.0)
+        self.assertTrue(math.isinf(ctx_dbg.get("threshold_lcb_pip")))
+        self.assertEqual(ctx_dbg.get("threshold_lcb"), threshold_lcb)
+        self.assertTrue(ctx_dbg.get("ev_pass"))
+        self.assertEqual(runner.debug_counts["ev_reject"], 0)
 
     def test_order_intent_with_oco_fields_supports_ev_and_sizing_guards(self):
         runner, _, breakout, features, calibrating = self._prepare_breakout_environment(

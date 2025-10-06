@@ -22,6 +22,10 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2026-02-13: Refreshed `docs/codex_workflow.md` with sandbox/approval guidance (workspace-write + on-request approvals), highlighted `--doc-section` usage for aligning `docs/todo_next.md`, and reiterated `scripts/manage_task_cycle.py` dry-run examples. Synced references with `docs/state_runbook.md` and template links.
 
 ## P0: 即着手（オンデマンドインジェスト + 基盤整備）
+- 2026-02-28: Ensured `BacktestRunner` treats `ev_mode="off"` as a full EV-gate bypass by forcing
+  the threshold LCB to negative infinity and preserving the disabled state in context/debug logs.
+  Added regression `tests/test_runner.py::test_ev_gate_off_mode_bypasses_threshold_checks` and ran
+  `python3 -m pytest tests/test_runner.py` to confirm no breakouts are rejected under the override.
 - ~~**state 更新ワーカー**~~ (完了): `scripts/update_state.py` に部分実行ワークフローを実装し、`BacktestRunner.run_partial` と状態スナップショット/EVアーカイブ連携を整備。`ops/state_archive/<strategy>/<symbol>/<mode>/` へ最新5件を保持し、更新後は `scripts/aggregate_ev.py` を自動起動するようにした。
 - ~~**runs/index 再構築スクリプト整備**~~ (完了): `scripts/rebuild_runs_index.py` が `scripts/run_sim.py` の出力列 (k_tr, gate/EV debug など) と派生指標 (win_rate, pnl_per_trade) を欠損なく復元し、`tests/test_rebuild_runs_index.py` で fixtures 検証を追加。
 - ~~**ベースライン/ローリング run 起動ジョブ**~~ (2024-06-12 完了): `scripts/run_benchmark_pipeline.py` でベースライン/ローリング run → サマリー → スナップショット更新を一括化し、`run_daily_workflow.py --benchmarks` から呼び出せるようにした。`tests/test_run_benchmark_pipeline.py` で順序・引数伝播・失敗処理を回帰テスト化。
