@@ -19,14 +19,14 @@ class GateCheckOutcome:
 
 
 @dataclass
-class EntryEvaluationResult:
+class EntryEvaluation:
     outcome: GateCheckOutcome
     context: Optional[Dict[str, Any]] = None
     pending_side: Optional[str] = None
 
 
 @dataclass
-class EVEvaluationResult:
+class EVEvaluation:
     outcome: GateCheckOutcome
     manager: Optional[Any] = None
     ev_lcb: Optional[float] = None
@@ -36,15 +36,90 @@ class EVEvaluationResult:
 
 
 @dataclass
-class SizingEvaluationResult:
+class SizingEvaluation:
     outcome: GateCheckOutcome
+
+
+@dataclass
+class TradeContextSnapshot:
+    session: Optional[str] = None
+    rv_band: Optional[str] = None
+    spread_band: Optional[str] = None
+    or_atr_ratio: Optional[float] = None
+    min_or_atr_ratio: Optional[float] = None
+    ev_lcb: Optional[float] = None
+    threshold_lcb: Optional[float] = None
+    ev_pass: Optional[bool] = None
+    expected_slip_pip: Optional[float] = None
+    cost_base: Optional[float] = None
+    pip_value: Optional[float] = None
+    zscore: Optional[float] = None
+
+    def as_dict(self) -> Dict[str, Any]:
+        data: Dict[str, Any] = {}
+        if self.session is not None:
+            data["session"] = self.session
+        if self.rv_band is not None:
+            data["rv_band"] = self.rv_band
+        if self.spread_band is not None:
+            data["spread_band"] = self.spread_band
+        if self.or_atr_ratio is not None:
+            data["or_atr_ratio"] = self.or_atr_ratio
+        if self.min_or_atr_ratio is not None:
+            data["min_or_atr_ratio"] = self.min_or_atr_ratio
+        if self.ev_lcb is not None:
+            data["ev_lcb"] = self.ev_lcb
+        if self.threshold_lcb is not None:
+            data["threshold_lcb"] = self.threshold_lcb
+        if self.ev_pass is not None:
+            data["ev_pass"] = self.ev_pass
+        if self.expected_slip_pip is not None:
+            data["expected_slip_pip"] = self.expected_slip_pip
+        if self.cost_base is not None:
+            data["cost_base"] = self.cost_base
+        if self.pip_value is not None:
+            data["pip_value"] = self.pip_value
+        if self.zscore is not None:
+            data["zscore"] = self.zscore
+        return data
+
+
+def build_trade_context_snapshot(
+    *,
+    ctx_dbg: Mapping[str, Any],
+    features_ctx: Mapping[str, Any],
+    bar_input: Mapping[str, Any],
+) -> TradeContextSnapshot:
+    base_cost = features_ctx.get("base_cost_pips", features_ctx.get("cost_pips", 0.0))
+    pip_value = features_ctx.get("pip_value")
+    if pip_value is None:
+        pip_value = ctx_dbg.get("pip_value")
+    snapshot = TradeContextSnapshot(
+        session=ctx_dbg.get("session", features_ctx.get("session")),
+        rv_band=ctx_dbg.get("rv_band", features_ctx.get("rv_band")),
+        spread_band=ctx_dbg.get("spread_band", features_ctx.get("spread_band")),
+        or_atr_ratio=ctx_dbg.get("or_atr_ratio", features_ctx.get("or_atr_ratio")),
+        min_or_atr_ratio=ctx_dbg.get("min_or_atr_ratio", features_ctx.get("min_or_atr_ratio")),
+        ev_lcb=ctx_dbg.get("ev_lcb"),
+        threshold_lcb=ctx_dbg.get("threshold_lcb"),
+        ev_pass=ctx_dbg.get("ev_pass"),
+        expected_slip_pip=features_ctx.get("expected_slip_pip", 0.0),
+        cost_base=base_cost,
+        pip_value=pip_value,
+    )
+    if "zscore" in bar_input:
+        try:
+            snapshot.zscore = float(bar_input["zscore"])
+        except (TypeError, ValueError):
+            snapshot.zscore = bar_input["zscore"]
+    return snapshot
 
 
 class EntryGate:
     def __init__(self, runner: "BacktestRunner") -> None:
         self._runner = runner
 
-    def evaluate(self, *, pending: Any, features: "FeatureBundle") -> EntryEvaluationResult:
+    def evaluate(self, *, pending: Any, features: "FeatureBundle") -> EntryEvaluation:
         ctx_dbg = dict(features.ctx)
         pending_side, _, _ = self._runner._extract_pending_fields(pending)
         gate_allowed, gate_reason = self._runner._call_strategy_gate(
@@ -74,7 +149,7 @@ class EntryGate:
                 rv_band=metadata.get("rv_band"),
                 allow_low_rv=ctx_dbg.get("allow_low_rv"),
             )
-            return EntryEvaluationResult(
+            return EntryEvaluation(
                 outcome=GateCheckOutcome(
                     passed=False,
                     reason="strategy_gate",
@@ -100,7 +175,7 @@ class EntryGate:
                 or_atr_ratio=metadata["or_atr_ratio"],
                 reason="router_gate",
             )
-            return EntryEvaluationResult(
+            return EntryEvaluation(
                 outcome=GateCheckOutcome(
                     passed=False,
                     reason="router_gate",
@@ -110,7 +185,7 @@ class EntryGate:
                 pending_side=pending_side,
             )
         self._runner._increment_daily("gate_pass")
-        return EntryEvaluationResult(
+        return EntryEvaluation(
             outcome=GateCheckOutcome(passed=True),
             context=ctx_dbg,
             pending_side=pending_side,
@@ -128,7 +203,7 @@ class EVGate:
         pending: Any,
         calibrating: bool,
         timestamp: Optional[str],
-    ) -> EVEvaluationResult:
+    ) -> EVEvaluation:
         pending_side, tp_pips, sl_pips = self._runner._extract_pending_fields(pending)
         ev_key = ctx_dbg.get(
             "ev_key",
@@ -191,7 +266,7 @@ class EVGate:
                     tp_pips=tp_pips,
                     sl_pips=sl_pips,
                 )
-                return EVEvaluationResult(
+                return EVEvaluation(
                     outcome=GateCheckOutcome(
                         passed=False,
                         reason="ev_reject",
@@ -211,7 +286,7 @@ class EVGate:
         ctx_dbg["ev_lcb"] = ev_lcb
         ctx_dbg["threshold_lcb"] = threshold_lcb
         ctx_dbg["ev_pass"] = not ev_bypass
-        return EVEvaluationResult(
+        return EVEvaluation(
             outcome=GateCheckOutcome(passed=True),
             manager=ev_mgr,
             ev_lcb=ev_lcb,
@@ -230,10 +305,10 @@ class SizingGate:
         *,
         ctx_dbg: Mapping[str, Any],
         pending: Any,
-        ev_result: EVEvaluationResult,
+        ev_result: EVEvaluation,
         calibrating: bool,
         timestamp: Optional[str],
-    ) -> SizingEvaluationResult:
+    ) -> SizingEvaluation:
         pending_side, tp_pips, sl_pips = self._runner._extract_pending_fields(pending)
         slip_cap = ctx_dbg.get("slip_cap_pip", self._runner.rcfg.slip_cap_pip)
         expected_slip = ctx_dbg.get("expected_slip_pip", 0.0)
@@ -251,7 +326,7 @@ class SizingGate:
                 expected_slip_pip=expected_slip,
                 slip_cap_pip=slip_cap,
             )
-            return SizingEvaluationResult(
+            return SizingEvaluation(
                 outcome=GateCheckOutcome(
                     passed=False,
                     reason="slip_cap",
@@ -278,11 +353,11 @@ class SizingGate:
             )
             if qty_dbg <= 0:
                 self._runner.debug_counts["zero_qty"] += 1
-                return SizingEvaluationResult(
+                return SizingEvaluation(
                     outcome=GateCheckOutcome(
                         passed=False,
                         reason="zero_qty",
                         metadata={"qty": qty_dbg},
                     )
                 )
-        return SizingEvaluationResult(outcome=GateCheckOutcome(passed=True))
+        return SizingEvaluation(outcome=GateCheckOutcome(passed=True))
