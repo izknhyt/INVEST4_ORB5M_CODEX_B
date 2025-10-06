@@ -15,6 +15,7 @@ class DeterministicFailureStrategy(Strategy):
     """
 
     def __init__(self) -> None:
+        super().__init__()
         self.cfg: Dict[str, Any] = {}
         self._pending_signal: Dict[str, Any] | None = None
 

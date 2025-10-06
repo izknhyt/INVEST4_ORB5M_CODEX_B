@@ -76,7 +76,7 @@ class ScalpingTemplate(Strategy):
     def signals(self) -> Iterable[OrderIntent]:
         if not self._pending_signal:
             return []
-        ctx = dict(self.cfg.get("ctx", {}))
+        ctx = self.get_context()
         if not pass_gates(ctx):
             return []
 

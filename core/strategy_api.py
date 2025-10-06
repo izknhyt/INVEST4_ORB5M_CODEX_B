@@ -18,6 +18,9 @@ class OrderIntent:
 class Strategy(ABC):
     api_version = "1.0"
 
+    def __init__(self) -> None:
+        self._runtime_ctx: Dict[str, Any] = {}
+
     @abstractmethod
     def on_start(self, cfg: Dict[str,Any], instruments: List[str], state_store: Dict[str,Any]) -> None:
         ...
@@ -31,6 +34,16 @@ class Strategy(ABC):
     @abstractmethod
     def signals(self) -> Iterable[OrderIntent]:
         ...
+
+    def update_context(self, ctx: Dict[str, Any]) -> None:
+        self._runtime_ctx = dict(ctx)
+
+    @property
+    def runtime_ctx(self) -> Dict[str, Any]:
+        return self._runtime_ctx
+
+    def get_context(self) -> Dict[str, Any]:
+        return dict(self._runtime_ctx)
 
     def eligibility(self, ctx: Dict[str,Any]) -> float:
         return 1.0

@@ -953,8 +953,8 @@ class BacktestRunner:
             window=self.window,
             session_bars=self.session_bars,
             rv_hist=self.rv_hist,
-            strategy_cfg=self.stg.cfg,
             ctx_builder=self._build_ctx,
+            context_consumer=self.stg.update_context,
         )
         features, _ = pipeline.compute(
             bar,

@@ -96,7 +96,7 @@ class TestStrategyIntegration(unittest.TestCase):
         }
 
         # Attach ctx and emit
-        stg.cfg["ctx"] = ctx
+        stg.update_context(ctx)
         stg.on_bar(breakout_bar)
         sigs = list(stg.signals())
         self.assertEqual(len(sigs), 1)

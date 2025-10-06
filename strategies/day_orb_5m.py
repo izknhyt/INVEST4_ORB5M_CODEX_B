@@ -138,7 +138,7 @@ class DayORB5m(Strategy):
         if not self._pending_signal:
             return []
         # Context should include router gates + EV + sizing related configs
-        ctx = self.cfg.get("ctx", {}).copy()
+        ctx = self.get_context()
         # Simple cooldown by bars
         cooldown = int(ctx.get("cooldown_bars", self.cfg.get("cooldown_bars", 0)))
         if cooldown > 0 and (self.state["bar_idx"] - self.state["last_signal_bar"] < cooldown):
