@@ -189,6 +189,14 @@ def write_csv(path: Path, summary: Dict[str, Dict]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Aggregate EV state archives into hybrid profiles")
     parser.add_argument("--archive", default="ops/state_archive", help="Base directory of state archives")
+    parser.add_argument(
+        "--archive-namespace",
+        default=None,
+        help=(
+            "Optional path (absolute or relative to --archive) pointing to the directory that contains "
+            "EV state files. When omitted the legacy layout <strategy>/<symbol>/<mode> is used."
+        ),
+    )
     parser.add_argument("--strategy", required=True, help="Strategy class (module.Class) e.g. day_orb_5m.DayORB5m")
     parser.add_argument("--symbol", required=True, help="Symbol code, e.g. USDJPY")
     parser.add_argument("--mode", default="conservative", help="Mode key (conservative/bridge/...)")
@@ -205,7 +213,14 @@ def main() -> int:
     strategy_key = f"{strategy_module}.{strategy_class}" if strategy_class else strategy_module
 
     archive_base = resolve_repo_path(Path(args.archive))
-    archive_dir = archive_base / strategy_key / args.symbol / args.mode
+    if args.archive_namespace:
+        namespace_path = Path(args.archive_namespace)
+        if namespace_path.is_absolute():
+            archive_dir = namespace_path
+        else:
+            archive_dir = archive_base / namespace_path
+    else:
+        archive_dir = archive_base / strategy_key / args.symbol / args.mode
     if not archive_dir.exists() or not archive_dir.is_dir():
         raise SystemExit(f"archive directory not found: {archive_dir}")
 

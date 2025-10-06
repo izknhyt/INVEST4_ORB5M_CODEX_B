@@ -101,3 +101,50 @@ def test_aggregate_ev_generates_outputs(tmp_path: Path) -> None:
     assert rows
     long_term_rows = [row for row in rows if row["window"] == "long_term"]
     assert long_term_rows and long_term_rows[0]["bucket"] == "asia:low:stable"
+
+
+def test_aggregate_ev_supports_archive_namespace(tmp_path: Path) -> None:
+    strategy_key = "strategies.mean_reversion.MeanReversionStrategy"
+    symbol = "USDJPY"
+    mode = "conservative"
+
+    archive_base = tmp_path / "state_archive"
+    namespace = Path("strategies.mean_reversion.MeanReversionStrategy") / symbol / mode
+    archive_dir = archive_base / namespace
+    archive_dir.mkdir(parents=True)
+
+    write_state(
+        archive_dir / "20240101_000000.json",
+        alpha=1.0,
+        beta=2.0,
+        global_alpha=3.0,
+        global_beta=4.0,
+    )
+
+    out_yaml = tmp_path / "manifest_profile.yaml"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "aggregate_ev.py"),
+            "--archive",
+            str(archive_base),
+            "--archive-namespace",
+            str(namespace),
+            "--strategy",
+            strategy_key,
+            "--symbol",
+            symbol,
+            "--mode",
+            mode,
+            "--out-yaml",
+            str(out_yaml),
+        ],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "Wrote YAML profile" in result.stdout
+    assert out_yaml.exists()

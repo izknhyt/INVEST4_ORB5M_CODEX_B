@@ -365,6 +365,85 @@ class TestRunSimCLI(unittest.TestCase):
         finally:
             sys.modules.pop(module_name, None)
 
+    @mock.patch("scripts.run_sim.subprocess.run")
+    @mock.patch("scripts.run_sim.BacktestRunner")
+    def test_run_sim_manifest_triggers_aggregate_with_namespace(self, mock_runner, mock_subproc):
+        class DummyMetrics:
+            def __init__(self):
+                self.records = []
+                self.daily = {}
+                self.runtime = {}
+                self.debug = {}
+
+            def as_dict(self):
+                return {"trades": 1, "wins": 1, "total_pips": 1.0, "sharpe": 0.0, "max_drawdown": 0.0}
+
+        mock_subproc.return_value = types.SimpleNamespace(returncode=0, stdout="", stderr="")
+        runner_instance = mock_runner.return_value
+        runner_instance.strategy_cls = MeanReversionStrategy
+        runner_instance.ev_global = types.SimpleNamespace(decay=0.5)
+        runner_instance.run.return_value = DummyMetrics()
+        runner_instance.export_state.return_value = {"ev_buckets": {}, "ev_global": {}}
+
+        manifest_yaml = textwrap.dedent(
+            """
+            meta:
+              id: mean_reversion_v1
+              name: Mean Reversion (USDJPY)
+              version: "1.0"
+              category: day
+            strategy:
+              class_path: strategies.mean_reversion.MeanReversionStrategy
+              instruments:
+                - symbol: USDJPY
+                  timeframe: 5m
+                  mode: conservative
+              parameters:
+                zscore_threshold: 1.0
+                allow_high_rv: true
+            router:
+              allowed_sessions: [LDN]
+            risk:
+              risk_per_trade_pct: 0.1
+              max_concurrent_positions: 1
+              warmup_trades: 0
+            runner:
+              runner_config:
+                warmup_trades: 0
+            state:
+              archive_namespace: strategies.mean_reversion.MeanReversionStrategy/USDJPY/conservative
+            """
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path = os.path.join(tmpdir, "bars.csv")
+            with open(csv_path, "w", encoding="utf-8") as f:
+                f.write(CSV_CONTENT)
+            manifest_path = os.path.join(tmpdir, "manifest.yaml")
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                f.write(manifest_yaml)
+            state_archive = os.path.join(tmpdir, "state_archive")
+            args = [
+                "--csv", csv_path,
+                "--equity", "100000",
+                "--strategy-manifest", manifest_path,
+                "--state-archive", state_archive,
+                "--dump-max", "0",
+                "--json-out", os.path.join(tmpdir, "out.json"),
+            ]
+
+            rc = run_sim_main(args)
+
+        self.assertEqual(rc, 0)
+        mock_subproc.assert_called()
+        called_args = mock_subproc.call_args[0][0]
+        self.assertIn("--archive-namespace", called_args)
+        namespace_index = called_args.index("--archive-namespace") + 1
+        self.assertIn(
+            "strategies.mean_reversion.MeanReversionStrategy/USDJPY/conservative",
+            called_args[namespace_index],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

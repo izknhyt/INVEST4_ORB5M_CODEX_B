@@ -31,6 +31,10 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   delegates to the shared flow. Added `tests/test_runner_features.py` for direct pipeline coverage and
   refreshed `tests/test_runner.py` to execute via the pipeline path, with `python3 -m pytest`
   verifying regression parity.
+- 2026-03-23: `scripts/run_sim.py` で manifest の `archive_namespace` を利用する際に `aggregate_ev.py` が
+  誤ったディレクトリを参照して失敗していた問題を修正。`--archive-namespace` フラグを追加して CLI 間で
+  namespace を共有し、`tests/test_run_sim_cli.py` / `tests/test_aggregate_ev_script.py` で回帰確認後に
+  `python3 -m pytest tests/test_aggregate_ev_script.py tests/test_run_sim_cli.py` を実行。
 - ~~**state 更新ワーカー**~~ (完了): `scripts/update_state.py` に部分実行ワークフローを実装し、`BacktestRunner.run_partial` と状態スナップショット/EVアーカイブ連携を整備。`ops/state_archive/<strategy>/<symbol>/<mode>/` へ最新5件を保持し、更新後は `scripts/aggregate_ev.py` を自動起動するようにした。
 - ~~**runs/index 再構築スクリプト整備**~~ (完了): `scripts/rebuild_runs_index.py` が `scripts/run_sim.py` の出力列 (k_tr, gate/EV debug など) と派生指標 (win_rate, pnl_per_trade) を欠損なく復元し、`tests/test_rebuild_runs_index.py` で fixtures 検証を追加。
 - ~~**ベースライン/ローリング run 起動ジョブ**~~ (2024-06-12 完了): `scripts/run_benchmark_pipeline.py` でベースライン/ローリング run → サマリー → スナップショット更新を一括化し、`run_daily_workflow.py --benchmarks` から呼び出せるようにした。`tests/test_run_benchmark_pipeline.py` で順序・引数伝播・失敗処理を回帰テスト化。

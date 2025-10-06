@@ -305,6 +305,12 @@
   - 2025-10-16: 最新バーの供給が途絶しているため、P1-04 で API インジェスト基盤を設計・整備し、鮮度チェックのブロッカーを解消する計画。
 
 ## Log
+- [P0] 2026-03-23: Fixed the run_sim manifest aggregation regression by plumbing a dedicated
+  `--archive-namespace` flag between `scripts/run_sim.py` and `scripts/aggregate_ev.py`, ensuring
+  manifest-defined EV archive paths are aggregated correctly. Added targeted pytest coverage
+  (`tests/test_run_sim_cli.py::TestRunSimCLI::test_run_sim_manifest_triggers_aggregate_with_namespace`,
+  `tests/test_aggregate_ev_script.py::test_aggregate_ev_supports_archive_namespace`) and executed
+  `python3 -m pytest tests/test_aggregate_ev_script.py tests/test_run_sim_cli.py`.
 - [P1-05] 2026-02-21: Resolved the calibration EV leakage where `_resolve_calibration_positions` stopped settling warmup trades after the calibration window, added regression coverage (`tests/test_runner.py::test_calibration_positions_resolve_after_period`), and ran `python3 -m pytest tests/test_runner.py` to confirm the fix.
 - [Ops] 2026-02-15: Captured the `finish-task` dry-run preview in `docs/codex_workflow.md`, cross-linked it from `docs/state_runbook.md`, and noted the update in the P1-07 docs memo.
 - [Ops] 2026-02-15: Moved the Workflow Integration Guide entry to In Progress in `docs/todo_next.md`, refreshed the linked `state.md` date list to include the 2026-02-13 update, and dry-ran `scripts/manage_task_cycle.py start-task` to confirm the `doc-section` promotion remains aligned.
