@@ -197,31 +197,30 @@ class RunnerExecutionManager:
             pending=pending,
             features=features,
         )
-        if not entry_result.outcome.passed or entry_result.context is None:
+        if not entry_result.outcome.passed:
             return
         entry_ctx = entry_result.context
-        features.ctx.update(entry_ctx.to_mapping())
+        entry_result.apply_to(features.ctx)
         ev_result = runner._evaluate_ev_threshold(
-            ctx=entry_ctx,
+            entry=entry_result,
             pending=pending,
             calibrating=calibrating,
             timestamp=runner._last_timestamp,
         )
         if not ev_result.outcome.passed:
             return
-        ev_ctx = ev_result.context or EVContext.from_entry(entry_ctx)
-        features.ctx.update(ev_ctx.to_mapping())
+        ev_ctx = ev_result.context
+        ev_result.apply_to(features.ctx)
         sizing_result = runner._check_slip_and_sizing(
             ctx=ev_ctx,
-            pending=pending,
             ev_result=ev_result,
             calibrating=calibrating,
             timestamp=runner._last_timestamp,
         )
         if not sizing_result.outcome.passed:
             return
-        sizing_ctx = sizing_result.context or SizingContext.from_ev(ev_ctx)
-        features.ctx.update(sizing_ctx.to_mapping())
+        sizing_ctx = sizing_result.context
+        sizing_result.apply_to(features.ctx)
         intents = list(runner.stg.signals())
         if not intents:
             runner.debug_counts["gate_block"] += 1

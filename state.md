@@ -2,6 +2,11 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-03-11: Introduced `EntryEvaluationResult` / `EVEvaluationResult` / `SizingEvaluationResult`
+  dataclasses for entry gating, updated `BacktestRunner` and `RunnerExecutionManager`
+  to pass typed stage outcomes without optional context checks or dictionary copies,
+  and refreshed `tests/test_runner.py` to exercise pipeline success and failure paths
+  via the structured results. Ran `python3 -m pytest tests/test_runner.py`.
 - 2026-03-08: Split `BacktestRunner` responsibilities into `RunnerLifecycleManager`
   and `RunnerExecutionManager`, moved position state helpers into `core/runner_state.py`,
   refreshed runner/CLI regression tests for the delegation, and updated lifecycle

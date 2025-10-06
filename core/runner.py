@@ -25,9 +25,9 @@ from core.runner_entry import (
     EntryGate,
     EVGate,
     SizingGate,
-    EntryEvaluation,
-    EVEvaluation,
-    SizingEvaluation,
+    EntryEvaluationResult,
+    EVEvaluationResult,
+    SizingEvaluationResult,
     TradeContextSnapshot,
     build_trade_context_snapshot,
     EntryContext,
@@ -944,19 +944,19 @@ class BacktestRunner:
         *,
         pending: Any,
         features: FeatureBundle,
-    ) -> EntryEvaluation:
+    ) -> EntryEvaluationResult:
         return EntryGate(self).evaluate(pending=pending, features=features)
 
     def _evaluate_ev_threshold(
         self,
         *,
-        ctx: EntryContext,
+        entry: EntryEvaluationResult,
         pending: Any,
         calibrating: bool,
         timestamp: Optional[str],
-    ) -> EVEvaluation:
+    ) -> EVEvaluationResult:
         return EVGate(self).evaluate(
-            ctx=ctx,
+            entry=entry,
             pending=pending,
             calibrating=calibrating,
             timestamp=timestamp,
@@ -966,14 +966,12 @@ class BacktestRunner:
         self,
         *,
         ctx: EVContext,
-        pending: Any,
-        ev_result: EVEvaluation,
+        ev_result: EVEvaluationResult,
         calibrating: bool,
         timestamp: Optional[str],
-    ) -> SizingEvaluation:
+    ) -> SizingEvaluationResult:
         return SizingGate(self).evaluate(
             ctx=ctx,
-            pending=pending,
             ev_result=ev_result,
             calibrating=calibrating,
             timestamp=timestamp,
