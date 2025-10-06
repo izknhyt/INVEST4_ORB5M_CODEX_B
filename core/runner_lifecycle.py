@@ -126,21 +126,30 @@ class RunnerLifecycleManager:
         runner = self._runner
         try:
             meta = state.get("meta", {})
-            try:
-                fp_state = meta.get("config_fingerprint")
-                fp_now = self.config_fingerprint()
-                if fp_state and fp_state != fp_now:
-                    msg = (
-                        "state config_fingerprint mismatch "
-                        f"(state={fp_state}, current={fp_now})"
-                    )
-                    try:
-                        runner.metrics.debug.setdefault("warnings", []).append(msg)
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+        except Exception:
+            meta = {}
 
+        skip_state = False
+        try:
+            fp_state = meta.get("config_fingerprint")
+            fp_now = self.config_fingerprint()
+            if fp_state and fp_state != fp_now:
+                msg = (
+                    "state config_fingerprint mismatch "
+                    f"(state={fp_state}, current={fp_now})"
+                )
+                try:
+                    runner.metrics.debug.setdefault("warnings", []).append(msg)
+                except Exception:
+                    pass
+                skip_state = True
+        except Exception:
+            pass
+
+        if skip_state:
+            return
+
+        try:
             runner._last_timestamp = meta.get("last_timestamp", runner._last_timestamp)
 
             ev_global = state.get("ev_global", {})

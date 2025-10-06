@@ -353,6 +353,34 @@ class TestRunner(unittest.TestCase):
         self.assertAlmostEqual(restored_runner.ev_buckets[key].beta, expected_bucket_beta)
         self.assertIsInstance(metrics, Metrics)
 
+    def test_load_state_skips_on_config_fingerprint_mismatch(self):
+        rcfg_source = RunnerConfig(warmup_trades=12, threshold_lcb_pip=0.4)
+        runner = BacktestRunner(equity=60_000.0, symbol="USDJPY", runner_cfg=rcfg_source)
+        runner._warmup_left = 7
+        key = runner._ev_key("LDN", "narrow", "mid")
+        manager = runner._get_ev_manager(key)
+        manager.update(True)
+        manager.update(False)
+        state = runner.export_state()
+
+        rcfg_target = RunnerConfig(warmup_trades=5, threshold_lcb_pip=0.25)
+        restored_runner = BacktestRunner(
+            equity=60_000.0,
+            symbol="USDJPY",
+            runner_cfg=rcfg_target,
+        )
+        self.assertEqual(restored_runner._warmup_left, rcfg_target.warmup_trades)
+
+        restored_runner.load_state(state)
+        metrics = restored_runner.run([])
+
+        self.assertEqual(restored_runner._warmup_left, rcfg_target.warmup_trades)
+        self.assertFalse(restored_runner.ev_buckets)
+        warnings = metrics.debug.get("warnings", [])
+        self.assertTrue(
+            any("config_fingerprint mismatch" in str(message) for message in warnings)
+        )
+
     def test_export_and_apply_state_round_trips_position_state(self):
         runner = BacktestRunner(equity=50_000.0, symbol="USDJPY")
         active_state = ActivePositionState(
