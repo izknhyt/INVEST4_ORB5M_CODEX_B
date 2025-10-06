@@ -256,6 +256,9 @@ class RunnerConfig:
     min_or_atr_ratio: float = 0.6
     rv_band_cuts: List[float] = field(default_factory=lambda: [0.005, 0.015])  # tuned for 5m FX RV scale
     spread_bands: Dict[str, float] = field(default_factory=lambda: {"narrow": 0.5, "normal": 1.2, "wide": 99})
+    # Spread input/threshold configuration
+    spread_input_mode: str = "price"
+    spread_scale: Optional[float] = None
     allow_low_rv: bool = False
     allowed_sessions: Tuple[str, ...] = ("LDN", "NY")
     strategy: StrategyConfig = field(default_factory=StrategyConfig)
@@ -360,6 +363,55 @@ class RunnerConfig:
         else:
             value = self.fill_same_bar_policy_bridge
         return _coerce_same_bar_policy(value)
+
+    def spread_to_pips(self, spread_value: Any, pip_size_value: float) -> float:
+        """Convert an input spread reading to pip units.
+
+        Parameters
+        ----------
+        spread_value:
+            Raw spread value from market data. It may already be denominated in
+            pips or expressed in price units.
+        pip_size_value:
+            Instrument pip size used when converting price differences to pips.
+
+        Returns
+        -------
+        float
+            Spread value expressed in pips. Non-numeric inputs fall back to
+            ``0.0`` and invalid configuration values are ignored so the default
+            behaviour (price→pip conversion) still applies.
+        """
+
+        try:
+            spread_numeric = float(spread_value)
+        except (TypeError, ValueError):
+            return 0.0
+
+        mode_raw = getattr(self, "spread_input_mode", "price")
+        mode = str(mode_raw).strip().lower()
+
+        if mode in {"pip", "pips"}:
+            spread_pips = spread_numeric
+        elif mode in {"pipette", "pipettes"}:
+            spread_pips = spread_numeric * 0.1
+        else:
+            if pip_size_value <= 0.0:
+                return spread_numeric
+            spread_pips = spread_numeric / pip_size_value
+
+        scale_raw = getattr(self, "spread_scale", None)
+        try:
+            scale_value: Optional[float] = (
+                float(scale_raw) if scale_raw is not None else None
+            )
+        except (TypeError, ValueError):
+            scale_value = None
+
+        if scale_value is not None and scale_value > 0.0:
+            spread_pips *= scale_value
+
+        return spread_pips
 
 
 class BacktestRunner:
@@ -1070,9 +1122,10 @@ class BacktestRunner:
 
     def _band_spread(self, spread_pips: float) -> str:
         bands = self.rcfg.spread_bands
-        if spread_pips <= bands["narrow"]:
+        eps = 1e-9
+        if spread_pips <= bands["narrow"] + eps:
             return "narrow"
-        if spread_pips <= bands["normal"]:
+        if spread_pips <= bands["normal"] + eps:
             return "normal"
         return "wide"
 
@@ -1162,7 +1215,10 @@ class BacktestRunner:
         realized_vol_value: float,
     ) -> EntryContext:
         ps = pip_size(self.symbol)
-        spread_pips = bar["spread"] / ps  # assume spread is price units; convert to pips
+        spread_raw = bar.get("spread", 0.0)
+        spread_pips = self.rcfg.spread_to_pips(spread_raw, ps)
+        if spread_pips < 0.0:
+            spread_pips = 0.0
 
         pip_value_default = 10.0
         pip_value_ctx = pip_value_default

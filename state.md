@@ -364,6 +364,9 @@
 - 2026-03-18: Persisted slip EWMA quantities when exporting/loading runner state so expected slip projections survive resets,
   added `tests/test_runner.py::test_slip_state_persists_qty_ewma_for_expected_slip` to cover the workflow, and ran
   `python3 -m pytest tests/test_runner.py` for validation.
+- 2026-03-19: Normalised spread handling in `core/runner.BacktestRunner._build_ctx` so pip-denominated feeds no longer undergo
+  duplicate conversion, added configuration hooks (`spread_input_mode`/`spread_scale`) plus regression tests covering pip
+  spreads, expected slip costs, and scaling, and executed `python3 -m pytest tests/test_runner.py tests/test_runner_features.py`.
 - 2026-03-10: Enabled `RunnerExecutionManager.process_fill_result` to return structured `PositionState` objects, updated
   `BacktestRunner._process_fill_result` delegations and regression tests to assert serialization/identity, and ran
   `python3 -m pytest tests/test_runner.py` to confirm behaviour.

@@ -666,6 +666,73 @@ class TestRunner(unittest.TestCase):
 
         self.assertAlmostEqual(ctx.pip_value, 10.0)
 
+    def test_build_ctx_accepts_spread_values_in_pips(self):
+        cfg = RunnerConfig(spread_input_mode="pip")
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY", runner_cfg=cfg)
+        base_ts = datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc)
+        bar = make_bar(base_ts, "USDJPY", 150.0, 150.1, 149.9, 150.05, spread=1.2)
+
+        ctx = runner._build_ctx(
+            bar=bar,
+            session="LDN",
+            atr14=0.5,
+            or_h=150.2,
+            or_l=149.8,
+            realized_vol_value=0.01,
+        )
+
+        self.assertEqual(ctx.spread_band, "normal")
+        self.assertAlmostEqual(ctx.base_cost_pips, 1.2)
+        self.assertAlmostEqual(ctx.cost_pips, 1.2)
+
+    def test_build_ctx_applies_spread_scale_override(self):
+        cfg = RunnerConfig(spread_input_mode="pip", spread_scale=0.1)
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY", runner_cfg=cfg)
+        base_ts = datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc)
+        bar = make_bar(base_ts, "USDJPY", 150.0, 150.2, 149.8, 150.05, spread=12.0)
+
+        ctx = runner._build_ctx(
+            bar=bar,
+            session="LDN",
+            atr14=0.5,
+            or_h=150.2,
+            or_l=149.8,
+            realized_vol_value=0.01,
+        )
+
+        self.assertEqual(ctx.spread_band, "normal")
+        self.assertAlmostEqual(ctx.base_cost_pips, 1.2)
+        self.assertAlmostEqual(ctx.cost_pips, 1.2)
+
+    def test_build_ctx_expected_slip_uses_pip_units(self):
+        cfg = RunnerConfig(
+            include_expected_slip=True,
+            slip_curve={
+                "narrow": {"a": 0.0, "b": 0.0},
+                "normal": {"a": 0.1, "b": 0.2},
+                "wide": {"a": 0.0, "b": 0.0},
+            },
+            spread_input_mode="pip",
+        )
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY", runner_cfg=cfg)
+        runner.qty_ewma["normal"] = 2.0
+        base_ts = datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc)
+        bar = make_bar(base_ts, "USDJPY", 150.0, 150.2, 149.8, 150.05, spread=1.0)
+
+        ctx = runner._build_ctx(
+            bar=bar,
+            session="LDN",
+            atr14=0.5,
+            or_h=150.2,
+            or_l=149.8,
+            realized_vol_value=0.01,
+        )
+
+        self.assertEqual(ctx.spread_band, "normal")
+        self.assertAlmostEqual(ctx.base_cost_pips, 1.0)
+        self.assertAlmostEqual(ctx.expected_slip_pip, 0.4)
+        self.assertAlmostEqual(ctx.cost_pips, 1.4)
+
     def test_run_partial_matches_full_run(self):
         symbol = "USDJPY"
         t0 = datetime(2024, 1, 2, 8, 0, tzinfo=timezone.utc)
