@@ -13,11 +13,12 @@ from core.runner import BacktestRunner, ExitDecision, Metrics, RunnerConfig
 from core.runner_entry import (
     EntryGate,
     EVGate,
-    EntryEvaluationResult,
+    EntryEvaluation,
     SizingGate,
     GateCheckOutcome,
-    EVEvaluationResult,
-    SizingEvaluationResult,
+    EVEvaluation,
+    SizingEvaluation,
+    TradeContextSnapshot,
 )
 from core.runner_state import PositionState
 from core.pips import pip_size, price_to_pips
@@ -697,7 +698,7 @@ class TestRunner(unittest.TestCase):
             "pip_value": 1.0,
         }
         ctx_dbg = {"expected_slip_pip": slip_pips}
-        trade_ctx_snapshot = {"pip_value": 1.0}
+        trade_ctx_snapshot = TradeContextSnapshot(pip_value=1.0)
         fill_result = {"fill": True, "entry_px": filled_entry}
 
         runner._process_fill_result(
@@ -707,7 +708,7 @@ class TestRunner(unittest.TestCase):
             bar=entry_bar,
             ctx=ctx,
             ctx_dbg=ctx_dbg,
-            trade_ctx_snapshot={},
+            trade_ctx_snapshot=TradeContextSnapshot(),
             calibrating=True,
             pip_size_value=pip,
         )
@@ -781,7 +782,7 @@ class TestRunner(unittest.TestCase):
         pending = {"side": "BUY", "tp_pips": 2.0, "sl_pips": 1.0}
         ev_mgr = self.DummyEV(ev_lcb=0.0, p_lcb=0.3)
         sizing_gate = SizingGate(runner)
-        ev_result = EVEvaluationResult(
+        ev_result = EVEvaluation(
             outcome=GateCheckOutcome(passed=True),
             manager=ev_mgr,
             ev_lcb=0.0,
@@ -826,7 +827,7 @@ class TestRunner(unittest.TestCase):
         pending = {"side": "SELL", "tp_pips": 2.0, "sl_pips": 1.0}
         ev_mgr = self.DummyEV(ev_lcb=0.0, p_lcb=0.6)
         sizing_gate = SizingGate(runner)
-        ev_result = EVEvaluationResult(
+        ev_result = EVEvaluation(
             outcome=GateCheckOutcome(passed=True),
             manager=ev_mgr,
             ev_lcb=0.0,
@@ -1125,7 +1126,7 @@ class TestRunner(unittest.TestCase):
         ctx_dbg.setdefault("cost_pips", 0.0)
         sizing_gate = SizingGate(runner)
         with patch("core.runner_entry.compute_qty_from_ctx", return_value=1.0) as mock_compute:
-            forced_ev_result = EVEvaluationResult(
+            forced_ev_result = EVEvaluation(
                 outcome=GateCheckOutcome(passed=True),
                 manager=stub_ev,
                 ev_lcb=ev_result.ev_lcb,
@@ -1196,7 +1197,7 @@ class TestRunner(unittest.TestCase):
             warmup_left=0
         )
         pip_value = pip_size(runner.symbol)
-        fail_result = EntryEvaluationResult(
+        fail_result = EntryEvaluation(
             outcome=GateCheckOutcome(passed=False, reason="router_gate"),
             context=None,
             pending_side=pending["side"],
@@ -1236,12 +1237,12 @@ class TestRunner(unittest.TestCase):
         ctx_dbg.setdefault("slip_cap_pip", runner.rcfg.slip_cap_pip)
         ctx_dbg.setdefault("expected_slip_pip", 0.0)
         ctx_dbg.setdefault("cost_pips", ctx_dbg.get("cost_pips", 0.0))
-        entry_result = EntryEvaluationResult(
+        entry_result = EntryEvaluation(
             outcome=GateCheckOutcome(passed=True),
             context=ctx_dbg,
             pending_side=pending["side"],
         )
-        ev_result = EVEvaluationResult(
+        ev_result = EVEvaluation(
             outcome=GateCheckOutcome(passed=True),
             manager=stub_ev,
             ev_lcb=1.2,
@@ -1249,7 +1250,7 @@ class TestRunner(unittest.TestCase):
             bypass=False,
             context=ctx_dbg,
         )
-        sizing_result = SizingEvaluationResult(GateCheckOutcome(passed=True))
+        sizing_result = SizingEvaluation(GateCheckOutcome(passed=True))
         intent = OrderIntent(
             pending["side"],
             qty=1.0,
@@ -1349,7 +1350,7 @@ class TestRunner(unittest.TestCase):
 
         with patch(
             "core.runner_entry.SizingGate.evaluate",
-            side_effect=lambda **_: SizingEvaluationResult(GateCheckOutcome(True)),
+            side_effect=lambda **_: SizingEvaluation(GateCheckOutcome(True)),
         ):
             with patch.object(runner.stg, "signals", return_value=[intent]):
                 with patch.object(runner, "_process_fill_result") as mock_process:
@@ -1394,7 +1395,7 @@ class TestRunner(unittest.TestCase):
 
         with patch(
             "core.runner_entry.SizingGate.evaluate",
-            side_effect=lambda **_: SizingEvaluationResult(GateCheckOutcome(True)),
+            side_effect=lambda **_: SizingEvaluation(GateCheckOutcome(True)),
         ):
             with patch.object(runner.stg, "signals", return_value=[intent]):
                 with patch.object(
@@ -1445,7 +1446,7 @@ class TestRunner(unittest.TestCase):
 
         with patch(
             "core.runner_entry.SizingGate.evaluate",
-            side_effect=lambda **_: SizingEvaluationResult(GateCheckOutcome(True)),
+            side_effect=lambda **_: SizingEvaluation(GateCheckOutcome(True)),
         ):
             with patch.object(runner.stg, "signals", return_value=[intent]):
                 with patch.object(

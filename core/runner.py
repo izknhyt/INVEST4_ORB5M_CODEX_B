@@ -23,7 +23,16 @@ from core.fill_engine import ConservativeFill, BridgeFill, OrderSpec, SameBarPol
 from core.ev_gate import BetaBinomialEV, TLowerEV
 from core.pips import pip_size, price_to_pips, pip_value as calc_pip_value
 from core.sizing import SizingConfig, compute_qty_from_ctx
-from core.runner_entry import EntryGate, EVGate, SizingGate
+from core.runner_entry import (
+    EntryGate,
+    EVGate,
+    SizingGate,
+    EntryEvaluation,
+    EVEvaluation,
+    SizingEvaluation,
+    TradeContextSnapshot,
+    build_trade_context_snapshot,
+)
 from core.runner_state import PositionState
 from router.router_v0 import pass_gates
 from core.runner_features import FeatureBundle, FeaturePipeline
@@ -1105,6 +1114,58 @@ class BacktestRunner:
             still.append(updated_state)
         self.calib_positions = still
 
+    def _evaluate_entry_conditions(
+        self,
+        *,
+        pending: Any,
+        features: FeatureBundle,
+    ) -> EntryEvaluation:
+        return EntryGate(self).evaluate(pending=pending, features=features)
+
+    def _evaluate_ev_threshold(
+        self,
+        *,
+        ctx_dbg: Dict[str, Any],
+        pending: Any,
+        calibrating: bool,
+        timestamp: Optional[str],
+    ) -> EVEvaluation:
+        return EVGate(self).evaluate(
+            ctx_dbg=ctx_dbg,
+            pending=pending,
+            calibrating=calibrating,
+            timestamp=timestamp,
+        )
+
+    def _check_slip_and_sizing(
+        self,
+        *,
+        ctx_dbg: Mapping[str, Any],
+        pending: Any,
+        ev_result: EVEvaluation,
+        calibrating: bool,
+        timestamp: Optional[str],
+    ) -> SizingEvaluation:
+        return SizingGate(self).evaluate(
+            ctx_dbg=ctx_dbg,
+            pending=pending,
+            ev_result=ev_result,
+            calibrating=calibrating,
+            timestamp=timestamp,
+        )
+
+    def _compose_trade_context_snapshot(
+        self,
+        *,
+        ctx_dbg: Mapping[str, Any],
+        features: FeatureBundle,
+    ) -> TradeContextSnapshot:
+        return build_trade_context_snapshot(
+            ctx_dbg=ctx_dbg,
+            features_ctx=features.ctx,
+            bar_input=features.bar_input,
+        )
+
 
 
     def _maybe_enter_trade(
@@ -1123,16 +1184,14 @@ class BacktestRunner:
             self._append_debug_record("no_breakout", ts=self._last_timestamp)
             return
         self._increment_daily("breakouts")
-        entry_gate = EntryGate(self)
-        entry_result = entry_gate.evaluate(
+        entry_result = self._evaluate_entry_conditions(
             pending=pending,
             features=features,
         )
         if not entry_result.outcome.passed or entry_result.context is None:
             return
         ctx_dbg = entry_result.context
-        ev_gate = EVGate(self)
-        ev_result = ev_gate.evaluate(
+        ev_result = self._evaluate_ev_threshold(
             ctx_dbg=ctx_dbg,
             pending=pending,
             calibrating=calibrating,
@@ -1140,8 +1199,7 @@ class BacktestRunner:
         )
         if not ev_result.outcome.passed:
             return
-        sizing_gate = SizingGate(self)
-        sizing_result = sizing_gate.evaluate(
+        sizing_result = self._check_slip_and_sizing(
             ctx_dbg=ctx_dbg,
             pending=pending,
             ev_result=ev_result,
@@ -1177,27 +1235,10 @@ class BacktestRunner:
         )
         if not result.get("fill"):
             return
-        pip_value_snapshot = features.ctx.get("pip_value")
-        if pip_value_snapshot is None:
-            pip_value_snapshot = ctx_dbg.get("pip_value")
-        trade_ctx_snapshot: Dict[str, Any] = {
-            "session": ctx_dbg.get("session", features.ctx.get("session")),
-            "rv_band": ctx_dbg.get("rv_band", features.ctx.get("rv_band")),
-            "spread_band": ctx_dbg.get("spread_band", features.ctx.get("spread_band")),
-            "or_atr_ratio": ctx_dbg.get("or_atr_ratio", features.ctx.get("or_atr_ratio")),
-            "min_or_atr_ratio": ctx_dbg.get("min_or_atr_ratio", features.ctx.get("min_or_atr_ratio")),
-            "ev_lcb": ctx_dbg.get("ev_lcb"),
-            "threshold_lcb": ctx_dbg.get("threshold_lcb"),
-            "ev_pass": ctx_dbg.get("ev_pass"),
-            "expected_slip_pip": features.ctx.get("expected_slip_pip", 0.0),
-            "cost_base": features.ctx.get(
-                "base_cost_pips", features.ctx.get("cost_pips", 0.0)
-            ),
-        }
-        if pip_value_snapshot is not None:
-            trade_ctx_snapshot["pip_value"] = pip_value_snapshot
-        if "zscore" in features.bar_input:
-            trade_ctx_snapshot["zscore"] = features.bar_input["zscore"]
+        trade_ctx_snapshot = self._compose_trade_context_snapshot(
+            ctx_dbg=ctx_dbg,
+            features=features,
+        )
         self._process_fill_result(
             intent=intent,
             spec=spec,
@@ -1223,7 +1264,7 @@ class BacktestRunner:
         bar: Mapping[str, Any],
         ctx: Mapping[str, Any],
         ctx_dbg: Mapping[str, Any],
-        trade_ctx_snapshot: Dict[str, Any],
+        trade_ctx_snapshot: TradeContextSnapshot,
         calibrating: bool,
         pip_size_value: float,
     ) -> None:
@@ -1253,7 +1294,7 @@ class BacktestRunner:
                 entry_px=entry_px,
                 exit_px=exit_px,
                 exit_reason=exit_reason,
-                ctx_snapshot=trade_ctx_snapshot,
+                ctx_snapshot=trade_ctx_snapshot.as_dict(),
                 ctx=ctx,
                 qty_sample=qty_sample,
                 slip_actual=slip_actual,
@@ -1311,7 +1352,7 @@ class BacktestRunner:
             expected_slip_pip=ctx.get("expected_slip_pip", 0.0),
             entry_slip_pip=entry_slip_pip,
             entry_ts=bar.get("timestamp"),
-            ctx_snapshot=dict(trade_ctx_snapshot),
+            ctx_snapshot=trade_ctx_snapshot.as_dict(),
         )
 
     def _record_trade_metrics(
