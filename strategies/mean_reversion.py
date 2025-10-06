@@ -144,14 +144,18 @@ class MeanReversionStrategy(Strategy):
                 threshold = max(0.0, threshold - confidence * expected)
         return threshold
 
+    def get_pending_signal(self) -> Optional[Dict[str, Any]]:
+        return self._pending_signal
+
     def signals(self, ctx: Optional[Mapping[str, Any]] = None) -> Iterable[OrderIntent]:
-        if not self._pending_signal:
+        pending = self.get_pending_signal()
+        if not pending:
             return []
         ctx_data = self.resolve_runtime_context(ctx)
         if not pass_gates(ctx_data):
             return []
 
-        sig = self._pending_signal
+        sig = pending
         cooldown = int(self.cfg.get("cooldown_bars", ctx_data.get("cooldown_bars", 0)))
         if cooldown > 0 and (self.state["bar_idx"] - self.state["last_signal_bar"] < cooldown):
             return []

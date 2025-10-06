@@ -38,7 +38,7 @@ def test_sell_breakout_waits_for_retest():
     strategy.on_bar(_bar(150.997, 150.990, 150.992, [or_seed_2, sell_break]))
     assert strategy.state["waiting_retest"]
     assert strategy.state["retest_direction"] == "sell"
-    assert strategy._pending_signal is None
+    assert strategy.get_pending_signal() is None
 
     # Price keeps falling without retesting OR low. Previously the OR condition would
     # short-circuit and mark a retest; ensure it no longer does so.
@@ -46,17 +46,18 @@ def test_sell_breakout_waits_for_retest():
     strategy.on_bar(_bar(150.994, 150.985, 150.988, [sell_break, no_retest]))
     assert strategy.state["waiting_retest"] is True
     assert strategy.state["retest_seen"] is False
-    assert strategy._pending_signal is None
+    assert strategy.get_pending_signal() is None
 
     # Proper retest that tags the OR low from below
     retest = {"h": 150.996, "l": 150.988}
     strategy.on_bar(_bar(150.996, 150.988, 150.989, [no_retest, retest]))
     assert not strategy.state["waiting_retest"]
     assert strategy.state["retest_seen"] is True
-    assert strategy._pending_signal is None
+    assert strategy.get_pending_signal() is None
 
     # Re-break to confirm entry
     confirm = {"h": 150.990, "l": 150.990 - 0.01}
     strategy.on_bar(_bar(confirm["h"], confirm["l"], 150.990 - 0.005, [retest, confirm]))
-    assert strategy._pending_signal is not None
-    assert strategy._pending_signal["side"] == "SELL"
+    pending = strategy.get_pending_signal()
+    assert pending is not None
+    assert pending["side"] == "SELL"

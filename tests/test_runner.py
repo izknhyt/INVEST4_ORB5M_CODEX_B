@@ -815,6 +815,9 @@ class TestRunner(unittest.TestCase):
                     oco={"tp_pips": 1.0, "sl_pips": 1.0},
                 )
 
+            def get_pending_signal(self) -> Optional[OrderIntent]:
+                return self._pending_signal
+
             def signals(self, ctx: Optional[Mapping[str, object]] = None):
                 if ctx is not None:
                     self.update_context(ctx)
