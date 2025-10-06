@@ -3,7 +3,7 @@ import math
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Mapping, Optional, TYPE_CHECKING, Union, cast
 
-from core.fill_engine import BridgeFill, OrderSpec
+from core.fill_engine import BridgeFill, OrderSpec, resolve_same_bar_collision
 from core.pips import price_to_pips
 from core.runner_entry import EntryContext, EVContext, SizingContext, TradeContextSnapshot
 from core.runner_state import (
@@ -71,27 +71,53 @@ class RunnerExecutionManager:
 
         exit_px: Optional[float] = None
         exit_reason: Optional[str] = None
+        original_sl = pos.sl_px
+        stop_reason = "sl"
+        if pos.trail_pips > 0.0:
+            if side == "BUY" and state.sl_px > original_sl + 1e-9:
+                stop_reason = "trail"
+            elif side == "SELL" and state.sl_px < original_sl - 1e-9:
+                stop_reason = "trail"
         sl_hit = bar["l"] <= sl_px if side == "BUY" else bar["h"] >= sl_px
         tp_hit = bar["h"] >= tp_px if side == "BUY" else bar["l"] <= tp_px
 
         if sl_hit and tp_hit:
+            policy = self._runner.rcfg.resolve_same_bar_policy(mode)
             if mode == "conservative":
-                exit_px, exit_reason = sl_px, "sl"
-                p_tp: Optional[float] = None
-            else:
-                exit_px, p_tp = BridgeFill.compute_same_bar_exit_from_config(
-                    runner_config=self._runner.rcfg,
-                    side=side,
-                    entry_px=entry_px,
-                    tp_px=tp_px,
-                    stop_px=sl_px,
-                    bar=bar,
-                    pip_size=pip_size_value,
+                lam = getattr(self._runner.fill_engine_c, "lam", BridgeFill.DEFAULT_LAM)
+                drift_scale = getattr(
+                    self._runner.fill_engine_c,
+                    "drift_scale",
+                    BridgeFill.DEFAULT_DRIFT_SCALE,
                 )
-                exit_reason = "tp" if p_tp >= 0.5 else "sl"
+                include_prob = False
+            else:
+                lam = BridgeFill._config_value(
+                    self._runner.rcfg, "fill_bridge_lambda", BridgeFill.DEFAULT_LAM
+                )
+                drift_scale = BridgeFill._config_value(
+                    self._runner.rcfg,
+                    "fill_bridge_drift_scale",
+                    BridgeFill.DEFAULT_DRIFT_SCALE,
+                )
+                include_prob = True
+
+            exit_px, exit_reason, p_tp = resolve_same_bar_collision(
+                policy=policy,
+                side=side,
+                entry_px=entry_px,
+                tp_px=tp_px,
+                stop_px=sl_px,
+                stop_reason=stop_reason,
+                bar=bar,
+                pip_size=pip_size_value,
+                lam=float(lam),
+                drift_scale=float(drift_scale),
+                include_prob=include_prob,
+            )
             exited = True
         elif sl_hit:
-            exit_px, exit_reason, exited, p_tp = sl_px, "sl", True, None
+            exit_px, exit_reason, exited, p_tp = sl_px, stop_reason, True, None
         elif tp_hit:
             exit_px, exit_reason, exited, p_tp = tp_px, "tp", True, None
         else:

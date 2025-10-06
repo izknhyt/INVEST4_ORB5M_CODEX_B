@@ -394,6 +394,10 @@
   refactored `RunnerExecutionManager.compute_exit_decision` to use the shared helper, added bridge collision
   regression in `tests/test_runner.py` confirming `fill_bridge_lambda` / `fill_bridge_drift_scale` influence
   `exit_px` and `p_tp`, and executed `python3 -m pytest tests/test_runner.py`.
+- 2026-03-26: Updated `RunnerExecutionManager.compute_exit_decision` to honour conservative same-bar policies,
+  extracted a shared helper with `ConservativeFill` so TP-first/SL-first/probabilistic paths align, added
+  regressions for conservative `tp_first`/`probabilistic` policies in `tests/test_runner.py`, and ran
+  `python3 -m pytest tests/test_runner.py`.
 - 2026-03-10: Enabled `RunnerExecutionManager.process_fill_result` to return structured `PositionState` objects, updated
   `BacktestRunner._process_fill_result` delegations and regression tests to assert serialization/identity, and ran
   `python3 -m pytest tests/test_runner.py` to confirm behaviour.
