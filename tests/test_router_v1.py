@@ -5,6 +5,7 @@ from configs.strategies.loader import load_manifest
 from router.router_v1 import (
     PortfolioState,
     CandidateEvaluation,
+    SelectionContext,
     _check_execution_health,
     evaluate_candidate,
     select_candidates,
@@ -513,3 +514,47 @@ def test_evaluate_candidate_marks_ineligible_for_disallowed_session():
     assert evaluation.base_score == approx(0.0)
     assert evaluation.score_delta == approx(0.0)
     assert any("session" in reason for reason in evaluation.reasons)
+
+
+def test_selection_context_deduplicates_execution_health_reasons():
+    manifest = load_day_manifest()
+    manifest.router.max_reject_rate = 0.10
+
+    portfolio = PortfolioState(
+        execution_health={manifest.id: {"reject_rate": 0.20}}
+    )
+
+    context = SelectionContext(manifest, market_ctx={}, portfolio=portfolio, signal_ctx={})
+    context.apply_execution_health()
+
+    duplicate_reasons = [
+        reason for reason in context.reasons if reason.startswith("execution reject_rate")
+    ]
+    assert len(duplicate_reasons) == 1
+    assert context.eligible is False
+    assert context.score_delta == approx(0.0)
+
+
+def test_selection_context_headroom_adjustment_accumulates_deltas():
+    manifest = load_day_manifest()
+    manifest.router.category_cap_pct = 80.0
+    manifest.router.category_budget_pct = None
+
+    portfolio = PortfolioState(
+        category_utilisation_pct={manifest.category: 60.0},
+        category_caps_pct={manifest.category: 80.0},
+        category_budget_pct={manifest.category: 50.0},
+    )
+
+    context = SelectionContext(manifest, market_ctx={}, portfolio=portfolio, signal_ctx={})
+    context.apply_headroom_adjustments()
+
+    assert context.score_delta == approx(-0.60, abs=1e-6)
+    category_reasons = [
+        reason for reason in context.reasons if reason.startswith("category headroom")
+    ]
+    budget_reasons = [
+        reason for reason in context.reasons if reason.startswith("category budget headroom")
+    ]
+    assert len(category_reasons) == 1
+    assert len(budget_reasons) == 1
