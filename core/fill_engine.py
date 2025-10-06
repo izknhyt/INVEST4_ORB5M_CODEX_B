@@ -27,6 +27,50 @@ class OrderSpec:
     same_bar_policy: Optional[SameBarPolicy] = None
 
 
+def resolve_same_bar_collision(
+    *,
+    policy: SameBarPolicy,
+    side: str,
+    entry_px: float,
+    tp_px: float,
+    stop_px: float,
+    stop_reason: str,
+    bar: Mapping[str, float],
+    pip_size: float,
+    lam: float,
+    drift_scale: float,
+    include_prob: bool,
+) -> Tuple[float, str, Optional[float]]:
+    """Resolve TP/SL collisions within a single bar.
+
+    This helper mirrors the behaviour implemented by ``_BaseFill`` so the
+    runner can reuse the same resolution flow when finalising trades outside
+    of the fill engine (e.g. conservative exits processed via
+    ``RunnerExecutionManager``).
+    """
+
+    if policy == SameBarPolicy.TP_FIRST:
+        p_tp = 1.0 if include_prob else None
+        return tp_px, "tp", p_tp
+    if policy == SameBarPolicy.SL_FIRST:
+        p_tp = 0.0 if include_prob else None
+        return stop_px, stop_reason, p_tp
+
+    p_tp = BridgeFill.compute_same_bar_probability(
+        side=side,
+        entry_px=entry_px,
+        tp_px=tp_px,
+        stop_px=stop_px,
+        bar=bar,
+        pip_size=pip_size,
+        lam=lam,
+        drift_scale=drift_scale,
+    )
+    exit_px = p_tp * float(tp_px) + (1 - p_tp) * float(stop_px)
+    exit_reason = "tp" if p_tp >= 0.5 else stop_reason
+    return exit_px, exit_reason, p_tp
+
+
 class _BaseFill:
     """Common helpers shared by Conservative / Bridge fill models."""
 
@@ -102,16 +146,19 @@ class _BaseFill:
         include_prob: bool,
     ) -> Tuple[float, str, Optional[float]]:
         policy = self._policy(spec)
-        if policy == SameBarPolicy.TP_FIRST:
-            p_tp = 1.0 if include_prob else None
-            return tp_px, "tp", p_tp
-        if policy == SameBarPolicy.SL_FIRST:
-            p_tp = 0.0 if include_prob else None
-            return stop_info[0], stop_info[1], p_tp
-        p_tp = self._bridge_probability(spec.side, spec.entry, tp_px, stop_info[0], bar, pip)
-        exit_px = p_tp * tp_px + (1 - p_tp) * stop_info[0]
-        exit_reason = "tp" if p_tp >= 0.5 else stop_info[1]
-        return exit_px, exit_reason, p_tp
+        return resolve_same_bar_collision(
+            policy=policy,
+            side=spec.side,
+            entry_px=spec.entry,
+            tp_px=tp_px,
+            stop_px=stop_info[0],
+            stop_reason=stop_info[1],
+            bar=bar,
+            pip_size=pip,
+            lam=self.lam,
+            drift_scale=self.drift_scale,
+            include_prob=include_prob,
+        )
 
     def _simulate_bar(
         self,

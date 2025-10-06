@@ -2266,7 +2266,7 @@ class TestRunner(unittest.TestCase):
                     self.assertTrue(result)
                     runner.execution.finalize_trade.assert_called_once()
                     call = runner.execution.finalize_trade.call_args.kwargs
-                    self.assertEqual(call["exit_reason"], "sl")
+                    self.assertEqual(call["exit_reason"], "trail")
                     self.assertAlmostEqual(call["exit_px"], expected_exit)
                     self.assertIsNone(runner.pos)
         finally:
@@ -2470,6 +2470,97 @@ class TestRunner(unittest.TestCase):
         alt_p, alt_exit = run_case(0.7, 0.8)
         self.assertNotAlmostEqual(base_p, alt_p)
         self.assertNotAlmostEqual(base_exit, alt_exit)
+
+    def test_compute_exit_decision_conservative_same_bar_tp_first(self):
+        rcfg = RunnerConfig(fill_same_bar_policy_conservative="tp_first")
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY", runner_cfg=rcfg)
+        pip_value = pip_size(runner.symbol)
+        entry = 150.0
+        tp = entry + 0.20
+        sl = entry - 0.20
+        bar = {
+            "o": entry,
+            "h": entry + 0.30,
+            "l": entry - 0.30,
+            "c": entry + 0.10,
+        }
+
+        decision = runner.execution.compute_exit_decision(
+            pos=ActivePositionState(
+                side="BUY",
+                entry_px=entry,
+                tp_px=tp,
+                sl_px=sl,
+                trail_pips=0.0,
+                qty=1.0,
+                entry_ts="2024-01-01T08:00:00+00:00",
+                ctx_snapshot=TradeContextSnapshot(),
+                ev_key=None,
+                tp_pips=(tp - entry) / pip_value,
+                sl_pips=(entry - sl) / pip_value,
+            ),
+            bar=bar,
+            mode="conservative",
+            pip_size_value=pip_value,
+            new_session=False,
+        )
+
+        self.assertTrue(decision.exited)
+        self.assertAlmostEqual(decision.exit_px or 0.0, tp)
+        self.assertEqual(decision.exit_reason, "tp")
+        self.assertIsNone(decision.p_tp)
+
+    def test_compute_exit_decision_conservative_same_bar_probabilistic(self):
+        rcfg = RunnerConfig(fill_same_bar_policy_conservative="probabilistic")
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY", runner_cfg=rcfg)
+        pip_value = pip_size(runner.symbol)
+        entry = 150.0
+        tp = entry + 0.20
+        sl = entry - 0.20
+        bar = {
+            "o": entry,
+            "h": entry + 0.30,
+            "l": entry - 0.30,
+            "c": entry + 0.10,
+        }
+
+        decision = runner.execution.compute_exit_decision(
+            pos=ActivePositionState(
+                side="BUY",
+                entry_px=entry,
+                tp_px=tp,
+                sl_px=sl,
+                trail_pips=0.0,
+                qty=1.0,
+                entry_ts="2024-01-01T08:00:00+00:00",
+                ctx_snapshot=TradeContextSnapshot(),
+                ev_key=None,
+                tp_pips=(tp - entry) / pip_value,
+                sl_pips=(entry - sl) / pip_value,
+            ),
+            bar=bar,
+            mode="conservative",
+            pip_size_value=pip_value,
+            new_session=False,
+        )
+
+        self.assertTrue(decision.exited)
+        self.assertIsNotNone(decision.p_tp)
+        expected_p = BridgeFill.compute_same_bar_probability(
+            side="BUY",
+            entry_px=entry,
+            tp_px=tp,
+            stop_px=sl,
+            bar=bar,
+            pip_size=pip_value,
+            lam=runner.fill_engine_c.lam,
+            drift_scale=runner.fill_engine_c.drift_scale,
+        )
+        expected_exit = expected_p * tp + (1 - expected_p) * sl
+        self.assertAlmostEqual(decision.p_tp or 0.0, expected_p)
+        self.assertAlmostEqual(decision.exit_px or 0.0, expected_exit)
+        expected_reason = "tp" if expected_p >= 0.5 else "sl"
+        self.assertEqual(decision.exit_reason, expected_reason)
 
     def test_same_bar_ev_manager_uses_probability_weighting(self):
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
