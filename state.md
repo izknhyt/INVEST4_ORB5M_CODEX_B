@@ -8,6 +8,10 @@
 - 2026-03-24: Seeded `scripts/run_sim.py` CLI namespaces with manifest `runner.cli_args` defaults while
   preserving user overrides, added regression coverage in `tests/test_run_sim_cli.py`, refreshed
   `configs/strategies/README.md`, and executed `python3 -m pytest tests/test_run_sim_cli.py`.
+- 2026-03-25: Streamed `scripts/run_sim.py` CSV ingestion by making `load_bars_csv` yield filtered bars,
+  updated the CLI to forward the iterator to `BacktestRunner.run` while retaining the first bar for symbol
+  resolution, adjusted `scripts/run_compare.py` / `scripts/run_grid.py` to materialise lists as needed,
+  extended `tests/test_run_sim_cli.py` with streaming coverage, and ran `python3 -m pytest tests/test_run_sim_cli.py`.
 - 2025-10-06: Added `Strategy.get_pending_signal()` so runner execution no longer reaches into
   `_pending_signal`, implemented the accessor across DayORB/mean reversion/scalping templates,
   refreshed docs/test fixtures, and executed `python3 -m pytest` to validate the integration.
