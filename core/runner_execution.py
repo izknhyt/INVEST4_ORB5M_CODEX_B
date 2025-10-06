@@ -79,19 +79,14 @@ class RunnerExecutionManager:
                 exit_px, exit_reason = sl_px, "sl"
                 p_tp: Optional[float] = None
             else:
-                lam = float(getattr(self._runner.rcfg, "fill_bridge_lambda", 0.35))
-                drift_scale = float(
-                    getattr(self._runner.rcfg, "fill_bridge_drift_scale", 2.5)
-                )
-                exit_px, p_tp = BridgeFill.compute_same_bar_exit_price(
+                exit_px, p_tp = BridgeFill.compute_same_bar_exit_from_config(
+                    runner_config=self._runner.rcfg,
                     side=side,
                     entry_px=entry_px,
                     tp_px=tp_px,
                     stop_px=sl_px,
                     bar=bar,
                     pip_size=pip_size_value,
-                    lam=lam,
-                    drift_scale=drift_scale,
                 )
                 exit_reason = "tp" if p_tp >= 0.5 else "sl"
             exited = True
