@@ -2,6 +2,11 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-03-03: Refactored feature computation by introducing `core/runner_features.FeaturePipeline`
+  and `RunnerContext`, ensuring bar ingestion, realised volatility windows, and strategy ctx updates
+  are centralised. Updated `BacktestRunner._compute_features` to delegate to the pipeline, added
+  direct unit tests in `tests/test_runner_features.py`, refreshed runner regressions, and executed
+  `python3 -m pytest tests/test_runner.py tests/test_runner_features.py` for confirmation.
 - 2026-03-02: Introduced `PositionState` for runner position tracking, refactored
   `BacktestRunner` to store active/calibration positions via the dataclass with
   export/load support, refreshed `tests/test_runner.py` to cover the new state
