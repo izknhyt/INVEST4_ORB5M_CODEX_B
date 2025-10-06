@@ -19,23 +19,13 @@ from dataclasses import asdict, dataclass, field
 
 from strategies.day_orb_5m import DayORB5m
 from core.strategy_api import Strategy
-from core.feature_store import (
-    atr as calc_atr,
-    adx as calc_adx,
-    opening_range,
-    realized_vol,
-    micro_zscore as calc_micro_zscore,
-    micro_trend as calc_micro_trend,
-    mid_price as calc_mid_price,
-    trend_score as calc_trend_score,
-    pullback as calc_pullback,
-)
 from core.fill_engine import ConservativeFill, BridgeFill, OrderSpec, SameBarPolicy
 from core.ev_gate import BetaBinomialEV, TLowerEV
 from core.pips import pip_size, price_to_pips, pip_value as calc_pip_value
 from core.sizing import SizingConfig, compute_qty_from_ctx
 from core.runner_state import PositionState
 from router.router_v0 import pass_gates
+from core.runner_features import FeatureBundle, FeaturePipeline
 
 
 def validate_bar(bar: Dict[str, Any]) -> bool:
@@ -199,22 +189,6 @@ class ExitDecision:
     exit_px: Optional[float]
     exit_reason: Optional[str]
     updated_pos: Optional[PositionState]
-
-
-@dataclass
-class FeatureBundle:
-    bar_input: Dict[str, Any]
-    ctx: Dict[str, Any]
-    atr14: float
-    adx14: float
-    or_high: Optional[float]
-    or_low: Optional[float]
-    realized_vol: float
-    micro_zscore: float = 0.0
-    micro_trend: float = 0.0
-    mid_price: float = 0.0
-    trend_score: float = 0.0
-    pullback: float = 0.0
 
 
 @dataclass
@@ -973,104 +947,21 @@ class BacktestRunner:
         new_session: bool,
         calibrating: bool,
     ) -> FeatureBundle:
-        self.window.append({k: bar[k] for k in ("o", "h", "l", "c")})
-        if len(self.window) > 200:
-            self.window.pop(0)
-        if new_session:
-            self.session_bars = []
-        self.session_bars.append({k: bar[k] for k in ("o", "h", "l", "c")})
-        rv_hist_value = 0.0
-        try:
-            rv_lookback = 12
-            rv_window = (
-                self.window[-(rv_lookback + 1) :]
-                if len(self.window) >= rv_lookback + 1
-                else None
-            )
-            rv_computed = realized_vol(rv_window, n=rv_lookback)
-        except Exception:
-            rv_computed = None
-        if rv_computed is not None:
-            try:
-                rv_hist_value = float(rv_computed)
-            except (TypeError, ValueError):
-                rv_hist_value = 0.0
-        try:
-            self.rv_hist[session].append(rv_hist_value)
-        except Exception:
-            pass
-        atr14 = calc_atr(self.window[-15:]) if len(self.window) >= 15 else float("nan")
-        adx14 = calc_adx(self.window[-15:]) if len(self.window) >= 15 else float("nan")
-        or_h, or_l = opening_range(self.session_bars, n=self.rcfg.or_n)
-        micro_z = calc_micro_zscore(self.window)
-        micro_tr = calc_micro_trend(self.window)
-        mid_px = calc_mid_price(bar)
-        trend_val = calc_trend_score(self.window)
-        pullback_val = calc_pullback(self.session_bars)
-
-        def _sanitize(value: Any) -> float:
-            try:
-                numeric = float(value)
-            except (TypeError, ValueError):
-                return 0.0
-            if not math.isfinite(numeric):
-                return 0.0
-            return numeric
-
-        bar_input: Dict[str, Any] = {
-            "o": bar["o"],
-            "h": bar["h"],
-            "l": bar["l"],
-            "c": bar["c"],
-            "atr14": atr14 if atr14 == atr14 else 0.0,
-            "window": self.session_bars[: self.rcfg.or_n],
-            "new_session": new_session,
-        }
-        bar_input.update(
-            micro_zscore=_sanitize(micro_z),
-            micro_trend=_sanitize(micro_tr),
-            mid_price=_sanitize(mid_px),
-            trend_score=_sanitize(trend_val),
-            pullback=_sanitize(pullback_val),
+        pipeline = FeaturePipeline(
+            rcfg=self.rcfg,
+            window=self.window,
+            session_bars=self.session_bars,
+            rv_hist=self.rv_hist,
+            strategy_cfg=self.stg.cfg,
+            ctx_builder=self._build_ctx,
         )
-        if "zscore" in bar:
-            zscore_val = bar["zscore"]
-            try:
-                zscore_val = float(zscore_val)
-            except (TypeError, ValueError):
-                pass
-            bar_input["zscore"] = zscore_val
-        rv_for_ctx = rv_hist_value
-        if math.isnan(rv_for_ctx):
-            rv_for_ctx = 0.0
-        ctx = self._build_ctx(
-            bar=bar,
+        features, _ = pipeline.compute(
+            bar,
             session=session,
-            atr14=bar_input["atr14"],
-            or_h=or_h if or_h == or_h else None,
-            or_l=or_l if or_l == or_l else None,
-            realized_vol_value=rv_for_ctx,
+            new_session=new_session,
+            calibrating=calibrating,
         )
-        if calibrating:
-            ctx["threshold_lcb_pip"] = (
-                float("-inf") if ctx.get("ev_mode") == "off" else -1e9
-            )
-            ctx["calibrating"] = True
-        self.stg.cfg["ctx"] = dict(ctx)
-        return FeatureBundle(
-            bar_input=bar_input,
-            ctx=ctx,
-            atr14=atr14,
-            adx14=adx14,
-            or_high=or_h if or_h == or_h else None,
-            or_low=or_l if or_l == or_l else None,
-            realized_vol=rv_for_ctx,
-            micro_zscore=bar_input["micro_zscore"],
-            micro_trend=bar_input["micro_trend"],
-            mid_price=bar_input["mid_price"],
-            trend_score=bar_input["trend_score"],
-            pullback=bar_input["pullback"],
-        )
+        return features
 
     def _compute_exit_decision(
         self,
