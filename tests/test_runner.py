@@ -217,10 +217,41 @@ class TestRunner(unittest.TestCase):
         self.assertAlmostEqual(features_before.realized_vol, expected_before)
         self.assertAlmostEqual(features_after.realized_vol, expected_after)
         self.assertGreater(expected_after, expected_before)
-
         self.assertEqual(features_before.ctx["rv_band"], "mid")
         self.assertEqual(features_after.ctx["rv_band"], "high")
         self.assertNotEqual(features_before.ctx["rv_band"], features_after.ctx["rv_band"])
+
+    def test_run_restores_loaded_state_snapshot(self):
+        rcfg_source = RunnerConfig(warmup_trades=10)
+        runner = BacktestRunner(equity=75_000.0, symbol="USDJPY", runner_cfg=rcfg_source)
+        runner._warmup_left = 4
+        key = runner._ev_key("LDN", "narrow", "low")
+        manager = runner._get_ev_manager(key)
+        manager.update(True)
+        manager.update(False)
+        expected_warmup = runner._warmup_left
+        expected_global_alpha = runner.ev_global.alpha
+        expected_global_beta = runner.ev_global.beta
+        expected_bucket_alpha = runner.ev_buckets[key].alpha
+        expected_bucket_beta = runner.ev_buckets[key].beta
+        state = runner.export_state()
+
+        rcfg_target = RunnerConfig(warmup_trades=10)
+        restored_runner = BacktestRunner(
+            equity=75_000.0,
+            symbol="USDJPY",
+            runner_cfg=rcfg_target,
+        )
+        restored_runner.load_state(state)
+        metrics = restored_runner.run([])
+
+        self.assertEqual(restored_runner._warmup_left, expected_warmup)
+        self.assertAlmostEqual(restored_runner.ev_global.alpha, expected_global_alpha)
+        self.assertAlmostEqual(restored_runner.ev_global.beta, expected_global_beta)
+        self.assertIn(key, restored_runner.ev_buckets)
+        self.assertAlmostEqual(restored_runner.ev_buckets[key].alpha, expected_bucket_alpha)
+        self.assertAlmostEqual(restored_runner.ev_buckets[key].beta, expected_bucket_beta)
+        self.assertIsInstance(metrics, Metrics)
 
     def test_build_ctx_casts_risk_per_trade_pct_from_string(self):
         cfg = RunnerConfig(risk_per_trade_pct="1.2")

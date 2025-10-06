@@ -10,6 +10,7 @@ NOTE: Placeholder thresholds and simplified assumptions to keep dependencies min
 from __future__ import annotations
 from typing import Any, Callable, ClassVar, Dict, List, Mapping, Optional, Tuple, Set, Union
 from collections import deque
+import copy
 import json
 import hashlib
 import math
@@ -459,6 +460,8 @@ class BacktestRunner:
         self._strategy_gate_hook = self._resolve_strategy_hook("strategy_gate")
         self._ev_threshold_hook = self._resolve_strategy_hook("ev_threshold")
         self._apply_ev_profile()
+        self._loaded_state_snapshot: Optional[Dict[str, Any]] = None
+        self._restore_loaded_state: bool = False
 
     def _init_ev_state(self) -> None:
         self.ev_global = BetaBinomialEV(
@@ -1631,7 +1634,7 @@ class BacktestRunner:
         }
         return state
 
-    def load_state(self, state: Dict[str, Any]) -> None:
+    def _apply_state_dict(self, state: Mapping[str, Any]) -> None:
         try:
             meta = state.get("meta", {})
             # Optionally check fingerprint compatibility
@@ -1701,6 +1704,28 @@ class BacktestRunner:
         except Exception:
             # Fallback: ignore loading errors to avoid crashing
             pass
+
+    def load_state(self, state: Dict[str, Any]) -> None:
+        self._apply_state_dict(state)
+        snapshot: Optional[Dict[str, Any]] = None
+        try:
+            snapshot = copy.deepcopy(state)
+        except Exception:
+            try:
+                snapshot = json.loads(json.dumps(state))
+            except Exception:
+                snapshot = None
+        self._loaded_state_snapshot = snapshot if snapshot is not None else None
+        self._restore_loaded_state = self._loaded_state_snapshot is not None
+
+    def _restore_loaded_state_snapshot(self) -> None:
+        if not self._restore_loaded_state:
+            return
+        if not self._loaded_state_snapshot:
+            self._restore_loaded_state = False
+            return
+        self._apply_state_dict(self._loaded_state_snapshot)
+        self._restore_loaded_state = False
 
     def load_state_file(self, path: str) -> None:
         try:
@@ -1958,4 +1983,5 @@ class BacktestRunner:
         self._reset_slip_learning()
         self._ev_profile_lookup = {}
         self._apply_ev_profile()
+        self._restore_loaded_state_snapshot()
         return self.run_partial(bars, mode=mode)
