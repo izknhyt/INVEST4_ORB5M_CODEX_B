@@ -367,6 +367,10 @@
 - 2026-03-19: Normalised spread handling in `core/runner.BacktestRunner._build_ctx` so pip-denominated feeds no longer undergo
   duplicate conversion, added configuration hooks (`spread_input_mode`/`spread_scale`) plus regression tests covering pip
   spreads, expected slip costs, and scaling, and executed `python3 -m pytest tests/test_runner.py tests/test_runner_features.py`.
+- 2026-03-20: Routed same-bar TP probability blending through a shared BridgeFill helper so RunnerExecution respects
+  `RunnerConfig.fill_bridge_lambda` / `fill_bridge_drift_scale`, exposed the probability in trade debug output, added a
+  regression that verifies exit price / probability react to config changes, and ran
+  `python3 -m pytest tests/test_runner.py`.
 - 2026-03-10: Enabled `RunnerExecutionManager.process_fill_result` to return structured `PositionState` objects, updated
   `BacktestRunner._process_fill_result` delegations and regression tests to assert serialization/identity, and ran
   `python3 -m pytest tests/test_runner.py` to confirm behaviour.

@@ -9,7 +9,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
-from core.fill_engine import OrderSpec, SameBarPolicy
+from core.fill_engine import BridgeFill, OrderSpec, SameBarPolicy
 from core.feature_store import realized_vol as calc_realized_vol
 from core.runner import (
     ActivePositionState,
@@ -2329,6 +2329,78 @@ class TestRunner(unittest.TestCase):
                     else:
                         self.assertTrue(tp < call["exit_px"] < sl)
                     self.assertIsNone(runner.pos)
+        finally:
+            runner.execution.finalize_trade = original_finalize
+
+    def test_bridge_same_bar_probability_respects_config(self):
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
+        pip_value = pip_size(runner.symbol)
+        original_finalize = runner.execution.finalize_trade
+
+        entry = 150.0
+        tp = entry + 0.20
+        sl = entry - 0.20
+        bar = {
+            "o": entry,
+            "h": entry + 0.30,
+            "l": entry - 0.30,
+            "c": entry + 0.10,
+            "timestamp": "2024-01-01T08:40:00+00:00",
+        }
+
+        def run_case(lam: float, drift_scale: float) -> Tuple[float, float]:
+            runner.rcfg.fill_bridge_lambda = lam
+            runner.rcfg.fill_bridge_drift_scale = drift_scale
+            mock_finalize = MagicMock()
+            runner.execution.finalize_trade = mock_finalize
+            runner.pos = ActivePositionState(
+                side="BUY",
+                entry_px=entry,
+                tp_px=tp,
+                sl_px=sl,
+                trail_pips=0.0,
+                qty=1.0,
+                entry_ts="2024-01-01T08:00:00+00:00",
+                ctx_snapshot=TradeContextSnapshot(),
+                ev_key=None,
+                tp_pips=(tp - entry) / pip_value,
+                sl_pips=(entry - sl) / pip_value,
+            )
+            try:
+                runner._handle_active_position(
+                    bar=bar,
+                    ctx={},
+                    mode="bridge",
+                    pip_size_value=pip_value,
+                    new_session=False,
+                )
+                mock_finalize.assert_called_once()
+                call = mock_finalize.call_args.kwargs
+                debug_extra = call.get("debug_extra")
+                self.assertIsNotNone(debug_extra)
+                same_bar_p = debug_extra["same_bar_p_tp"]
+                expected_p = BridgeFill.compute_same_bar_probability(
+                    side="BUY",
+                    entry_px=entry,
+                    tp_px=tp,
+                    stop_px=sl,
+                    bar=bar,
+                    pip_size=pip_value,
+                    lam=lam,
+                    drift_scale=drift_scale,
+                )
+                expected_exit = expected_p * tp + (1 - expected_p) * sl
+                self.assertAlmostEqual(same_bar_p, expected_p)
+                self.assertAlmostEqual(call["exit_px"], expected_exit)
+                return same_bar_p, call["exit_px"]
+            finally:
+                runner.execution.finalize_trade = original_finalize
+
+        try:
+            base_p, base_exit = run_case(0.35, 2.5)
+            alt_p, alt_exit = run_case(0.7, 0.8)
+            self.assertNotAlmostEqual(base_p, alt_p)
+            self.assertNotAlmostEqual(base_exit, alt_exit)
         finally:
             runner.execution.finalize_trade = original_finalize
 

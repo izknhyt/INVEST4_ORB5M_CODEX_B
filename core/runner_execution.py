@@ -1,9 +1,8 @@
 from __future__ import annotations
-import math
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Mapping, Optional, TYPE_CHECKING, Union, cast
 
-from core.fill_engine import OrderSpec
+from core.fill_engine import BridgeFill, OrderSpec
 from core.pips import price_to_pips
 from core.runner_entry import EntryContext, EVContext, SizingContext, TradeContextSnapshot
 from core.runner_state import (
@@ -23,6 +22,7 @@ class ExitDecision:
     exit_px: Optional[float]
     exit_reason: Optional[str]
     updated_pos: Optional[PositionState]
+    p_tp: Optional[float] = None
 
 
 class RunnerExecutionManager:
@@ -60,25 +60,31 @@ class RunnerExecutionManager:
         if sl_hit and tp_hit:
             if mode == "conservative":
                 exit_px, exit_reason = sl_px, "sl"
+                p_tp: Optional[float] = None
             else:
-                rng = max(bar["h"] - bar["l"], pip_size_value)
-                drift = direction * (bar["c"] - bar["o"]) / rng if rng > 0 else 0.0
-                d_tp = max(((tp_px - entry_px) * direction) / pip_size_value, 1e-9)
-                d_sl = max(((entry_px - sl_px) * direction) / pip_size_value, 1e-9)
-                base = d_sl / (d_tp + d_sl)
-                p_tp = min(
-                    0.999,
-                    max(0.001, 0.65 * base + 0.35 * 0.5 * (1.0 + math.tanh(2.5 * drift))),
+                lam = float(getattr(self._runner.rcfg, "fill_bridge_lambda", 0.35))
+                drift_scale = float(
+                    getattr(self._runner.rcfg, "fill_bridge_drift_scale", 2.5)
                 )
-                exit_px = p_tp * tp_px + (1 - p_tp) * sl_px
+                exit_px, p_tp = BridgeFill.compute_same_bar_exit_price(
+                    side=side,
+                    entry_px=entry_px,
+                    tp_px=tp_px,
+                    stop_px=sl_px,
+                    bar=bar,
+                    pip_size=pip_size_value,
+                    lam=lam,
+                    drift_scale=drift_scale,
+                )
                 exit_reason = "tp" if p_tp >= 0.5 else "sl"
             exited = True
         elif sl_hit:
-            exit_px, exit_reason, exited = sl_px, "sl", True
+            exit_px, exit_reason, exited, p_tp = sl_px, "sl", True, None
         elif tp_hit:
-            exit_px, exit_reason, exited = tp_px, "tp", True
+            exit_px, exit_reason, exited, p_tp = tp_px, "tp", True, None
         else:
             exited = False
+            p_tp = None
 
         if not exited:
             updated_state = state.increment_hold()
@@ -88,10 +94,11 @@ class RunnerExecutionManager:
                 exit_px = bar["o"]
                 exit_reason = "session_end" if new_session else "timeout"
                 exited = True
+                p_tp = None
 
         if exited:
-            return ExitDecision(True, exit_px, exit_reason, None)
-        return ExitDecision(False, None, None, updated_state)
+            return ExitDecision(True, exit_px, exit_reason, None, p_tp)
+        return ExitDecision(False, None, None, updated_state, None)
 
     def handle_active_position(
         self,
@@ -119,6 +126,9 @@ class RunnerExecutionManager:
         if decision.exited and decision.exit_px is not None:
             qty_sample = current_pos.qty if current_pos.qty else 1.0
             slip_actual = current_pos.entry_slip_pip
+            debug_extra: Optional[Mapping[str, Any]] = None
+            if decision.p_tp is not None:
+                debug_extra = {"same_bar_p_tp": decision.p_tp}
             self.finalize_trade(
                 exit_ts=bar.get("timestamp"),
                 entry_ts=current_pos.entry_ts,
@@ -134,6 +144,7 @@ class RunnerExecutionManager:
                 tp_pips=current_pos.tp_pips or 0.0,
                 sl_pips=current_pos.sl_pips or 0.0,
                 debug_stage="trade_exit",
+                debug_extra=debug_extra,
             )
 
         return True
