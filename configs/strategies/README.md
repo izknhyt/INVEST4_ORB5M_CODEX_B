@@ -42,7 +42,10 @@ listed when a strategy is multi-instrument.
 ### Runner defaults
 `runner.runner_config` mirrors the arguments accepted by `RunnerConfig`, while
 `runner.cli_args` matches CLI flags (e.g. `scripts/run_sim.py`). These sections
-are advisory and can be used by orchestration tools to bootstrap runs.
+are advisory and can be used by orchestration tools to bootstrap runs. When
+invoking `scripts/run_sim.py --strategy-manifest`, the CLI automatically seeds
+unspecified options from `runner.cli_args`, but any explicit flag passed on the
+command line still takes precedence.
 
 #### Router guard fields
 
