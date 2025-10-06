@@ -2,6 +2,12 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-02-23: Recreated the router portfolio helper refactor to avoid merge conflicts,
+  introducing `_normalise_numeric_mapping`, `_merge_correlation_blocks`, and
+  `_compute_category_headroom`, updating `build_portfolio_state` to compose the
+  helpers, extending `tests/test_router_pipeline.py` with helper-level and
+  orchestration regressions, and rerunning `python3 -m pytest
+  tests/test_router_pipeline.py`.
 - 2026-02-21: Refactored `router/router_v1.select_candidates` to delegate per-manifest checks to `evaluate_candidate`, introduced
   `CandidateEvaluation` for aggregating eligibility deltas/reasons, added regression coverage in `tests/test_router_v1.py`, and
   executed `python3 -m pytest tests/test_router_v1.py` to confirm the helper matches previous behaviour.

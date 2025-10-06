@@ -3,9 +3,233 @@ from pathlib import Path
 
 from pytest import approx
 
-from core.router_pipeline import PortfolioTelemetry, build_portfolio_state
+from core.router_pipeline import (
+    PortfolioTelemetry,
+    _compute_category_headroom,
+    _merge_correlation_blocks,
+    _normalise_numeric_mapping,
+    _to_float,
+    build_portfolio_state,
+)
 from configs.strategies.loader import load_manifest
 from router.router_v1 import select_candidates
+
+
+def test_normalise_numeric_mapping_filters_invalid_entries() -> None:
+    assert _normalise_numeric_mapping(None) == {}
+
+    source = {"alpha": "1.5", 2: 3, "beta": None, "gamma": "oops"}
+    result = _normalise_numeric_mapping(source)
+
+    assert result == {"alpha": approx(1.5), "2": approx(3.0)}
+    assert "beta" not in result
+    assert "gamma" not in result
+
+
+def test_merge_correlation_blocks_enriches_metadata() -> None:
+    day_manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
+    mean_manifest = load_manifest("configs/strategies/mean_reversion.yaml")
+
+    manifest_index = {
+        str(day_manifest.id): day_manifest,
+        str(mean_manifest.id): mean_manifest,
+    }
+
+    correlations, metadata = _merge_correlation_blocks(
+        {
+            day_manifest.id: {mean_manifest.id: "0.55"},
+            "tag": {mean_manifest.id: 0.6},
+        },
+        {
+            day_manifest.id: {
+                mean_manifest.id: {
+                    "bucket_category": "swing",
+                    "bucket_budget_pct": 60.0,
+                }
+            }
+        },
+        manifest_index,
+        {mean_manifest.category: 35.0},
+    )
+
+    assert correlations == {
+        str(day_manifest.id): {str(mean_manifest.id): approx(0.55)},
+        "tag": {str(mean_manifest.id): approx(0.6)},
+    }
+
+    direct_meta = metadata[str(day_manifest.id)][str(mean_manifest.id)]
+    assert direct_meta["strategy_id"] == mean_manifest.id
+    assert direct_meta["category"] == mean_manifest.category
+    assert direct_meta["category_budget_pct"] == approx(35.0)
+    assert direct_meta["bucket_category"] == "swing"
+    assert direct_meta["bucket_budget_pct"] == approx(60.0)
+
+    tag_meta = metadata["tag"][str(mean_manifest.id)]
+    assert tag_meta["strategy_id"] == mean_manifest.id
+    assert tag_meta["category"] == mean_manifest.category
+    assert tag_meta["category_budget_pct"] == approx(35.0)
+    assert tag_meta["bucket_category"] == mean_manifest.category
+    assert tag_meta["bucket_budget_pct"] == approx(35.0)
+
+
+def test_compute_category_headroom_combines_sources() -> None:
+    manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
+    manifest.router.category_cap_pct = 75.0
+    manifest.router.category_budget_pct = 50.0
+    manifest.router.max_gross_exposure_pct = 120.0
+    manifest.risk.risk_per_trade_pct = 5.0
+
+    baseline_headroom = {manifest.category: 15.0}
+
+    (
+        usage,
+        caps,
+        budgets,
+        category_headroom,
+        budget_headroom,
+        gross_exposure,
+        gross_cap,
+        gross_headroom,
+    ) = _compute_category_headroom(
+        manifests=[manifest],
+        active_counts={str(manifest.id): 2},
+        category_usage={manifest.category: 20.0},
+        category_caps={},
+        category_budget={manifest.category: 60.0},
+        baseline_category_budget={manifest.category: 60.0},
+        baseline_budget_headroom=baseline_headroom,
+        gross_exposure_pct=None,
+        gross_cap_pct=None,
+    )
+
+    assert usage[manifest.category] == approx(30.0)
+    assert caps[manifest.category] == approx(75.0)
+    assert budgets[manifest.category] == approx(50.0)
+    assert category_headroom[manifest.category] == approx(45.0)
+    assert budget_headroom[manifest.category] == approx(20.0)
+    assert gross_exposure == approx(10.0)
+    assert gross_cap == approx(120.0)
+    assert gross_headroom == approx(110.0)
+    assert baseline_headroom[manifest.category] == approx(15.0)
+
+
+def test_build_portfolio_state_composes_helper_outputs() -> None:
+    day_manifest = load_manifest("configs/strategies/day_orb_5m.yaml")
+    mean_manifest = load_manifest("configs/strategies/mean_reversion.yaml")
+
+    day_manifest.router.category_cap_pct = 60.0
+    day_manifest.router.category_budget_pct = 50.0
+    day_manifest.router.max_gross_exposure_pct = 150.0
+    day_manifest.risk.risk_per_trade_pct = 4.0
+
+    telemetry = PortfolioTelemetry(
+        active_positions={day_manifest.id: 1},
+        category_utilisation_pct={day_manifest.category: 10.0},
+        category_caps_pct={day_manifest.category: 55.0},
+        category_budget_pct={day_manifest.category: 48.0},
+        category_budget_headroom_pct={day_manifest.category: 38.0},
+        strategy_correlations={
+            mean_manifest.id: {day_manifest.id: 0.42},
+        },
+        correlation_meta={
+            mean_manifest.id: {
+                day_manifest.id: {
+                    "bucket_category": "swing",
+                    "bucket_budget_pct": 58.0,
+                }
+            }
+        },
+        execution_health={
+            day_manifest.id: {"reject_rate": 0.02},
+        },
+        correlation_window_minutes="90",
+    )
+
+    runtime_metrics = {
+        day_manifest.id: {"execution_health": {"slippage_bps": "4.5"}},
+        mean_manifest.id: {"execution_health": {"reject_rate": "0.04"}},
+    }
+
+    portfolio = build_portfolio_state(
+        [day_manifest, mean_manifest],
+        telemetry=telemetry,
+        runtime_metrics=runtime_metrics,
+    )
+
+    manifest_list = [day_manifest, mean_manifest]
+    manifest_index = {str(manifest.id): manifest for manifest in manifest_list}
+    active_positions = {str(k): int(v) for k, v in telemetry.active_positions.items()}
+    absolute_counts = {key: abs(value) for key, value in active_positions.items()}
+
+    category_usage = _normalise_numeric_mapping(telemetry.category_utilisation_pct)
+    category_caps = _normalise_numeric_mapping(telemetry.category_caps_pct)
+    category_budget = _normalise_numeric_mapping(telemetry.category_budget_pct)
+    baseline_category_budget = dict(category_budget)
+    category_budget_headroom = _normalise_numeric_mapping(
+        telemetry.category_budget_headroom_pct
+    )
+
+    gross_exposure = _to_float(telemetry.gross_exposure_pct)
+    gross_cap = _to_float(telemetry.gross_exposure_cap_pct)
+
+    (
+        expected_usage,
+        expected_caps,
+        expected_budget,
+        expected_headroom,
+        expected_budget_headroom,
+        expected_gross_exposure,
+        expected_gross_cap,
+        expected_gross_headroom,
+    ) = _compute_category_headroom(
+        manifests=manifest_list,
+        active_counts=absolute_counts,
+        category_usage=category_usage,
+        category_caps=category_caps,
+        category_budget=category_budget,
+        baseline_category_budget=baseline_category_budget,
+        baseline_budget_headroom=category_budget_headroom,
+        gross_exposure_pct=gross_exposure,
+        gross_cap_pct=gross_cap,
+    )
+
+    expected_correlations, expected_meta = _merge_correlation_blocks(
+        telemetry.strategy_correlations,
+        telemetry.correlation_meta,
+        manifest_index,
+        expected_budget,
+    )
+
+    execution_health = {
+        str(key): inner
+        for key, value in telemetry.execution_health.items()
+        if (inner := _normalise_numeric_mapping(value))
+    }
+    for manifest in manifest_list:
+        metrics = runtime_metrics.get(manifest.id)
+        if not metrics:
+            continue
+        merged_metrics = _normalise_numeric_mapping(metrics.get("execution_health"))
+        if not merged_metrics:
+            continue
+        manifest_id = str(manifest.id)
+        target = execution_health.get(manifest_id, {}).copy()
+        target.update(merged_metrics)
+        execution_health[manifest_id] = target
+
+    assert portfolio.active_positions == active_positions
+    assert portfolio.category_utilisation_pct == expected_usage
+    assert portfolio.category_caps_pct == expected_caps
+    assert portfolio.category_budget_pct == expected_budget
+    assert portfolio.category_headroom_pct == expected_headroom
+    assert portfolio.category_budget_headroom_pct == expected_budget_headroom
+    assert portfolio.gross_exposure_pct == expected_gross_exposure
+    assert portfolio.gross_exposure_cap_pct == expected_gross_cap
+    assert portfolio.gross_exposure_headroom_pct == expected_gross_headroom
+    assert portfolio.strategy_correlations == expected_correlations
+    assert portfolio.correlation_meta == expected_meta
+    assert portfolio.execution_health == execution_health
+    assert portfolio.correlation_window_minutes == approx(90.0)
 
 
 def test_router_pipeline_merges_limits_and_execution_health():

@@ -3,7 +3,7 @@ from __future__ import annotations
 """Utilities for assembling router portfolio state from runtime telemetry."""
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, Mapping, Optional
+from typing import Any, Dict, Iterable, Mapping, Optional, Tuple
 
 from configs.strategies.loader import StrategyManifest
 from router.router_v1 import PortfolioState
@@ -31,6 +31,230 @@ def _to_float(value: Any) -> Optional[float]:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _normalise_numeric_mapping(
+    mapping: Optional[Mapping[Any, Any]]
+) -> Dict[str, float]:
+    """Return a mapping with string keys and float values, skipping invalid entries."""
+
+    if not isinstance(mapping, Mapping):
+        return {}
+
+    normalised: Dict[str, float] = {}
+    for key, value in mapping.items():
+        value_float = _to_float(value)
+        if value_float is None:
+            continue
+        normalised[str(key)] = value_float
+    return normalised
+
+
+def _merge_correlation_blocks(
+    strategy_correlations: Mapping[Any, Mapping[Any, Any]],
+    correlation_meta: Mapping[Any, Mapping[Any, Mapping[str, Any]]],
+    manifest_index: Mapping[str, StrategyManifest],
+    category_budget: Mapping[str, float],
+) -> Tuple[Dict[str, Dict[str, float]], Dict[str, Dict[str, Dict[str, Any]]]]:
+    """Normalise correlation data and enrich metadata using manifest context."""
+
+    normalised_meta: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for source_key, mapping in correlation_meta.items():
+        if not isinstance(mapping, Mapping):
+            continue
+        inner_meta: Dict[str, Dict[str, Any]] = {}
+        for peer_key, peer_meta in mapping.items():
+            if not isinstance(peer_meta, Mapping):
+                continue
+            entry = dict(peer_meta)
+            entry.setdefault("strategy_id", str(peer_key))
+            if "bucket_category" not in entry and "category" in entry:
+                entry["bucket_category"] = entry["category"]
+            if "bucket_budget_pct" not in entry and "category_budget_pct" in entry:
+                entry["bucket_budget_pct"] = entry["category_budget_pct"]
+            inner_meta[str(peer_key)] = entry
+        if inner_meta:
+            normalised_meta[str(source_key)] = inner_meta
+
+    correlations: Dict[str, Dict[str, float]] = {}
+    enriched_meta: Dict[str, Dict[str, Dict[str, Any]]] = {}
+
+    for source_key, mapping in strategy_correlations.items():
+        if not isinstance(mapping, Mapping):
+            continue
+        source_id = str(source_key)
+        source_meta = {
+            str(peer): dict(meta)
+            for peer, meta in normalised_meta.get(source_id, {}).items()
+            if isinstance(meta, Mapping)
+        }
+
+        normalised_correlations: Dict[str, float] = {}
+        for peer_key, value in mapping.items():
+            value_float = _to_float(value)
+            if value_float is None:
+                continue
+
+            peer_id = str(peer_key)
+            normalised_correlations[peer_id] = value_float
+
+            peer_manifest = manifest_index.get(peer_id)
+            meta_entry = source_meta.get(peer_id, {}).copy()
+            meta_entry["strategy_id"] = (
+                str(peer_manifest.id) if peer_manifest is not None else peer_id
+            )
+
+            peer_category: Optional[str] = None
+            budget_value: Optional[float] = None
+            if peer_manifest is not None:
+                peer_category = peer_manifest.category
+                budget_value = category_budget.get(peer_category)
+                if budget_value is None:
+                    budget_value = manifest_category_budget(peer_manifest)
+                if budget_value is None:
+                    cap_value = peer_manifest.router.category_cap_pct
+                    if cap_value is not None:
+                        budget_value = float(cap_value)
+
+            if peer_category is not None:
+                meta_entry["category"] = peer_category
+                meta_entry.setdefault("bucket_category", peer_category)
+
+            if budget_value is not None:
+                budget_float = float(budget_value)
+                meta_entry["category_budget_pct"] = budget_float
+                meta_entry.setdefault("bucket_budget_pct", budget_float)
+
+            if "category" not in meta_entry:
+                bucket_category = meta_entry.get("bucket_category")
+                if bucket_category is not None:
+                    meta_entry["category"] = bucket_category
+
+            if "category_budget_pct" not in meta_entry:
+                bucket_budget = _to_float(meta_entry.get("bucket_budget_pct"))
+                if bucket_budget is not None:
+                    meta_entry["category_budget_pct"] = bucket_budget
+
+            source_meta[peer_id] = meta_entry
+
+        if normalised_correlations:
+            correlations[source_id] = normalised_correlations
+            if source_meta:
+                enriched_meta[source_id] = source_meta
+
+    return correlations, enriched_meta
+
+
+def _compute_category_headroom(
+    *,
+    manifests: Iterable[StrategyManifest],
+    active_counts: Mapping[str, int],
+    category_usage: Mapping[str, float],
+    category_caps: Mapping[str, float],
+    category_budget: Mapping[str, float],
+    baseline_category_budget: Mapping[str, float],
+    baseline_budget_headroom: Mapping[str, float],
+    gross_exposure_pct: Optional[float],
+    gross_cap_pct: Optional[float],
+) -> Tuple[
+    Dict[str, float],
+    Dict[str, float],
+    Dict[str, float],
+    Dict[str, float],
+    Dict[str, float],
+    Optional[float],
+    Optional[float],
+    Optional[float],
+]:
+    """Compute utilisation and headroom information for categories and gross caps."""
+
+    usage: Dict[str, float] = dict(category_usage)
+    caps: Dict[str, float] = dict(category_caps)
+    budgets: Dict[str, float] = dict(category_budget)
+    budget_headroom: Dict[str, float] = dict(baseline_budget_headroom)
+
+    total_exposure = 0.0
+    has_exposure = False
+
+    for manifest in manifests:
+        manifest_id = str(manifest.id)
+        active_count = abs(active_counts.get(manifest_id, 0))
+
+        usage.setdefault(manifest.category, 0.0)
+
+        if active_count > 0:
+            exposure = active_count * float(manifest.risk.risk_per_trade_pct)
+            total_exposure += exposure
+            has_exposure = True
+            usage[manifest.category] = usage.get(manifest.category, 0.0) + exposure
+
+        cap_value = manifest.router.category_cap_pct
+        if cap_value is not None:
+            cap_float = float(cap_value)
+            previous_cap = caps.get(manifest.category)
+            caps[manifest.category] = (
+                cap_float if previous_cap is None else min(previous_cap, cap_float)
+            )
+
+        budget_value: Optional[float] = manifest_category_budget(manifest)
+        if budget_value is None:
+            budget_value = manifest.router.category_cap_pct
+        if budget_value is not None:
+            budget_float = float(budget_value)
+            previous_budget = budgets.get(manifest.category)
+            budgets[manifest.category] = (
+                budget_float if previous_budget is None else min(previous_budget, budget_float)
+            )
+
+    if gross_exposure_pct is None and has_exposure:
+        gross_exposure_pct = total_exposure
+
+    if gross_cap_pct is None:
+        gross_caps = [
+            _to_float(manifest.router.max_gross_exposure_pct)
+            for manifest in manifests
+            if manifest.router.max_gross_exposure_pct is not None
+        ]
+        valid_caps = [cap for cap in gross_caps if cap is not None]
+        if valid_caps:
+            gross_cap_pct = min(valid_caps)
+
+    category_headroom = {
+        category: cap - float(usage.get(category, 0.0))
+        for category, cap in caps.items()
+    }
+
+    tolerance = 1e-9
+    for category, budget in list(budgets.items()):
+        usage_value = float(usage.get(category, 0.0))
+        expected_headroom = float(budget) - usage_value
+        baseline_budget_value = baseline_category_budget.get(category)
+        baseline_headroom_value = baseline_budget_headroom.get(category)
+        baseline_differs = (
+            baseline_budget_value is None
+            or abs(float(baseline_budget_value) - float(budget)) > tolerance
+        )
+        headroom_mismatch = (
+            baseline_headroom_value is None
+            or abs(float(baseline_headroom_value) - expected_headroom) > tolerance
+        )
+        if baseline_differs or headroom_mismatch:
+            budget_headroom[category] = expected_headroom
+
+    gross_headroom_pct: Optional[float] = None
+    if gross_cap_pct is not None and gross_exposure_pct is not None:
+        gross_headroom_pct = gross_cap_pct - gross_exposure_pct
+
+    return (
+        usage,
+        caps,
+        budgets,
+        category_headroom,
+        budget_headroom,
+        gross_exposure_pct,
+        gross_cap_pct,
+        gross_headroom_pct,
+    )
 
 
 def manifest_category_budget(manifest: StrategyManifest) -> Optional[float]:
@@ -75,7 +299,7 @@ def build_portfolio_state(
 
     snapshot = telemetry or PortfolioTelemetry()
     manifest_list = list(manifests)
-    manifest_index = {manifest.id: manifest for manifest in manifest_list}
+    manifest_index = {str(manifest.id): manifest for manifest in manifest_list}
 
     active_positions: Dict[str, int] = {
         str(key): int(value) for key, value in snapshot.active_positions.items()
@@ -83,193 +307,50 @@ def build_portfolio_state(
     absolute_active_counts: Dict[str, int] = {
         key: abs(count) for key, count in active_positions.items()
     }
-    category_usage: Dict[str, float] = {}
-    for key, value in snapshot.category_utilisation_pct.items():
-        value_float = _to_float(value)
-        if value_float is None:
-            continue
-        category_usage[str(key)] = value_float
-
-    category_caps: Dict[str, float] = {}
-    for key, value in snapshot.category_caps_pct.items():
-        value_float = _to_float(value)
-        if value_float is None:
-            continue
-        category_caps[str(key)] = value_float
-
-    category_budget: Dict[str, float] = {}
-    for key, value in snapshot.category_budget_pct.items():
-        value_float = _to_float(value)
-        if value_float is None:
-            continue
-        category_budget[str(key)] = value_float
-
-    telemetry_category_budget: Dict[str, float] = dict(category_budget)
-
-    category_budget_headroom: Dict[str, float] = {}
-    for key, value in snapshot.category_budget_headroom_pct.items():
-        value_float = _to_float(value)
-        if value_float is None:
-            continue
-        category_budget_headroom[str(key)] = value_float
-
-    correlations: Dict[str, Dict[str, float]] = {}
-    correlation_meta: Dict[str, Dict[str, Dict[str, Any]]] = {}
-
-    for source_key, mapping in snapshot.correlation_meta.items():
-        if not isinstance(mapping, Mapping):
-            continue
-        inner_meta: Dict[str, Dict[str, Any]] = {}
-        for peer_key, peer_meta in mapping.items():
-            if not isinstance(peer_meta, Mapping):
-                continue
-            peer_entry = dict(peer_meta)
-            peer_entry.setdefault("strategy_id", str(peer_key))
-            if "bucket_category" not in peer_entry and "category" in peer_entry:
-                peer_entry["bucket_category"] = peer_entry["category"]
-            if (
-                "bucket_budget_pct" not in peer_entry
-                and "category_budget_pct" in peer_entry
-            ):
-                peer_entry["bucket_budget_pct"] = peer_entry["category_budget_pct"]
-            inner_meta[str(peer_key)] = peer_entry
-        if inner_meta:
-            correlation_meta[str(source_key)] = inner_meta
-    for key, value in snapshot.strategy_correlations.items():
-        inner: Dict[str, float] = {}
-        meta_inner: Dict[str, Dict[str, Any]] = {
-            peer: dict(meta)
-            for peer, meta in correlation_meta.get(str(key), {}).items()
-            if isinstance(meta, Mapping)
-        }
-        for inner_k, inner_v in value.items():
-            inner_float = _to_float(inner_v)
-            if inner_float is None:
-                continue
-            peer_key = str(inner_k)
-            inner[peer_key] = inner_float
-            peer_manifest = manifest_index.get(peer_key)
-            budget_value: Optional[float] = None
-            peer_category: Optional[str] = None
-            if peer_manifest is not None:
-                peer_category = peer_manifest.category
-                budget_value = category_budget.get(peer_category)
-                if budget_value is None:
-                    budget_value = manifest_category_budget(peer_manifest)
-                if budget_value is None:
-                    cap_value = peer_manifest.router.category_cap_pct
-                    if cap_value is not None:
-                        budget_value = float(cap_value)
-            meta_entry = meta_inner.get(peer_key, {}).copy()
-            meta_entry["strategy_id"] = (
-                str(peer_manifest.id) if peer_manifest else peer_key
-            )
-
-            if peer_category is not None:
-                meta_entry["category"] = peer_category
-                meta_entry.setdefault("bucket_category", peer_category)
-
-            if budget_value is not None:
-                budget_float = float(budget_value)
-                meta_entry["category_budget_pct"] = budget_float
-                meta_entry.setdefault("bucket_budget_pct", budget_float)
-
-            if "category" not in meta_entry:
-                bucket_category = meta_entry.get("bucket_category")
-                if bucket_category is not None:
-                    meta_entry["category"] = bucket_category
-
-            if "category_budget_pct" not in meta_entry:
-                bucket_budget = _to_float(meta_entry.get("bucket_budget_pct"))
-                if bucket_budget is not None:
-                    meta_entry["category_budget_pct"] = bucket_budget
-            meta_inner[peer_key] = meta_entry
-        if inner:
-            correlations[str(key)] = inner
-            if meta_inner:
-                correlation_meta[str(key)] = meta_inner
-
-    execution_health: Dict[str, Dict[str, float]] = {}
-    for key, value in snapshot.execution_health.items():
-        inner: Dict[str, float] = {}
-        for inner_k, inner_v in value.items():
-            inner_float = _to_float(inner_v)
-            if inner_float is None:
-                continue
-            inner[str(inner_k)] = inner_float
-        if inner:
-            execution_health[str(key)] = inner
-
-    exposures: Dict[str, float] = {}
-    for manifest in manifest_list:
-        active_count = absolute_active_counts.get(manifest.id, 0)
-        if active_count > 0:
-            exposure = active_count * float(manifest.risk.risk_per_trade_pct)
-            exposures[manifest.id] = exposures.get(manifest.id, 0.0) + exposure
-            category_usage[manifest.category] = (
-                category_usage.get(manifest.category, 0.0) + exposure
-            )
-        cap_value = manifest.router.category_cap_pct
-        if cap_value is not None:
-            cap_float = float(cap_value)
-            prev_cap = category_caps.get(manifest.category)
-            category_caps[manifest.category] = (
-                cap_float if prev_cap is None else min(prev_cap, cap_float)
-            )
-        budget_value = manifest_category_budget(manifest)
-        if budget_value is None:
-            budget_value = manifest.router.category_cap_pct
-        if budget_value is not None:
-            budget_float = float(budget_value)
-            prev_budget = category_budget.get(manifest.category)
-            category_budget[manifest.category] = (
-                budget_float if prev_budget is None else min(prev_budget, budget_float)
-            )
-        category_usage.setdefault(manifest.category, 0.0)
+    category_usage = _normalise_numeric_mapping(snapshot.category_utilisation_pct)
+    category_caps = _normalise_numeric_mapping(snapshot.category_caps_pct)
+    category_budget = _normalise_numeric_mapping(snapshot.category_budget_pct)
+    telemetry_category_budget = dict(category_budget)
+    category_budget_headroom = _normalise_numeric_mapping(
+        snapshot.category_budget_headroom_pct
+    )
 
     gross_exposure_pct = _to_float(snapshot.gross_exposure_pct)
-    if gross_exposure_pct is None and exposures:
-        gross_exposure_pct = sum(exposures.values())
-
     gross_cap_pct = _to_float(snapshot.gross_exposure_cap_pct)
-    if gross_cap_pct is None:
-        gross_caps = [
-            _to_float(manifest.router.max_gross_exposure_pct)
-            for manifest in manifest_list
-            if manifest.router.max_gross_exposure_pct is not None
-        ]
-        gross_caps = [cap for cap in gross_caps if cap is not None]
-        if gross_caps:
-            gross_cap_pct = min(gross_caps)
 
-    category_headroom: Dict[str, float] = {}
-    for category, cap in category_caps.items():
-        usage = float(category_usage.get(category, 0.0))
-        category_headroom[category] = cap - usage
+    (
+        category_usage,
+        category_caps,
+        category_budget,
+        category_headroom,
+        category_budget_headroom,
+        gross_exposure_pct,
+        gross_cap_pct,
+        gross_headroom_pct,
+    ) = _compute_category_headroom(
+        manifests=manifest_list,
+        active_counts=absolute_active_counts,
+        category_usage=category_usage,
+        category_caps=category_caps,
+        category_budget=category_budget,
+        baseline_category_budget=telemetry_category_budget,
+        baseline_budget_headroom=category_budget_headroom,
+        gross_exposure_pct=gross_exposure_pct,
+        gross_cap_pct=gross_cap_pct,
+    )
 
-    for category, budget in list(category_budget.items()):
-        if budget is None:
-            category_budget.pop(category, None)
-            continue
-        usage = float(category_usage.get(category, 0.0))
-        expected_headroom = budget - usage
-        baseline_budget = telemetry_category_budget.get(category)
-        stored_headroom = category_budget_headroom.get(category)
-        tolerance = 1e-9
-        baseline_differs = (
-            baseline_budget is None
-            or abs(float(baseline_budget) - budget) > tolerance
-        )
-        headroom_mismatch = (
-            stored_headroom is None
-            or abs(float(stored_headroom) - expected_headroom) > tolerance
-        )
-        if baseline_differs or headroom_mismatch:
-            category_budget_headroom[category] = expected_headroom
+    correlations, correlation_meta = _merge_correlation_blocks(
+        snapshot.strategy_correlations,
+        snapshot.correlation_meta,
+        manifest_index,
+        category_budget,
+    )
 
-    gross_headroom_pct: Optional[float] = None
-    if gross_cap_pct is not None and gross_exposure_pct is not None:
-        gross_headroom_pct = gross_cap_pct - gross_exposure_pct
+    execution_health: Dict[str, Dict[str, float]] = {
+        str(key): inner
+        for key, value in snapshot.execution_health.items()
+        if (inner := _normalise_numeric_mapping(value))
+    }
 
     if runtime_metrics:
         for manifest in manifest_list:
@@ -277,16 +358,13 @@ def build_portfolio_state(
             if not metrics:
                 continue
             health = metrics.get("execution_health")
-            if not isinstance(health, Mapping):
+            merged_metrics = _normalise_numeric_mapping(health)
+            if not merged_metrics:
                 continue
-            target = execution_health.get(manifest.id, {}).copy()
-            for inner_metric, inner_value in health.items():
-                metric_value = _to_float(inner_value)
-                if metric_value is None:
-                    continue
-                target[str(inner_metric)] = metric_value
-            if target:
-                execution_health[manifest.id] = target
+            manifest_id = str(manifest.id)
+            target = execution_health.get(manifest_id, {}).copy()
+            target.update(merged_metrics)
+            execution_health[manifest_id] = target
 
     correlation_window_minutes = _to_float(snapshot.correlation_window_minutes)
 
