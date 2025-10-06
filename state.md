@@ -2,6 +2,10 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-03-08: Split `BacktestRunner` responsibilities into `RunnerLifecycleManager`
+  and `RunnerExecutionManager`, moved position state helpers into `core/runner_state.py`,
+  refreshed runner/CLI regression tests for the delegation, and updated lifecycle
+  documentation. Ran `python3 -m pytest`.
 - 2026-03-07: Introduced `ActivePositionState` / `CalibrationPositionState` for runner
   state tracking, refactored fill handling and calibration resolution to use the
   typed dataclasses with JSON-compatible persistence, and refreshed

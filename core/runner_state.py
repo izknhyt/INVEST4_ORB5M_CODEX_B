@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import copy
+import copy
 from dataclasses import dataclass, field, replace
-from typing import Any, Dict, Mapping, Optional, Type
+from typing import Any, Dict, Mapping, Optional, Type, Union
+
+from core.runner_entry import TradeContextSnapshot
 
 
 @dataclass
@@ -124,4 +127,104 @@ class PositionState:
             entry_slip_pip=float(payload.get("entry_slip_pip", 0.0) or 0.0),
             ctx_snapshot=ctx_snapshot,
         )
+
+
+def _coerce_trade_ctx(
+    value: Optional[Mapping[str, Any] | TradeContextSnapshot | Any],
+) -> TradeContextSnapshot:
+    if isinstance(value, TradeContextSnapshot):
+        return value
+    if value is None:
+        return TradeContextSnapshot()
+    if hasattr(value, "as_dict"):
+        try:
+            return TradeContextSnapshot(**value.as_dict())  # type: ignore[arg-type]
+        except Exception:
+            return TradeContextSnapshot()
+    if isinstance(value, Mapping):
+        return TradeContextSnapshot(**dict(value))
+    try:
+        return TradeContextSnapshot(**dict(value))  # type: ignore[arg-type]
+    except Exception:
+        return TradeContextSnapshot()
+
+
+def snapshot_to_dict(
+    value: Union[Mapping[str, Any], TradeContextSnapshot, None]
+) -> Dict[str, Any]:
+    if isinstance(value, TradeContextSnapshot):
+        return value.as_dict()
+    if value is None:
+        return {}
+    if hasattr(value, "as_dict"):
+        try:
+            return dict(value.as_dict())  # type: ignore[arg-type]
+        except Exception:
+            return {}
+    try:
+        return dict(value)
+    except Exception:
+        return {}
+
+
+@dataclass
+class CalibrationPositionState(PositionState):
+    ctx_snapshot: Optional[TradeContextSnapshot] = None
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if isinstance(self.ctx_snapshot, dict):
+            self.ctx_snapshot = _coerce_trade_ctx(self.ctx_snapshot)
+        elif self.ctx_snapshot is not None and not isinstance(
+            self.ctx_snapshot, TradeContextSnapshot
+        ):
+            self.ctx_snapshot = _coerce_trade_ctx(self.ctx_snapshot)
+
+    def ctx_snapshot_dict(self) -> Dict[str, Any]:
+        if isinstance(self.ctx_snapshot, TradeContextSnapshot):
+            return self.ctx_snapshot.as_dict()
+        return {}
+
+    def as_dict(self) -> Dict[str, Any]:
+        data = super().as_dict()
+        if isinstance(self.ctx_snapshot, TradeContextSnapshot):
+            data["ctx_snapshot"] = self.ctx_snapshot.as_dict()
+        elif not data.get("ctx_snapshot"):
+            data["ctx_snapshot"] = {}
+        return data
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "CalibrationPositionState":
+        base = PositionState.from_dict(payload)
+        data = base.as_dict()
+        snapshot_payload = payload.get("ctx_snapshot") or {}
+        snapshot = None
+        if snapshot_payload:
+            snapshot = _coerce_trade_ctx(snapshot_payload)
+        return cls(**{**data, "ctx_snapshot": snapshot})
+
+
+@dataclass
+class ActivePositionState(PositionState):
+    ctx_snapshot: TradeContextSnapshot = field(default_factory=TradeContextSnapshot)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self.ctx_snapshot = _coerce_trade_ctx(self.ctx_snapshot)
+
+    def ctx_snapshot_dict(self) -> Dict[str, Any]:
+        return self.ctx_snapshot.as_dict()
+
+    def as_dict(self) -> Dict[str, Any]:
+        data = super().as_dict()
+        data["ctx_snapshot"] = self.ctx_snapshot.as_dict()
+        return data
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "ActivePositionState":
+        base = PositionState.from_dict(payload)
+        data = base.as_dict()
+        snapshot_payload = payload.get("ctx_snapshot") or {}
+        snapshot = _coerce_trade_ctx(snapshot_payload)
+        return cls(**{**data, "ctx_snapshot": snapshot})
 

@@ -17,6 +17,8 @@ from core.runner import (
     Metrics,
     RunnerConfig,
 )
+from core.runner_execution import RunnerExecutionManager
+from core.runner_lifecycle import RunnerLifecycleManager
 from core.runner_entry import (
     EntryGate,
     EVGate,
@@ -61,6 +63,70 @@ class TestRunner(unittest.TestCase):
         self.assertEqual(runner.fill_engine_b.default_policy, SameBarPolicy.SL_FIRST)
         self.assertAlmostEqual(runner.fill_engine_b.lam, 0.55)
         self.assertAlmostEqual(runner.fill_engine_b.drift_scale, 1.8)
+
+    def test_runner_delegates_to_lifecycle_and_execution_managers(self):
+        runner = BacktestRunner(equity=50_000.0, symbol="USDJPY")
+        self.assertIsInstance(runner.lifecycle, RunnerLifecycleManager)
+        self.assertIsInstance(runner.execution, RunnerExecutionManager)
+
+        sample_state = {"meta": {}}
+        with patch.object(runner.lifecycle, "reset_runtime_state") as mock_reset:
+            runner._reset_runtime_state()
+            mock_reset.assert_called_once_with()
+        with patch.object(runner.lifecycle, "load_state") as mock_load:
+            runner.load_state(sample_state)
+            mock_load.assert_called_once_with(sample_state)
+
+        ts = datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc)
+        bar = make_bar(ts, "USDJPY", 150.0, 150.1, 149.9, 150.05, spread=0.02)
+        ctx = {"session": "LDN"}
+        features = MagicMock()
+        with patch.object(
+            runner.execution,
+            "handle_active_position",
+            return_value=True,
+        ) as mock_handle:
+            result = runner._handle_active_position(
+                bar=bar,
+                ctx=ctx,
+                mode="conservative",
+                pip_size_value=0.01,
+                new_session=False,
+            )
+            self.assertTrue(result)
+            mock_handle.assert_called_once()
+        with patch.object(runner.execution, "resolve_calibration_positions") as mock_resolve:
+            runner._resolve_calibration_positions(
+                bar=bar,
+                ctx=ctx,
+                new_session=False,
+                calibrating=False,
+                mode="conservative",
+                pip_size_value=0.01,
+            )
+            mock_resolve.assert_called_once()
+        with patch.object(runner.execution, "maybe_enter_trade") as mock_enter:
+            runner._maybe_enter_trade(
+                bar=bar,
+                features=features,
+                mode="conservative",
+                pip_size_value=0.01,
+                calibrating=False,
+            )
+            mock_enter.assert_called_once()
+        with patch.object(runner.execution, "process_fill_result") as mock_process:
+            runner._process_fill_result(
+                intent=MagicMock(),
+                spec=MagicMock(),
+                result={},
+                bar=bar,
+                ctx=ctx,
+                ctx_dbg={},
+                trade_ctx_snapshot=TradeContextSnapshot(),
+                calibrating=False,
+                pip_size_value=0.01,
+            )
+            mock_process.assert_called_once()
 
     class DummyEV:
         def __init__(self, ev_lcb: float, p_lcb: float) -> None:
@@ -1313,7 +1379,7 @@ class TestRunner(unittest.TestCase):
                     )
                 )
                 mock_process = stack.enter_context(
-                    patch.object(runner, "_process_fill_result")
+                    patch.object(runner.execution, "process_fill_result")
                 )
                 runner._maybe_enter_trade(
                     bar=breakout,
@@ -1363,7 +1429,7 @@ class TestRunner(unittest.TestCase):
             side_effect=lambda **_: SizingEvaluation(GateCheckOutcome(True)),
         ):
             with patch.object(runner.stg, "signals", return_value=[intent]):
-                with patch.object(runner, "_process_fill_result") as mock_process:
+                with patch.object(runner.execution, "process_fill_result") as mock_process:
                     runner._maybe_enter_trade(
                         bar=breakout,
                         features=features,
@@ -1409,9 +1475,9 @@ class TestRunner(unittest.TestCase):
         ):
             with patch.object(runner.stg, "signals", return_value=[intent]):
                 with patch.object(
-                    runner,
-                    "_process_fill_result",
-                    wraps=runner._process_fill_result,
+                    runner.execution,
+                    "process_fill_result",
+                    wraps=runner.execution.process_fill_result,
                 ) as mock_process:
                     runner._maybe_enter_trade(
                         bar=breakout,
@@ -1460,9 +1526,9 @@ class TestRunner(unittest.TestCase):
         ):
             with patch.object(runner.stg, "signals", return_value=[intent]):
                 with patch.object(
-                    runner,
-                    "_process_fill_result",
-                    wraps=runner._process_fill_result,
+                    runner.execution,
+                    "process_fill_result",
+                    wraps=runner.execution.process_fill_result,
                 ) as mock_process:
                     runner._maybe_enter_trade(
                         bar=breakout,
@@ -1509,7 +1575,7 @@ class TestRunner(unittest.TestCase):
         runner._get_ev_manager = MagicMock(return_value=dummy_ev)
         decision = ExitDecision(exited=True, exit_px=150.2, exit_reason="tp", updated_pos=None)
 
-        with patch.object(runner, "_compute_exit_decision", return_value=decision) as mock_decision:
+        with patch.object(runner.execution, "compute_exit_decision", return_value=decision) as mock_decision:
             runner._resolve_calibration_positions(
                 bar=bar,
                 ctx=ctx,
@@ -1635,7 +1701,7 @@ class TestRunner(unittest.TestCase):
     def test_handle_active_position_trail_exit_buy_and_sell(self):
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
         pip_value = pip_size(runner.symbol)
-        original_finalize = runner._finalize_trade
+        original_finalize = runner.execution.finalize_trade
         try:
             for side, bar, expected_exit in (
                 (
@@ -1675,7 +1741,7 @@ class TestRunner(unittest.TestCase):
                         tp_pips=80.0,
                         sl_pips=100.0,
                     )
-                    runner._finalize_trade = MagicMock()
+                    runner.execution.finalize_trade = MagicMock()
                     result = runner._handle_active_position(
                         bar=bar,
                         ctx={},
@@ -1684,18 +1750,18 @@ class TestRunner(unittest.TestCase):
                         new_session=False,
                     )
                     self.assertTrue(result)
-                    runner._finalize_trade.assert_called_once()
-                    call = runner._finalize_trade.call_args.kwargs
+                    runner.execution.finalize_trade.assert_called_once()
+                    call = runner.execution.finalize_trade.call_args.kwargs
                     self.assertEqual(call["exit_reason"], "sl")
                     self.assertAlmostEqual(call["exit_px"], expected_exit)
                     self.assertIsNone(runner.pos)
         finally:
-            runner._finalize_trade = original_finalize
+            runner.execution.finalize_trade = original_finalize
 
     def test_handle_active_position_same_bar_hits_buy_and_sell(self):
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
         pip_value = pip_size(runner.symbol)
-        original_finalize = runner._finalize_trade
+        original_finalize = runner.execution.finalize_trade
         try:
             for side, bar in (
                 (
@@ -1736,7 +1802,7 @@ class TestRunner(unittest.TestCase):
                         tp_pips=abs(tp - entry) / pip_value,
                         sl_pips=abs(entry - sl) / pip_value,
                     )
-                    runner._finalize_trade = MagicMock()
+                    runner.execution.finalize_trade = MagicMock()
                     runner._handle_active_position(
                         bar=bar,
                         ctx={},
@@ -1744,8 +1810,8 @@ class TestRunner(unittest.TestCase):
                         pip_size_value=pip_value,
                         new_session=False,
                     )
-                    runner._finalize_trade.assert_called_once()
-                    call = runner._finalize_trade.call_args.kwargs
+                    runner.execution.finalize_trade.assert_called_once()
+                    call = runner.execution.finalize_trade.call_args.kwargs
                     self.assertEqual(call["exit_reason"], "tp")
                     if side == "BUY":
                         self.assertTrue(sl < call["exit_px"] < tp)
@@ -1753,13 +1819,13 @@ class TestRunner(unittest.TestCase):
                         self.assertTrue(tp < call["exit_px"] < sl)
                     self.assertIsNone(runner.pos)
         finally:
-            runner._finalize_trade = original_finalize
+            runner.execution.finalize_trade = original_finalize
 
     def test_handle_active_position_timeout_buy_and_sell(self):
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
         runner.rcfg.max_hold_bars = 2
         pip_value = pip_size(runner.symbol)
-        original_finalize = runner._finalize_trade
+        original_finalize = runner.execution.finalize_trade
         try:
             for side in ("BUY", "SELL"):
                 with self.subTest(side=side):
@@ -1780,7 +1846,7 @@ class TestRunner(unittest.TestCase):
                         sl_pips=abs(entry - sl) / pip_value,
                         hold=1,
                     )
-                    runner._finalize_trade = MagicMock()
+                    runner.execution.finalize_trade = MagicMock()
                     bar = {
                         "o": entry,
                         "h": entry + 0.10,
@@ -1795,13 +1861,13 @@ class TestRunner(unittest.TestCase):
                         pip_size_value=pip_value,
                         new_session=False,
                     )
-                    runner._finalize_trade.assert_called_once()
-                    call = runner._finalize_trade.call_args.kwargs
+                    runner.execution.finalize_trade.assert_called_once()
+                    call = runner.execution.finalize_trade.call_args.kwargs
                     self.assertEqual(call["exit_reason"], "timeout")
                     self.assertEqual(call["exit_px"], bar["o"])
                     self.assertIsNone(runner.pos)
         finally:
-            runner._finalize_trade = original_finalize
+            runner.execution.finalize_trade = original_finalize
 
     def test_calibration_ev_update_simultaneous_hit_regression(self):
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
