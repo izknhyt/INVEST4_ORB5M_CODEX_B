@@ -118,7 +118,9 @@ class TestRunner(unittest.TestCase):
             )
             mock_enter.assert_called_once()
         with patch.object(runner.execution, "process_fill_result") as mock_process:
-            runner._process_fill_result(
+            sentinel_state = object()
+            mock_process.return_value = sentinel_state
+            result_state = runner._process_fill_result(
                 intent=MagicMock(),
                 spec=MagicMock(),
                 result={},
@@ -130,6 +132,7 @@ class TestRunner(unittest.TestCase):
                 pip_size_value=0.01,
             )
             mock_process.assert_called_once()
+            self.assertIs(result_state, sentinel_state)
 
     class DummyEV:
         def __init__(self, ev_lcb: float, p_lcb: float) -> None:
@@ -778,7 +781,7 @@ class TestRunner(unittest.TestCase):
         trade_ctx_snapshot = TradeContextSnapshot(pip_value=1.0)
         fill_result = {"fill": True, "entry_px": filled_entry}
 
-        runner._process_fill_result(
+        calib_state = runner._process_fill_result(
             intent=intent,
             spec=spec,
             result=dict(fill_result),
@@ -792,6 +795,7 @@ class TestRunner(unittest.TestCase):
         self.assertEqual(len(runner.calib_positions), 1)
         calib_pos = runner.calib_positions[-1]
         self.assertIsInstance(calib_pos, CalibrationPositionState)
+        self.assertIs(calib_state, calib_pos)
         self.assertAlmostEqual(calib_pos.entry_px, filled_entry)
         self.assertAlmostEqual(calib_pos.tp_px - filled_entry, tp_pips * pip)
         self.assertAlmostEqual(filled_entry - calib_pos.sl_px, sl_pips * pip)
@@ -799,7 +803,7 @@ class TestRunner(unittest.TestCase):
 
         runner.calib_positions.clear()
 
-        runner._process_fill_result(
+        active_state = runner._process_fill_result(
             intent=intent,
             spec=spec,
             result=fill_result,
@@ -813,6 +817,7 @@ class TestRunner(unittest.TestCase):
         self.assertIsNotNone(runner.pos)
         pos = runner.pos
         self.assertIsInstance(pos, ActivePositionState)
+        self.assertIs(active_state, pos)
         self.assertAlmostEqual(pos.entry_px, filled_entry)
         self.assertAlmostEqual(pos.tp_px - filled_entry, tp_pips * pip)
         self.assertAlmostEqual(filled_entry - pos.sl_px, sl_pips * pip)
