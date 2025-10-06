@@ -1051,7 +1051,9 @@ class BacktestRunner:
             realized_vol_value=rv_for_ctx,
         )
         if calibrating:
-            ctx["threshold_lcb_pip"] = -1e9
+            ctx["threshold_lcb_pip"] = (
+                float("-inf") if ctx.get("ev_mode") == "off" else -1e9
+            )
             ctx["calibrating"] = True
         self.stg.cfg["ctx"] = dict(ctx)
         return FeatureBundle(
@@ -1416,13 +1418,17 @@ class BacktestRunner:
             ),
         )
         ev_mgr = self._get_ev_manager(ev_key)
-        threshold_lcb = self._call_ev_threshold(
-            ctx_dbg,
-            pending,
-            self.rcfg.threshold_lcb_pip,
-            ts=timestamp,
-            side=pending_side,
-        )
+        ev_mode_value = str(ctx_dbg.get("ev_mode", "")).lower()
+        if ev_mode_value == "off":
+            threshold_lcb = float("-inf")
+        else:
+            threshold_lcb = self._call_ev_threshold(
+                ctx_dbg,
+                pending,
+                self.rcfg.threshold_lcb_pip,
+                ts=timestamp,
+                side=pending_side,
+            )
         ctx_dbg["threshold_lcb_pip"] = threshold_lcb
         ev_lcb = (
             ev_mgr.ev_lcb_oco(
@@ -1901,19 +1907,24 @@ class BacktestRunner:
         if or_h is not None and or_l is not None and atr14 and atr14 > 0:
             or_ratio = (or_h - or_l) / atr14
 
+        ev_mode_value = str(self.rcfg.ev_mode).lower()
+        threshold_ctx = self.rcfg.threshold_lcb_pip
+        if ev_mode_value == "off":
+            threshold_ctx = float("-inf")
+
         ctx = {
             "session": session,
             "spread_band": self._band_spread(spread_pips),
             "rv_band": self._band_rv(realized_vol_value, session),
             "slip_cap_pip": self.rcfg.slip_cap_pip,
-            "threshold_lcb_pip": self.rcfg.threshold_lcb_pip,
+            "threshold_lcb_pip": threshold_ctx,
             "or_atr_ratio": or_ratio,
             "min_or_atr_ratio": self.rcfg.min_or_atr_ratio,
             "allow_low_rv": self.rcfg.allow_low_rv,
             "warmup_left": self._warmup_left,
             "warmup_mult": 0.05,
             "cooldown_bars": self.rcfg.cooldown_bars,
-            "ev_mode": self.rcfg.ev_mode,
+            "ev_mode": ev_mode_value,
             "size_floor_mult": self.rcfg.size_floor_mult,
             # EV & sizing
             # pooled EV manager per bucket
