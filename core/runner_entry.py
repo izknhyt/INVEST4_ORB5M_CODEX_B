@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import MutableMapping
 from dataclasses import dataclass, field
 from typing import Any, Dict, Mapping, Optional, Tuple, TYPE_CHECKING, Union
 
@@ -16,6 +17,19 @@ class GateCheckOutcome:
     passed: bool
     reason: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+def _assign_optional(
+    mapping: MutableMapping[str, Any],
+    key: str,
+    value: Any,
+    *,
+    include_false: bool = True,
+) -> None:
+    if value is None or (value is False and not include_false):
+        mapping.pop(key, None)
+    else:
+        mapping[key] = value
 
 
 @dataclass
@@ -87,6 +101,33 @@ class EntryContext:
             data["calibrating"] = self.calibrating
         return data
 
+    def apply_to_mapping(self, mapping: MutableMapping[str, Any]) -> None:
+        mapping["session"] = self.session
+        mapping["spread_band"] = self.spread_band
+        mapping["rv_band"] = self.rv_band
+        mapping["slip_cap_pip"] = self.slip_cap_pip
+        mapping["threshold_lcb_pip"] = self.threshold_lcb_pip
+        mapping["or_atr_ratio"] = self.or_atr_ratio
+        mapping["min_or_atr_ratio"] = self.min_or_atr_ratio
+        mapping["allow_low_rv"] = self.allow_low_rv
+        mapping["warmup_left"] = self.warmup_left
+        mapping["warmup_mult"] = self.warmup_mult
+        mapping["cooldown_bars"] = self.cooldown_bars
+        mapping["ev_mode"] = self.ev_mode
+        mapping["size_floor_mult"] = self.size_floor_mult
+        mapping["base_cost_pips"] = self.base_cost_pips
+        mapping["expected_slip_pip"] = self.expected_slip_pip
+        mapping["cost_pips"] = self.cost_pips
+        mapping["equity"] = self.equity
+        mapping["pip_value"] = self.pip_value
+        mapping["sizing_cfg"] = self.sizing_cfg
+        mapping["ev_key"] = self.ev_key
+        mapping["ev_oco"] = self.ev_manager
+        _assign_optional(mapping, "allowed_sessions", self.allowed_sessions)
+        _assign_optional(mapping, "ev_profile_stats", self.ev_profile_stats)
+        _assign_optional(mapping, "news_freeze", self.news_freeze, include_false=False)
+        _assign_optional(mapping, "calibrating", self.calibrating, include_false=False)
+
 
 @dataclass
 class EVContext(EntryContext):
@@ -110,6 +151,13 @@ class EVContext(EntryContext):
         data["ev_bypass"] = self.bypass
         return data
 
+    def apply_to_mapping(self, mapping: MutableMapping[str, Any]) -> None:  # type: ignore[override]
+        super().apply_to_mapping(mapping)
+        _assign_optional(mapping, "ev_lcb", self.ev_lcb)
+        _assign_optional(mapping, "threshold_lcb", self.threshold_lcb)
+        _assign_optional(mapping, "ev_pass", self.ev_pass)
+        mapping["ev_bypass"] = self.bypass
+
 
 @dataclass
 class SizingContext(EVContext):
@@ -125,28 +173,46 @@ class SizingContext(EVContext):
             data["qty"] = self.qty
         return data
 
-
-@dataclass
-class EntryEvaluation:
-    outcome: GateCheckOutcome
-    context: Optional[EntryContext] = None
-    pending_side: Optional[str] = None
+    def apply_to_mapping(self, mapping: MutableMapping[str, Any]) -> None:  # type: ignore[override]
+        super().apply_to_mapping(mapping)
+        _assign_optional(mapping, "qty", self.qty)
 
 
 @dataclass
-class EVEvaluation:
+class EntryEvaluationResult:
     outcome: GateCheckOutcome
-    manager: Optional[Any] = None
-    ev_lcb: Optional[float] = None
-    threshold_lcb: Optional[float] = None
-    bypass: bool = False
-    context: Optional[EVContext] = None
+    context: EntryContext
+    pending_side: str
+    tp_pips: Optional[float]
+    sl_pips: Optional[float]
+
+    def apply_to(self, mapping: MutableMapping[str, Any]) -> None:
+        self.context.apply_to_mapping(mapping)
 
 
 @dataclass
-class SizingEvaluation:
+class EVEvaluationResult:
     outcome: GateCheckOutcome
-    context: Optional[SizingContext] = None
+    manager: Optional[Any]
+    context: EVContext
+    ev_lcb: float
+    threshold_lcb: float
+    bypass: bool
+    pending_side: str
+    tp_pips: Optional[float]
+    sl_pips: Optional[float]
+
+    def apply_to(self, mapping: MutableMapping[str, Any]) -> None:
+        self.context.apply_to_mapping(mapping)
+
+
+@dataclass
+class SizingEvaluationResult:
+    outcome: GateCheckOutcome
+    context: SizingContext
+
+    def apply_to(self, mapping: MutableMapping[str, Any]) -> None:
+        self.context.apply_to_mapping(mapping)
 
 
 @dataclass
@@ -227,17 +293,23 @@ class EntryGate:
     def __init__(self, runner: "BacktestRunner") -> None:
         self._runner = runner
 
-    def evaluate(self, *, pending: Any, features: "FeatureBundle") -> EntryEvaluation:
+    def evaluate(self, *, pending: Any, features: "FeatureBundle") -> EntryEvaluationResult:
         entry_ctx = features.entry_ctx
         if entry_ctx is None:
             raise ValueError("Feature bundle did not include an entry context")
-        pending_side, _, _ = self._runner._extract_pending_fields(pending)
+        initial_side, initial_tp_pips, initial_sl_pips = self._runner._extract_pending_fields(pending)
         gate_allowed, gate_reason = self._runner._call_strategy_gate(
             entry_ctx,
             pending,
             ts=self._runner._last_timestamp,
-            side=pending_side,
+            side=initial_side,
         )
+        pending_side, tp_pips, sl_pips = self._runner._extract_pending_fields(pending)
+        resolved_side = pending_side if pending_side is not None else initial_side
+        if tp_pips is None:
+            tp_pips = initial_tp_pips
+        if sl_pips is None:
+            sl_pips = initial_sl_pips
         if not gate_allowed:
             self._runner.debug_counts["gate_block"] += 1
             self._runner._increment_daily("gate_block")
@@ -252,21 +324,23 @@ class EntryGate:
             self._runner._append_debug_record(
                 "strategy_gate",
                 ts=self._runner._last_timestamp,
-                side=pending_side,
+                side=resolved_side,
                 reason_stage=metadata.get("reason_stage"),
                 or_atr_ratio=metadata.get("or_atr_ratio"),
                 min_or_atr_ratio=metadata.get("min_or_atr_ratio"),
                 rv_band=metadata.get("rv_band"),
                 allow_low_rv=entry_ctx.allow_low_rv,
             )
-            return EntryEvaluation(
+            return EntryEvaluationResult(
                 outcome=GateCheckOutcome(
                     passed=False,
                     reason="strategy_gate",
                     metadata=metadata,
                 ),
-                context=None,
-                pending_side=pending_side,
+                context=entry_ctx,
+                pending_side=resolved_side,
+                tp_pips=tp_pips,
+                sl_pips=sl_pips,
             )
         if not pass_gates(entry_ctx.to_mapping()):
             self._runner.debug_counts["gate_block"] += 1
@@ -279,26 +353,30 @@ class EntryGate:
             self._runner._append_debug_record(
                 "gate_block",
                 ts=self._runner._last_timestamp,
-                side=pending_side,
+                side=resolved_side,
                 rv_band=entry_ctx.rv_band,
                 spread_band=entry_ctx.spread_band,
                 or_atr_ratio=entry_ctx.or_atr_ratio,
                 reason="router_gate",
             )
-            return EntryEvaluation(
+            return EntryEvaluationResult(
                 outcome=GateCheckOutcome(
                     passed=False,
                     reason="router_gate",
                     metadata=metadata,
                 ),
-                context=None,
-                pending_side=pending_side,
+                context=entry_ctx,
+                pending_side=resolved_side,
+                tp_pips=tp_pips,
+                sl_pips=sl_pips,
             )
         self._runner._increment_daily("gate_pass")
-        return EntryEvaluation(
+        return EntryEvaluationResult(
             outcome=GateCheckOutcome(passed=True),
             context=entry_ctx,
-            pending_side=pending_side,
+            pending_side=resolved_side,
+            tp_pips=tp_pips,
+            sl_pips=sl_pips,
         )
 
 
@@ -309,12 +387,21 @@ class EVGate:
     def evaluate(
         self,
         *,
-        ctx: EntryContext,
+        entry: EntryEvaluationResult,
         pending: Any,
         calibrating: bool,
         timestamp: Optional[str],
-    ) -> EVEvaluation:
-        pending_side, tp_pips, sl_pips = self._runner._extract_pending_fields(pending)
+    ) -> EVEvaluationResult:
+        ctx = entry.context
+        pending_side_raw, tp_pips_raw, sl_pips_raw = self._runner._extract_pending_fields(
+            pending
+        )
+        pending_side = pending_side_raw if pending_side_raw is not None else entry.pending_side
+        tp_pips = tp_pips_raw if tp_pips_raw is not None else entry.tp_pips
+        sl_pips = sl_pips_raw if sl_pips_raw is not None else entry.sl_pips
+        entry.pending_side = pending_side
+        entry.tp_pips = tp_pips
+        entry.sl_pips = sl_pips
         ev_key = ctx.ev_key
         ev_mgr = ctx.ev_manager
         ev_mode_value = str(ctx.ev_mode).lower()
@@ -375,7 +462,7 @@ class EVGate:
                 ev_ctx.ev_lcb = ev_lcb
                 ev_ctx.ev_pass = False
                 ev_ctx.bypass = False
-                return EVEvaluation(
+                return EVEvaluationResult(
                     outcome=GateCheckOutcome(
                         passed=False,
                         reason="ev_reject",
@@ -385,10 +472,13 @@ class EVGate:
                         },
                     ),
                     manager=ev_mgr,
+                    context=ev_ctx,
                     ev_lcb=ev_lcb,
                     threshold_lcb=threshold_lcb,
                     bypass=False,
-                    context=ev_ctx,
+                    pending_side=pending_side,
+                    tp_pips=tp_pips,
+                    sl_pips=sl_pips,
                 )
         else:
             self._runner._increment_daily("ev_pass")
@@ -398,13 +488,16 @@ class EVGate:
         ev_ctx.ev_lcb = ev_lcb
         ev_ctx.ev_pass = not ev_bypass
         ev_ctx.bypass = ev_bypass
-        return EVEvaluation(
+        return EVEvaluationResult(
             outcome=GateCheckOutcome(passed=True),
             manager=ev_mgr,
+            context=ev_ctx,
             ev_lcb=ev_lcb,
             threshold_lcb=threshold_lcb,
             bypass=ev_bypass,
-            context=ev_ctx,
+            pending_side=pending_side,
+            tp_pips=tp_pips,
+            sl_pips=sl_pips,
         )
 
 
@@ -416,13 +509,14 @@ class SizingGate:
         self,
         *,
         ctx: EVContext,
-        pending: Any,
-        ev_result: EVEvaluation,
+        ev_result: EVEvaluationResult,
         calibrating: bool,
         timestamp: Optional[str],
-    ) -> SizingEvaluation:
+    ) -> SizingEvaluationResult:
         sizing_ctx = SizingContext.from_ev(ctx)
-        pending_side, tp_pips, sl_pips = self._runner._extract_pending_fields(pending)
+        pending_side = ev_result.pending_side
+        tp_pips = ev_result.tp_pips
+        sl_pips = ev_result.sl_pips
         slip_cap = sizing_ctx.slip_cap_pip
         expected_slip = sizing_ctx.expected_slip_pip
         if expected_slip > slip_cap:
@@ -439,7 +533,7 @@ class SizingGate:
                 expected_slip_pip=expected_slip,
                 slip_cap_pip=slip_cap,
             )
-            return SizingEvaluation(
+            return SizingEvaluationResult(
                 outcome=GateCheckOutcome(
                     passed=False,
                     reason="slip_cap",
@@ -468,7 +562,7 @@ class SizingGate:
             sizing_ctx.qty = qty_dbg
             if qty_dbg <= 0:
                 self._runner.debug_counts["zero_qty"] += 1
-                return SizingEvaluation(
+                return SizingEvaluationResult(
                     outcome=GateCheckOutcome(
                         passed=False,
                         reason="zero_qty",
@@ -476,7 +570,7 @@ class SizingGate:
                     ),
                     context=sizing_ctx,
                 )
-        return SizingEvaluation(
+        return SizingEvaluationResult(
             outcome=GateCheckOutcome(passed=True),
             context=sizing_ctx,
         )

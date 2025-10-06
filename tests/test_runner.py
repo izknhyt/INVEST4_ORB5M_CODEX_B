@@ -2,7 +2,7 @@ import csv
 import math
 from contextlib import ExitStack
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
@@ -22,11 +22,11 @@ from core.runner_lifecycle import RunnerLifecycleManager
 from core.runner_entry import (
     EntryGate,
     EVGate,
-    EntryEvaluation,
+    EntryEvaluationResult,
     SizingGate,
     GateCheckOutcome,
-    EVEvaluation,
-    SizingEvaluation,
+    EVEvaluationResult,
+    SizingEvaluationResult,
     TradeContextSnapshot,
     EntryContext,
     EVContext,
@@ -887,18 +887,20 @@ class TestRunner(unittest.TestCase):
         ev_ctx.ev_lcb = 0.0
         ev_ctx.threshold_lcb = 0.0
         ev_ctx.ev_pass = True
-        ev_result = EVEvaluation(
+        ev_result = EVEvaluationResult(
             outcome=GateCheckOutcome(passed=True),
             manager=ev_mgr,
+            context=ev_ctx,
             ev_lcb=0.0,
             threshold_lcb=0.0,
             bypass=False,
-            context=ev_ctx,
+            pending_side=pending["side"],
+            tp_pips=pending["tp_pips"],
+            sl_pips=pending["sl_pips"],
         )
 
         result = sizing_gate.evaluate(
             ctx=ev_ctx,
-            pending=pending,
             ev_result=ev_result,
             calibrating=False,
             timestamp="2024-01-01T00:00:00Z",
@@ -953,18 +955,20 @@ class TestRunner(unittest.TestCase):
         ev_ctx.ev_lcb = 0.0
         ev_ctx.threshold_lcb = 0.0
         ev_ctx.ev_pass = True
-        ev_result = EVEvaluation(
+        ev_result = EVEvaluationResult(
             outcome=GateCheckOutcome(passed=True),
             manager=ev_mgr,
+            context=ev_ctx,
             ev_lcb=0.0,
             threshold_lcb=0.0,
             bypass=False,
-            context=ev_ctx,
+            pending_side=pending["side"],
+            tp_pips=pending["tp_pips"],
+            sl_pips=pending["sl_pips"],
         )
 
         result = sizing_gate.evaluate(
             ctx=ev_ctx,
-            pending=pending,
             ev_result=ev_result,
             calibrating=False,
             timestamp="2024-01-01T00:05:00Z",
@@ -1144,12 +1148,10 @@ class TestRunner(unittest.TestCase):
             features=features,
         )
         self.assertTrue(entry_result.outcome.passed)
-        entry_ctx = entry_result.context
-        self.assertIsNotNone(entry_ctx)
-        assert entry_ctx is not None
+        self.assertIs(entry_result.context, features.entry_ctx)
         ev_gate = EVGate(runner)
         ev_result = ev_gate.evaluate(
-            ctx=entry_ctx,
+            entry=entry_result,
             pending=pending,
             calibrating=calibrating,
             timestamp=runner._last_timestamp,
@@ -1158,13 +1160,10 @@ class TestRunner(unittest.TestCase):
         self.assertIs(ev_result.manager, stub_ev)
         self.assertGreater(ev_result.ev_lcb, ev_result.threshold_lcb)
         self.assertFalse(ev_result.bypass)
-        self.assertIsNotNone(ev_result.context)
-        assert ev_result.context is not None
         self.assertTrue(ev_result.context.ev_pass)
         sizing_gate = SizingGate(runner)
         sizing_result = sizing_gate.evaluate(
             ctx=ev_result.context,
-            pending=pending,
             ev_result=ev_result,
             calibrating=calibrating,
             timestamp=runner._last_timestamp,
@@ -1185,11 +1184,8 @@ class TestRunner(unittest.TestCase):
             features=features,
         )
         self.assertTrue(entry_result.outcome.passed)
-        entry_ctx = entry_result.context
-        self.assertIsNotNone(entry_ctx)
-        assert entry_ctx is not None
         ev_result = EVGate(runner).evaluate(
-            ctx=entry_ctx,
+            entry=entry_result,
             pending=pending,
             calibrating=calibrating,
             timestamp=runner._last_timestamp,
@@ -1213,12 +1209,9 @@ class TestRunner(unittest.TestCase):
             features=features,
         )
         self.assertTrue(entry_result.outcome.passed)
-        entry_ctx = entry_result.context
-        self.assertIsNotNone(entry_ctx)
-        assert entry_ctx is not None
-        self.assertEqual(entry_ctx.ev_mode, "off")
+        self.assertEqual(entry_result.context.ev_mode, "off")
         ev_result = EVGate(runner).evaluate(
-            ctx=entry_ctx,
+            entry=entry_result,
             pending=pending,
             calibrating=calibrating,
             timestamp=runner._last_timestamp,
@@ -1229,9 +1222,7 @@ class TestRunner(unittest.TestCase):
         self.assertTrue(math.isinf(ev_result.threshold_lcb))
         self.assertLess(ev_result.threshold_lcb, 0.0)
         ev_ctx = ev_result.context
-        self.assertIsNotNone(ev_ctx)
-        assert ev_ctx is not None
-        self.assertTrue(math.isinf(entry_ctx.threshold_lcb_pip))
+        self.assertTrue(math.isinf(entry_result.context.threshold_lcb_pip))
         self.assertEqual(ev_ctx.threshold_lcb, ev_result.threshold_lcb)
         self.assertTrue(ev_ctx.ev_pass)
         self.assertEqual(runner.debug_counts["ev_reject"], 0)
@@ -1254,11 +1245,8 @@ class TestRunner(unittest.TestCase):
             features=features,
         )
         self.assertTrue(entry_result.outcome.passed)
-        entry_ctx = entry_result.context
-        self.assertIsNotNone(entry_ctx)
-        assert entry_ctx is not None
         ev_result = EVGate(runner).evaluate(
-            ctx=entry_ctx,
+            entry=entry_result,
             pending=intent,
             calibrating=calibrating,
             timestamp=runner._last_timestamp,
@@ -1266,8 +1254,6 @@ class TestRunner(unittest.TestCase):
         self.assertFalse(ev_result.outcome.passed)
         self.assertEqual(runner.debug_counts["ev_reject"], 1)
         ev_ctx = ev_result.context
-        self.assertIsNotNone(ev_ctx)
-        assert ev_ctx is not None
         if ev_ctx.expected_slip_pip is None:
             ev_ctx.expected_slip_pip = 0.0
         ev_ctx.slip_cap_pip = runner.rcfg.slip_cap_pip
@@ -1275,17 +1261,19 @@ class TestRunner(unittest.TestCase):
             ev_ctx.cost_pips = 0.0
         sizing_gate = SizingGate(runner)
         with patch("core.runner_entry.compute_qty_from_ctx", return_value=1.0) as mock_compute:
-            forced_ev_result = EVEvaluation(
+            forced_ev_result = EVEvaluationResult(
                 outcome=GateCheckOutcome(passed=True),
                 manager=stub_ev,
+                context=ev_ctx,
                 ev_lcb=ev_result.ev_lcb,
                 threshold_lcb=ev_result.threshold_lcb,
                 bypass=False,
-                context=ev_ctx,
+                pending_side=entry_result.pending_side,
+                tp_pips=entry_result.tp_pips,
+                sl_pips=entry_result.sl_pips,
             )
             sizing_result = sizing_gate.evaluate(
                 ctx=ev_ctx,
-                pending=intent,
                 ev_result=forced_ev_result,
                 calibrating=False,
                 timestamp=runner._last_timestamp,
@@ -1312,11 +1300,8 @@ class TestRunner(unittest.TestCase):
             features=features,
         )
         self.assertTrue(entry_result.outcome.passed)
-        entry_ctx = entry_result.context
-        self.assertIsNotNone(entry_ctx)
-        assert entry_ctx is not None
         ev_result = EVGate(runner).evaluate(
-            ctx=entry_ctx,
+            entry=entry_result,
             pending=pending,
             calibrating=calibrating,
             timestamp=runner._last_timestamp,
@@ -1324,12 +1309,9 @@ class TestRunner(unittest.TestCase):
         self.assertTrue(ev_result.outcome.passed)
         self.assertTrue(ev_result.bypass)
         ev_ctx = ev_result.context
-        self.assertIsNotNone(ev_ctx)
-        assert ev_ctx is not None
         self.assertFalse(ev_ctx.ev_pass)
         sizing_result = SizingGate(runner).evaluate(
             ctx=ev_ctx,
-            pending=pending,
             ev_result=ev_result,
             calibrating=calibrating,
             timestamp=runner._last_timestamp,
@@ -1348,15 +1330,86 @@ class TestRunner(unittest.TestCase):
         self.assertEqual(record["tp_pips"], 2.0)
         self.assertEqual(record["sl_pips"], 1.0)
 
+    def test_strategy_gate_adjustments_propagate_to_ev_and_sizing(self):
+        runner, pending, breakout, features, calibrating = self._prepare_breakout_environment(
+            warmup_left=0
+        )
+        adjusted_tp = 3.25
+        adjusted_sl = 1.75
+
+        class RecordingEV:
+            def __init__(self) -> None:
+                self.calls: List[Tuple[float, float, float]] = []
+                self._p_lcb = 0.62
+
+            def ev_lcb_oco(self, tp_pips: float, sl_pips: float, cost_pips: float) -> float:
+                self.calls.append((tp_pips, sl_pips, cost_pips))
+                return 1.2
+
+            def p_lcb(self) -> float:
+                return self._p_lcb
+
+        ev_stub = RecordingEV()
+        runner._get_ev_manager = lambda key: ev_stub
+        features.entry_ctx.ev_manager = ev_stub
+        features.ctx["ev_oco"] = ev_stub
+
+        def mutate_gate(ctx, pending_signal, ts=None, side=None):
+            pending_signal["tp_pips"] = adjusted_tp
+            pending_signal["sl_pips"] = adjusted_sl
+            oco = pending_signal.setdefault("oco", {})
+            oco["tp_pips"] = adjusted_tp
+            oco["sl_pips"] = adjusted_sl
+            return True, None
+
+        with patch.object(runner, "_call_strategy_gate", side_effect=mutate_gate):
+            with patch("core.runner_entry.compute_qty_from_ctx", return_value=1.0) as mock_compute:
+                entry_result = EntryGate(runner).evaluate(
+                    pending=pending,
+                    features=features,
+                )
+                self.assertTrue(entry_result.outcome.passed)
+                self.assertEqual(entry_result.tp_pips, adjusted_tp)
+                self.assertEqual(entry_result.sl_pips, adjusted_sl)
+
+                ev_result = EVGate(runner).evaluate(
+                    entry=entry_result,
+                    pending=pending,
+                    calibrating=calibrating,
+                    timestamp=runner._last_timestamp,
+                )
+                self.assertTrue(ev_result.outcome.passed)
+                self.assertEqual(ev_result.tp_pips, adjusted_tp)
+                self.assertEqual(ev_result.sl_pips, adjusted_sl)
+                self.assertGreaterEqual(len(ev_stub.calls), 1)
+                last_call = ev_stub.calls[-1]
+                self.assertAlmostEqual(last_call[0], adjusted_tp)
+                self.assertAlmostEqual(last_call[1], adjusted_sl)
+
+                sizing_result = SizingGate(runner).evaluate(
+                    ctx=ev_result.context,
+                    ev_result=ev_result,
+                    calibrating=calibrating,
+                    timestamp=runner._last_timestamp,
+                )
+                self.assertTrue(sizing_result.outcome.passed)
+                mock_compute.assert_called_once()
+                compute_args, compute_kwargs = mock_compute.call_args
+                self.assertAlmostEqual(compute_args[1], float(adjusted_sl))
+                self.assertAlmostEqual(compute_kwargs.get("tp_pips"), float(adjusted_tp))
+                self.assertEqual(sizing_result.context.qty, mock_compute.return_value)
+
     def test_maybe_enter_trade_stops_when_entry_gate_blocks(self):
         runner, pending, breakout, features, calibrating = self._prepare_breakout_environment(
             warmup_left=0
         )
         pip_value = pip_size(runner.symbol)
-        fail_result = EntryEvaluation(
+        fail_result = EntryEvaluationResult(
             outcome=GateCheckOutcome(passed=False, reason="router_gate"),
-            context=None,
+            context=features.entry_ctx,
             pending_side=pending["side"],
+            tp_pips=pending["tp_pips"],
+            sl_pips=pending["sl_pips"],
         )
         with patch.object(runner.stg, "on_bar", return_value=None):
             runner.stg._pending_signal = pending
@@ -1401,20 +1454,28 @@ class TestRunner(unittest.TestCase):
         ev_ctx.threshold_lcb = 0.6
         ev_ctx.ev_pass = True
         sizing_ctx = SizingContext.from_ev(ev_ctx)
-        entry_result = EntryEvaluation(
+        entry_result = EntryEvaluationResult(
             outcome=GateCheckOutcome(passed=True),
             context=entry_ctx,
             pending_side=pending["side"],
+            tp_pips=pending["tp_pips"],
+            sl_pips=pending["sl_pips"],
         )
-        ev_result = EVEvaluation(
+        ev_result = EVEvaluationResult(
             outcome=GateCheckOutcome(passed=True),
             manager=stub_ev,
+            context=ev_ctx,
             ev_lcb=1.2,
             threshold_lcb=0.6,
             bypass=False,
-            context=ev_ctx,
+            pending_side=pending["side"],
+            tp_pips=pending["tp_pips"],
+            sl_pips=pending["sl_pips"],
         )
-        sizing_result = SizingEvaluation(GateCheckOutcome(passed=True), context=sizing_ctx)
+        sizing_result = SizingEvaluationResult(
+            outcome=GateCheckOutcome(passed=True),
+            context=sizing_ctx,
+        )
         intent = OrderIntent(
             pending["side"],
             qty=1.0,
@@ -1515,7 +1576,10 @@ class TestRunner(unittest.TestCase):
 
         with patch(
             "core.runner_entry.SizingGate.evaluate",
-            side_effect=lambda **_: SizingEvaluation(GateCheckOutcome(True)),
+            side_effect=lambda **_: SizingEvaluationResult(
+                outcome=GateCheckOutcome(True),
+                context=SizingContext.from_ev(EVContext.from_entry(features.entry_ctx)),
+            ),
         ):
             with patch.object(runner.stg, "signals", return_value=[intent]):
                 with patch.object(runner.execution, "process_fill_result") as mock_process:
@@ -1561,7 +1625,10 @@ class TestRunner(unittest.TestCase):
 
         with patch(
             "core.runner_entry.SizingGate.evaluate",
-            side_effect=lambda **_: SizingEvaluation(GateCheckOutcome(True)),
+            side_effect=lambda **_: SizingEvaluationResult(
+                outcome=GateCheckOutcome(True),
+                context=SizingContext.from_ev(EVContext.from_entry(features.entry_ctx)),
+            ),
         ):
             with patch.object(runner.stg, "signals", return_value=[intent]):
                 with patch.object(
@@ -1613,7 +1680,10 @@ class TestRunner(unittest.TestCase):
 
         with patch(
             "core.runner_entry.SizingGate.evaluate",
-            side_effect=lambda **_: SizingEvaluation(GateCheckOutcome(True)),
+            side_effect=lambda **_: SizingEvaluationResult(
+                outcome=GateCheckOutcome(True),
+                context=SizingContext.from_ev(EVContext.from_entry(features.entry_ctx)),
+            ),
         ):
             with patch.object(runner.stg, "signals", return_value=[intent]):
                 with patch.object(
