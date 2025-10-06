@@ -201,6 +201,102 @@ class ExitDecision:
     updated_pos: Optional[PositionState]
 
 
+def _coerce_trade_ctx(value: Optional[Mapping[str, Any] | TradeContextSnapshot | Any]) -> TradeContextSnapshot:
+    if isinstance(value, TradeContextSnapshot):
+        return value
+    if value is None:
+        return TradeContextSnapshot()
+    if hasattr(value, "as_dict"):
+        try:
+            return TradeContextSnapshot(**value.as_dict())  # type: ignore[arg-type]
+        except Exception:
+            return TradeContextSnapshot()
+    if isinstance(value, Mapping):
+        return TradeContextSnapshot(**dict(value))
+    try:
+        return TradeContextSnapshot(**dict(value))  # type: ignore[arg-type]
+    except Exception:
+        return TradeContextSnapshot()
+
+
+def _snapshot_to_dict(value: Union[Mapping[str, Any], TradeContextSnapshot, None]) -> Dict[str, Any]:
+    if isinstance(value, TradeContextSnapshot):
+        return value.as_dict()
+    if value is None:
+        return {}
+    if hasattr(value, "as_dict"):
+        try:
+            return dict(value.as_dict())  # type: ignore[arg-type]
+        except Exception:
+            return {}
+    try:
+        return dict(value)
+    except Exception:
+        return {}
+
+
+@dataclass
+class CalibrationPositionState(PositionState):
+    ctx_snapshot: Optional[TradeContextSnapshot] = None
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if isinstance(self.ctx_snapshot, dict):
+            self.ctx_snapshot = _coerce_trade_ctx(self.ctx_snapshot)
+        elif self.ctx_snapshot is not None and not isinstance(
+            self.ctx_snapshot, TradeContextSnapshot
+        ):
+            self.ctx_snapshot = _coerce_trade_ctx(self.ctx_snapshot)
+
+    def ctx_snapshot_dict(self) -> Dict[str, Any]:
+        if isinstance(self.ctx_snapshot, TradeContextSnapshot):
+            return self.ctx_snapshot.as_dict()
+        return {}
+
+    def as_dict(self) -> Dict[str, Any]:
+        data = super().as_dict()
+        if isinstance(self.ctx_snapshot, TradeContextSnapshot):
+            data["ctx_snapshot"] = self.ctx_snapshot.as_dict()
+        elif not data.get("ctx_snapshot"):
+            data["ctx_snapshot"] = {}
+        return data
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "CalibrationPositionState":
+        base = PositionState.from_dict(payload)
+        data = base.as_dict()
+        snapshot_payload = payload.get("ctx_snapshot") or {}
+        snapshot = None
+        if snapshot_payload:
+            snapshot = _coerce_trade_ctx(snapshot_payload)
+        return cls(**{**data, "ctx_snapshot": snapshot})
+
+
+@dataclass
+class ActivePositionState(PositionState):
+    ctx_snapshot: TradeContextSnapshot = field(default_factory=TradeContextSnapshot)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self.ctx_snapshot = _coerce_trade_ctx(self.ctx_snapshot)
+
+    def ctx_snapshot_dict(self) -> Dict[str, Any]:
+        return self.ctx_snapshot.as_dict()
+
+    def as_dict(self) -> Dict[str, Any]:
+        data = super().as_dict()
+        data["ctx_snapshot"] = self.ctx_snapshot.as_dict()
+        return data
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "ActivePositionState":
+        base = PositionState.from_dict(payload)
+        data = base.as_dict()
+        snapshot_payload = payload.get("ctx_snapshot") or {}
+        snapshot = _coerce_trade_ctx(snapshot_payload)
+        return cls(**{**data, "ctx_snapshot": snapshot})
+
+
 @dataclass
 class StrategyConfig:
     """Container for strategy-specific parameters.
@@ -507,8 +603,8 @@ class BacktestRunner:
             "NY": deque(maxlen=self.rcfg.rv_q_lookback_bars),
         }
         self.rv_thresh: Dict[str, Optional[tuple]] = {"TOK": None, "LDN": None, "NY": None}
-        self.calib_positions: List[PositionState] = []
-        self.pos: Optional[PositionState] = None
+        self.calib_positions: List[CalibrationPositionState] = []
+        self.pos: Optional[ActivePositionState] = None
         self._warmup_left = max(0, int(self.rcfg.warmup_trades))
         self._last_session: Optional[str] = None
         self._last_day: Optional[int] = None
@@ -757,9 +853,9 @@ class BacktestRunner:
         pnl_pips: float,
         pnl_value: float,
         qty: float,
-        ctx_snapshot: Optional[Dict[str, Any]] = None,
+        ctx_snapshot: Union[Mapping[str, Any], TradeContextSnapshot, None] = None,
     ) -> None:
-        ctx_snapshot = ctx_snapshot or {}
+        ctx_snapshot_map = _snapshot_to_dict(ctx_snapshot)
         record = {
             "ts": exit_ts,
             "entry_ts": entry_ts,
@@ -787,11 +883,11 @@ class BacktestRunner:
             "expected_slip_pip",
             "zscore",
         ):
-            value = ctx_snapshot.get(key)
+            value = ctx_snapshot_map.get(key)
             if value is not None:
                 record[key] = value
-        if ctx_snapshot.get("cost_base") is not None:
-            record["cost_base"] = ctx_snapshot["cost_base"]
+        if ctx_snapshot_map.get("cost_base") is not None:
+            record["cost_base"] = ctx_snapshot_map["cost_base"]
         self.records.append(record)
 
     def _finalize_trade(
@@ -803,7 +899,7 @@ class BacktestRunner:
         entry_px: float,
         exit_px: float,
         exit_reason: Optional[str],
-        ctx_snapshot: Mapping[str, Any],
+        ctx_snapshot: Union[Mapping[str, Any], TradeContextSnapshot],
         ctx: Mapping[str, Any],
         qty_sample: float,
         slip_actual: float,
@@ -813,12 +909,13 @@ class BacktestRunner:
         debug_stage: str,
         debug_extra: Optional[Mapping[str, Any]] = None,
     ) -> None:
-        base_cost = ctx_snapshot.get(
+        ctx_snapshot_map = _snapshot_to_dict(ctx_snapshot)
+        base_cost = ctx_snapshot_map.get(
             "cost_base", ctx.get("base_cost_pips", ctx.get("cost_pips", 0.0))
         )
         est_slip_used = 0.0
         if getattr(self.rcfg, "include_expected_slip", False):
-            band = ctx_snapshot.get(
+            band = ctx_snapshot_map.get(
                 "spread_band", ctx.get("spread_band", "normal")
             )
             coeff = float(
@@ -840,7 +937,7 @@ class BacktestRunner:
             qty_effective = 0.0
         pnl_pips = pnl_pips_unit * qty_effective
         hit = exit_reason == "tp"
-        pip_value_ctx = ctx_snapshot.get("pip_value")
+        pip_value_ctx = ctx_snapshot_map.get("pip_value")
         if pip_value_ctx is None:
             pip_value_ctx = ctx.get("pip_value", 10.0)
         try:
@@ -875,7 +972,7 @@ class BacktestRunner:
             pnl_pips=pnl_pips,
             pnl_value=pnl_value,
             qty=qty_effective,
-            ctx_snapshot=dict(ctx_snapshot),
+            ctx_snapshot=ctx_snapshot_map,
         )
         debug_fields: Dict[str, Any] = {
             "ts": self._last_timestamp,
@@ -1046,7 +1143,7 @@ class BacktestRunner:
         if getattr(self, "pos", None) is None:
             return False
 
-        current_pos = self.pos
+        current_pos: ActivePositionState = self.pos
         decision = self._compute_exit_decision(
             pos=current_pos,
             bar=bar,
@@ -1066,7 +1163,7 @@ class BacktestRunner:
                 entry_px=current_pos.entry_px,
                 exit_px=decision.exit_px,
                 exit_reason=decision.exit_reason,
-                ctx_snapshot=dict(current_pos.ctx_snapshot),
+                ctx_snapshot=current_pos.ctx_snapshot_dict(),
                 ctx=ctx,
                 qty_sample=qty_sample,
                 slip_actual=slip_actual,
@@ -1092,7 +1189,7 @@ class BacktestRunner:
             return
         # Continue resolving calibration trades even after the calibration
         # window ends so their outcomes update pooled EV statistics.
-        still: List[PositionState] = []
+        still: List[CalibrationPositionState] = []
         for pos_state in self.calib_positions:
             decision = self._compute_exit_decision(
                 pos=pos_state,
@@ -1111,6 +1208,8 @@ class BacktestRunner:
                 self._get_ev_manager(ev_key).update(bool(hit))
                 continue
             updated_state = decision.updated_pos or pos_state
+            if not isinstance(updated_state, CalibrationPositionState):
+                updated_state = CalibrationPositionState.from_dict(updated_state.as_dict())
             still.append(updated_state)
         self.calib_positions = still
 
@@ -1294,7 +1393,7 @@ class BacktestRunner:
                 entry_px=entry_px,
                 exit_px=exit_px,
                 exit_reason=exit_reason,
-                ctx_snapshot=trade_ctx_snapshot.as_dict(),
+                ctx_snapshot=trade_ctx_snapshot,
                 ctx=ctx,
                 qty_sample=qty_sample,
                 slip_actual=slip_actual,
@@ -1317,7 +1416,7 @@ class BacktestRunner:
         sl_px0 = entry_px - direction * spec.sl_pips * pip_size_value
         if calibrating:
             self.calib_positions.append(
-                PositionState(
+                CalibrationPositionState(
                     side=intent.side,
                     entry_px=entry_px,
                     tp_px=tp_px,
@@ -1328,6 +1427,7 @@ class BacktestRunner:
                     hh=bar["h"],
                     ll=bar["l"],
                     ev_key=ctx.get("ev_key"),
+                    ctx_snapshot=trade_ctx_snapshot,
                 )
             )
             return
@@ -1337,7 +1437,7 @@ class BacktestRunner:
             intended_price=intent.price,
             ctx=ctx,
         )
-        self.pos = PositionState(
+        self.pos = ActivePositionState(
             side=intent.side,
             entry_px=entry_px,
             tp_px=tp_px,
@@ -1352,7 +1452,7 @@ class BacktestRunner:
             expected_slip_pip=ctx.get("expected_slip_pip", 0.0),
             entry_slip_pip=entry_slip_pip,
             entry_ts=bar.get("timestamp"),
-            ctx_snapshot=trade_ctx_snapshot.as_dict(),
+            ctx_snapshot=trade_ctx_snapshot,
         )
 
     def _record_trade_metrics(
@@ -1495,16 +1595,16 @@ class BacktestRunner:
             position_state = state.get("position")
             if position_state:
                 try:
-                    self.pos = PositionState.from_dict(position_state)
+                    self.pos = ActivePositionState.from_dict(position_state)
                 except Exception:
                     self.pos = None
             else:
                 self.pos = None
             calib_payload = state.get("calibration_positions", [])
-            restored_calib: List[PositionState] = []
+            restored_calib: List[CalibrationPositionState] = []
             for raw in calib_payload:
                 try:
-                    restored_calib.append(PositionState.from_dict(raw))
+                    restored_calib.append(CalibrationPositionState.from_dict(raw))
                 except Exception:
                     continue
             self.calib_positions = restored_calib

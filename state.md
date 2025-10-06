@@ -2,6 +2,11 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-03-07: Introduced `ActivePositionState` / `CalibrationPositionState` for runner
+  state tracking, refactored fill handling and calibration resolution to use the
+  typed dataclasses with JSON-compatible persistence, and refreshed
+  `tests/test_runner.py` to assert entry/exit/calibration statistics continue to
+  update as expected. Ran `python3 -m pytest tests/test_runner.py`.
 - 2026-03-06: Added structured `EntryEvaluation`/`EVEvaluation`/`SizingEvaluation`
   and `TradeContextSnapshot` dataclasses to capture gate outcomes and trade context,
   refactored `BacktestRunner._maybe_enter_trade` to route through the new helpers,
