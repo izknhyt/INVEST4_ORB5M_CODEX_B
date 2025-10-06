@@ -9,6 +9,10 @@
   during runner state export/load, refactored calibration resolution to reuse typed dataclasses,
   and extended `tests/test_runner.py` with coverage that verifies metrics/EV updates under the dataclass
   flow. Executed `python3 -m pytest tests/test_runner.py`.
+- 2026-03-17: Exported `_equity_live` with runner state snapshots, restored the live equity when
+  loading state so sizing inputs remain consistent across resets, added regression
+  `tests/test_runner.py::test_export_reset_load_preserves_live_equity_and_sizing`, and ran
+  `python3 -m pytest tests/test_runner.py` for confirmation.
 - 2026-03-15: Routed runner context updates through ``Strategy.update_context`` so
   signals consume post-gate data without mutating ``cfg`` payloads, refreshed
   DayORB5m-related regressions plus CLI/feature strategy tests for the API

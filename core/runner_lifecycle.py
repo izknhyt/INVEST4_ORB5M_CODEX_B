@@ -117,6 +117,7 @@ class RunnerLifecycleManager:
                 "day_count": runner._day_count,
                 "current_date": runner._current_date,
                 "last_session": runner._last_session,
+                "_equity_live": runner._equity_live,
             },
         }
         if runner.pos is not None:
@@ -210,6 +211,13 @@ class RunnerLifecycleManager:
                 runner.rv_thresh = rv_th
 
             runtime = state.get("runtime", {})
+            if "_equity_live" in runtime:
+                try:
+                    runner._equity_live = float(runtime.get("_equity_live", runner._equity_live))
+                    if getattr(runner, "metrics", None) is not None:
+                        runner.metrics.starting_equity = runner._equity_live
+                except Exception:
+                    pass
             if "warmup_left" in runtime:
                 try:
                     runner._warmup_left = max(
