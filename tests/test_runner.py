@@ -17,6 +17,7 @@ from core.runner import (
     Metrics,
     RunnerConfig,
 )
+from core.runner_features import RunnerContext
 from core.runner_execution import RunnerExecutionManager
 from core.runner_lifecycle import RunnerLifecycleManager
 from core.runner_entry import (
@@ -317,6 +318,8 @@ class TestRunner(unittest.TestCase):
         self.assertEqual(features_before.ctx["rv_band"], "mid")
         self.assertEqual(features_after.ctx["rv_band"], "high")
         self.assertNotEqual(features_before.ctx["rv_band"], features_after.ctx["rv_band"])
+        self.assertIsInstance(features_before.ctx, RunnerContext)
+        self.assertIsInstance(features_after.ctx, RunnerContext)
 
     def test_run_restores_loaded_state_snapshot(self):
         rcfg_source = RunnerConfig(warmup_trades=10)
