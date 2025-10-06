@@ -324,6 +324,9 @@
 - [P2-01] 2026-01-08: 戦略テンプレと manifest を整備し、manifest CLI 回帰と run_sim ドライランを完了. DoD: [docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化).
 
 - [P2-01] 2026-01-08: 戦略テンプレと manifest を整備し、pytest/run_sim で配線確認済み. DoD: [docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化).
+- 2026-03-09: Replaced runner entry/EV/sizing contexts with typed dataclasses, refactored the feature pipeline and gating flow to
+  propagate structured contexts, updated trade snapshot helpers, and refreshed runner feature/unit tests to assert the new
+  attribute-based API. Ran `python3 -m pytest tests/test_runner_features.py tests/test_runner.py`.
 ## Next Task
 - Backlog Anchor: [Codex Session Operations Guide](docs/task_backlog.md#codex-session-operations-guide)
 - Vision / Runbook References:
