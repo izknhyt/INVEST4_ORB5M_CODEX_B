@@ -1023,8 +1023,8 @@ class BacktestRunner:
         trade_ctx_snapshot: TradeContextSnapshot,
         calibrating: bool,
         pip_size_value: float,
-    ) -> None:
-        self.execution.process_fill_result(
+    ) -> Optional[PositionState]:
+        return self.execution.process_fill_result(
             intent=intent,
             spec=spec,
             result=result,

@@ -253,7 +253,7 @@ class RunnerExecutionManager:
             ctx=sizing_ctx,
             features=features,
         )
-        self.process_fill_result(
+        state = self.process_fill_result(
             intent=intent,
             spec=spec,
             result=result,
@@ -279,7 +279,7 @@ class RunnerExecutionManager:
         trade_ctx_snapshot: TradeContextSnapshot,
         calibrating: bool,
         pip_size_value: float,
-    ) -> None:
+    ) -> Optional[PositionState]:
         runner = self._runner
         if "exit_px" in result:
             entry_px = result["entry_px"]
@@ -293,7 +293,7 @@ class RunnerExecutionManager:
                     ctx.get("rv_band"),
                 )
                 runner._get_ev_manager(ev_key).update(bool(hit))
-                return
+                return None
             qty_sample, slip_actual = runner._update_slip_learning(
                 order=intent,
                 actual_price=entry_px,
@@ -320,7 +320,7 @@ class RunnerExecutionManager:
                     "sl_pips": spec.sl_pips,
                 },
             )
-            return
+            return None
         entry_px_result = result.get("entry_px")
         entry_px = entry_px_result if entry_px_result is not None else intent.price
         if entry_px is None:
@@ -329,29 +329,28 @@ class RunnerExecutionManager:
         tp_px = entry_px + direction * spec.tp_pips * pip_size_value
         sl_px0 = entry_px - direction * spec.sl_pips * pip_size_value
         if calibrating:
-            runner.calib_positions.append(
-                CalibrationPositionState(
-                    side=intent.side,
-                    entry_px=entry_px,
-                    tp_px=tp_px,
-                    sl_px=sl_px0,
-                    trail_pips=spec.trail_pips,
-                    tp_pips=spec.tp_pips,
-                    sl_pips=spec.sl_pips,
-                    hh=bar["h"],
-                    ll=bar["l"],
-                    ev_key=ctx.get("ev_key"),
-                    ctx_snapshot=trade_ctx_snapshot,
-                )
+            state = CalibrationPositionState(
+                side=intent.side,
+                entry_px=entry_px,
+                tp_px=tp_px,
+                sl_px=sl_px0,
+                trail_pips=spec.trail_pips,
+                tp_pips=spec.tp_pips,
+                sl_pips=spec.sl_pips,
+                hh=bar["h"],
+                ll=bar["l"],
+                ev_key=ctx.get("ev_key"),
+                ctx_snapshot=trade_ctx_snapshot,
             )
-            return
+            runner.calib_positions.append(state)
+            return state
         _, entry_slip_pip = runner._update_slip_learning(
             order=intent,
             actual_price=entry_px,
             intended_price=intent.price,
             ctx=ctx,
         )
-        runner.pos = ActivePositionState(
+        state = ActivePositionState(
             side=intent.side,
             entry_px=entry_px,
             tp_px=tp_px,
@@ -368,6 +367,8 @@ class RunnerExecutionManager:
             entry_ts=bar.get("timestamp"),
             ctx_snapshot=trade_ctx_snapshot,
         )
+        runner.pos = state
+        return state
 
     # ----- Trade finalisation -----------------------------------------------------
     def log_trade_record(
