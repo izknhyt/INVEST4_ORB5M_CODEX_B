@@ -1,4 +1,5 @@
 import csv
+import json
 import math
 from contextlib import ExitStack
 from pathlib import Path
@@ -501,6 +502,55 @@ class TestRunner(unittest.TestCase):
         self.assertTrue(
             any("config_fingerprint mismatch" in str(message) for message in warnings)
         )
+
+    def test_export_reset_load_preserves_live_equity_and_sizing(self):
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
+        runner._equity_live = 82_500.0
+        expected_equity = runner._equity_live
+        sizing_cfg = runner.rcfg.build_sizing_cfg()
+        ctx_template = {
+            "session": "LDN",
+            "rv_band": "mid",
+            "spread_band": "normal",
+            "base_cost_pips": 0.1,
+            "pip_value": 9.5,
+            "sizing_cfg": sizing_cfg,
+            "ev_mode": "lcb",
+            "warmup_mult": 0.05,
+            "size_floor_mult": 0.01,
+        }
+        ctx_before = dict(ctx_template)
+        ctx_before["equity"] = runner._equity_live
+        qty_before = compute_qty_from_ctx(
+            ctx_before,
+            sl_pips=2.0,
+            mode="production",
+            tp_pips=4.0,
+            p_lcb=0.55,
+        )
+
+        state = runner.export_state()
+        serialised = json.dumps(state)
+        self.assertIsInstance(serialised, str)
+
+        runner._reset_runtime_state()
+        self.assertNotAlmostEqual(runner._equity_live, expected_equity)
+
+        runner.load_state(state)
+        self.assertAlmostEqual(runner._equity_live, expected_equity)
+        self.assertAlmostEqual(runner.metrics.starting_equity, expected_equity)
+
+        ctx_after = dict(ctx_template)
+        ctx_after["equity"] = runner._equity_live
+        qty_after = compute_qty_from_ctx(
+            ctx_after,
+            sl_pips=2.0,
+            mode="production",
+            tp_pips=4.0,
+            p_lcb=0.55,
+        )
+
+        self.assertAlmostEqual(qty_after, qty_before)
 
     def test_export_and_apply_state_round_trips_position_state(self):
         runner = BacktestRunner(equity=50_000.0, symbol="USDJPY")
