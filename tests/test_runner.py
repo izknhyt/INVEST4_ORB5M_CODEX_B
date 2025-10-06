@@ -23,11 +23,11 @@ from core.runner_lifecycle import RunnerLifecycleManager
 from core.runner_entry import (
     EntryGate,
     EVGate,
-    EntryEvaluationResult,
+    EntryEvaluation,
     SizingGate,
     GateCheckOutcome,
-    EVEvaluationResult,
-    SizingEvaluationResult,
+    EVEvaluation,
+    SizingEvaluation,
     TradeContextSnapshot,
     EntryContext,
     EVContext,
@@ -892,7 +892,7 @@ class TestRunner(unittest.TestCase):
         ev_ctx.ev_lcb = 0.0
         ev_ctx.threshold_lcb = 0.0
         ev_ctx.ev_pass = True
-        ev_result = EVEvaluationResult(
+        ev_result = EVEvaluation(
             outcome=GateCheckOutcome(passed=True),
             manager=ev_mgr,
             context=ev_ctx,
@@ -960,7 +960,7 @@ class TestRunner(unittest.TestCase):
         ev_ctx.ev_lcb = 0.0
         ev_ctx.threshold_lcb = 0.0
         ev_ctx.ev_pass = True
-        ev_result = EVEvaluationResult(
+        ev_result = EVEvaluation(
             outcome=GateCheckOutcome(passed=True),
             manager=ev_mgr,
             context=ev_ctx,
@@ -1266,7 +1266,7 @@ class TestRunner(unittest.TestCase):
             ev_ctx.cost_pips = 0.0
         sizing_gate = SizingGate(runner)
         with patch("core.runner_entry.compute_qty_from_ctx", return_value=1.0) as mock_compute:
-            forced_ev_result = EVEvaluationResult(
+            forced_ev_result = EVEvaluation(
                 outcome=GateCheckOutcome(passed=True),
                 manager=stub_ev,
                 context=ev_ctx,
@@ -1409,7 +1409,7 @@ class TestRunner(unittest.TestCase):
             warmup_left=0
         )
         pip_value = pip_size(runner.symbol)
-        fail_result = EntryEvaluationResult(
+        fail_result = EntryEvaluation(
             outcome=GateCheckOutcome(passed=False, reason="router_gate"),
             context=features.entry_ctx,
             pending_side=pending["side"],
@@ -1459,14 +1459,14 @@ class TestRunner(unittest.TestCase):
         ev_ctx.threshold_lcb = 0.6
         ev_ctx.ev_pass = True
         sizing_ctx = SizingContext.from_ev(ev_ctx)
-        entry_result = EntryEvaluationResult(
+        entry_result = EntryEvaluation(
             outcome=GateCheckOutcome(passed=True),
             context=entry_ctx,
             pending_side=pending["side"],
             tp_pips=pending["tp_pips"],
             sl_pips=pending["sl_pips"],
         )
-        ev_result = EVEvaluationResult(
+        ev_result = EVEvaluation(
             outcome=GateCheckOutcome(passed=True),
             manager=stub_ev,
             context=ev_ctx,
@@ -1477,7 +1477,7 @@ class TestRunner(unittest.TestCase):
             tp_pips=pending["tp_pips"],
             sl_pips=pending["sl_pips"],
         )
-        sizing_result = SizingEvaluationResult(
+        sizing_result = SizingEvaluation(
             outcome=GateCheckOutcome(passed=True),
             context=sizing_ctx,
         )
@@ -1581,7 +1581,7 @@ class TestRunner(unittest.TestCase):
 
         with patch(
             "core.runner_entry.SizingGate.evaluate",
-            side_effect=lambda **_: SizingEvaluationResult(
+            side_effect=lambda **_: SizingEvaluation(
                 outcome=GateCheckOutcome(True),
                 context=SizingContext.from_ev(EVContext.from_entry(features.entry_ctx)),
             ),
@@ -1630,7 +1630,7 @@ class TestRunner(unittest.TestCase):
 
         with patch(
             "core.runner_entry.SizingGate.evaluate",
-            side_effect=lambda **_: SizingEvaluationResult(
+            side_effect=lambda **_: SizingEvaluation(
                 outcome=GateCheckOutcome(True),
                 context=SizingContext.from_ev(EVContext.from_entry(features.entry_ctx)),
             ),
@@ -1685,7 +1685,7 @@ class TestRunner(unittest.TestCase):
 
         with patch(
             "core.runner_entry.SizingGate.evaluate",
-            side_effect=lambda **_: SizingEvaluationResult(
+            side_effect=lambda **_: SizingEvaluation(
                 outcome=GateCheckOutcome(True),
                 context=SizingContext.from_ev(EVContext.from_entry(features.entry_ctx)),
             ),

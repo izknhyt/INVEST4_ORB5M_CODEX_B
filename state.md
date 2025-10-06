@@ -2,6 +2,9 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2025-10-06: Renamed the runner entry/EV/sizing evaluation dataclasses to `EntryEvaluation` / `EVEvaluation` / `SizingEvaluation`,
+  updated BacktestRunner pipelines and regression tests to consume the new names, and ran
+  `python3 -m pytest tests/test_runner.py` to confirm the refactor.
 - 2026-03-15: Routed runner context updates through ``Strategy.update_context`` so
   signals consume post-gate data without mutating ``cfg`` payloads, refreshed
   DayORB5m-related regressions plus CLI/feature strategy tests for the API
