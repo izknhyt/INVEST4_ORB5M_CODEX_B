@@ -166,6 +166,25 @@ def snapshot_to_dict(
         return {}
 
 
+def serialize_position_state(state: PositionState) -> Dict[str, Any]:
+    """Convert a ``PositionState`` instance into a JSON-safe mapping."""
+
+    if not isinstance(state, PositionState):  # pragma: no cover - defensive
+        raise TypeError("serialize_position_state expects a PositionState instance")
+    payload = state.as_dict()
+    return dict(payload)
+
+
+def deserialize_position_state(
+    payload: Mapping[str, Any], *, calibration: bool = False
+) -> PositionState:
+    """Instantiate the appropriate ``PositionState`` subclass from persisted data."""
+
+    if calibration:
+        return CalibrationPositionState.from_dict(payload)
+    return ActivePositionState.from_dict(payload)
+
+
 @dataclass
 class CalibrationPositionState(PositionState):
     ctx_snapshot: Optional[TradeContextSnapshot] = None

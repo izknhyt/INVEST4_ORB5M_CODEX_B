@@ -1,7 +1,7 @@
 from __future__ import annotations
 import math
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, Mapping, Optional, TYPE_CHECKING, Union
+from typing import Any, Dict, Iterable, Mapping, Optional, TYPE_CHECKING, Union, cast
 
 from core.fill_engine import OrderSpec
 from core.pips import price_to_pips
@@ -169,9 +169,9 @@ class RunnerExecutionManager:
                 hit = decision.exit_reason == "tp"
                 runner._get_ev_manager(ev_key).update(bool(hit))
                 continue
-            updated_state = decision.updated_pos or pos_state
-            if not isinstance(updated_state, CalibrationPositionState):
-                updated_state = CalibrationPositionState.from_dict(updated_state.as_dict())
+            updated_state = cast(
+                CalibrationPositionState, decision.updated_pos or pos_state
+            )
             still.append(updated_state)
         runner.calib_positions = still
 

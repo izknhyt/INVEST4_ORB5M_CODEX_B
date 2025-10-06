@@ -4,7 +4,12 @@ import json
 from typing import Any, Dict, List, Mapping, Optional, TYPE_CHECKING
 
 from core.ev_gate import BetaBinomialEV, TLowerEV
-from core.runner_state import ActivePositionState, CalibrationPositionState
+from core.runner_state import (
+    ActivePositionState,
+    CalibrationPositionState,
+    deserialize_position_state,
+    serialize_position_state,
+)
 
 if TYPE_CHECKING:
     from core.runner import BacktestRunner
@@ -115,10 +120,11 @@ class RunnerLifecycleManager:
             },
         }
         if runner.pos is not None:
-            state["position"] = runner.pos.as_dict()
+            state["position"] = serialize_position_state(runner.pos)
         if runner.calib_positions:
             state["calibration_positions"] = [
-                pos_state.as_dict() for pos_state in runner.calib_positions
+                serialize_position_state(pos_state)
+                for pos_state in runner.calib_positions
             ]
         return state
 
@@ -217,7 +223,9 @@ class RunnerLifecycleManager:
             position_state = state.get("position")
             if position_state:
                 try:
-                    runner.pos = ActivePositionState.from_dict(position_state)
+                    runner.pos = deserialize_position_state(
+                        position_state, calibration=False
+                    )
                 except Exception:
                     runner.pos = None
             else:
@@ -227,7 +235,9 @@ class RunnerLifecycleManager:
             restored_calib: List[CalibrationPositionState] = []
             for raw in calib_payload:
                 try:
-                    restored_calib.append(CalibrationPositionState.from_dict(raw))
+                    restored_calib.append(
+                        deserialize_position_state(raw, calibration=True)
+                    )
                 except Exception:
                     continue
             runner.calib_positions = restored_calib
