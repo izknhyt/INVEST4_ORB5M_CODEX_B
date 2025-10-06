@@ -2,7 +2,7 @@
 Day ORB 5m v1 (skeleton) — Design v1.1 / ADR-012..025
 """
 from __future__ import annotations
-from typing import Dict, Any, Iterable, Optional, List
+from typing import Dict, Any, Iterable, Optional, List, Mapping
 from core.strategy_api import Strategy, OrderIntent
 from router.router_v0 import pass_gates
 from core.sizing import compute_qty_from_ctx
@@ -134,22 +134,22 @@ class DayORB5m(Strategy):
                 elif (bar["l"] <= or_l) and ((not require_close) or (bar["c"] <= or_l)):
                     self._pending_signal = {"side":"SELL","tp_pips":tp_pips,"sl_pips":sl_pips,"trail_pips":trail_pips,"entry":or_l}
 
-    def signals(self) -> Iterable[OrderIntent]:
+    def signals(self, ctx: Optional[Mapping[str, Any]] = None) -> Iterable[OrderIntent]:
         if not self._pending_signal:
             return []
         # Context should include router gates + EV + sizing related configs
-        ctx = self.get_context()
+        ctx_data = self.resolve_runtime_context(ctx)
         # Simple cooldown by bars
-        cooldown = int(ctx.get("cooldown_bars", self.cfg.get("cooldown_bars", 0)))
+        cooldown = int(ctx_data.get("cooldown_bars", self.cfg.get("cooldown_bars", 0)))
         if cooldown > 0 and (self.state["bar_idx"] - self.state["last_signal_bar"] < cooldown):
             return []
-        if not pass_gates(ctx):
+        if not pass_gates(ctx_data):
             return []
         sig = self._pending_signal
 
         # Calibration mode: bypass EV sizing and emit minimal intent for fill simulation
-        if ctx.get("calibrating") or ctx.get("ev_mode") == "off":
-            qty = compute_qty_from_ctx(ctx, sig["sl_pips"], mode="calibration")
+        if ctx_data.get("calibrating") or ctx_data.get("ev_mode") == "off":
+            qty = compute_qty_from_ctx(ctx_data, sig["sl_pips"], mode="calibration")
             tag = f"day_orb5m#{sig['side']}#calib"
             self.state["last_signal_bar"] = self.state["bar_idx"]
             self.state["broken"] = True
@@ -169,9 +169,9 @@ class DayORB5m(Strategy):
             ]
 
         # Warmup path: bypass EV and use minimal fixed multiplier to bootstrap statistics
-        warmup_left = int(ctx.get("warmup_left", 0))
+        warmup_left = int(ctx_data.get("warmup_left", 0))
         if warmup_left > 0:
-            qty = compute_qty_from_ctx(ctx, sig["sl_pips"], mode="warmup")
+            qty = compute_qty_from_ctx(ctx_data, sig["sl_pips"], mode="warmup")
             if qty <= 0:
                 return []
             tag = f"day_orb5m#{sig['side']}#warmup"
@@ -181,13 +181,13 @@ class DayORB5m(Strategy):
                                 oco={"tp_pips":sig["tp_pips"], "sl_pips":sig["sl_pips"], "trail_pips":sig["trail_pips"]})]
 
         # EV gate (Beta-Binomial for OCO)
-        ev = ctx.get("ev_oco")  # expected: instance of BetaBinomialEV
-        cost_pips = float(ctx.get("cost_pips", 0.0))
-        threshold = float(ctx.get("threshold_lcb_pip", 0.5))
+        ev = ctx_data.get("ev_oco")  # expected: instance of BetaBinomialEV
+        cost_pips = float(ctx_data.get("cost_pips", 0.0))
+        threshold = float(ctx_data.get("threshold_lcb_pip", 0.5))
         ev_lcb = None
         p_lcb = None
         if ev is not None:
-            mode = ctx.get("ev_mode", "lcb")
+            mode = ctx_data.get("ev_mode", "lcb")
             if mode == "mean":
                 p_lcb = getattr(ev, 'p_mean')()
                 ev_lcb = p_lcb*sig["tp_pips"] - (1.0-p_lcb)*sig["sl_pips"] - cost_pips
@@ -198,12 +198,12 @@ class DayORB5m(Strategy):
             # If EV estimator is missing, act conservatively: no trade
             return []
 
-        if ctx.get("ev_mode", "lcb") == "lcb" and (ev_lcb is None or ev_lcb < threshold):
+        if ctx_data.get("ev_mode", "lcb") == "lcb" and (ev_lcb is None or ev_lcb < threshold):
             return []
 
         # Position sizing
         qty = compute_qty_from_ctx(
-            ctx,
+            ctx_data,
             sig["sl_pips"],
             mode="production",
             tp_pips=sig["tp_pips"],

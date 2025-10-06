@@ -221,7 +221,7 @@ class RunnerExecutionManager:
             return
         sizing_ctx = sizing_result.context
         sizing_result.apply_to(features.ctx)
-        intents = list(runner.stg.signals())
+        intents = list(runner.stg.signals(features.ctx))
         if not intents:
             runner.debug_counts["gate_block"] += 1
             return

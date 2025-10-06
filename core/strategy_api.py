@@ -4,7 +4,7 @@ Strategy API (Design v1.1 / ADR-012..025)
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Iterable, Optional, Dict, Any, List
+from typing import Iterable, Optional, Dict, Any, List, Mapping
 
 @dataclass
 class OrderIntent:
@@ -32,11 +32,21 @@ class Strategy(ABC):
         ...
 
     @abstractmethod
-    def signals(self) -> Iterable[OrderIntent]:
+    def signals(self, ctx: Optional[Mapping[str, Any]] = None) -> Iterable[OrderIntent]:
         ...
 
-    def update_context(self, ctx: Dict[str, Any]) -> None:
+    def update_context(self, ctx: Mapping[str, Any]) -> None:
         self._runtime_ctx = dict(ctx)
+
+    def resolve_runtime_context(
+        self, ctx: Optional[Mapping[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Return the latest runtime context while syncing optional overrides."""
+
+        if ctx is None:
+            return self.get_context()
+        self.update_context(ctx)
+        return self.get_context()
 
     @property
     def runtime_ctx(self) -> Dict[str, Any]:

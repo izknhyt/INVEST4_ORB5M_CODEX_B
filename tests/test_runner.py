@@ -2,7 +2,7 @@ import csv
 import math
 from contextlib import ExitStack
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Mapping
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
@@ -548,7 +548,9 @@ class TestRunner(unittest.TestCase):
                     oco={"tp_pips": 1.0, "sl_pips": 1.0},
                 )
 
-            def signals(self):
+            def signals(self, ctx: Optional[Mapping[str, object]] = None):
+                if ctx is not None:
+                    self.update_context(ctx)
                 if self._pending_signal is None:
                     return []
                 return [self._pending_signal]
@@ -1764,7 +1766,6 @@ class TestRunner(unittest.TestCase):
             }
         }
         stg.on_start(cfg, ["USDJPY"], {})
-        stg.update_context(cfg["ctx"])
         stg.state["bar_idx"] = 12
         stg._pending_signal = {
             "side": "SELL",
@@ -1774,7 +1775,7 @@ class TestRunner(unittest.TestCase):
             "entry": 149.75,
         }
 
-        first_batch = stg.signals()
+        first_batch = stg.signals(cfg["ctx"])
         self.assertEqual(len(first_batch), 1)
         self.assertEqual(stg.state["last_signal_bar"], 12)
         self.assertTrue(stg.state["broken"])
@@ -1788,7 +1789,7 @@ class TestRunner(unittest.TestCase):
             "entry": 149.65,
         }
 
-        second_batch = stg.signals()
+        second_batch = stg.signals(cfg["ctx"])
         self.assertEqual(second_batch, [])
         self.assertEqual(stg.state["last_signal_bar"], 12)
         self.assertTrue(stg.state["broken"])
@@ -1810,7 +1811,6 @@ class TestRunner(unittest.TestCase):
             }
         }
         stg.on_start(cfg, ["USDJPY"], {})
-        stg.update_context(cfg["ctx"])
         stg.state["bar_idx"] = 25
         stg._pending_signal = {
             "side": "BUY",
@@ -1820,7 +1820,7 @@ class TestRunner(unittest.TestCase):
             "entry": 150.25,
         }
 
-        first_batch = stg.signals()
+        first_batch = stg.signals(cfg["ctx"])
         self.assertEqual(len(first_batch), 1)
         self.assertEqual(stg.state["last_signal_bar"], 25)
         self.assertTrue(stg.state["broken"])
@@ -1834,7 +1834,7 @@ class TestRunner(unittest.TestCase):
             "entry": 150.35,
         }
 
-        second_batch = stg.signals()
+        second_batch = stg.signals(cfg["ctx"])
         self.assertEqual(second_batch, [])
         self.assertEqual(stg.state["last_signal_bar"], 25)
         self.assertTrue(stg.state["broken"])
