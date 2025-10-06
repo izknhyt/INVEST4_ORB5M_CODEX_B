@@ -847,6 +847,7 @@ class BacktestRunner:
         sl_pips: float,
         debug_stage: str,
         debug_extra: Optional[Mapping[str, Any]] = None,
+        p_tp: Optional[float] = None,
     ) -> None:
         self.execution.finalize_trade(
             exit_ts=exit_ts,
@@ -864,6 +865,7 @@ class BacktestRunner:
             sl_pips=sl_pips,
             debug_stage=debug_stage,
             debug_extra=debug_extra,
+            p_tp=p_tp,
         )
 
     def _update_daily_state(

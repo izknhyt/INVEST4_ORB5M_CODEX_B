@@ -371,6 +371,9 @@
   `RunnerConfig.fill_bridge_lambda` / `fill_bridge_drift_scale`, exposed the probability in trade debug output, added a
   regression that verifies exit price / probability react to config changes, and ran
   `python3 -m pytest tests/test_runner.py`.
+- 2026-03-21: Propagated same-bar TP probabilities through `RunnerExecutionManager` so EV buckets consume
+  fractional updates via `update_weighted`, updated trade finalisation to forward the probability, added
+  bridge/conservative regressions in `tests/test_runner.py`, and ran `python3 -m pytest tests/test_runner.py`.
 - 2026-03-10: Enabled `RunnerExecutionManager.process_fill_result` to return structured `PositionState` objects, updated
   `BacktestRunner._process_fill_result` delegations and regression tests to assert serialization/identity, and ran
   `python3 -m pytest tests/test_runner.py` to confirm behaviour.

@@ -2392,6 +2392,8 @@ class TestRunner(unittest.TestCase):
                 expected_exit = expected_p * tp + (1 - expected_p) * sl
                 self.assertAlmostEqual(same_bar_p, expected_p)
                 self.assertAlmostEqual(call["exit_px"], expected_exit)
+                self.assertIn("p_tp", call)
+                self.assertAlmostEqual(call["p_tp"], expected_p)
                 return same_bar_p, call["exit_px"]
             finally:
                 runner.execution.finalize_trade = original_finalize
@@ -2403,6 +2405,68 @@ class TestRunner(unittest.TestCase):
             self.assertNotAlmostEqual(base_exit, alt_exit)
         finally:
             runner.execution.finalize_trade = original_finalize
+
+    def test_same_bar_ev_manager_uses_probability_weighting(self):
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
+        pip_value = pip_size(runner.symbol)
+        entry = 150.0
+        tp = entry + 0.20
+        sl = entry - 0.20
+        bar = {
+            "o": entry,
+            "h": entry + 0.30,
+            "l": entry - 0.30,
+            "c": entry + 0.10,
+            "timestamp": "2024-01-01T08:40:00+00:00",
+        }
+        ctx = {"session": "TOK", "spread_band": "normal", "rv_band": "core"}
+
+        original_get_ev_manager = runner._get_ev_manager
+        try:
+            for mode in ("bridge", "conservative"):
+                with self.subTest(mode=mode):
+                    manager = MagicMock()
+                    runner._get_ev_manager = MagicMock(return_value=manager)
+                    runner.pos = ActivePositionState(
+                        side="BUY",
+                        entry_px=entry,
+                        tp_px=tp,
+                        sl_px=sl,
+                        trail_pips=0.0,
+                        qty=1.0,
+                        entry_ts="2024-01-01T08:00:00+00:00",
+                        ctx_snapshot=TradeContextSnapshot(),
+                        ev_key=None,
+                        tp_pips=(tp - entry) / pip_value,
+                        sl_pips=(entry - sl) / pip_value,
+                    )
+                    runner._handle_active_position(
+                        bar=bar,
+                        ctx=ctx,
+                        mode=mode,
+                        pip_size_value=pip_value,
+                        new_session=False,
+                    )
+                    if mode == "bridge":
+                        manager.update_weighted.assert_called_once()
+                        weight = manager.update_weighted.call_args[0][0]
+                        expected = BridgeFill.compute_same_bar_probability(
+                            side="BUY",
+                            entry_px=entry,
+                            tp_px=tp,
+                            stop_px=sl,
+                            bar=bar,
+                            pip_size=pip_value,
+                            lam=float(runner.rcfg.fill_bridge_lambda),
+                            drift_scale=float(runner.rcfg.fill_bridge_drift_scale),
+                        )
+                        self.assertAlmostEqual(weight, expected)
+                        manager.update.assert_not_called()
+                    else:
+                        manager.update.assert_called_once_with(False)
+                        manager.update_weighted.assert_not_called()
+        finally:
+            runner._get_ev_manager = original_get_ev_manager
 
     def test_handle_active_position_timeout_buy_and_sell(self):
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
