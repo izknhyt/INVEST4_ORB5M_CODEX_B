@@ -5,7 +5,7 @@ NOTE: Placeholder computations; replace with vetted implementations during integ
 from __future__ import annotations
 
 import math
-from typing import Mapping, Sequence, Tuple
+from typing import Mapping, Optional, Sequence, Tuple
 
 
 Bar = Mapping[str, float]
@@ -72,16 +72,23 @@ def opening_range(bars: Sequence[Bar], n: int = 6) -> Tuple[float, float]:
     return (max(bar["h"] for bar in window), min(bar["l"] for bar in window))
 
 
-def realized_vol(bars: Sequence[Bar], n: int = 12) -> float:
-    """Compute a realized volatility estimate; NaN when the window is incomplete."""
+def realized_vol(bars: Optional[Sequence[Bar]], n: int = 12) -> float:
+    """Compute realized volatility for the most recent ``n`` returns."""
 
-    if len(bars) < n + 1:
+    if not bars or len(bars) < n + 1:
         # Require the previous close plus ``n`` bars to form log returns.
         return NAN
 
+    if len(bars) != n + 1:
+        window = list(bars)[-(n + 1) :]
+    else:
+        window = bars
+
     rsq = 0.0
     for i in range(1, n + 1):
-        r = math.log(bars[i]["c"] / bars[i - 1]["c"])
+        prev_close = window[i - 1]["c"]
+        curr_close = window[i]["c"]
+        r = math.log(curr_close / prev_close)
         rsq += r * r
 
     # 5m bars per day ~288; rough annualization proxy

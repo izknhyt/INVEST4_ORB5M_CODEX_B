@@ -916,7 +916,13 @@ class BacktestRunner:
         self.session_bars.append({k: bar[k] for k in ("o", "h", "l", "c")})
         rv_hist_value = 0.0
         try:
-            rv_computed = realized_vol(self.window, n=12)
+            rv_lookback = 12
+            rv_window = (
+                self.window[-(rv_lookback + 1) :]
+                if len(self.window) >= rv_lookback + 1
+                else None
+            )
+            rv_computed = realized_vol(rv_window, n=rv_lookback)
         except Exception:
             rv_computed = None
         if rv_computed is not None:
