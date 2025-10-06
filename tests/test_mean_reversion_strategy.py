@@ -54,7 +54,8 @@ class MeanReversionStrategyTest(unittest.TestCase):
         self.assertIsNotNone(self.strategy._pending_signal)
         ctx = self._base_ctx()
         self.assertTrue(self.strategy.strategy_gate(ctx, self.strategy._pending_signal))
-        intents = list(self.strategy.signals(ctx))
+        self.strategy.update_context(ctx)
+        intents = list(self.strategy.signals())
         self.assertEqual(len(intents), 1)
         intent = intents[0]
         self.assertEqual(intent.side, "SELL")

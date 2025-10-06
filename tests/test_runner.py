@@ -1758,12 +1758,11 @@ class TestRunner(unittest.TestCase):
     @patch("strategies.day_orb_5m.pass_gates", return_value=True)
     def test_calibration_signal_updates_cooldown_state(self, _mock_pass_gates):
         stg = DayORB5m()
-        cfg = {
-            "ctx": {
-                "cooldown_bars": 2,
-                "calibrating": True,
-                "ev_mode": "lcb",
-            }
+        cfg = {}
+        ctx = {
+            "cooldown_bars": 2,
+            "calibrating": True,
+            "ev_mode": "lcb",
         }
         stg.on_start(cfg, ["USDJPY"], {})
         stg.state["bar_idx"] = 12
@@ -1774,8 +1773,8 @@ class TestRunner(unittest.TestCase):
             "trail_pips": 0.0,
             "entry": 149.75,
         }
-
-        first_batch = stg.signals(cfg["ctx"])
+        stg.update_context(ctx)
+        first_batch = stg.signals()
         self.assertEqual(len(first_batch), 1)
         self.assertEqual(stg.state["last_signal_bar"], 12)
         self.assertTrue(stg.state["broken"])
@@ -1788,8 +1787,8 @@ class TestRunner(unittest.TestCase):
             "trail_pips": 0.0,
             "entry": 149.65,
         }
-
-        second_batch = stg.signals(cfg["ctx"])
+        stg.update_context(ctx)
+        second_batch = stg.signals()
         self.assertEqual(second_batch, [])
         self.assertEqual(stg.state["last_signal_bar"], 12)
         self.assertTrue(stg.state["broken"])
@@ -1797,18 +1796,17 @@ class TestRunner(unittest.TestCase):
     @patch("strategies.day_orb_5m.pass_gates", return_value=True)
     def test_warmup_signal_respects_cooldown_and_session_block(self, _mock_pass_gates):
         stg = DayORB5m()
-        cfg = {
-            "ctx": {
-                "cooldown_bars": 2,
-                "warmup_left": 3,
-                "equity": 100_000.0,
-                "pip_value": 10.0,
-                "warmup_mult": 0.05,
-                "sizing_cfg": {
-                    "risk_per_trade_pct": 1.0,
-                    "units_cap": 10.0,
-                },
-            }
+        cfg = {}
+        ctx = {
+            "cooldown_bars": 2,
+            "warmup_left": 3,
+            "equity": 100_000.0,
+            "pip_value": 10.0,
+            "warmup_mult": 0.05,
+            "sizing_cfg": {
+                "risk_per_trade_pct": 1.0,
+                "units_cap": 10.0,
+            },
         }
         stg.on_start(cfg, ["USDJPY"], {})
         stg.state["bar_idx"] = 25
@@ -1819,8 +1817,8 @@ class TestRunner(unittest.TestCase):
             "trail_pips": 0.0,
             "entry": 150.25,
         }
-
-        first_batch = stg.signals(cfg["ctx"])
+        stg.update_context(ctx)
+        first_batch = stg.signals()
         self.assertEqual(len(first_batch), 1)
         self.assertEqual(stg.state["last_signal_bar"], 25)
         self.assertTrue(stg.state["broken"])
@@ -1833,8 +1831,8 @@ class TestRunner(unittest.TestCase):
             "trail_pips": 0.0,
             "entry": 150.35,
         }
-
-        second_batch = stg.signals(cfg["ctx"])
+        stg.update_context(ctx)
+        second_batch = stg.signals()
         self.assertEqual(second_batch, [])
         self.assertEqual(stg.state["last_signal_bar"], 25)
         self.assertTrue(stg.state["broken"])
