@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-02-27: Weighted trade PnL by executed quantity so pip and currency totals align with risk sizing, stored pip_value in trade snapshots, extended metrics/daily records for currency PnL, added regression `tests/test_runner.py::test_trade_pnl_scales_with_risk_per_trade`, and executed `python3 -m pytest tests/test_runner.py`.
 - 2026-02-25: Tracked live equity inside `BacktestRunner` so trade PnL (in quote
   currency) updates position sizing, recorded the currency PnL on metrics,
   refreshed sizing contexts to use the mutable balance, added a regression in

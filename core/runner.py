@@ -66,6 +66,7 @@ class Metrics:
     trades: int = 0
     wins: int = 0
     total_pips: float = 0.0
+    total_pnl_value: float = 0.0
     trade_returns: List[float] = field(default_factory=list)
     equity_curve: List[Tuple[str, float]] = field(default_factory=list)
     records: List[Dict[str, Any]] = field(default_factory=list)
@@ -114,6 +115,7 @@ class Metrics:
         pnl_equity = float(pnl_value) if pnl_value is not None else pnl_val
         self.trades += 1
         self.total_pips += pnl_val
+        self.total_pnl_value += pnl_equity
         if hit:
             self.wins += 1
         self.trade_returns.append(pnl_equity)
@@ -150,6 +152,7 @@ class Metrics:
             "wins": self.wins,
             "win_rate": win_rate,
             "total_pips": self.total_pips,
+            "total_pnl_value": self.total_pnl_value,
             "sharpe": self._compute_sharpe(),
             "max_drawdown": self._compute_max_drawdown(),
             "equity_curve": curve,
@@ -409,8 +412,28 @@ class BacktestRunner:
             "sl_pips",
         ),
         "ev_threshold_error": ("ts", "side", "base_threshold", "error"),
-        "trade": ("ts", "side", "tp_pips", "sl_pips", "cost_pips", "slip_est", "slip_real", "exit", "pnl_pips"),
-        "trade_exit": ("ts", "side", "cost_pips", "slip_est", "slip_real", "exit", "pnl_pips"),
+        "trade": (
+            "ts",
+            "side",
+            "tp_pips",
+            "sl_pips",
+            "cost_pips",
+            "slip_est",
+            "slip_real",
+            "exit",
+            "pnl_pips",
+            "pnl_value",
+        ),
+        "trade_exit": (
+            "ts",
+            "side",
+            "cost_pips",
+            "slip_est",
+            "slip_real",
+            "exit",
+            "pnl_pips",
+            "pnl_value",
+        ),
     }
     DAILY_COUNT_FIELDS: ClassVar[Tuple[str, ...]] = (
         "breakouts",
@@ -423,6 +446,7 @@ class BacktestRunner:
     )
     DAILY_FLOAT_FIELDS: ClassVar[Tuple[str, ...]] = (
         "pnl_pips",
+        "pnl_value",
         "slip_est",
         "slip_real",
     )
@@ -746,6 +770,8 @@ class BacktestRunner:
         slip_real: float,
         exit_reason: Optional[str],
         pnl_pips: float,
+        pnl_value: float,
+        qty: float,
         ctx_snapshot: Optional[Dict[str, Any]] = None,
     ) -> None:
         ctx_snapshot = ctx_snapshot or {}
@@ -761,6 +787,8 @@ class BacktestRunner:
             "slip_real": slip_real,
             "exit": exit_reason,
             "pnl_pips": pnl_pips,
+            "pnl_value": pnl_value,
+            "qty": qty,
         }
         for key in (
             "session",
@@ -820,7 +848,12 @@ class BacktestRunner:
         cost = base_cost + est_slip_used
         signed = 1 if side == "BUY" else -1
         pnl_px = (exit_px - entry_px) * signed
-        pnl_pips = price_to_pips(pnl_px, self.symbol) - cost
+        pnl_pips_unit = price_to_pips(pnl_px, self.symbol) - cost
+        try:
+            qty_effective = float(qty_sample)
+        except (TypeError, ValueError):
+            qty_effective = 0.0
+        pnl_pips = pnl_pips_unit * qty_effective
         hit = exit_reason == "tp"
         pip_value_ctx = ctx_snapshot.get("pip_value")
         if pip_value_ctx is None:
@@ -829,7 +862,7 @@ class BacktestRunner:
             pip_value_float = float(pip_value_ctx)
         except (TypeError, ValueError):
             pip_value_float = 0.0
-        pnl_value = pnl_pips * pip_value_float * float(qty_sample)
+        pnl_value = pnl_pips_unit * pip_value_float * qty_effective
         self._equity_live += pnl_value
         self._record_trade_metrics(
             pnl_pips,
@@ -841,6 +874,7 @@ class BacktestRunner:
         if hit:
             self._increment_daily("wins")
         self._increment_daily("pnl_pips", pnl_pips)
+        self._increment_daily("pnl_value", pnl_value)
         self._increment_daily("slip_est", est_slip_used)
         self._increment_daily("slip_real", slip_actual)
         self._log_trade_record(
@@ -854,6 +888,8 @@ class BacktestRunner:
             slip_real=slip_actual,
             exit_reason=exit_reason,
             pnl_pips=pnl_pips,
+            pnl_value=pnl_value,
+            qty=qty_effective,
             ctx_snapshot=dict(ctx_snapshot),
         )
         debug_fields: Dict[str, Any] = {
@@ -864,6 +900,7 @@ class BacktestRunner:
             "slip_real": slip_actual,
             "exit": exit_reason,
             "pnl_pips": pnl_pips,
+            "pnl_value": pnl_value,
         }
         if debug_extra:
             debug_fields.update(debug_extra)
@@ -1272,6 +1309,9 @@ class BacktestRunner:
         )
         if not result.get("fill"):
             return
+        pip_value_snapshot = features.ctx.get("pip_value")
+        if pip_value_snapshot is None:
+            pip_value_snapshot = ctx_dbg.get("pip_value")
         trade_ctx_snapshot: Dict[str, Any] = {
             "session": ctx_dbg.get("session", features.ctx.get("session")),
             "rv_band": ctx_dbg.get("rv_band", features.ctx.get("rv_band")),
@@ -1282,11 +1322,12 @@ class BacktestRunner:
             "threshold_lcb": ctx_dbg.get("threshold_lcb"),
             "ev_pass": ctx_dbg.get("ev_pass"),
             "expected_slip_pip": features.ctx.get("expected_slip_pip", 0.0),
-            "pip_value": features.ctx.get("pip_value"),
             "cost_base": features.ctx.get(
                 "base_cost_pips", features.ctx.get("cost_pips", 0.0)
             ),
         }
+        if pip_value_snapshot is not None:
+            trade_ctx_snapshot["pip_value"] = pip_value_snapshot
         if "zscore" in features.bar_input:
             trade_ctx_snapshot["zscore"] = features.bar_input["zscore"]
         self._process_fill_result(
