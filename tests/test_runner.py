@@ -494,6 +494,7 @@ class TestRunner(unittest.TestCase):
         self.assertEqual(metrics.trades, 4)
         self.assertEqual(metrics.wins, 2)
         self.assertAlmostEqual(metrics.total_pips, 5.0)
+        self.assertAlmostEqual(metrics.total_pnl_value, 5.0)
         curve = metrics.as_dict()["equity_curve"]
         equities = [round(entry[1], 6) for entry in curve]
         self.assertListEqual(
@@ -505,6 +506,83 @@ class TestRunner(unittest.TestCase):
         self.assertAlmostEqual(result["sharpe"], 0.27660638840895513)
         self.assertAlmostEqual(result["max_drawdown"], -10.0)
         self.assertAlmostEqual(result["win_rate"], 0.5)
+
+    def test_trade_pnl_scales_with_risk_per_trade(self):
+        def simulate_trade(risk_pct: float) -> BacktestRunner:
+            cfg = RunnerConfig(risk_per_trade_pct=risk_pct)
+            runner = BacktestRunner(
+                equity=100_000.0,
+                symbol="USDJPY",
+                runner_cfg=cfg,
+            )
+            sizing_cfg = cfg.build_sizing_cfg()
+            sizing_cfg["units_cap"] = 100.0
+            sizing_cfg["max_trade_loss_pct"] = 100.0
+            ctx = {
+                "session": "TOK",
+                "rv_band": "mid",
+                "spread_band": "normal",
+                "base_cost_pips": 0.0,
+                "equity": runner._equity_live,
+                "pip_value": 10.0,
+                "sizing_cfg": sizing_cfg,
+                "ev_mode": "lcb",
+                "warmup_mult": 0.05,
+                "size_floor_mult": 0.01,
+            }
+            ctx_snapshot = {
+                "session": ctx["session"],
+                "rv_band": ctx["rv_band"],
+                "spread_band": ctx["spread_band"],
+                "expected_slip_pip": 0.0,
+                "cost_base": ctx["base_cost_pips"],
+                "pip_value": ctx["pip_value"],
+            }
+            qty = compute_qty_from_ctx(
+                ctx,
+                sl_pips=1.0,
+                mode="production",
+                tp_pips=2.0,
+                p_lcb=0.6,
+            )
+            date_key = "2024-01-01"
+            runner._current_daily_entry = runner._ensure_daily_entry(date_key)
+            exit_ts = "2024-01-01T00:05:00Z"
+            runner._last_timestamp = exit_ts
+            runner._finalize_trade(
+                exit_ts=exit_ts,
+                entry_ts="2024-01-01T00:00:00Z",
+                side="BUY",
+                entry_px=150.0,
+                exit_px=150.05,
+                exit_reason="tp",
+                ctx_snapshot=ctx_snapshot,
+                ctx=ctx,
+                qty_sample=qty,
+                slip_actual=0.0,
+                ev_key=None,
+                tp_pips=2.0,
+                sl_pips=1.0,
+                debug_stage="trade",
+            )
+            return runner
+
+        runner_low = simulate_trade(0.5)
+        runner_high = simulate_trade(1.0)
+
+        self.assertGreater(runner_high.metrics.total_pips, runner_low.metrics.total_pips)
+        self.assertGreater(
+            runner_high.metrics.total_pnl_value, runner_low.metrics.total_pnl_value
+        )
+        self.assertGreater(runner_high._equity_live, runner_low._equity_live)
+        date_key = "2024-01-01"
+        self.assertIn(date_key, runner_high.daily)
+        high_daily = runner_high.daily[date_key]
+        low_daily = runner_low.daily[date_key]
+        self.assertGreater(high_daily["pnl_pips"], low_daily["pnl_pips"])
+        self.assertGreater(high_daily["pnl_value"], low_daily["pnl_value"])
+        self.assertIn("pnl_value", runner_high.records[-1])
+        self.assertIn("qty", runner_high.records[-1])
 
     def test_check_slip_and_sizing_zero_qty_uses_helpers(self):
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
