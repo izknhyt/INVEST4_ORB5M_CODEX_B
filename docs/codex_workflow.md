@@ -18,12 +18,19 @@ This guide summarizes the routine Codex agents should follow to keep tasks movin
    Locate the task in `docs/task_backlog.md`, reread its DoD, and check `docs/todo_next.md` to ensure the task sits in the correct section (`Ready`, `In Progress`, or `Pending Review`). Adjust the target section via `--doc-section` when running automation. For a quick refresher on how the placement synchronizes with `state.md`, see [docs/state_runbook.md#task-sync](state_runbook.md#task-sync).
 3. **Prepare templates**  
    When adding a new `Next Task`, start from `docs/templates/next_task_entry.md`. For Ready tasks, duplicate `docs/templates/dod_checklist.md` into `docs/checklists/<task-slug>.md` so progress can be tracked with checkboxes.
-4. **Sandbox & approval check**  
+4. **Sandbox & approval check**
    Inspect the session context (for example, the IDE-provided `environment_context`) to confirm sandbox mode and approval policy. The current harness defaults to:
    - Filesystem: `workspace-write`
    - Network: `restricted`
    - Approvals: `on-request`
    Request approval when you need to rerun commands unsandboxed (e.g., external network access, privileged filesystem writes, destructive git operations). For routine read/pytest commands, approvals are unnecessary.
+
+   **Network edge cases to document before requesting approval**
+   - **Package installations (`pip`, `apt`) or binary downloads** — note why the dependency is required, which commands will be executed, and whether an offline wheel/tarball exists. Capture the proposed command in `state.md` so reviewers can validate the checksum/source beforehand.
+   - **External API calls** — specify the endpoint, authentication method, and data sensitivity. Reference any relevant contract in `docs/api_ingest_plan.md` or `configs/api_ingest.yml`, and outline fallbacks if access is denied.
+   - **Large data transfers (>10 MB)** — confirm storage targets and retention rules, then list cleanup steps. If only a sample is required, prefer slicing an existing dataset from `data/` or `validated/` to avoid unnecessary downloads.
+   - **Privileged filesystem writes** — describe the path and expected side effects. When touching host-level directories is unavoidable, outline how the change will be reverted after the task.
+   Record the approval request context inside the active `state.md` memo (or the associated `docs/todo_next.md` entry) so future sessions understand whether the approval was granted and which follow-up steps remain.
 5. **Dry-run the start command** <a id="doc-section-options"></a>
    Execute the following command with `--dry-run` to validate anchors and dates before making real changes.
    ```bash
@@ -71,6 +78,7 @@ This guide summarizes the routine Codex agents should follow to keep tasks movin
 - Record insights or unresolved issues in the active task memo inside `state.md`, or in the relevant entry within `docs/todo_next.md`.
 - After significant changes, run `python3 -m pytest` or the appropriate CLI command. Capture the executed commands in your notes so the next session can reproduce them.
 - For broad bug-review or refactoring sweeps, mirror your progress in `docs/checklists/p1-07_phase1_bug_refactor.md` so each session inherits the latest checklist status and candidate list.
+- When updating workflow docs, double-check that `docs/state_runbook.md` and `docs/todo_next.md` still reference the same anchors and terminology. If adjustments are needed, capture them in the same commit so the trio of documents stays synchronized.
 
 ### 3. Closing the task
 1. Run `python3 scripts/manage_task_cycle.py --dry-run finish-task ...` to preview what will be moved into the log.
