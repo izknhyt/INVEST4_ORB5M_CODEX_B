@@ -1,4 +1,5 @@
 import csv
+import copy
 import json
 import math
 from contextlib import ExitStack
@@ -1230,6 +1231,87 @@ class TestRunner(unittest.TestCase):
         self.assertAlmostEqual(slip_off, expected_slip)
         self.assertEqual(runner_off.slip_a["normal"], prev_a_off)
         self.assertEqual(runner_off.qty_ewma["normal"], prev_qty_off)
+
+    def test_slip_state_persists_qty_ewma_for_expected_slip(self):
+        slip_curve_zero = {
+            "narrow": {"a": 0.0, "b": 0.0},
+            "normal": {"a": 0.0, "b": 0.0},
+            "wide": {"a": 0.0, "b": 0.0},
+        }
+        cfg = RunnerConfig(
+            include_expected_slip=True,
+            slip_learn=True,
+            slip_curve=copy.deepcopy(slip_curve_zero),
+        )
+        runner = BacktestRunner(equity=75_000.0, symbol="USDJPY", runner_cfg=cfg)
+
+        class DummyOrder:
+            def __init__(self, qty: float, price: float) -> None:
+                self.qty = qty
+                self.price = price
+
+        order = DummyOrder(qty=2.0, price=150.0)
+        ctx = {"spread_band": "normal"}
+        runner._update_slip_learning(
+            order=order,
+            actual_price=150.02,
+            intended_price=order.price,
+            ctx=ctx,
+        )
+        base_bar = {"spread": 0.01}
+        baseline_ctx = runner._build_ctx(
+            bar=base_bar,
+            session="LDN",
+            atr14=1.0,
+            or_h=1.0,
+            or_l=0.0,
+            realized_vol_value=0.0,
+        )
+        self.assertGreater(baseline_ctx.expected_slip_pip, 0.0)
+
+        state = runner.export_state()
+        slip_state = state.get("slip", {})
+        self.assertIn("ewma", slip_state)
+        self.assertIn("a", slip_state)
+        self.assertIsInstance(slip_state["ewma"], Mapping)
+        self.assertIsInstance(slip_state["a"], Mapping)
+        slip_state["ewma"]["normal"] = str(slip_state["ewma"]["normal"])
+        slip_state["a"]["normal"] = str(slip_state["a"]["normal"])
+
+        cfg_restored = RunnerConfig(
+            include_expected_slip=True,
+            slip_learn=True,
+            slip_curve=copy.deepcopy(slip_curve_zero),
+        )
+        restored_runner = BacktestRunner(
+            equity=75_000.0,
+            symbol="USDJPY",
+            runner_cfg=cfg_restored,
+        )
+        self.assertEqual(restored_runner.qty_ewma["normal"], 0.0)
+
+        restored_runner.load_state(state)
+
+        restored_bar_ctx = restored_runner._build_ctx(
+            bar=base_bar,
+            session="LDN",
+            atr14=1.0,
+            or_h=1.0,
+            or_l=0.0,
+            realized_vol_value=0.0,
+        )
+
+        self.assertAlmostEqual(
+            restored_runner.qty_ewma["normal"], runner.qty_ewma["normal"]
+        )
+        self.assertAlmostEqual(
+            restored_runner.slip_a["normal"], runner.slip_a["normal"]
+        )
+        self.assertAlmostEqual(
+            restored_bar_ctx.expected_slip_pip,
+            baseline_ctx.expected_slip_pip,
+        )
+        self.assertGreater(restored_bar_ctx.expected_slip_pip, 0.0)
 
     def test_position_size_updates_with_live_equity(self):
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
