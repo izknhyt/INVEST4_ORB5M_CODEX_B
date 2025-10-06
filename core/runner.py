@@ -34,6 +34,7 @@ from core.fill_engine import ConservativeFill, BridgeFill, OrderSpec, SameBarPol
 from core.ev_gate import BetaBinomialEV, TLowerEV
 from core.pips import pip_size, price_to_pips, pip_value as calc_pip_value
 from core.sizing import SizingConfig, compute_qty_from_ctx
+from core.runner_state import PositionState
 from router.router_v0 import pass_gates
 
 
@@ -197,7 +198,7 @@ class ExitDecision:
     exited: bool
     exit_px: Optional[float]
     exit_reason: Optional[str]
-    updated_pos: Optional[Dict[str, Any]]
+    updated_pos: Optional[PositionState]
 
 
 @dataclass
@@ -522,8 +523,8 @@ class BacktestRunner:
             "NY": deque(maxlen=self.rcfg.rv_q_lookback_bars),
         }
         self.rv_thresh: Dict[str, Optional[tuple]] = {"TOK": None, "LDN": None, "NY": None}
-        self.calib_positions: List[Dict[str, Any]] = []
-        self.pos: Optional[Dict[str, Any]] = None
+        self.calib_positions: List[PositionState] = []
+        self.pos: Optional[PositionState] = None
         self._warmup_left = max(0, int(self.rcfg.warmup_trades))
         self._last_session: Optional[str] = None
         self._last_day: Optional[int] = None
@@ -1074,30 +1075,22 @@ class BacktestRunner:
     def _compute_exit_decision(
         self,
         *,
-        pos: Mapping[str, Any],
+        pos: PositionState,
         bar: Mapping[str, Any],
         mode: str,
         pip_size_value: float,
         new_session: bool,
     ) -> ExitDecision:
-        updated_pos: Dict[str, Any] = dict(pos)
-        side = updated_pos["side"]
-        entry_px = updated_pos["entry_px"]
-        tp_px = updated_pos["tp_px"]
-        sl_px = updated_pos["sl_px"]
-        trail_pips = float(updated_pos.get("trail_pips", 0.0) or 0.0)
+        state = pos.apply_trailing_stop(
+            high=bar["h"],
+            low=bar["l"],
+            pip_size=pip_size_value,
+        )
+        side = state.side
+        entry_px = state.entry_px
+        tp_px = state.tp_px
+        sl_px = state.sl_px
         direction = 1.0 if side == "BUY" else -1.0
-
-        if trail_pips > 0.0:
-            if side == "BUY":
-                updated_pos["hh"] = max(updated_pos.get("hh", entry_px), bar["h"])
-                new_sl = updated_pos["hh"] - trail_pips * pip_size_value
-                sl_px = max(sl_px, new_sl)
-            else:
-                updated_pos["ll"] = min(updated_pos.get("ll", entry_px), bar["l"])
-                new_sl = updated_pos["ll"] + trail_pips * pip_size_value
-                sl_px = min(sl_px, new_sl)
-            updated_pos["sl_px"] = sl_px
 
         exit_px: Optional[float] = None
         exit_reason: Optional[str] = None
@@ -1128,8 +1121,8 @@ class BacktestRunner:
             exited = False
 
         if not exited:
-            hold = updated_pos.get("hold", 0) + 1
-            updated_pos["hold"] = hold
+            updated_state = state.increment_hold()
+            hold = updated_state.hold
             max_hold = getattr(self.rcfg, "max_hold_bars", 96)
             if new_session or hold >= max_hold:
                 exit_px = bar["o"]
@@ -1138,7 +1131,7 @@ class BacktestRunner:
 
         if exited:
             return ExitDecision(True, exit_px, exit_reason, None)
-        return ExitDecision(False, None, None, updated_pos)
+        return ExitDecision(False, None, None, updated_state)
 
     def _handle_active_position(
         self,
@@ -1163,22 +1156,22 @@ class BacktestRunner:
         self.pos = decision.updated_pos
 
         if decision.exited and decision.exit_px is not None:
-            qty_sample = current_pos.get("qty", 1.0) or 1.0
-            slip_actual = current_pos.get("entry_slip_pip", 0.0)
+            qty_sample = current_pos.qty if current_pos.qty else 1.0
+            slip_actual = current_pos.entry_slip_pip
             self._finalize_trade(
                 exit_ts=bar.get("timestamp"),
-                entry_ts=current_pos.get("entry_ts"),
-                side=current_pos["side"],
-                entry_px=current_pos["entry_px"],
+                entry_ts=current_pos.entry_ts,
+                side=current_pos.side,
+                entry_px=current_pos.entry_px,
                 exit_px=decision.exit_px,
                 exit_reason=decision.exit_reason,
-                ctx_snapshot=current_pos.get("ctx_snapshot", {}),
+                ctx_snapshot=dict(current_pos.ctx_snapshot),
                 ctx=ctx,
                 qty_sample=qty_sample,
                 slip_actual=slip_actual,
-                ev_key=current_pos.get("ev_key"),
-                tp_pips=current_pos.get("tp_pips", 0.0),
-                sl_pips=current_pos.get("sl_pips", 0.0),
+                ev_key=current_pos.ev_key,
+                tp_pips=current_pos.tp_pips or 0.0,
+                sl_pips=current_pos.sl_pips or 0.0,
                 debug_stage="trade_exit",
             )
 
@@ -1198,26 +1191,16 @@ class BacktestRunner:
             return
         # Continue resolving calibration trades even after the calibration
         # window ends so their outcomes update pooled EV statistics.
-        still: List[Dict[str, Any]] = []
-        for raw_pos in self.calib_positions:
-            normalized = {
-                "side": raw_pos["side"],
-                "entry_px": raw_pos["entry_px"],
-                "tp_px": raw_pos["tp_px"],
-                "sl_px": raw_pos["sl_px"],
-                "trail_pips": float(raw_pos.get("trail_pips", 0.0) or 0.0),
-                "hh": raw_pos.get("hh", raw_pos["entry_px"]),
-                "ll": raw_pos.get("ll", raw_pos["entry_px"]),
-                "hold": int(raw_pos.get("hold", 0) or 0),
-            }
+        still: List[PositionState] = []
+        for pos_state in self.calib_positions:
             decision = self._compute_exit_decision(
-                pos=normalized,
+                pos=pos_state,
                 bar=bar,
                 mode=mode,
                 pip_size_value=pip_size_value,
                 new_session=new_session,
             )
-            ev_key = raw_pos.get("ev_key") or ctx.get("ev_key") or (
+            ev_key = pos_state.ev_key or ctx.get("ev_key") or (
                 ctx.get("session"),
                 ctx.get("spread_band"),
                 ctx.get("rv_band"),
@@ -1226,20 +1209,8 @@ class BacktestRunner:
                 hit = decision.exit_reason == "tp"
                 self._get_ev_manager(ev_key).update(bool(hit))
                 continue
-            updated = decision.updated_pos or normalized
-            still.append(
-                {
-                    "side": updated["side"],
-                    "entry_px": updated["entry_px"],
-                    "tp_px": updated["tp_px"],
-                    "sl_px": updated["sl_px"],
-                    "trail_pips": float(updated.get("trail_pips", normalized["trail_pips"])),
-                    "hh": updated.get("hh", normalized["hh"]),
-                    "ll": updated.get("ll", normalized["ll"]),
-                    "hold": int(updated.get("hold", normalized["hold"])),
-                    "ev_key": raw_pos.get("ev_key"),
-                }
-            )
+            updated_state = decision.updated_pos or pos_state
+            still.append(updated_state)
         self.calib_positions = still
 
 
@@ -1579,17 +1550,18 @@ class BacktestRunner:
         sl_px0 = entry_px - direction * spec.sl_pips * pip_size_value
         if calibrating:
             self.calib_positions.append(
-                {
-                    "side": intent.side,
-                    "entry_px": entry_px,
-                    "tp_px": tp_px,
-                    "sl_px": sl_px0,
-                    "ev_key": ctx.get("ev_key"),
-                    "hold": 0,
-                    "trail_pips": spec.trail_pips,
-                    "hh": bar["h"],
-                    "ll": bar["l"],
-                }
+                PositionState(
+                    side=intent.side,
+                    entry_px=entry_px,
+                    tp_px=tp_px,
+                    sl_px=sl_px0,
+                    trail_pips=spec.trail_pips,
+                    tp_pips=spec.tp_pips,
+                    sl_pips=spec.sl_pips,
+                    hh=bar["h"],
+                    ll=bar["l"],
+                    ev_key=ctx.get("ev_key"),
+                )
             )
             return
         _, entry_slip_pip = self._update_slip_learning(
@@ -1598,24 +1570,23 @@ class BacktestRunner:
             intended_price=intent.price,
             ctx=ctx,
         )
-        self.pos = {
-            "side": intent.side,
-            "entry_px": entry_px,
-            "tp_px": tp_px,
-            "sl_px": sl_px0,
-            "tp_pips": spec.tp_pips,
-            "sl_pips": spec.sl_pips,
-            "trail_pips": spec.trail_pips,
-            "hh": bar["h"],
-            "ll": bar["l"],
-            "ev_key": ctx.get("ev_key"),
-            "qty": getattr(intent, "qty", 1.0) or 1.0,
-            "expected_slip_pip": ctx.get("expected_slip_pip", 0.0),
-            "entry_slip_pip": entry_slip_pip,
-            "hold": 0,
-            "entry_ts": bar.get("timestamp"),
-            "ctx_snapshot": dict(trade_ctx_snapshot),
-        }
+        self.pos = PositionState(
+            side=intent.side,
+            entry_px=entry_px,
+            tp_px=tp_px,
+            sl_px=sl_px0,
+            tp_pips=spec.tp_pips,
+            sl_pips=spec.sl_pips,
+            trail_pips=spec.trail_pips,
+            hh=bar["h"],
+            ll=bar["l"],
+            ev_key=ctx.get("ev_key"),
+            qty=getattr(intent, "qty", 1.0) or 1.0,
+            expected_slip_pip=ctx.get("expected_slip_pip", 0.0),
+            entry_slip_pip=entry_slip_pip,
+            entry_ts=bar.get("timestamp"),
+            ctx_snapshot=dict(trade_ctx_snapshot),
+        )
 
     def _record_trade_metrics(
         self,
@@ -1679,6 +1650,12 @@ class BacktestRunner:
                 "last_session": self._last_session,
             },
         }
+        if self.pos is not None:
+            state["position"] = self.pos.as_dict()
+        if self.calib_positions:
+            state["calibration_positions"] = [
+                pos_state.as_dict() for pos_state in self.calib_positions
+            ]
         return state
 
     def _apply_state_dict(self, state: Mapping[str, Any]) -> None:
@@ -1748,6 +1725,22 @@ class BacktestRunner:
                 self._current_date = runtime.get("current_date")
             if runtime.get("last_session"):
                 self._last_session = runtime.get("last_session")
+            position_state = state.get("position")
+            if position_state:
+                try:
+                    self.pos = PositionState.from_dict(position_state)
+                except Exception:
+                    self.pos = None
+            else:
+                self.pos = None
+            calib_payload = state.get("calibration_positions", [])
+            restored_calib: List[PositionState] = []
+            for raw in calib_payload:
+                try:
+                    restored_calib.append(PositionState.from_dict(raw))
+                except Exception:
+                    continue
+            self.calib_positions = restored_calib
         except Exception:
             # Fallback: ignore loading errors to avoid crashing
             pass
