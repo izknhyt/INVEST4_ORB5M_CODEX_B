@@ -2,6 +2,12 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-02-23: Introduced `SelectionContext` to orchestrate per-candidate routing checks in
+  `router/router_v1`, delegated session/band/portfolio health/headroom scoring into helper
+  methods, updated `select_candidates` to run the shared pipeline, extended
+  `tests/test_router_v1.py` with SelectionContext unit coverage (execution-health reason
+  dedupe, headroom delta aggregation), and executed `python3 -m pytest tests/test_router_v1.py`
+  to confirm regression parity.
 - 2026-02-22: Refactored `core/router_pipeline.build_portfolio_state` by introducing helper
   functions for numeric map normalisation, correlation map generation, exposure/headroom
   aggregation, gross exposure calculation, and runtime metric merging. Added regression
