@@ -70,6 +70,10 @@ def _maybe_load_store_run_summary() -> Optional[Callable[..., Dict[str, Any]]]:
     return store_run_summary
 
 
+def _ev_profile_enabled(args: argparse.Namespace) -> bool:
+    return not getattr(args, "no_ev_profile", False)
+
+
 def _coerce_allowed_sessions(value: Any) -> Tuple[str, ...]:
     if isinstance(value, str):
         parts = [p.strip().upper() for p in value.split(",") if p.strip()]
@@ -387,7 +391,7 @@ def main(argv=None):
         manifest_state_namespace = manifest.state.archive_namespace
         args.strategy = manifest.strategy.class_path
         if (
-            not getattr(args, "no_ev_profile", False)
+            _ev_profile_enabled(args)
             and manifest.state.ev_profile
             and not getattr(args, "ev_profile", None)
         ):
@@ -444,7 +448,7 @@ def main(argv=None):
     strategy_cls = runner.strategy_cls  # ensure default applied when not provided
 
     ev_profile_path: Optional[str] = None
-    if not args.no_ev_profile:
+    if _ev_profile_enabled(args):
         candidates: List[Path] = []
         if args.ev_profile:
             candidates.append(Path(args.ev_profile))
@@ -788,7 +792,7 @@ def main(argv=None):
         ]
         if archive_namespace_arg:
             agg_cmd.extend(["--archive-namespace", archive_namespace_arg])
-        if args.ev_profile and not args.no_ev_profile:
+        if _ev_profile_enabled(args) and args.ev_profile:
             agg_cmd.extend(["--out-yaml", args.ev_profile])
         agg_cmd.extend(["--out-csv", "analysis/ev_profile_summary.csv"])
         try:
