@@ -439,6 +439,7 @@ class BacktestRunner:
         "zero_qty",
         "strategy_gate_error",
         "ev_threshold_error",
+        "session_parse_error",
     )
     DEBUG_RECORD_FIELDS: Dict[str, Tuple[str, ...]] = {
         "no_breakout": ("ts",),
@@ -459,6 +460,7 @@ class BacktestRunner:
             "sl_pips",
         ),
         "ev_threshold_error": ("ts", "side", "base_threshold", "error"),
+        "session_parse_error": ("ts", "text"),
         "trade": (
             "ts",
             "side",
@@ -1320,6 +1322,70 @@ class BacktestRunner:
             allowed_sessions=allowed_sessions,
         )
 
+    def _parse_session_timestamp(self, ts: str) -> Optional[datetime]:
+        """Parse a timestamp string into a timezone-aware ``datetime``."""
+        if not isinstance(ts, str):
+            return None
+        text = ts.strip()
+        if not text:
+            return None
+
+        candidates: List[str] = []
+        if text.endswith("Z"):
+            candidates.append(f"{text[:-1]}+00:00")
+        candidates.append(text)
+
+        parsed: Optional[datetime] = None
+        for candidate in candidates:
+            if "-" not in candidate and ":" not in candidate:
+                continue
+            try:
+                parsed = datetime.fromisoformat(candidate)
+            except ValueError:
+                continue
+            else:
+                break
+
+        if parsed is not None:
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed
+
+        def _collapse_offset(value: str) -> str:
+            if len(value) >= 6 and value[-3] == ":" and value[-6] in ("+", "-"):
+                return value[:-3] + value[-2:]
+            return value
+
+        fallback_candidates: List[str] = [text]
+        if text.endswith("Z"):
+            fallback_candidates.append(f"{text[:-1]}+0000")
+
+        extended_candidates = list(fallback_candidates)
+        for candidate in extended_candidates:
+            collapsed = _collapse_offset(candidate)
+            if collapsed != candidate:
+                fallback_candidates.append(collapsed)
+
+        patterns: Tuple[str, ...] = (
+            "%Y%m%dT%H%M%S.%f%z",
+            "%Y%m%dT%H%M%S%z",
+            "%Y%m%dT%H%M%S.%fZ",
+            "%Y%m%dT%H%M%SZ",
+            "%Y%m%dT%H%M%S.%f",
+            "%Y%m%dT%H%M%S",
+        )
+
+        for candidate in fallback_candidates:
+            for pattern in patterns:
+                try:
+                    parsed = datetime.strptime(candidate, pattern)
+                except ValueError:
+                    continue
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+                return parsed
+        return None
+
     def _session_of_ts(self, ts: str) -> str:
         """Very simple UTC-based session mapping.
         - TOK: 00:00–07:59 (inclusive of first hour), outside LDN/NY
@@ -1327,13 +1393,16 @@ class BacktestRunner:
         - NY : 13:00–21:59
         else: TOK
         """
-        try:
-            hh = int(ts[11:13])
-        except Exception:
+        parsed = self._parse_session_timestamp(ts)
+        if parsed is None:
+            self.debug_counts["session_parse_error"] += 1
+            if self.debug:
+                self._append_debug_record("session_parse_error", text=str(ts))
             return "TOK"
-        if 8 <= hh <= 12:
+        hour = parsed.astimezone(timezone.utc).hour
+        if 8 <= hour <= 12:
             return "LDN"
-        if 13 <= hh <= 21:
+        if 13 <= hour <= 21:
             return "NY"
         return "TOK"
 
