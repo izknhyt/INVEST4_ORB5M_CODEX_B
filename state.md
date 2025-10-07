@@ -2,6 +2,9 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-03-29: Filtered `scripts/run_sim.py` bar streaming so only the resolved symbol feeds the runner,
+  added a mixed-symbol regression test in `tests/test_run_sim_cli.py`, and ran
+  `python3 -m pytest tests/test_run_sim_cli.py` for confirmation.
 - 2025-10-07: Normalised `docs/task_backlog.md` anchors in `scripts/sync_task_docs.normalize_anchor`,
   added regression coverage for uppercase fragments in `tests/test_sync_task_template.py`,
   and ran `python3 -m pytest tests/test_manage_task_cycle.py tests/test_sync_task_template.py`.

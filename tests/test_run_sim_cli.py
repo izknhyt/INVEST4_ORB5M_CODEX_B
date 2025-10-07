@@ -192,6 +192,71 @@ class TestRunSimCLI(unittest.TestCase):
                 data = json.load(f)
             self.assertIn("trades", data)
 
+    def test_run_sim_auto_symbol_filters_mixed_csv(self):
+        mixed_csv = textwrap.dedent(
+            """\
+            timestamp,symbol,tf,o,h,l,c,v,spread,zscore
+            2024-01-01T08:00:00Z,USDJPY,5m,150.00,150.10,149.90,150.02,0,0.02,0.0
+            2024-01-01T08:05:00Z,EURUSD,5m,1.0800,1.0810,1.0790,1.0802,0,0.01,0.1
+            2024-01-01T08:10:00Z,USDJPY,5m,150.02,150.12,149.92,150.04,0,0.02,0.5
+            2024-01-01T08:15:00Z,EURUSD,5m,1.0801,1.0811,1.0791,1.0803,0,0.01,-0.2
+            2024-01-01T08:20:00Z,USDJPY,5m,150.04,150.14,149.94,150.06,0,0.02,-0.1
+            """
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path = os.path.join(tmpdir, "bars.csv")
+            with open(csv_path, "w", encoding="utf-8") as f:
+                f.write(mixed_csv)
+
+            json_out = os.path.join(tmpdir, "metrics.json")
+            args = [
+                "--csv",
+                csv_path,
+                "--mode",
+                "conservative",
+                "--equity",
+                "100000",
+                "--json-out",
+                json_out,
+                "--dump-max",
+                "0",
+                "--no-auto-state",
+                "--no-ev-profile",
+                "--no-aggregate-ev",
+            ]
+
+            backtest_runner_cls = run_sim_main.__globals__["BacktestRunner"]
+            captured = {}
+
+            class DummyMetrics:
+                def __init__(self):
+                    self.records = []
+                    self.daily = {}
+                    self.runtime = {}
+                    self.debug = {}
+
+                def as_dict(self):
+                    return {"trades": 0, "wins": 0, "total_pips": 0.0}
+
+            def _fake_run(self, bars, *run_args, **run_kwargs):
+                consumed = list(bars)
+                captured["symbols"] = {bar.get("symbol") for bar in consumed}
+                captured["first_timestamp"] = consumed[0].get("timestamp") if consumed else None
+                captured["count"] = len(consumed)
+                return DummyMetrics()
+
+            with mock.patch.object(backtest_runner_cls, "run", autospec=True, side_effect=_fake_run):
+                rc = run_sim_main(args)
+
+            self.assertEqual(rc, 0)
+            self.assertEqual(captured.get("symbols"), {"USDJPY"})
+            self.assertEqual(captured.get("first_timestamp"), "2024-01-01T08:00:00Z")
+            self.assertGreaterEqual(captured.get("count", 0), 3)
+            with open(json_out, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.assertIn("trades", data)
+
     def test_run_sim_manifest_mean_reversion(self):
         manifest_yaml = textwrap.dedent(
             """
