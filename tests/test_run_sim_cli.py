@@ -29,6 +29,15 @@ CSV_CONTENT = """timestamp,symbol,tf,o,h,l,c,v,spread,zscore
 """
 
 
+CSV_CONTENT_WITH_BLANK_SPREAD = textwrap.dedent(
+    """\
+    timestamp,symbol,tf,o,h,l,c,v,spread
+    2024-01-01T09:00:00Z,USDJPY,5m,150.10,150.20,150.00,150.12,,
+    2024-01-01T09:05:00Z,USDJPY,5m,150.11,150.21,150.01,150.13,0.0,0.01
+    """
+)
+
+
 class TestRunSimCLI(unittest.TestCase):
     def test_load_bars_csv(self):
         path = os.path.join(os.path.dirname(__file__), "_tmp_bars.csv")
@@ -46,6 +55,18 @@ class TestRunSimCLI(unittest.TestCase):
                 os.remove(path)
             except OSError:
                 pass
+
+    def test_load_bars_csv_tolerates_blank_volume_and_spread(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path = Path(tmpdir) / "bars.csv"
+            csv_path.write_text(CSV_CONTENT_WITH_BLANK_SPREAD, encoding="utf-8")
+            bars = list(load_bars_csv(str(csv_path)))
+
+        self.assertEqual(len(bars), 2)
+        self.assertEqual(bars[0]["v"], 0.0)
+        self.assertEqual(bars[0]["spread"], 0.0)
+        self.assertEqual(bars[1]["v"], 0.0)
+        self.assertEqual(bars[1]["spread"], 0.01)
 
     def test_run_sim_outputs_extended_metrics(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -70,6 +91,37 @@ class TestRunSimCLI(unittest.TestCase):
                 data = json.load(f)
             self.assertIn("sharpe", data)
             self.assertIn("max_drawdown", data)
+
+    def test_run_sim_accepts_blank_volume_and_spread(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path = Path(tmpdir) / "bars.csv"
+            csv_path.write_text(CSV_CONTENT_WITH_BLANK_SPREAD, encoding="utf-8")
+            json_out = Path(tmpdir) / "metrics.json"
+
+            args = [
+                "--csv",
+                str(csv_path),
+                "--symbol",
+                "USDJPY",
+                "--mode",
+                "conservative",
+                "--equity",
+                "100000",
+                "--json-out",
+                str(json_out),
+                "--dump-max",
+                "0",
+                "--no-auto-state",
+                "--no-ev-profile",
+                "--no-aggregate-ev",
+            ]
+
+            rc = run_sim_main(args)
+
+            self.assertEqual(rc, 0)
+            self.assertTrue(json_out.exists())
+            data = json.loads(json_out.read_text(encoding="utf-8"))
+            self.assertIn("trades", data)
 
     def test_run_sim_respects_time_window(self):
         with tempfile.TemporaryDirectory() as tmpdir:

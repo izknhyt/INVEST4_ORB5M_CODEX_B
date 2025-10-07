@@ -6,6 +6,7 @@ Usage:
   python3 scripts/run_sim.py --csv path/to/ohlc5m.csv --symbol USDJPY --mode conservative --equity 100000 --json-out out.json
 
 CSV columns (header required): timestamp,symbol,tf,o,h,l,c,v,spread
+Blank or missing volume (`v`) and spread values default to 0.0 during parsing.
 Outputs JSON metrics: {"trades":.., "wins":.., "total_pips":..}
 """
 from __future__ import annotations
@@ -126,6 +127,16 @@ def _runner_config_from_manifest(manifest: StrategyManifest) -> RunnerConfig:
     return rcfg
 
 
+def _float_or_zero(value: Any) -> float:
+    if value is None:
+        return 0.0
+    if isinstance(value, str):
+        if not value.strip():
+            return 0.0
+        value = value.strip()
+    return float(value)
+
+
 def load_bars_csv(
     path: str,
     *,
@@ -146,8 +157,8 @@ def load_bars_csv(
                         "h": float(row["h"]),
                         "l": float(row["l"]),
                         "c": float(row["c"]),
-                        "v": float(row.get("v", 0.0)),
-                        "spread": float(row.get("spread", 0.0)),
+                        "v": _float_or_zero(row.get("v", 0.0)),
+                        "spread": _float_or_zero(row.get("spread", 0.0)),
                     }
                 except (KeyError, ValueError):
                     continue
