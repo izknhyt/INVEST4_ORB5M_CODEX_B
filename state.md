@@ -15,6 +15,9 @@
 - 2026-03-27: Normalised `scripts/run_sim.py` state archive resolution to anchor relative paths at `ROOT`, forwarded the
   absolute archive directory to `aggregate_ev.py`, added regression coverage for launching from a temporary working
   directory, and executed `python3 -m pytest tests/test_run_sim_cli.py` for verification.
+- 2026-03-28: Guarded manifest instrument mode overrides in `scripts/run_sim.py` so user-specified `--mode` flags remain
+  intact, added a regression in `tests/test_run_sim_cli.py` covering the CLI override behaviour, and executed
+  `python3 -m pytest tests/test_run_sim_cli.py` to confirm the fix.
 - 2025-10-06: Added `Strategy.get_pending_signal()` so runner execution no longer reaches into
   `_pending_signal`, implemented the accessor across DayORB/mean reversion/scalping templates,
   refreshed docs/test fixtures, and executed `python3 -m pytest` to validate the integration.
