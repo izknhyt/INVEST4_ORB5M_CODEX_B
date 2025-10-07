@@ -130,6 +130,11 @@ def load_bars_csv(
     default_tf: str = "5m",
 ) -> Iterator[Dict[str, Any]]:
     def _iter() -> Iterator[Dict[str, Any]]:
+        default_tf_normalized = (
+            str(default_tf).strip().lower() if default_tf is not None else ""
+        )
+        if not default_tf_normalized:
+            default_tf_normalized = "5m"
         with open(path, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             if reader.fieldnames is None:
@@ -190,9 +195,10 @@ def load_bars_csv(
 
                 row_tf: str
                 if tf_key and row.get(tf_key):
-                    row_tf = str(row[tf_key]).strip() or default_tf
+                    raw_tf = str(row[tf_key]).strip()
+                    row_tf = raw_tf.lower() if raw_tf else default_tf_normalized
                 else:
-                    row_tf = default_tf
+                    row_tf = default_tf_normalized
 
                 if symbol and row_symbol != symbol:
                     continue
@@ -277,6 +283,13 @@ def _runner_config_from_manifest(manifest: StrategyManifest) -> RunnerConfig:
             setattr(rcfg, key, value)
         except AttributeError:
             continue
+    tf_values: list[str] = []
+    for instrument in manifest.strategy.instruments:
+        tf_value = str(getattr(instrument, "timeframe", "")).strip().lower()
+        if tf_value and tf_value not in tf_values:
+            tf_values.append(tf_value)
+    if tf_values:
+        rcfg.allowed_timeframes = tuple(tf_values)
     router_sessions = tuple(
         str(s).strip().upper()
         for s in manifest.router.allowed_sessions

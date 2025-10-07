@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-04-08: Normalised timeframe handling across `load_bars_csv` and `validate_bar`, plumbed runner timeframe whitelists, extended CLI/runner tests for uppercase bars, and ran `python3 -m pytest`.
 - 2026-04-07: Propagated `--local-backup-csv` overrides from `run_daily_workflow.py` to the default `pull_prices` ingest path, added a CLI regression in `tests/test_run_daily_workflow.py`, and ran `python3 -m pytest`.
 - 2026-04-03: Added `--skip-yaml` to `scripts/aggregate_ev.py` so CSV summaries can run without writing profiles, updated
   `scripts/run_sim.py` to append the guard when `--no-ev-profile` is set, extended CLI/script pytest coverage, and ran
