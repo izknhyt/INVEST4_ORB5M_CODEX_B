@@ -2,6 +2,9 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-03-31: Ensured `scripts/run_sim.py` respects `--no-ev-profile` when manifests set `state.ev_profile`,
+  prevented `aggregate_ev.py` from receiving `--out-yaml` under the flag, extended
+  `tests/test_run_sim_cli.py` with a regression, and ran `python3 -m pytest tests/test_run_sim_cli.py`.
 - 2026-03-30: Defaulted blank CSV spread/volume fields to 0.0 in `scripts/run_sim.py`,
   extended `tests/test_run_sim_cli.py` to cover tolerant parsing and CLI runs with empty values,
   documented the behaviour in `README.md`, and ran `python3 -m pytest tests/test_run_sim_cli.py`.

@@ -386,7 +386,11 @@ def main(argv=None):
         rcfg_base = _runner_config_from_manifest(manifest)
         manifest_state_namespace = manifest.state.archive_namespace
         args.strategy = manifest.strategy.class_path
-        if manifest.state.ev_profile and not getattr(args, "ev_profile", None):
+        if (
+            not getattr(args, "no_ev_profile", False)
+            and manifest.state.ev_profile
+            and not getattr(args, "ev_profile", None)
+        ):
             args.ev_profile = manifest.state.ev_profile
         _apply_manifest_cli_defaults(args, manifest.runner.cli_args, parser, user_overrides)
         if args.symbol is None and manifest.strategy.instruments:
@@ -784,7 +788,7 @@ def main(argv=None):
         ]
         if archive_namespace_arg:
             agg_cmd.extend(["--archive-namespace", archive_namespace_arg])
-        if args.ev_profile:
+        if args.ev_profile and not args.no_ev_profile:
             agg_cmd.extend(["--out-yaml", args.ev_profile])
         agg_cmd.extend(["--out-csv", "analysis/ev_profile_summary.csv"])
         try:
