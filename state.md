@@ -2,6 +2,9 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-04-03: Added `--skip-yaml` to `scripts/aggregate_ev.py` so CSV summaries can run without writing profiles, updated
+  `scripts/run_sim.py` to append the guard when `--no-ev-profile` is set, extended CLI/script pytest coverage, and ran
+  `python3 -m pytest tests/test_run_sim_cli.py tests/test_aggregate_ev_script.py`.
 - 2026-03-31: Ensured `scripts/run_sim.py` respects `--no-ev-profile` when manifests set `state.ev_profile`,
   prevented `aggregate_ev.py` from receiving `--out-yaml` under the flag, extended
   `tests/test_run_sim_cli.py` with a regression, and ran `python3 -m pytest tests/test_run_sim_cli.py`.

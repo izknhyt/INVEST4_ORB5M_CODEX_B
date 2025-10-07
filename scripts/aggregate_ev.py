@@ -205,6 +205,11 @@ def main() -> int:
     parser.add_argument("--beta-prior", type=float, default=1.0)
     parser.add_argument("--out-yaml", default=None, help="Path to write YAML profile (default: configs/ev_profiles/<strategy_module>.yaml)")
     parser.add_argument("--out-csv", default=None, help="Optional path to write CSV summary")
+    parser.add_argument(
+        "--skip-yaml",
+        action="store_true",
+        help="Skip writing the YAML profile while still allowing CSV summaries",
+    )
     args = parser.parse_args()
 
     strategy_module, _, strategy_class = args.strategy.rpartition(".")
@@ -257,16 +262,17 @@ def main() -> int:
         beta_prior=args.beta_prior,
     )
 
-    out_yaml_base = (
-        Path(args.out_yaml)
-        if args.out_yaml
-        else Path("configs/ev_profiles") / f"{module_tail}.yaml"
-    )
-    out_yaml = resolve_repo_path(out_yaml_base)
-    out_yaml.parent.mkdir(parents=True, exist_ok=True)
-    with out_yaml.open("w") as f:
-        yaml.safe_dump(profile, f, sort_keys=False)
-    print(f"Wrote YAML profile -> {out_yaml}")
+    if not args.skip_yaml:
+        out_yaml_base = (
+            Path(args.out_yaml)
+            if args.out_yaml
+            else Path("configs/ev_profiles") / f"{module_tail}.yaml"
+        )
+        out_yaml = resolve_repo_path(out_yaml_base)
+        out_yaml.parent.mkdir(parents=True, exist_ok=True)
+        with out_yaml.open("w") as f:
+            yaml.safe_dump(profile, f, sort_keys=False)
+        print(f"Wrote YAML profile -> {out_yaml}")
 
     if args.out_csv:
         summary = {

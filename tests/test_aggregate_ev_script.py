@@ -105,6 +105,58 @@ def test_aggregate_ev_generates_outputs(tmp_path: Path) -> None:
     assert long_term_rows and long_term_rows[0]["bucket"] == "asia:low:stable"
 
 
+def test_aggregate_ev_skip_yaml_allows_csv_only(tmp_path: Path) -> None:
+    strategy_key = "day_orb_5m.DayORB5m"
+    symbol = "USDJPY"
+    mode = "conservative"
+
+    archive_dir = tmp_path / "ops" / "state_archive" / strategy_key / symbol / mode
+    archive_dir.mkdir(parents=True)
+
+    write_state(
+        archive_dir / "20240103_000000.json",
+        alpha=3.0,
+        beta=4.0,
+        global_alpha=5.0,
+        global_beta=7.0,
+    )
+
+    out_yaml = tmp_path / "skip.yaml"
+    out_csv = tmp_path / "skip.csv"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "aggregate_ev.py"),
+            "--archive",
+            str(tmp_path / "ops" / "state_archive"),
+            "--strategy",
+            strategy_key,
+            "--symbol",
+            symbol,
+            "--mode",
+            mode,
+            "--out-yaml",
+            str(out_yaml),
+            "--out-csv",
+            str(out_csv),
+            "--skip-yaml",
+        ],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "Wrote YAML profile" not in result.stdout
+    assert not out_yaml.exists()
+    assert out_csv.exists()
+    with out_csv.open() as f:
+        rows = list(csv.DictReader(f))
+
+    assert rows and rows[0]["bucket"] == "asia:low:stable"
+
+
 def test_aggregate_ev_supports_archive_namespace(tmp_path: Path) -> None:
     strategy_key = "strategies.mean_reversion.MeanReversionStrategy"
     symbol = "USDJPY"

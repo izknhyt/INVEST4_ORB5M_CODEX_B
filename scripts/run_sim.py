@@ -792,8 +792,11 @@ def main(argv=None):
         ]
         if archive_namespace_arg:
             agg_cmd.extend(["--archive-namespace", archive_namespace_arg])
-        if _ev_profile_enabled(args) and args.ev_profile:
-            agg_cmd.extend(["--out-yaml", args.ev_profile])
+        if _ev_profile_enabled(args):
+            if args.ev_profile:
+                agg_cmd.extend(["--out-yaml", args.ev_profile])
+        else:
+            agg_cmd.append("--skip-yaml")
         agg_cmd.extend(["--out-csv", "analysis/ev_profile_summary.csv"])
         try:
             result = subprocess.run(
