@@ -2067,6 +2067,168 @@ class TestRunner(unittest.TestCase):
         mock_sim.assert_called_once()
         mock_process.assert_called_once()
 
+    def test_maybe_enter_trade_processes_multiple_intents(self):
+        runner, pending, breakout, features, calibrating = self._prepare_breakout_environment(
+            warmup_left=0
+        )
+        self.assertFalse(calibrating)
+        pip_value = pip_size(runner.symbol)
+        stub_ev = self.DummyEV(ev_lcb=1.2, p_lcb=0.65)
+        entry_ctx = EntryContext(**features.entry_ctx._constructor_kwargs())
+        entry_ctx.ev_manager = stub_ev
+        if entry_ctx.expected_slip_pip is None:
+            entry_ctx.expected_slip_pip = 0.0
+        if entry_ctx.cost_pips is None:
+            entry_ctx.cost_pips = entry_ctx.base_cost_pips
+        features.entry_ctx = entry_ctx
+        ev_ctx = EVContext.from_entry(entry_ctx)
+        ev_ctx.ev_lcb = 1.2
+        ev_ctx.threshold_lcb = 0.6
+        ev_ctx.ev_pass = True
+        sizing_ctx = SizingContext.from_ev(ev_ctx)
+        entry_result = EntryEvaluation(
+            outcome=GateCheckOutcome(passed=True),
+            context=entry_ctx,
+            pending_side=pending["side"],
+            tp_pips=pending["tp_pips"],
+            sl_pips=pending["sl_pips"],
+        )
+        ev_result = EVEvaluation(
+            outcome=GateCheckOutcome(passed=True),
+            manager=stub_ev,
+            context=ev_ctx,
+            ev_lcb=1.2,
+            threshold_lcb=0.6,
+            bypass=False,
+            pending_side=pending["side"],
+            tp_pips=pending["tp_pips"],
+            sl_pips=pending["sl_pips"],
+        )
+        sizing_result = SizingEvaluation(
+            outcome=GateCheckOutcome(passed=True),
+            context=sizing_ctx,
+        )
+        intents = [
+            OrderIntent(
+                pending["side"],
+                qty=1.0,
+                price=pending["entry"],
+                oco={
+                    "tp_pips": pending["tp_pips"],
+                    "sl_pips": pending["sl_pips"],
+                    "trail_pips": pending["trail_pips"],
+                },
+            ),
+            OrderIntent(
+                pending["side"],
+                qty=2.0,
+                price=pending["entry"],
+                oco={
+                    "tp_pips": pending["tp_pips"],
+                    "sl_pips": pending["sl_pips"],
+                    "trail_pips": pending["trail_pips"],
+                },
+            ),
+        ]
+        runner.stg._pending_signal = pending
+        features.ctx["ev_oco"] = stub_ev
+        features.ctx.setdefault("slip_cap_pip", runner.rcfg.slip_cap_pip)
+        features.ctx.setdefault("expected_slip_pip", 0.0)
+        call_probs = [0.9, 0.25]
+        call_index = [0]
+        daily_entry_before = next(iter(runner.daily.values()))
+        initial_breakouts = daily_entry_before.get("breakouts", 0)
+        initial_fills = daily_entry_before.get("fills", 0)
+        initial_wins = daily_entry_before.get("wins", 0)
+
+        def simulate_stub(bar_ctx, spec):
+            idx = min(call_index[0], len(call_probs) - 1)
+            prob = call_probs[idx]
+            call_index[0] += 1
+            pip = bar_ctx.get("pip", pip_value)
+            direction = 1.0 if spec.side == "BUY" else -1.0
+            exit_px = spec.entry + direction * spec.tp_pips * pip
+            return {
+                "fill": True,
+                "entry_px": spec.entry,
+                "exit_px": exit_px,
+                "exit_reason": "tp",
+                "p_tp": prob,
+            }
+
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(runner.stg, "on_bar", return_value=None))
+            stack.enter_context(
+                patch.object(runner.stg, "get_pending_signal", return_value=pending)
+            )
+            stack.enter_context(patch.object(runner.stg, "signals", return_value=intents))
+            stack.enter_context(
+                patch(
+                    "core.runner_entry.EntryGate.evaluate",
+                    return_value=entry_result,
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "core.runner_entry.EVGate.evaluate",
+                    return_value=ev_result,
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "core.runner_entry.SizingGate.evaluate",
+                    return_value=sizing_result,
+                )
+            )
+            mock_sim = stack.enter_context(
+                patch.object(runner.fill_engine_b, "simulate", side_effect=simulate_stub)
+            )
+            mock_process = stack.enter_context(
+                patch.object(
+                    runner.execution,
+                    "process_fill_result",
+                    wraps=runner.execution.process_fill_result,
+                )
+            )
+            runner._maybe_enter_trade(
+                bar=breakout,
+                features=features,
+                mode="bridge",
+                pip_size_value=pip_value,
+                calibrating=calibrating,
+            )
+
+        self.assertEqual(mock_sim.call_count, len(intents))
+        self.assertEqual(mock_process.call_count, len(intents))
+        ctx_args = [call.kwargs["ctx"] for call in mock_process.call_args_list]
+        ctx_dbg_args = [call.kwargs["ctx_dbg"] for call in mock_process.call_args_list]
+        self.assertEqual(len(ctx_args), len(intents))
+        self.assertEqual(len(ctx_dbg_args), len(intents))
+        self.assertIs(ctx_args[0], features.ctx)
+        self.assertIsInstance(ctx_args[1], RunnerContext)
+        self.assertIsNot(ctx_args[1], ctx_args[0])
+        self.assertEqual(ctx_args[0].to_dict(), ctx_args[1].to_dict())
+        first_ctx_dbg = ctx_dbg_args[0]
+        self.assertIsInstance(first_ctx_dbg, SizingContext)
+        self.assertIsInstance(ctx_dbg_args[1], SizingContext)
+        self.assertIsNot(ctx_dbg_args[1], first_ctx_dbg)
+        self.assertEqual(
+            first_ctx_dbg._constructor_kwargs(),
+            ctx_dbg_args[1]._constructor_kwargs(),
+        )
+        self.assertEqual(len(runner.records), len(intents))
+        self.assertEqual(runner.metrics.trades, len(intents))
+        self.assertEqual(runner.metrics.wins, len(intents))
+        daily_entry = next(iter(runner.daily.values()))
+        self.assertEqual(
+            daily_entry["breakouts"] - initial_breakouts,
+            len(intents),
+        )
+        self.assertEqual(daily_entry["fills"] - initial_fills, len(intents))
+        self.assertEqual(daily_entry["wins"] - initial_wins, len(intents))
+        self.assertIsNone(runner.pos)
+        self.assertEqual(runner.debug_counts["gate_block"], 0)
+
     def test_warmup_counter_not_decremented_when_no_fill(self):
         runner, pending, breakout, features, calibrating = self._prepare_breakout_environment(
             warmup_left=3

@@ -1,11 +1,21 @@
 from __future__ import annotations
 import math
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, Mapping, Optional, TYPE_CHECKING, Union, cast
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    Mapping,
+    Optional,
+    TYPE_CHECKING,
+    Union,
+    cast,
+)
 
 from core.fill_engine import BridgeFill, OrderSpec, resolve_same_bar_collision
 from core.pips import price_to_pips
 from core.runner_entry import EntryContext, EVContext, SizingContext, TradeContextSnapshot
+from core.runner_features import RunnerContext
 from core.runner_state import (
     ActivePositionState,
     CalibrationPositionState,
@@ -274,7 +284,6 @@ class RunnerExecutionManager:
             runner.debug_counts["no_breakout"] += 1
             runner._append_debug_record("no_breakout", ts=runner._last_timestamp)
             return
-        runner._increment_daily("breakouts")
         entry_result = runner._evaluate_entry_conditions(
             pending=pending,
             features=features,
@@ -308,46 +317,55 @@ class RunnerExecutionManager:
         if not intents:
             runner.debug_counts["gate_block"] += 1
             return
-        intent = intents[0]
-        spec = OrderSpec(
-            side=intent.side,
-            entry=intent.price,
-            tp_pips=intent.oco["tp_pips"],
-            sl_pips=intent.oco["sl_pips"],
-            trail_pips=intent.oco.get("trail_pips", 0.0),
-            slip_cap_pip=features.ctx["slip_cap_pip"],
-        )
+        ctx_class: type[RunnerContext] = type(features.ctx)
+        base_ctx_mapping = features.ctx.to_dict()
         fill_engine = runner.fill_engine_c if mode == "conservative" else runner.fill_engine_b
-        result = fill_engine.simulate(
-            {
-                "o": bar["o"],
-                "h": bar["h"],
-                "l": bar["l"],
-                "c": bar["c"],
-                "pip": pip_size_value,
-                "spread": bar["spread"],
-            },
-            spec,
-        )
-        if not result.get("fill"):
-            return
-        trade_ctx_snapshot = runner._compose_trade_context_snapshot(
-            ctx=sizing_ctx,
-            features=features,
-        )
-        state = self.process_fill_result(
-            intent=intent,
-            spec=spec,
-            result=result,
-            bar=bar,
-            ctx=features.ctx,
-            ctx_dbg=sizing_ctx,
-            trade_ctx_snapshot=trade_ctx_snapshot,
-            calibrating=calibrating,
-            pip_size_value=pip_size_value,
-        )
-        if not calibrating and runner._warmup_left > 0:
-            runner._warmup_left -= 1
+        for idx, intent in enumerate(intents):
+            if idx == 0:
+                ctx_for_intent: RunnerContext = features.ctx
+                sizing_ctx_current: SizingContext = sizing_ctx
+            else:
+                ctx_for_intent = ctx_class(dict(base_ctx_mapping))
+                sizing_ctx_current = type(sizing_ctx)(**sizing_ctx._constructor_kwargs())
+            runner._increment_daily("breakouts")
+            spec = OrderSpec(
+                side=intent.side,
+                entry=intent.price,
+                tp_pips=intent.oco["tp_pips"],
+                sl_pips=intent.oco["sl_pips"],
+                trail_pips=intent.oco.get("trail_pips", 0.0),
+                slip_cap_pip=ctx_for_intent.get("slip_cap_pip", sizing_ctx_current.slip_cap_pip),
+            )
+            result = fill_engine.simulate(
+                {
+                    "o": bar["o"],
+                    "h": bar["h"],
+                    "l": bar["l"],
+                    "c": bar["c"],
+                    "pip": pip_size_value,
+                    "spread": bar["spread"],
+                },
+                spec,
+            )
+            if not result.get("fill"):
+                continue
+            trade_ctx_snapshot = runner._compose_trade_context_snapshot(
+                ctx=sizing_ctx_current,
+                features=features,
+            )
+            state = self.process_fill_result(
+                intent=intent,
+                spec=spec,
+                result=result,
+                bar=bar,
+                ctx=ctx_for_intent,
+                ctx_dbg=sizing_ctx_current,
+                trade_ctx_snapshot=trade_ctx_snapshot,
+                calibrating=calibrating,
+                pip_size_value=pip_size_value,
+            )
+            if not calibrating and runner._warmup_left > 0:
+                runner._warmup_left -= 1
 
     def process_fill_result(
         self,
