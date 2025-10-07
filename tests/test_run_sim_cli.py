@@ -14,7 +14,7 @@ from core.sizing import compute_qty_from_ctx
 from core.runner import RunnerConfig
 from core.runner_execution import RunnerExecutionManager
 from core.runner_lifecycle import RunnerLifecycleManager
-from scripts.run_sim import load_bars_csv, main as run_sim_main
+from scripts.run_sim import ROOT_PATH, load_bars_csv, main as run_sim_main
 from strategies.mean_reversion import MeanReversionStrategy
 
 
@@ -122,6 +122,112 @@ class TestRunSimCLI(unittest.TestCase):
             self.assertTrue(json_out.exists())
             data = json.loads(json_out.read_text(encoding="utf-8"))
             self.assertIn("trades", data)
+
+    def test_ev_profile_resolves_from_external_cwd(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path = Path(tmpdir) / "bars.csv"
+            csv_path.write_text(CSV_CONTENT, encoding="utf-8")
+            json_out = Path(tmpdir) / "metrics.json"
+            args = [
+                "--csv",
+                str(csv_path),
+                "--symbol",
+                "USDJPY",
+                "--mode",
+                "conservative",
+                "--equity",
+                "100000",
+                "--json-out",
+                str(json_out),
+                "--dump-max",
+                "0",
+                "--no-auto-state",
+                "--no-aggregate-ev",
+            ]
+            original_cwd = os.getcwd()
+            with tempfile.TemporaryDirectory() as external_cwd:
+                os.chdir(external_cwd)
+                try:
+                    rc = run_sim_main(args)
+                finally:
+                    os.chdir(original_cwd)
+
+            self.assertEqual(rc, 0)
+            self.assertTrue(json_out.exists())
+            data = json.loads(json_out.read_text(encoding="utf-8"))
+            self.assertIn("ev_profile_path", data)
+            resolved_profile = Path(data["ev_profile_path"]).resolve()
+            expected_profile = (ROOT_PATH / "configs" / "ev_profiles" / "day_orb_5m.yaml").resolve()
+            self.assertEqual(resolved_profile, expected_profile)
+
+    def test_manifest_ev_profile_resolves_from_external_cwd(self):
+        manifest_yaml = textwrap.dedent(
+            """
+            meta:
+              id: manifest_external_ev_profile
+              name: Manifest External EV Profile
+              version: "1.0"
+              category: day
+            strategy:
+              class_path: strategies.mean_reversion.MeanReversionStrategy
+              instruments:
+                - symbol: USDJPY
+                  timeframe: 5m
+                  mode: conservative
+              parameters:
+                or_n: 2
+            router:
+              allowed_sessions: [LDN]
+            risk:
+              risk_per_trade_pct: 0.1
+              max_daily_dd_pct: 8.0
+              notional_cap: 500000
+              max_concurrent_positions: 1
+              warmup_trades: 0
+            runner:
+              runner_config:
+                warmup_trades: 0
+            state:
+              archive_namespace: strategies.mean_reversion.MeanReversionStrategy/USDJPY/conservative
+              ev_profile: configs/ev_profiles/mean_reversion.yaml
+            """
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path = Path(tmpdir) / "bars.csv"
+            csv_path.write_text(CSV_CONTENT, encoding="utf-8")
+            manifest_path = Path(tmpdir) / "manifest.yaml"
+            manifest_path.write_text(manifest_yaml, encoding="utf-8")
+            json_out = Path(tmpdir) / "metrics.json"
+            args = [
+                "--csv",
+                str(csv_path),
+                "--equity",
+                "100000",
+                "--json-out",
+                str(json_out),
+                "--strategy-manifest",
+                str(manifest_path),
+                "--dump-max",
+                "0",
+                "--no-auto-state",
+                "--no-aggregate-ev",
+            ]
+            original_cwd = os.getcwd()
+            with tempfile.TemporaryDirectory() as external_cwd:
+                os.chdir(external_cwd)
+                try:
+                    rc = run_sim_main(args)
+                finally:
+                    os.chdir(original_cwd)
+
+            self.assertEqual(rc, 0)
+            self.assertTrue(json_out.exists())
+            data = json.loads(json_out.read_text(encoding="utf-8"))
+            self.assertIn("ev_profile_path", data)
+            resolved_profile = Path(data["ev_profile_path"]).resolve()
+            expected_profile = (ROOT_PATH / "configs" / "ev_profiles" / "mean_reversion.yaml").resolve()
+            self.assertEqual(resolved_profile, expected_profile)
 
     def test_run_sim_respects_time_window(self):
         with tempfile.TemporaryDirectory() as tmpdir:
