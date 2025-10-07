@@ -12,6 +12,9 @@
   updated the CLI to forward the iterator to `BacktestRunner.run` while retaining the first bar for symbol
   resolution, adjusted `scripts/run_compare.py` / `scripts/run_grid.py` to materialise lists as needed,
   extended `tests/test_run_sim_cli.py` with streaming coverage, and ran `python3 -m pytest tests/test_run_sim_cli.py`.
+- 2026-03-27: Normalised `scripts/run_sim.py` state archive resolution to anchor relative paths at `ROOT`, forwarded the
+  absolute archive directory to `aggregate_ev.py`, added regression coverage for launching from a temporary working
+  directory, and executed `python3 -m pytest tests/test_run_sim_cli.py` for verification.
 - 2025-10-06: Added `Strategy.get_pending_signal()` so runner execution no longer reaches into
   `_pending_signal`, implemented the accessor across DayORB/mean reversion/scalping templates,
   refreshed docs/test fixtures, and executed `python3 -m pytest` to validate the integration.
