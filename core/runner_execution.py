@@ -320,7 +320,10 @@ class RunnerExecutionManager:
         ctx_class: type[RunnerContext] = type(features.ctx)
         base_ctx_mapping = features.ctx.to_dict()
         fill_engine = runner.fill_engine_c if mode == "conservative" else runner.fill_engine_b
+        position_opened = False
         for idx, intent in enumerate(intents):
+            if position_opened and not calibrating:
+                break
             if idx == 0:
                 ctx_for_intent: RunnerContext = features.ctx
                 sizing_ctx_current: SizingContext = sizing_ctx
@@ -366,6 +369,8 @@ class RunnerExecutionManager:
             )
             if not calibrating and runner._warmup_left > 0:
                 runner._warmup_left -= 1
+            if not calibrating and isinstance(state, ActivePositionState):
+                position_opened = True
 
     def process_fill_result(
         self,
