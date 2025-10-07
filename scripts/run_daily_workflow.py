@@ -1221,12 +1221,17 @@ def _build_state_health_cmd():
     ]
 
 
-def _build_pull_prices_cmd(args):
+def _build_pull_prices_cmd(args, *, source_override: Optional[Path] = None):
     from scripts import pull_prices
 
-    source_path = _resolve_path_argument(pull_prices.default_source_for_symbol(args.symbol))
-    if source_path is None:  # pragma: no cover - defensive guard
-        raise RuntimeError("unable to resolve default source CSV for pull_prices")
+    if source_override is not None:
+        source_path = Path(source_override)
+    else:
+        source_path = _resolve_path_argument(
+            pull_prices.default_source_for_symbol(args.symbol)
+        )
+        if source_path is None:  # pragma: no cover - defensive guard
+            raise RuntimeError("unable to resolve default source CSV for pull_prices")
 
     return [
         sys.executable,
@@ -1319,7 +1324,9 @@ def _dispatch_ingest(
         return status
 
     if provider is None:
-        return run_cmd(_build_pull_prices_cmd(args))
+        return run_cmd(
+            _build_pull_prices_cmd(args, source_override=local_backup_path)
+        )
 
     ctx, status = _init_ingest_context(
         args,

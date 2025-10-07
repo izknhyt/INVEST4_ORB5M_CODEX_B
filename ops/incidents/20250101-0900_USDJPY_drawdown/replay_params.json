@@ -1,16 +1,13 @@
 {
   "command": "python3 scripts/run_sim.py",
   "args": {
+    "--manifest": "configs/strategies/day_orb_5m.yaml",
     "--csv": "/tmp/usdjpy_5m_with_header.csv",
-    "--symbol": "USDJPY",
-    "--mode": "conservative",
     "--equity": 100000.0,
     "--start-ts": "2025-10-02T15:00:00Z",
     "--end-ts": "2025-10-02T19:30:00Z",
     "--out-dir": "runs/incidents",
-    "--json-out": "/tmp/incident_metrics.json",
-    "--no-auto-state": true,
-    "--no-aggregate-ev": true
+    "--json-out": "/tmp/incident_metrics.json"
   },
   "csv_source": "validated/USDJPY/5m.csv (header row appended prior to replay)",
   "executed_at_utc": "2025-10-02T23:09:24Z"

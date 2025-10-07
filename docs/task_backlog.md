@@ -22,6 +22,12 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2026-02-13: Refreshed `docs/codex_workflow.md` with sandbox/approval guidance (workspace-write + on-request approvals), highlighted `--doc-section` usage for aligning `docs/todo_next.md`, and reiterated `scripts/manage_task_cycle.py` dry-run examples. Synced references with `docs/state_runbook.md` and template links.
 
 ## P0: 即着手（オンデマンドインジェスト + 基盤整備）
+- **P0-12 Codex-first documentation cleanup**
+  - **DoD**: Codex operator workflow has a one-page quickstart, the detailed checklist is trimmed to actionable bullet lists, README points to both, and `docs/development_roadmap.md` captures immediate→mid-term improvements with backlog links. Backlogとテンプレートは新フローに沿って更新済みであること。
+  - **Notes**: Focus on reducing duplication between `docs/codex_workflow.md`, README, and `docs/state_runbook.md`; ensure sandbox/approval rules stay explicit.
+- ~~**P0-13 run_daily_workflow local CSV override fix**~~ (2026-04-07 完了): `scripts/run_daily_workflow.py` がデフォルト ingest で `pull_prices.py` を呼び出す際に `--local-backup-csv` のパスを尊重する。
+  - 2026-04-07: CLI オプションを `pull_prices` コマンドへ伝播し、回帰テスト `tests/test_run_daily_workflow.py::test_ingest_pull_prices_respects_local_backup_override` を追加。`python3 -m pytest` を実行して確認。
+- 2026-04-05: `scripts/run_sim.py` を manifest-first CLI へ再設計し、OutDir 実行時にランフォルダ (`params.json` / `metrics.json` / `records.csv` / `daily.csv`) が生成されるよう統合。`tests/test_run_sim_cli.py` / README / `docs/checklists/multi_strategy_validation.md` を更新。
 - 2026-02-28: Ensured `BacktestRunner` treats `ev_mode="off"` as a full EV-gate bypass by forcing
   the threshold LCB to negative infinity and preserving the disabled state in context/debug logs.
   Added regression `tests/test_runner.py::test_ev_gate_off_mode_bypasses_threshold_checks` and ran
@@ -83,7 +89,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2025-10-08: Added helper-based dispatch and logging reference. See [docs/backtest_runner_logging.md](docs/backtest_runner_logging.md) for counter/record definitions and EV investigation flow.
 
 ### ~~P1-06 Fill エンジン / ブローカー仕様アライン~~ ✅ (2026-02-13 クローズ)
-- `core/fill_engine.py` と RunnerConfig を拡張して `SameBarPolicy` / Brownian Bridge パラメータを制御し、CLI (`--fill-same-bar-policy-*`, `--fill-bridge-lambda`, `--fill-bridge-drift-scale`) を整備。`python3 -m pytest tests/test_fill_engine.py tests/test_runner.py tests/test_run_sim_cli.py` で回帰確認。
+- `core/fill_engine.py` と RunnerConfig を拡張して `SameBarPolicy` / Brownian Bridge パラメータを制御し、manifest (`runner.runner_config.fill_*`) で調整できるよう整備。`python3 -m pytest tests/test_fill_engine.py tests/test_runner.py tests/test_run_sim_cli.py` で回帰確認。
 - `docs/broker_oco_matrix.md` / `docs/benchmark_runbook.md` / `docs/progress_phase1.md` / `analysis/broker_fills_cli.py` にブローカー別挙動と再現手順を反映し、Notebook/CLI で Conservative vs Bridge 差分を可視化。
 
 ### ~~P1-07 フェーズ1 バグチェック & リファクタリング運用整備~~ ✅ (2026-01-08 クローズ)
@@ -106,7 +112,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 ### ~~P2-01 戦略マニフェスト整備~~ ✅ (2026-01-08 クローズ)
 - スキャル/デイ/スイングの候補戦略ごとに、依存特徴量・セッション・リスク上限を YAML で定義し、ルーターが参照できるようにする (`configs/strategies/*.yaml`)。
   - 2025-10-09: `configs/strategies/templates/base_strategy.yaml` に共通テンプレートと記述ガイドを追加し、新規戦略のマニフェスト整備を着手しやすくした。
-  - 2024-06-22: `scripts/run_sim.py --strategy-manifest` でマニフェストを読み込み、RunnerConfig の許容セッション/リスク上限と戦略固有パラメータを `Strategy.on_start` に直結するフローを整備。`tests/test_run_sim_cli.py::test_run_sim_manifest_mean_reversion` で `allow_high_rv` / `zscore_threshold` が `strategy_gate`・`ev_threshold` へ渡ることを確認。DoD: [フェーズ1-戦略別ゲート整備](docs/progress_phase1.md#1-戦略別ゲート整備)。
+- 2024-06-22: `scripts/run_sim.py --manifest` でマニフェストを読み込み、RunnerConfig の許容セッション/リスク上限と戦略固有パラメータを `Strategy.on_start` に直結するフローを整備。`tests/test_run_sim_cli.py` で manifest 経由のパラメタ伝播を検証。DoD: [フェーズ1-戦略別ゲート整備](docs/progress_phase1.md#1-戦略別ゲート整備)。
   - 2026-01-08: `strategies/scalping_template.py` / `strategies/day_template.py` を追加し、`tokyo_micro_mean_reversion`・`session_momentum_continuation` の manifest/実装を新設。`python3 -m pytest tests/test_strategy_manifest.py` で loader 整合性を確認。次ステップは run_sim CLI ドライランと DoD チェック更新。
 
 ### ~~P2-02 ルーター拡張~~ ✅ (2026-02-13 クローズ)

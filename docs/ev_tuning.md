@@ -1,16 +1,16 @@
 # EV ゲート調整メモ
 
 ## 閾値 (`threshold_lcb_pip`)
-- グローバル設定は `RunnerConfig.threshold_lcb_pip`（CLI `--threshold-lcb`）で変更できます。
+- グローバル設定は manifest の `runner.runner_config.threshold_lcb_pip` で変更できます。
 - 戦略側で `ev_threshold(ctx, pending, base_threshold)` を実装すると、シグナルごとに閾値を上書きできます。
   - DayORB5m では OR/ATR 比が高いシグナルは閾値を引き下げ、ボーダーラインのシグナルは引き上げる実装が入っています。
 
 ## ウォームアップと学習状態
-- `warmup_trades` で指定した件数は EV を評価せずに通し、初期学習に利用します。CLI からは `--warmup`（`scripts/generate_ev_case_study.py` では複数値指定可）で上書き可能です。
-- `prior_alpha/prior_beta` と `ev_global.decay`（デフォルト 0.02）は EV 更新のスピードを左右します。`scripts/run_sim.py` の `--decay` で CLI から直接調整できます。
+- `warmup_trades` で指定した件数は EV を評価せずに通し、初期学習に利用します。manifest の `runner.runner_config.warmup_trades` で調整し、ケーススタディでは `scripts/generate_ev_case_study.py` の `--warmup` で複数値を一括検証できます。
+- `prior_alpha/prior_beta` と `ev_global.decay`（デフォルト 0.02）は EV 更新のスピードを左右します。manifest の `runner.runner_config` に設定するか、ケーススタディでは `scripts/generate_ev_case_study.py` の引数で調整します。
   - decay を大きくすると最新データを重視し、小さくすると長期統計を保持します。
 - ランの最後に `runner.export_state()` を呼ぶと EV のグローバル／バケット統計が `state.json` として取得できます。
-- 次回実行時に `--load-state path/to/state.json` を指定するか、コードから `runner.load_state_file()` を呼べば学習状態を引き継げます。
+- 次回実行時に manifest で `runner.cli_args.auto_state: true` を維持する、またはコードから `runner.load_state_file()` を呼べば学習状態を引き継げます。
 - 実運用では、日次または週次で state をアーカイブし、起動時に最新の state をロードする運用が推奨です。
 
 ## 運用上の推奨

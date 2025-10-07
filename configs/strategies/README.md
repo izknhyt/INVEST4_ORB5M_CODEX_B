@@ -41,11 +41,11 @@ listed when a strategy is multi-instrument.
 
 ### Runner defaults
 `runner.runner_config` mirrors the arguments accepted by `RunnerConfig`, while
-`runner.cli_args` matches CLI flags (e.g. `scripts/run_sim.py`). These sections
-are advisory and can be used by orchestration tools to bootstrap runs. When
-invoking `scripts/run_sim.py --strategy-manifest`, the CLI automatically seeds
-unspecified options from `runner.cli_args`, but any explicit flag passed on the
-command line still takes precedence.
+`runner.cli_args` captures CLI defaults used by orchestration tools. With the
+new minimal interface (`scripts/run_sim.py --manifest ...`), the CLI resolves
+CSV/Equity/state設定などを manifest から読み込み、必要最低限の引数だけを受け取ります。`runner.cli_args`
+に `csv` / `equity` / `auto_state` / `aggregate_ev` / `state_archive` などを記載しておくと、Codex や手動実行で
+同じ設定を再現しやすくなります。
 
 #### Router guard fields
 

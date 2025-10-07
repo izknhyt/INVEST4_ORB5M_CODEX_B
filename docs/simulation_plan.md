@@ -1,7 +1,7 @@
 # シミュレーション完遂ロードマップ
 
 ## フェーズ0: ベースライン確認
-- **データ品質監査**: `scripts/run_sim.py --debug` とスキーマ検証テストで2018–2024 CSVの欠損/重複/タイムゾーンを確認。異常リストを `analysis/data_quality.md` にまとめる。
+- **データ品質監査**: 対象 manifest (`configs/strategies/day_orb_5m.yaml` など) を指定して `python3 scripts/run_sim.py --manifest ... --csv ... --out-dir runs/sanity` を実行し、生成された `records.csv` / `daily.csv` で異常値やギャップを確認。並行してスキーマ検証テストを実行し、異常リストを `analysis/data_quality.md` にまとめる。
 - **既存ランの再現**: 代表的なパラメータセット（Bridge/Conservative両方）で `runs/index.csv` をクリーンに再構築し、過去の勝率/損益が再現できるかを検証。
 - **state.json 管理体制**: `docs/state_runbook.md` に沿って初期ベースライン state を決め、以後の最適化で同一基準を使う。
 

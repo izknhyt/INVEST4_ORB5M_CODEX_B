@@ -1,0 +1,92 @@
+{
+  "meta": {
+    "symbol": "USDJPY",
+    "config_fingerprint": "401fffc2e5ebfc6c",
+    "last_timestamp": "2025-10-02T22:15:00"
+  },
+  "ev_global": {
+    "alpha": 26.01776332423679,
+    "beta": 23.982236425350283,
+    "prior_alpha": 0.0,
+    "prior_beta": 0.0,
+    "decay": 0.02,
+    "conf": 0.95
+  },
+  "ev_buckets": {
+    "LDN:narrow:high": {
+      "alpha": 1.865842380864,
+      "beta": 5.613723337663999
+    },
+    "LDN:narrow:low": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "LDN:narrow:mid": {
+      "alpha": 28.69572725204131,
+      "beta": 21.303060183316514
+    },
+    "NY:narrow:high": {
+      "alpha": 24.632659060706413,
+      "beta": 20.05992055808021
+    },
+    "NY:narrow:low": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "NY:narrow:mid": {
+      "alpha": 24.09331469056019,
+      "beta": 25.805482091107834
+    },
+    "TOK:narrow:high": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "TOK:narrow:low": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "TOK:narrow:mid": {
+      "alpha": 1.0,
+      "beta": 1.0
+    }
+  },
+  "slip": {
+    "a": {
+      "narrow": 0.863093933669042,
+      "normal": 0.05,
+      "wide": 0.1
+    },
+    "curve": {
+      "narrow": {
+        "a": 0.02,
+        "b": 0.0
+      },
+      "normal": {
+        "a": 0.05,
+        "b": 0.0
+      },
+      "wide": {
+        "a": 0.1,
+        "b": 0.0
+      }
+    },
+    "ewma_alpha": 0.1,
+    "ewma": {
+      "narrow": 0.04266798080833994,
+      "normal": 0.0,
+      "wide": 0.0
+    }
+  },
+  "rv_thresh": {
+    "TOK": null,
+    "LDN": null,
+    "NY": null
+  },
+  "runtime": {
+    "warmup_left": 48,
+    "day_count": 1,
+    "current_date": "2025-10-02",
+    "last_session": "TOK",
+    "_equity_live": 99969.83701364539
+  }
+}

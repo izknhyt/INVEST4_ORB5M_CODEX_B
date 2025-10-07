@@ -15,7 +15,7 @@
 - [x] `configs/strategies/day_orb_5m.yaml` と `configs/strategies/mean_reversion.yaml` をテンプレ基準に再構成し、必須ブロック (meta/strategy/router/risk/features/runner/state/notes) が揃っている。
 - [x] 追加する新規マニフェスト（該当する場合）はテンプレを準拠し、カテゴリ・セッション・リスク上限を明示。
 - [x] `configs/strategies/loader.py` / `scripts/run_sim.py` が manifest の新フィールドを問題なく取り込み、CLI フラグや RunnerConfig へ伝播する。
-- [x] `run_sim.py --strategy-manifest` のサンプル実行コマンドを `docs/todo_next.md` または Runbook に追記。
+- [x] `run_sim.py --manifest` のサンプル実行コマンドを `docs/todo_next.md` または Runbook に追記。
 
 ## 実装タスク
 - [x] 既存マニフェストの差分レビュー (`git diff`) を行い、phase1 で導入したフィールドが削除・劣化していないか確認。
@@ -26,8 +26,8 @@
 - [x] `python3 -m pytest tests/test_strategy_manifest.py`
 - [x] `python3 -m pytest tests/test_run_sim_cli.py -k manifest`
 - [ ] `python3 -m pytest tests/test_mean_reversion_strategy.py`
-- [x] `python3 scripts/run_sim.py --strategy-manifest configs/strategies/tokyo_micro_mean_reversion.yaml --csv data/sample_orb.csv --symbol USDJPY --mode conservative --equity 100000 --json-out /tmp/tokyo_micro.json --dump-csv /tmp/tokyo_micro.csv --dump-daily /tmp/tokyo_micro_daily.csv`
-- [x] `python3 scripts/run_sim.py --strategy-manifest configs/strategies/session_momentum_continuation.yaml --csv data/sample_orb.csv --symbol USDJPY --mode conservative --equity 150000 --json-out /tmp/session_momo.json --dump-csv /tmp/session_momo.csv --dump-daily /tmp/session_momo_daily.csv`
+- [x] `python3 scripts/run_sim.py --manifest configs/strategies/tokyo_micro_mean_reversion.yaml --csv data/sample_orb.csv --json-out /tmp/tokyo_micro.json`
+- [x] `python3 scripts/run_sim.py --manifest configs/strategies/session_momentum_continuation.yaml --csv data/sample_orb.csv --json-out /tmp/session_momo.json`
 - [x] 追加した検証ログを `state.md` の該当ブロックへ追記。
 
 ## ドキュメント同期

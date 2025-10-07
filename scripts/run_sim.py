@@ -1,24 +1,31 @@
 #!/usr/bin/env python3
-"""
-Minimal simulation CLI for MVP
+"""Minimal simulation CLI (manifest-first).
 
-Usage:
-  python3 scripts/run_sim.py --csv path/to/ohlc5m.csv --symbol USDJPY --mode conservative --equity 100000 --json-out out.json
+The tool now keeps the command-line surface tiny on purpose:
 
-CSV columns (header required): timestamp,symbol,tf,o,h,l,c,v,spread
-Blank or missing volume (`v`) and spread values default to 0.0 during parsing.
-Outputs JSON metrics: {"trades":.., "wins":.., "total_pips":..}
+```
+python3 scripts/run_sim.py \
+    --manifest configs/strategies/day_orb_5m.yaml \
+    --csv validated/USDJPY/5m.csv \
+    --json-out runs/latest_metrics.json \
+    --start-ts 2025-01-01T00:00:00Z --end-ts 2025-01-31T23:55:00Z
+```
+
+All other behaviour (state load/save, EV profile, fill/EV overrides) is driven
+via the manifest `runner.cli_args` block so that we no longer need dozens of
+flags. See the docs for the expected keys.
 """
+
 from __future__ import annotations
+
 import argparse
-import csv
 import json
 import subprocess
-
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
 from itertools import chain
-from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
+from pathlib import Path
+from typing import Any, Dict, Iterator, Optional
 
 import os
 import sys
@@ -29,14 +36,37 @@ ROOT_PATH = Path(ROOT)
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from core.utils import yaml_compat as yaml
-from scripts._time_utils import utcnow_aware
-from core.runner import BacktestRunner, RunnerConfig
+from configs.strategies.loader import StrategyManifest, load_manifest
 from core.fill_engine import SameBarPolicy
+from core.runner import BacktestRunner, RunnerConfig
+from core.runner_execution import RunnerExecutionManager
+from core.runner_lifecycle import RunnerLifecycleManager
 from core.router_pipeline import PortfolioTelemetry, build_portfolio_state
-from scripts.config_utils import build_runner_config
-from configs.strategies.loader import load_manifest, StrategyManifest
+from core.utils import yaml_compat as yaml
 from router.router_v1 import select_candidates
+
+
+class CSVFormatError(Exception):
+    """Raised when the input CSV lacks required fields or context."""
+
+    def __init__(self, code: str, *, details: Optional[str] = None) -> None:
+        self.code = code
+        self.details = details
+        message = code if details is None else f"{code}: {details}"
+        super().__init__(message)
+
+
+CSV_COLUMN_ALIASES: Dict[str, tuple[str, ...]] = {
+    "timestamp": ("timestamp", "time", "datetime", "date"),
+    "symbol": ("symbol", "sym", "ticker", "instrument"),
+    "tf": ("tf", "timeframe", "interval", "period"),
+    "o": ("o", "open", "open_price"),
+    "h": ("h", "high", "high_price"),
+    "l": ("l", "low", "low_price"),
+    "c": ("c", "close", "close_price"),
+    "v": ("v", "volume", "vol", "qty"),
+    "spread": ("spread", "spr", "spread_pips"),
+}
 
 
 def _resolve_repo_path(path: Path) -> Path:
@@ -45,7 +75,7 @@ def _resolve_repo_path(path: Path) -> Path:
     return ROOT_PATH / path
 
 
-def _strategy_state_key(strategy_cls) -> str:
+def _strategy_state_key(strategy_cls: type) -> str:
     module = getattr(strategy_cls, "__module__", "strategy") or "strategy"
     if module.startswith("strategies."):
         module = module.split(".", 1)[1]
@@ -60,75 +90,24 @@ def _latest_state_file(path: Path) -> Optional[Path]:
     return candidates[-1] if candidates else None
 
 
-def _maybe_load_store_run_summary() -> Optional[Callable[..., Dict[str, Any]]]:
+def _parse_iso8601(value: str) -> datetime:
+    value = value.strip()
+    if value.endswith("Z"):
+        value = value[:-1] + "+00:00"
+    return datetime.fromisoformat(value)
+
+
+def _normalize_datetime(value: datetime) -> datetime:
+    if value.tzinfo is not None:
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+    return value
+
+
+def _iso8601_arg(value: str) -> datetime:
     try:
-        from scripts.ev_vs_actual_pnl import store_run_summary
-    except ModuleNotFoundError as exc:  # pragma: no cover - optional pandas dependency
-        if getattr(exc, "name", "") == "pandas":
-            return None
-        raise
-    return store_run_summary
-
-
-def _ev_profile_enabled(args: argparse.Namespace) -> bool:
-    return not getattr(args, "no_ev_profile", False)
-
-
-def _coerce_allowed_sessions(value: Any) -> Tuple[str, ...]:
-    if isinstance(value, str):
-        parts = [p.strip().upper() for p in value.split(",") if p.strip()]
-        return tuple(parts)
-    if isinstance(value, (list, tuple)):
-        parts = [str(p).strip().upper() for p in value if str(p).strip()]
-        return tuple(parts)
-    return ()
-
-
-def _apply_runner_overrides(rcfg: RunnerConfig, overrides: Dict[str, Any]) -> None:
-    if not overrides:
-        return
-    for key, value in overrides.items():
-        if value is None:
-            continue
-        if key == "allowed_sessions":
-            sessions = _coerce_allowed_sessions(value)
-            if sessions:
-                rcfg.allowed_sessions = sessions
-            continue
-        if key == "rv_band_cuts" and isinstance(value, (list, tuple)):
-            rcfg.rv_band_cuts = [float(v) for v in value]
-            continue
-        if key == "spread_bands" and isinstance(value, dict):
-            rcfg.spread_bands = {str(k): float(v) for k, v in value.items()}
-            continue
-        if key == "slip_curve" and isinstance(value, dict):
-            curve_map: Dict[str, Dict[str, float]] = {}
-            for band, mapping in value.items():
-                if not isinstance(mapping, dict):
-                    continue
-                curve_map[str(band)] = {str(inner_k): float(inner_v) for inner_k, inner_v in mapping.items()}
-            if curve_map:
-                rcfg.slip_curve = curve_map
-            continue
-        try:
-            setattr(rcfg, key, value)
-        except AttributeError:
-            continue
-
-
-def _runner_config_from_manifest(manifest: StrategyManifest) -> RunnerConfig:
-    rcfg = RunnerConfig()
-    rcfg.merge_strategy_params(manifest.strategy.parameters, replace=True)
-    _apply_runner_overrides(rcfg, manifest.runner.runner_config)
-    router_sessions = _coerce_allowed_sessions(manifest.router.allowed_sessions)
-    if router_sessions:
-        rcfg.allowed_sessions = router_sessions
-    rcfg.warmup_trades = int(manifest.risk.warmup_trades)
-    rcfg.risk_per_trade_pct = float(manifest.risk.risk_per_trade_pct)
-    rcfg.max_daily_dd_pct = manifest.risk.max_daily_dd_pct
-    rcfg.notional_cap = manifest.risk.notional_cap
-    rcfg.max_concurrent_positions = int(manifest.risk.max_concurrent_positions)
-    return rcfg
+        return _normalize_datetime(_parse_iso8601(value))
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"Invalid ISO8601 timestamp: {value}") from exc
 
 
 def _float_or_zero(value: Any) -> float:
@@ -147,36 +126,81 @@ def load_bars_csv(
     symbol: Optional[str] = None,
     start_ts: Optional[datetime] = None,
     end_ts: Optional[datetime] = None,
+    default_symbol: Optional[str] = None,
+    default_tf: str = "5m",
 ) -> Iterator[Dict[str, Any]]:
     def _iter() -> Iterator[Dict[str, Any]]:
-        with open(path, newline="") as f:
+        with open(path, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
+            if reader.fieldnames is None:
+                raise CSVFormatError("header_missing")
+
+            header_lookup = {
+                (name or "").strip().lower(): name
+                for name in reader.fieldnames
+                if name is not None
+            }
+            alias_map: Dict[str, str] = {}
+            for canonical, aliases in CSV_COLUMN_ALIASES.items():
+                for alias in aliases:
+                    actual = header_lookup.get(alias)
+                    if actual:
+                        alias_map[canonical] = actual
+                        break
+
+            missing_required = [
+                key for key in ("timestamp", "o", "h", "l", "c") if key not in alias_map
+            ]
+            if missing_required:
+                raise CSVFormatError(
+                    "missing_required_columns",
+                    details=",".join(missing_required),
+                )
+
+            used_columns = set(alias_map.values())
+            symbol_key = alias_map.get("symbol")
+            tf_key = alias_map.get("tf")
+            volume_key = alias_map.get("v")
+            spread_key = alias_map.get("spread")
+
             for row in reader:
-                try:
-                    bar = {
-                        "timestamp": row["timestamp"],
-                        "symbol": row["symbol"],
-                        "tf": row.get("tf", "5m"),
-                        "o": float(row["o"]),
-                        "h": float(row["h"]),
-                        "l": float(row["l"]),
-                        "c": float(row["c"]),
-                        "v": _float_or_zero(row.get("v", 0.0)),
-                        "spread": _float_or_zero(row.get("spread", 0.0)),
-                    }
-                except (KeyError, ValueError):
+                ts_raw = row.get(alias_map["timestamp"])
+                if ts_raw in (None, ""):
                     continue
 
-                if symbol and bar.get("symbol") != symbol:
+                try:
+                    open_px = float(row[alias_map["o"]])
+                    high_px = float(row[alias_map["h"]])
+                    low_px = float(row[alias_map["l"]])
+                    close_px = float(row[alias_map["c"]])
+                except (TypeError, ValueError):
+                    continue
+
+                row_symbol: Optional[str]
+                if symbol_key:
+                    raw_symbol = row.get(symbol_key)
+                    row_symbol = str(raw_symbol).strip() if raw_symbol is not None else None
+                else:
+                    row_symbol = default_symbol.strip() if isinstance(default_symbol, str) else default_symbol
+                if not row_symbol:
+                    raise CSVFormatError(
+                        "symbol_required",
+                        details="Provide --csv together with --manifest that supplies symbol info.",
+                    )
+
+                row_tf: str
+                if tf_key and row.get(tf_key):
+                    row_tf = str(row[tf_key]).strip() or default_tf
+                else:
+                    row_tf = default_tf
+
+                if symbol and row_symbol != symbol:
                     continue
 
                 ts_filter_required = start_ts is not None or end_ts is not None
                 if ts_filter_required:
-                    ts_value = bar.get("timestamp")
-                    if not ts_value:
-                        continue
                     try:
-                        bar_dt = _normalize_datetime(_parse_iso8601(str(ts_value)))
+                        bar_dt = _normalize_datetime(_parse_iso8601(str(ts_raw)))
                     except ValueError:
                         continue
                     if start_ts and bar_dt < start_ts:
@@ -184,8 +208,20 @@ def load_bars_csv(
                     if end_ts and bar_dt > end_ts:
                         continue
 
+                bar: Dict[str, Any] = {
+                    "timestamp": ts_raw,
+                    "symbol": row_symbol,
+                    "tf": row_tf,
+                    "o": open_px,
+                    "h": high_px,
+                    "l": low_px,
+                    "c": close_px,
+                    "v": _float_or_zero(row.get(volume_key, 0.0) if volume_key else 0.0),
+                    "spread": _float_or_zero(row.get(spread_key, 0.0) if spread_key else 0.0),
+                }
+
                 for key, value in row.items():
-                    if key in {"timestamp", "symbol", "tf", "o", "h", "l", "c", "v", "spread"}:
+                    if key in used_columns:
                         continue
                     if value in (None, ""):
                         continue
@@ -193,294 +229,365 @@ def load_bars_csv(
                         bar[key] = float(value)
                     except ValueError:
                         bar[key] = value
+
                 yield bar
+
+    import csv  # Local import to avoid polluting module namespace unnecessarily
 
     return _iter()
 
 
-def _parse_iso8601(value: str) -> datetime:
-    value = value.strip()
-    if value.endswith("Z"):
-        value = value[:-1] + "+00:00"
-    return datetime.fromisoformat(value)
+@dataclass
+class RuntimeConfig:
+    manifest: StrategyManifest
+    manifest_path: Path
+    csv_path: Path
+    json_out: Optional[Path]
+    equity: float
+    start_ts: Optional[datetime]
+    end_ts: Optional[datetime]
+    out_dir: Optional[Path]
+    auto_state: bool
+    aggregate_ev: bool
+    state_archive_root: Path
+    ev_profile_path: Optional[Path]
+    use_ev_profile: bool
+    symbol: str
+    timeframe: str
+    mode: str
+    runner_config: RunnerConfig
+    strategy_cls: type
+    run_base_dir: Optional[Path]
 
 
-def _normalize_datetime(value: datetime) -> datetime:
-    if value.tzinfo is not None:
-        return value.astimezone(timezone.utc).replace(tzinfo=None)
-    return value
+def _load_strategy_class(class_path: str) -> type:
+    module_name, _, cls_name = class_path.rpartition(".")
+    if not module_name:
+        raise ValueError(f"Invalid strategy class path: {class_path}")
+    module = __import__(module_name, fromlist=[cls_name])
+    return getattr(module, cls_name)
 
 
-def _iso8601_arg(value: str) -> datetime:
+def _runner_config_from_manifest(manifest: StrategyManifest) -> RunnerConfig:
+    rcfg = RunnerConfig()
+    rcfg.merge_strategy_params(manifest.strategy.parameters, replace=True)
+    overrides = manifest.runner.runner_config
+    for key, value in overrides.items():
+        try:
+            setattr(rcfg, key, value)
+        except AttributeError:
+            continue
+    router_sessions = tuple(
+        str(s).strip().upper()
+        for s in manifest.router.allowed_sessions
+        if str(s).strip()
+    )
+    if router_sessions:
+        rcfg.allowed_sessions = router_sessions
+    rcfg.warmup_trades = int(manifest.risk.warmup_trades)
+    rcfg.risk_per_trade_pct = float(manifest.risk.risk_per_trade_pct)
+    rcfg.max_daily_dd_pct = manifest.risk.max_daily_dd_pct
+    rcfg.notional_cap = manifest.risk.notional_cap
+    rcfg.max_concurrent_positions = int(manifest.risk.max_concurrent_positions)
+    return rcfg
+
+
+def _prepare_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
+    manifest_path = _resolve_repo_path(Path(args.manifest))
+    manifest = load_manifest(manifest_path)
+    instrument = manifest.strategy.instruments[0]
+    symbol = instrument.symbol
+    timeframe = instrument.timeframe
+    mode = instrument.mode or "conservative"
+
+    manifest_cli = dict(manifest.runner.cli_args or {})
+
+    csv_path_value = args.csv or manifest_cli.get("csv") or manifest_cli.get("default_csv")
+    if not csv_path_value:
+        raise SystemExit(json.dumps({"error": "csv_required"}))
+    csv_path = _resolve_repo_path(Path(csv_path_value))
+
+    json_out: Optional[Path]
+    if args.json_out:
+        json_out = Path(args.json_out)
+    elif manifest_cli.get("json_out"):
+        json_out = Path(manifest_cli["json_out"])
+    else:
+        json_out = None
+
+    if args.equity is not None:
+        equity = float(args.equity)
+    else:
+        equity = float(manifest_cli.get("equity", 100000.0))
+
+    out_dir: Optional[Path]
+    if args.out_dir:
+        out_dir = Path(args.out_dir)
+    elif manifest_cli.get("out_dir"):
+        out_dir = Path(manifest_cli["out_dir"])
+    else:
+        out_dir = None
+
+    auto_state = bool(manifest_cli.get("auto_state", True))
+    aggregate_ev = bool(manifest_cli.get("aggregate_ev", True))
+
+    state_archive_root = Path(manifest_cli.get("state_archive", "ops/state_archive"))
+    state_archive_root = _resolve_repo_path(state_archive_root)
+
+    use_ev_profile = bool(manifest_cli.get("use_ev_profile", True))
+    ev_profile_path = manifest_cli.get("ev_profile") or manifest.state.ev_profile
+    if ev_profile_path and use_ev_profile:
+        ev_profile_path = _resolve_repo_path(Path(ev_profile_path))
+    else:
+        ev_profile_path = None
+
+    strategy_cls = _load_strategy_class(manifest.strategy.class_path)
+    runner_cfg = _runner_config_from_manifest(manifest)
+
+    run_base_dir = config_out_dir = out_dir
+
+    return RuntimeConfig(
+        manifest=manifest,
+        manifest_path=manifest_path,
+        csv_path=csv_path,
+        json_out=json_out,
+        equity=equity,
+        start_ts=args.start_ts,
+        end_ts=args.end_ts,
+        out_dir=out_dir,
+        auto_state=auto_state,
+        aggregate_ev=aggregate_ev,
+        state_archive_root=state_archive_root,
+        ev_profile_path=Path(ev_profile_path) if ev_profile_path else None,
+        use_ev_profile=use_ev_profile,
+        symbol=symbol,
+        timeframe=timeframe,
+        mode=mode,
+        runner_config=runner_cfg,
+        strategy_cls=strategy_cls,
+        run_base_dir=config_out_dir,
+    )
+
+
+def _load_ev_profile(path: Path) -> Optional[Dict[str, Any]]:
+    if not path.exists():
+        return None
+    with path.open("r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return data if data else None
+
+
+def _resolve_state_archive(config: RuntimeConfig) -> Path:
+    namespace = config.manifest.state.archive_namespace
+    if namespace:
+        return _resolve_repo_path(Path(namespace))
+    state_key = _strategy_state_key(config.strategy_cls)
+    return config.state_archive_root / state_key / config.symbol / config.mode
+
+
+def _aggregate_ev(namespace_path: Path, config: RuntimeConfig) -> None:
+    namespace_str = config.manifest.state.archive_namespace
+    if namespace_str:
+        archive_base = Path(".")
+    else:
+        archive_base = config.state_archive_root
+
+    cmd = [
+        sys.executable,
+        str(ROOT_PATH / "scripts" / "aggregate_ev.py"),
+        "--archive",
+        str(archive_base),
+        "--strategy",
+        config.manifest.strategy.class_path,
+        "--symbol",
+        config.symbol,
+        "--mode",
+        config.mode,
+        "--recent",
+        "5",
+    ]
+    if namespace_str:
+        cmd.extend(["--archive-namespace", namespace_str])
+    else:
+        # When no namespace is provided, aggregate_ev expects the archive base to
+        # contain strategy/symbol/mode subdirectories.
+        pass
+    if config.ev_profile_path:
+        cmd.extend(["--out-yaml", str(config.ev_profile_path)])
+    subprocess.run(cmd, check=False)
+
+
+def _store_run_summary(run_dir: Path, config: RuntimeConfig) -> None:
     try:
-        return _parse_iso8601(value)
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError(f"Invalid ISO8601 timestamp: {value}") from exc
-
-
-_MISSING = object()
-
-
-def _collect_user_overrides(argv: List[str], parser: argparse.ArgumentParser) -> set[str]:
-    if not argv:
-        return set()
-    option_to_action: Dict[str, argparse.Action] = {}
-    for action in parser._actions:
-        dest = getattr(action, "dest", None)
-        if not dest or dest is argparse.SUPPRESS:
-            continue
-        for opt in getattr(action, "option_strings", ()):  # type: ignore[attr-defined]
-            option_to_action[opt] = action
-
-    overrides: set[str] = set()
-    idx = 0
-    while idx < len(argv):
-        token = argv[idx]
-        if token == "--":
-            break
-        action = option_to_action.get(token)
-        if action is None and token.startswith("--") and "=" in token:
-            opt, _ = token.split("=", 1)
-            action = option_to_action.get(opt)
-            if action is not None:
-                overrides.add(action.dest)
-            idx += 1
-            continue
-        if action is None:
-            idx += 1
-            continue
-        overrides.add(action.dest)
-        nargs = action.nargs
-        if nargs in (None, 1):
-            idx += 2
-        elif nargs in (0,):
-            idx += 1
-        elif nargs in ("?",):
-            idx += 2
-        elif nargs == argparse.REMAINDER:
-            break
-        elif isinstance(nargs, int):
-            idx += 1 + max(nargs, 0)
-        else:
-            idx += 1
-    return overrides
-
-
-def _apply_manifest_cli_defaults(
-    args: argparse.Namespace,
-    cli_defaults: Dict[str, Any],
-    parser: argparse.ArgumentParser,
-    user_overrides: set[str],
-) -> None:
-    """Overlay manifest-provided CLI defaults without clobbering user inputs."""
-    if not cli_defaults:
+        from scripts.ev_vs_actual_pnl import store_run_summary  # optional pandas dep
+    except ModuleNotFoundError as exc:
+        if getattr(exc, "name", "") == "pandas":
+            return
+        raise
+    run_base = config.run_base_dir
+    if not run_base:
+        return
+    if not (run_dir / "records.csv").exists():
+        return
+    try:
+        store_run_summary(
+            runs_dir=run_base,
+            run_id=run_dir.name,
+            store_dir=run_base,
+            store_daily=False,
+            top_n=5,
+        )
+    except Exception:
+        # Optional convenience; ignore failures so the main run still succeeds.
         return
 
-    defaults: Dict[str, Any] = {}
-    for action in parser._actions:
-        dest = getattr(action, "dest", None)
-        if not dest or dest is argparse.SUPPRESS:
-            continue
-        defaults[dest] = action.default
 
-    for dest, value in cli_defaults.items():
-        if dest in user_overrides:
-            continue
-        if dest not in defaults and not hasattr(args, dest):
-            # Unknown CLI destination; ignore silently.
-            continue
-        default_value = defaults.get(dest, _MISSING)
-        has_attr = hasattr(args, dest)
-        if not has_attr:
-            if default_value is argparse.SUPPRESS:
-                # Absent attribute with SUPPRESS default → treat as unset.
-                setattr(args, dest, value)
-                continue
-            if default_value is _MISSING:
-                continue
-            setattr(args, dest, value)
-            continue
+def _format_ts(dt_value: Optional[datetime]) -> Optional[str]:
+    if dt_value is None:
+        return None
+    dt_utc = dt_value.replace(tzinfo=timezone.utc)
+    return dt_utc.isoformat().replace("+00:00", "Z")
 
-        current_value = getattr(args, dest, _MISSING)
-        if default_value is argparse.SUPPRESS:
-            # Attribute only appears when user explicitly supplied it.
-            continue
-        if current_value is _MISSING or current_value == default_value:
-            setattr(args, dest, value)
+
+def _write_run_outputs(
+    config: RuntimeConfig,
+    out: Dict[str, Any],
+    metrics,
+) -> Optional[Path]:
+    if not config.run_base_dir:
+        return None
+
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    run_dir = config.run_base_dir / f"{config.symbol}_{config.mode}_{timestamp}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    out["run_dir"] = str(run_dir)
+
+    params = {
+        "manifest": str(config.manifest_path),
+        "csv": str(config.csv_path),
+        "symbol": config.symbol,
+        "timeframe": config.timeframe,
+        "mode": config.mode,
+        "equity": config.equity,
+        "start_ts": _format_ts(config.start_ts),
+        "end_ts": _format_ts(config.end_ts),
+        "auto_state": config.auto_state,
+        "aggregate_ev": config.aggregate_ev,
+        "ev_profile": str(config.ev_profile_path) if config.ev_profile_path else None,
+    }
+
+    with (run_dir / "params.json").open("w", encoding="utf-8") as f:
+        json.dump(params, f, ensure_ascii=False, indent=2)
+
+    with (run_dir / "metrics.json").open("w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, indent=2)
+
+    records = getattr(metrics, "records", None)
+    if records:
+        import csv as _csv
+
+        header = sorted({key for record in records for key in record.keys()})
+        with (run_dir / "records.csv").open("w", newline="", encoding="utf-8") as f:
+            writer = _csv.DictWriter(f, fieldnames=header)
+            writer.writeheader()
+            for record in records:
+                writer.writerow(record)
+
+    daily = getattr(metrics, "daily", None)
+    if daily:
+        import csv as _csv
+
+        cols = [
+            "date",
+            "breakouts",
+            "gate_pass",
+            "gate_block",
+            "ev_pass",
+            "ev_reject",
+            "fills",
+            "wins",
+            "pnl_pips",
+        ]
+        with (run_dir / "daily.csv").open("w", newline="", encoding="utf-8") as f:
+            writer = _csv.writer(f)
+            writer.writerow(cols)
+            for day in sorted(daily.keys()):
+                dd = daily[day]
+                writer.writerow([
+                    day,
+                    dd.get("breakouts", 0),
+                    dd.get("gate_pass", 0),
+                    dd.get("gate_block", 0),
+                    dd.get("ev_pass", 0),
+                    dd.get("ev_reject", 0),
+                    dd.get("fills", 0),
+                    dd.get("wins", 0),
+                    dd.get("pnl_pips", 0.0),
+                ])
+
+    return run_dir
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Run minimal ORB 5m simulation over CSV")
-    p.add_argument("--csv", required=False, default=None, help="Path to OHLC5m CSV (with header)")
-    p.add_argument("--symbol", required=False, help="Symbol to filter (e.g., USDJPY)")
-    p.add_argument("--mode", default="conservative", choices=["conservative", "bridge"], help="Fill mode")
-    p.add_argument("--equity", type=float, default=100000.0, help="Equity amount")
-    p.add_argument("--json-out", default=None, help="Write metrics JSON to file (default: stdout)")
-    p.add_argument("--threshold-lcb", type=float, default=None, help="Override EV_LCB threshold in pips (e.g., 0.0 for warmup)")
-    p.add_argument("--debug", action="store_true", help="Print debug counters (reasons for no trades)")
-    p.add_argument("--min-or-atr", type=float, default=None, help="Override min OR/ATR ratio gate (e.g., 0.4)")
-    p.add_argument("--rv-cuts", default=None, help="Override RV band cuts as 'c1,c2' (e.g., 0.005,0.015)")
-    p.add_argument("--allow-low-rv", action="store_true", help="Allow rv_band=low to pass router gate")
-    p.add_argument("--allowed-sessions", default=argparse.SUPPRESS, help="Comma-separated session codes to allow (e.g., 'LDN,NY'; empty for all)")
-    same_bar_choices = [policy.value for policy in SameBarPolicy]
-    p.add_argument("--fill-same-bar-policy", choices=same_bar_choices, default=None, help="Override same-bar TP/SL resolution for both fill engines")
-    p.add_argument("--fill-same-bar-policy-conservative", choices=same_bar_choices, default=None, help="Override same-bar TP/SL resolution for the conservative fill engine")
-    p.add_argument("--fill-same-bar-policy-bridge", choices=same_bar_choices, default=None, help="Override same-bar TP/SL resolution for the bridge fill engine")
-    p.add_argument("--fill-bridge-lambda", type=float, default=None, help="Override Brownian-bridge lambda mixing parameter")
-    p.add_argument("--fill-bridge-drift-scale", type=float, default=None, help="Override Brownian-bridge drift scaling factor")
-    p.add_argument("--k-tp", type=float, default=None, help="Override k_tp (TP in ATR multiples)")
-    p.add_argument("--k-sl", type=float, default=None, help="Override k_sl (SL in ATR multiples)")
-    p.add_argument("--k-tr", type=float, default=None, help="Override k_tr (trail in ATR multiples)")
-    p.add_argument("--or-n", type=int, default=None, help="Override opening-range window n")
-    p.add_argument("--warmup", type=int, default=None, help="Bypass EV gate for first N signals")
-    p.add_argument("--prior-alpha", type=float, default=None, help="Beta prior alpha for EV gate")
-    p.add_argument("--prior-beta", type=float, default=None, help="Beta prior beta for EV gate")
-    p.add_argument("--decay", type=float, default=None, help="EV decay factor (EWMA) for Beta-Binomial updates")
-    p.add_argument("--include-expected-slip", action="store_true", help="Include expected slippage in realized cost")
-    p.add_argument("--rv-quantile", action="store_true", help="Enable RV band session-quantile calibration")
-    p.add_argument("--calibrate-days", type=int, default=None, help="Number of initial days to calibrate EV (no trading)")
-    p.add_argument("--ev-mode", default=None, choices=["lcb","off","mean"], help="EV mode: lcb (default), off, mean")
-    p.add_argument("--size-floor", type=float, default=None, help="Size floor multiplier when ev-mode=off (default 0.01)")
-    p.add_argument("--dump-csv", default=None, help="Write detailed sample records CSV (path)")
-    p.add_argument("--dump-max", type=int, default=200, help="Max number of sample records to dump")
-    p.add_argument("--dump-daily", default=None, help="Write daily funnel CSV (path)")
-    p.add_argument("--out-dir", default=None, help="Base directory to store a run folder with params + metrics + dumps (e.g., runs/)")
-    p.add_argument("--start-ts", type=_iso8601_arg, default=None, help="Start timestamp (ISO8601) to filter input bars")
-    p.add_argument("--end-ts", type=_iso8601_arg, default=None, help="End timestamp (ISO8601) to filter input bars")
-    p.add_argument("--strategy", default="day_orb_5m.DayORB5m",
-                   help="Strategy class to load (module.Class) default=day_orb_5m.DayORB5m")
-    p.add_argument("--strategy-manifest", default=None,
-                   help="Path to strategy manifest YAML; overrides strategy class and runner defaults when provided")
-    p.add_argument("--state-archive", default="ops/state_archive",
-                   help="Base directory to archive EV state per strategy/symbol/mode (default: ops/state_archive)")
-    p.add_argument("--no-auto-state", action="store_true",
-                   help="Disable automatic EV state load/save")
-    p.add_argument("--ev-profile", default=None, help="Path to EV profile YAML (default: configs/ev_profiles/<module>.yaml)")
-    p.add_argument("--no-ev-profile", action="store_true", help="Disable EV profile seeding")
-    p.add_argument("--no-aggregate-ev", action="store_true", help="Skip running aggregate_ev.py after the run")
-    p.add_argument("--aggregate-recent", type=int, default=5, help="Recent window size passed to aggregate_ev.py (default 5)")
-    p.add_argument("--ev-summary-dir", default=None, help="If set, store EV vs PnL summaries under this directory after each run")
-    p.add_argument("--ev-summary-store-daily", action="store_true", help="Persist merged daily CSV when storing EV summary")
-    p.add_argument("--ev-summary-top-n", type=int, default=5, help="Number of top positive/negative gap days to keep in stored summary")
-    p.add_argument("--ev-auto-optimize", action="store_true", help="Re-estimate EV profile from accumulated records after the run")
-    p.add_argument("--ev-optimize-min-trades", type=int, default=5, help="Minimum trades per bucket for EV optimisation")
-    p.add_argument("--ev-optimize-alpha-prior", type=float, default=1.0, help="Alpha prior for EV optimisation")
-    p.add_argument("--ev-optimize-beta-prior", type=float, default=1.0, help="Beta prior for EV optimisation")
-    p.add_argument("--ev-optimize-output-yaml", default=None, help="Where to write updated EV profile YAML (default: overwrite current profile)")
-    p.add_argument("--ev-optimize-output-json", default=None, help="Optional JSON dump of optimisation results")
-    return p
+    parser = argparse.ArgumentParser(description="Run minimal ORB simulation from a manifest")
+    parser.add_argument("--manifest", required=True, help="Path to strategy manifest YAML")
+    parser.add_argument("--csv", help="Override CSV input path (manifest defaults otherwise)")
+    parser.add_argument("--json-out", help="Write metrics JSON to the specified path")
+    parser.add_argument("--equity", type=float, help="Override equity (default from manifest or 100000)")
+    parser.add_argument("--start-ts", type=_iso8601_arg, help="Start timestamp (ISO8601)")
+    parser.add_argument("--end-ts", type=_iso8601_arg, help="End timestamp (ISO8601)")
+    parser.add_argument("--out-dir", help="Directory to store run artefacts (params/state/metrics)")
+    return parser
 
 
-def parse_args(argv=None):
+def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     parser = build_parser()
     return parser.parse_args(argv)
 
 
-def main(argv=None):
-    parser = build_parser()
-    raw_argv = list(argv) if argv is not None else sys.argv[1:]
-    user_overrides = _collect_user_overrides(raw_argv, parser)
-    args = parser.parse_args(argv)
-    manifest: Optional[StrategyManifest] = None
-    rcfg_base: Optional[RunnerConfig] = None
-    manifest_state_namespace: Optional[str] = None
-    state_archive_base = _resolve_repo_path(Path(args.state_archive)).resolve()
-    if getattr(args, "strategy_manifest", None):
-        manifest = load_manifest(args.strategy_manifest)
-        rcfg_base = _runner_config_from_manifest(manifest)
-        manifest_state_namespace = manifest.state.archive_namespace
-        args.strategy = manifest.strategy.class_path
-        if (
-            _ev_profile_enabled(args)
-            and manifest.state.ev_profile
-            and not getattr(args, "ev_profile", None)
-        ):
-            args.ev_profile = manifest.state.ev_profile
-        _apply_manifest_cli_defaults(args, manifest.runner.cli_args, parser, user_overrides)
-        if args.symbol is None and manifest.strategy.instruments:
-            args.symbol = manifest.strategy.instruments[0].symbol
-        if manifest.strategy.instruments:
-            inst_mode = manifest.strategy.instruments[0].mode
-            if (
-                inst_mode
-                and getattr(args, "mode", None) == "conservative"
-                and "mode" not in user_overrides
-            ):
-                args.mode = inst_mode
-    # Resolve CSV path (allow auto-detect from data/ if not provided)
-    if not args.csv:
-        import os as _os
-        data_dir = _os.path.join(ROOT, "data")
-        candidates = []
-        if _os.path.isdir(data_dir):
-            for fn in _os.listdir(data_dir):
-                if fn.lower().endswith(".csv"):
-                    candidates.append(_os.path.join("data", fn))
-        if len(candidates) == 1:
-            args.csv = candidates[0]
-        else:
-            print(json.dumps({"error":"csv_not_specified","suggestions":candidates[:5]}))
-            return 1
-    start_ts = _normalize_datetime(args.start_ts) if getattr(args, "start_ts", None) else None
-    end_ts = _normalize_datetime(args.end_ts) if getattr(args, "end_ts", None) else None
+def main(argv: Optional[list[str]] = None) -> int:
+    args = parse_args(argv)
+    config = _prepare_runtime_config(args)
+
+    csv_path = str(config.csv_path)
     bars_iter = load_bars_csv(
-        args.csv,
-        symbol=args.symbol,
-        start_ts=start_ts,
-        end_ts=end_ts,
+        csv_path,
+        symbol=config.symbol,
+        start_ts=config.start_ts,
+        end_ts=config.end_ts,
+        default_symbol=config.symbol,
+        default_tf=config.timeframe,
     )
-    first_bar = next(bars_iter, None)
-    if first_bar is None:
-        print(json.dumps({"error": "no bars"}))
+    try:
+        first_bar = next(bars_iter)
+    except StopIteration:
+        print(json.dumps({"error": "no_bars"}))
         return 1
-    symbol = args.symbol or first_bar.get("symbol")
-    if args.symbol is None:
-        args.symbol = symbol
-    rcfg = build_runner_config(args, base=rcfg_base)
-    debug_for_dump = args.debug or bool(args.dump_csv) or bool(args.dump_daily) or bool(args.out_dir)
-    from importlib import import_module
-    strategy_cls = None
-    if args.strategy:
-        mod_name, _, cls_name = args.strategy.rpartition('.')
-        mod = import_module(f"strategies.{mod_name}") if not mod_name.startswith('strategies.') else import_module(mod_name)
-        strategy_cls = getattr(mod, cls_name)
-    runner = BacktestRunner(equity=args.equity, symbol=symbol, runner_cfg=rcfg, debug=debug_for_dump, debug_sample_limit=args.dump_max, strategy_cls=strategy_cls)
-    strategy_cls = runner.strategy_cls  # ensure default applied when not provided
 
-    ev_profile_path: Optional[str] = None
-    if _ev_profile_enabled(args):
-        candidates: List[Path] = []
-        if args.ev_profile:
-            candidates.append(Path(args.ev_profile))
-        module_name = getattr(strategy_cls, "__module__", "").split(".", 1)
-        module_tail = module_name[1] if len(module_name) > 1 else module_name[0]
-        if module_tail:
-            default_profile = Path("configs/ev_profiles") / f"{module_tail}.yaml"
-            candidates.append(default_profile)
-        for profile_path in candidates:
-            if not profile_path:
-                continue
-            if not profile_path.exists():
-                continue
-            try:
-                with profile_path.open() as f:
-                    ev_profile = yaml.safe_load(f)
-                if ev_profile:
-                    runner.ev_profile = ev_profile
-                    runner._apply_ev_profile()
-                    ev_profile_path = str(profile_path)
-                    break
-            except Exception:
-                continue
+    bars_for_runner = chain(
+        [first_bar] if first_bar.get("symbol") == config.symbol else [],
+        (bar for bar in bars_iter if bar.get("symbol") == config.symbol),
+    )
 
-    loaded_state_path: Optional[str] = None
+    runner = BacktestRunner(
+        equity=config.equity,
+        symbol=config.symbol,
+        runner_cfg=config.runner_config,
+        debug=False,
+        strategy_cls=config.strategy_cls,
+    )
+
+    if config.use_ev_profile and config.ev_profile_path:
+        profile = _load_ev_profile(config.ev_profile_path)
+        if profile:
+            runner.ev_profile = profile
+            runner._apply_ev_profile()
+
     archive_dir: Optional[Path] = None
-    archive_save_path: Optional[str] = None
-    if not args.no_auto_state:
-        if manifest_state_namespace:
-            archive_dir = state_archive_base / Path(manifest_state_namespace)
-        else:
-            archive_dir = state_archive_base / _strategy_state_key(strategy_cls) / symbol / args.mode
+    loaded_state_path: Optional[str] = None
+    if config.auto_state:
+        archive_dir = _resolve_state_archive(config)
         latest_state = _latest_state_file(archive_dir)
         if latest_state is not None:
             try:
@@ -488,425 +595,62 @@ def main(argv=None):
                 loaded_state_path = str(latest_state)
             except Exception:
                 loaded_state_path = None
-    if symbol is None:
-        bars_for_runner = chain([first_bar], bars_iter)
-    else:
-        initial_bars = [first_bar] if first_bar.get("symbol") == symbol else []
-        bars_for_runner = chain(
-            initial_bars,
-            (bar for bar in bars_iter if bar.get("symbol") == symbol),
-        )
-    metrics = runner.run(bars_for_runner, mode=args.mode)
-    router_results = None
-    if manifest is not None:
-        runtime_mapping: Dict[str, Dict[str, Any]] = {}
-        runtime_snapshot = getattr(metrics, "runtime", {}) or {}
-        if runtime_snapshot:
-            runtime_mapping[manifest.id] = dict(runtime_snapshot)
-        telemetry_snapshot = PortfolioTelemetry(active_positions={manifest.id: 0})
-        portfolio_state = build_portfolio_state(
-            [manifest], telemetry=telemetry_snapshot, runtime_metrics=runtime_mapping or None
-        )
-        router_results = select_candidates(
-            {"session": None, "spread_band": None, "rv_band": None},
-            [manifest],
-            portfolio=portfolio_state,
-        )
+
+    metrics = runner.run(bars_for_runner, mode=config.mode)
+
+    runtime_mapping: Dict[str, Dict[str, Any]] = {}
+    runtime_snapshot = getattr(metrics, "runtime", {}) or {}
+    if runtime_snapshot:
+        runtime_mapping[config.manifest.id] = dict(runtime_snapshot)
+    telemetry_snapshot = PortfolioTelemetry(active_positions={config.manifest.id: 0})
+    portfolio_state = build_portfolio_state(
+        [config.manifest], telemetry=telemetry_snapshot, runtime_metrics=runtime_mapping or None
+    )
+    router_results = select_candidates(
+        {"session": None, "spread_band": None, "rv_band": None},
+        [config.manifest],
+        portfolio=portfolio_state,
+    )
+
     out = metrics.as_dict()
-    if router_results is not None:
-        out["router"] = [result.as_dict() for result in router_results]
     out["decay"] = runner.ev_global.decay
-    if getattr(metrics, 'debug', None):
-        out["debug"] = metrics.debug
+    out["manifest_id"] = config.manifest.id
+    out["symbol"] = config.symbol
+    out["mode"] = config.mode
+    out["equity"] = config.equity
+    if router_results:
+        out["router"] = [result.as_dict() for result in router_results]
     if loaded_state_path:
-        out["state_loaded"] = loaded_state_path
-    if ev_profile_path:
-        out["ev_profile_path"] = ev_profile_path
-    # Write dumps if requested
-    if args.dump_csv and getattr(metrics, 'records', None):
-        # Determine header
-        import csv as _csv
-        recs = metrics.records
-        header = sorted({k for r in recs for k in r.keys()})
-        with open(args.dump_csv, "w", newline="") as f:
-            w = _csv.DictWriter(f, fieldnames=header)
-            w.writeheader()
-            for r in recs[: args.dump_max]:
-                w.writerow(r)
-        out["dump_csv"] = args.dump_csv
-        out["dump_rows"] = min(len(recs), args.dump_max)
-    if args.dump_daily and getattr(metrics, 'daily', None):
-        import csv as _csv
-        daily = metrics.daily
-        cols = ["date","breakouts","gate_pass","gate_block","ev_pass","ev_reject","fills","wins","pnl_pips"]
-        with open(args.dump_daily, "w", newline="") as f:
-            w = _csv.writer(f)
-            w.writerow(cols)
-            for d in sorted(daily.keys()):
-                dd = daily[d]
-                w.writerow([d, dd.get("breakouts",0), dd.get("gate_pass",0), dd.get("gate_block",0), dd.get("ev_pass",0), dd.get("ev_reject",0), dd.get("fills",0), dd.get("wins",0), dd.get("pnl_pips",0.0)])
-        out["dump_daily"] = args.dump_daily
+        out["loaded_state"] = loaded_state_path
 
-    # Save a run folder with parameters + metrics (+ dumps)
-    if args.out_dir:
-        import os as _os, json as _json, csv as _csv, hashlib as _hashlib, time as _time
-        base = args.out_dir
-        _os.makedirs(base, exist_ok=True)
-        # build run id
-        ts_id = _time.strftime("%Y%m%d_%H%M%S")
-        id_str = f"{symbol}_{args.mode}_{ts_id}"
-        run_dir = _os.path.join(base, id_str)
-        _os.makedirs(run_dir, exist_ok=True)
+    run_dir = _write_run_outputs(config, out, metrics)
+    if run_dir is not None:
+        _store_run_summary(run_dir, config)
 
-        # capture parameters
-        params = {
-            "csv": args.csv,
-            "symbol": symbol,
-            "mode": args.mode,
-            "equity": args.equity,
-            "threshold_lcb": args.threshold_lcb,
-            "min_or_atr": args.min_or_atr,
-            "rv_cuts": args.rv_cuts,
-            "allow_low_rv": args.allow_low_rv,
-            "allowed_sessions": getattr(args, "allowed_sessions", None) or ",".join(rcfg.allowed_sessions),
-            "or_n": args.or_n,
-            "k_tp": args.k_tp,
-            "k_sl": args.k_sl,
-            "k_tr": args.k_tr,
-            "fill_same_bar_policy": args.fill_same_bar_policy,
-            "fill_same_bar_policy_conservative": args.fill_same_bar_policy_conservative,
-            "fill_same_bar_policy_bridge": args.fill_same_bar_policy_bridge,
-            "fill_bridge_lambda": args.fill_bridge_lambda,
-            "fill_bridge_drift_scale": args.fill_bridge_drift_scale,
-            "warmup": args.warmup,
-            "prior_alpha": args.prior_alpha,
-            "prior_beta": args.prior_beta,
-            "decay": getattr(args, "decay", None) if getattr(args, "decay", None) is not None else runner.ev_global.decay,
-            "include_expected_slip": args.include_expected_slip,
-            "rv_quantile": args.rv_quantile,
-            "calibrate_days": args.calibrate_days,
-            "ev_mode": args.ev_mode,
-            "size_floor": args.size_floor,
-            "dump_max": args.dump_max,
-            "strategy": args.strategy,
-            "strategy_manifest": args.strategy_manifest,
-        }
-        # write params.json and params.csv
-        with open(_os.path.join(run_dir, "params.json"), "w") as f:
-            _json.dump(params, f, ensure_ascii=False, indent=2)
-        with open(_os.path.join(run_dir, "params.csv"), "w", newline="") as f:
-            w = _csv.DictWriter(f, fieldnames=list(params.keys()))
-            w.writeheader(); w.writerow(params)
-
-        # write metrics.json
-        with open(_os.path.join(run_dir, "metrics.json"), "w") as f:
-            _json.dump(out, f, ensure_ascii=False, indent=2)
-
-        # also store dumps if available (or create from in-memory metrics)
-        # detailed records
-        recs_path = _os.path.join(run_dir, "records.csv")
-        if getattr(metrics, 'records', None):
-            import csv as _csv
-            header = sorted({k for r in metrics.records for k in r.keys()})
-            with open(recs_path, "w", newline="") as f:
-                w = _csv.DictWriter(f, fieldnames=header)
-                w.writeheader()
-                for r in metrics.records[: args.dump_max]:
-                    w.writerow(r)
-        elif args.dump_csv:
-            # If user wrote their own file, copy it
-            try:
-                import shutil as _shutil
-                _shutil.copy(args.dump_csv, recs_path)
-            except Exception:
-                pass
-
-        # daily funnel
-        daily_path = _os.path.join(run_dir, "daily.csv")
-        if getattr(metrics, 'daily', None):
-            cols = ["date","breakouts","gate_pass","gate_block","ev_pass","ev_reject","fills","wins","pnl_pips"]
-            with open(daily_path, "w", newline="") as f:
-                w = _csv.writer(f)
-                w.writerow(cols)
-                for d in sorted(metrics.daily.keys()):
-                    dd = metrics.daily[d]
-                    w.writerow([d, dd.get("breakouts",0), dd.get("gate_pass",0), dd.get("gate_block",0), dd.get("ev_pass",0), dd.get("ev_reject",0), dd.get("fills",0), dd.get("wins",0), dd.get("pnl_pips",0.0)])
-        elif args.dump_daily:
-            try:
-                import shutil as _shutil
-                _shutil.copy(args.dump_daily, daily_path)
-            except Exception:
-                pass
-
-        out["run_dir"] = run_dir
-        # Save state.json
-        try:
-            state_path = os.path.join(run_dir, "state.json")
-            st = runner.export_state()
-            with open(state_path, "w") as f:
-                json.dump(st, f, ensure_ascii=False, indent=2)
-            out["state_path"] = state_path
-            if not args.no_auto_state:
-                if archive_dir is None:
-                    archive_dir = state_archive_base / _strategy_state_key(strategy_cls) / symbol / args.mode
-                archive_dir.mkdir(parents=True, exist_ok=True)
-                stamp = utcnow_aware(dt_cls=datetime).strftime("%Y%m%d_%H%M%S")
-                archive_name = f"{stamp}_{os.path.basename(run_dir)}.json"
-                archive_path = archive_dir / archive_name
-                with archive_path.open("w") as f:
-                    json.dump(st, f, ensure_ascii=False, indent=2)
-                archive_save_path = str(archive_path)
-                out["state_archive_path"] = archive_save_path
-        except Exception:
-            pass
-
-        # Append or create runs index CSV summarizing this run
-        index_path = _os.path.join(base, "index.csv")
-        row = {
-            "run_id": id_str,
-            "run_dir": run_dir,
-            "timestamp": ts_id,
-            "symbol": symbol,
-            "mode": args.mode,
-            "equity": args.equity,
-            "or_n": args.or_n,
-            "k_tp": args.k_tp,
-            "k_sl": args.k_sl,
-            "k_tr": args.k_tr,
-            "threshold_lcb": args.threshold_lcb,
-            "min_or_atr": args.min_or_atr,
-            "rv_cuts": args.rv_cuts,
-            "allow_low_rv": args.allow_low_rv,
-            "allowed_sessions": getattr(args, "allowed_sessions", None) or ",".join(rcfg.allowed_sessions),
-            "warmup": args.warmup,
-            "prior_alpha": args.prior_alpha,
-            "prior_beta": args.prior_beta,
-            "include_expected_slip": args.include_expected_slip,
-            "rv_quantile": args.rv_quantile,
-            "calibrate_days": args.calibrate_days,
-            "ev_mode": args.ev_mode,
-            "size_floor": args.size_floor,
-            "trades": out.get("trades"),
-            "wins": out.get("wins"),
-            "total_pips": out.get("total_pips"),
-            "sharpe": out.get("sharpe"),
-            "max_drawdown": out.get("max_drawdown"),
-            "win_rate": (out.get("wins",0)/out.get("trades",1)) if out.get("trades",0) else 0.0,
-            "pnl_per_trade": (out.get("total_pips",0.0)/out.get("trades",1)) if out.get("trades",0) else 0.0,
-            "gate_block": out.get("debug",{}).get("gate_block"),
-            "ev_reject": out.get("debug",{}).get("ev_reject"),
-            "ev_bypass": out.get("debug",{}).get("ev_bypass"),
-            "dump_rows": out.get("dump_rows"),
-            "state_loaded": out.get("state_loaded"),
-            "state_archive_path": out.get("state_archive_path"),
-            "ev_profile_path": out.get("ev_profile_path"),
-        }
-        # create or update index CSV (rewrite to ensure column alignment)
-        import csv as _csv
-        cols = [
-            "run_id","run_dir","timestamp","symbol","mode","equity",
-            "or_n","k_tp","k_sl","k_tr","threshold_lcb","min_or_atr","rv_cuts","allow_low_rv","allowed_sessions","warmup",
-            "prior_alpha","prior_beta","include_expected_slip","rv_quantile","calibrate_days","ev_mode","size_floor",
-            "trades","wins","total_pips","sharpe","max_drawdown","win_rate","pnl_per_trade","state_path",
-            "gate_block","ev_reject","ev_bypass","dump_rows",
-            "state_loaded","state_archive_path","ev_profile_path",
-        ]
-        existing_rows = []
-        if _os.path.exists(index_path):
-            with open(index_path, "r", newline="") as f:
-                reader = _csv.DictReader(f)
-                for r in reader:
-                    existing_rows.append(r)
-        row["state_path"] = out.get("state_path")
-        existing_rows.append(row)
-        with open(index_path, "w", newline="") as f:
-            w = _csv.DictWriter(f, fieldnames=cols)
-            w.writeheader()
-            for r in existing_rows:
-                w.writerow({col: r.get(col, "") for col in cols})
-        out["index_csv"] = index_path
-
-        ev_summary_status: Optional[Dict[str, Any]] = None
-        if args.ev_summary_dir:
-            store_summary = _maybe_load_store_run_summary()
-            if store_summary is None:
-                ev_summary_status = {
-                    "store_dir": args.ev_summary_dir,
-                    "error": "pandas_not_available",
-                }
-            else:
-                try:
-                    summary_output = store_summary(
-                        runs_dir=Path(args.out_dir),
-                        run_id=id_str,
-                        store_dir=Path(args.ev_summary_dir),
-                        store_daily=args.ev_summary_store_daily,
-                        top_n=max(1, args.ev_summary_top_n),
-                    )
-                    ev_summary_status = {
-                        "store_dir": str(Path(args.ev_summary_dir).expanduser().resolve()),
-                        "summary": summary_output.get("summary"),
-                        "top_days": summary_output.get("top_days", {}),
-                    }
-                except Exception as exc:
-                    ev_summary_status = {
-                        "store_dir": args.ev_summary_dir,
-                        "error": str(exc),
-                    }
-        if ev_summary_status:
-            out["ev_summary"] = ev_summary_status
+    if config.json_out:
+        config.json_out.parent.mkdir(parents=True, exist_ok=True)
+        with config.json_out.open("w", encoding="utf-8") as f:
+            json.dump(out, f, ensure_ascii=False, indent=2)
     else:
-        if not args.no_auto_state and archive_dir is not None:
-            try:
-                st = runner.export_state()
-                archive_dir.mkdir(parents=True, exist_ok=True)
-                stamp = utcnow_aware(dt_cls=datetime).strftime("%Y%m%d_%H%M%S")
-                archive_path = archive_dir / f"{stamp}.json"
-                with archive_path.open("w") as f:
-                    json.dump(st, f, ensure_ascii=False, indent=2)
-                archive_save_path = str(archive_path)
-                out["state_archive_path"] = archive_save_path
-            except Exception:
-                pass
+        print(json.dumps(out, ensure_ascii=False, indent=2))
 
-    if archive_save_path and "state_archive_path" not in out:
-        out["state_archive_path"] = archive_save_path
+    archive_save_path: Optional[str] = None
+    if config.auto_state:
+        archive_dir = archive_dir or _resolve_state_archive(config)
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        archive_path = archive_dir / f"{timestamp}.json"
+        state_payload = runner.export_state()
+        with archive_path.open("w", encoding="utf-8") as f:
+            json.dump(state_payload, f, ensure_ascii=False, indent=2)
+        archive_save_path = str(archive_path)
+        if run_dir is not None:
+            with (run_dir / "state.json").open("w", encoding="utf-8") as f:
+                json.dump(state_payload, f, ensure_ascii=False, indent=2)
 
-    aggregate_status: Optional[Dict[str, Any]] = None
-    archive_namespace_arg: Optional[str] = None
-    state_archive_base_resolved = state_archive_base.resolve()
-    if archive_dir is not None:
-        try:
-            archive_namespace_arg = str(Path(archive_dir).resolve().relative_to(state_archive_base_resolved))
-        except ValueError:
-            archive_namespace_arg = str(Path(archive_dir).resolve())
-    if not args.no_aggregate_ev and archive_save_path:
-        agg_cmd = [
-            sys.executable,
-            os.path.join(ROOT, "scripts", "aggregate_ev.py"),
-            "--strategy", args.strategy,
-            "--symbol", symbol,
-            "--mode", args.mode,
-            "--archive", str(state_archive_base_resolved),
-            "--recent", str(max(1, args.aggregate_recent)),
-        ]
-        if archive_namespace_arg:
-            agg_cmd.extend(["--archive-namespace", archive_namespace_arg])
-        if _ev_profile_enabled(args):
-            if args.ev_profile:
-                agg_cmd.extend(["--out-yaml", args.ev_profile])
-        else:
-            agg_cmd.append("--skip-yaml")
-        agg_cmd.extend(["--out-csv", "analysis/ev_profile_summary.csv"])
-        try:
-            result = subprocess.run(
-                agg_cmd,
-                cwd=ROOT,
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            aggregate_status = {
-                "command": agg_cmd,
-                "returncode": result.returncode,
-                "stdout": result.stdout.strip() if result.stdout else "",
-                "stderr": result.stderr.strip() if result.stderr else "",
-            }
-        except subprocess.CalledProcessError as exc:
-            aggregate_status = {
-                "command": agg_cmd,
-                "returncode": exc.returncode,
-                "error": exc.stderr.strip() if exc.stderr else str(exc),
-            }
-        except Exception as exc:
-            aggregate_status = {
-                "command": agg_cmd,
-                "returncode": None,
-                "error": str(exc),
-            }
-    if aggregate_status:
-        out["aggregate_ev"] = aggregate_status
+    if config.aggregate_ev and archive_save_path:
+        _aggregate_ev(archive_dir or _resolve_state_archive(config), config)
 
-    ev_optimize_status: Optional[Dict[str, Any]] = None
-    if args.ev_auto_optimize:
-        if not args.out_dir:
-            ev_optimize_status = {
-                "error": "ev_auto_optimize requested but --out-dir is not set"
-            }
-        else:
-            opt_cmd = [
-                sys.executable,
-                os.path.join(ROOT, "scripts", "ev_optimize_from_records.py"),
-                "--runs-dir", args.out_dir,
-                "--strategy", args.strategy,
-                "--symbol", symbol,
-                "--mode", args.mode,
-                "--min-trades", str(max(1, args.ev_optimize_min_trades)),
-                "--alpha-prior", str(args.ev_optimize_alpha_prior),
-                "--beta-prior", str(args.ev_optimize_beta_prior),
-                "--quiet",
-            ]
-
-            # Determine output paths
-            if args.ev_optimize_output_json:
-                opt_cmd.extend(["--output-json", args.ev_optimize_output_json])
-
-            optimize_yaml_path: Optional[str] = None
-            if args.ev_optimize_output_yaml:
-                optimize_yaml_path = args.ev_optimize_output_yaml
-            elif ev_profile_path:
-                optimize_yaml_path = ev_profile_path
-            else:
-                strategy_module, _, strategy_class = args.strategy.rpartition('.')
-                if not strategy_module:
-                    strategy_module = args.strategy.lower()
-                optimize_yaml_path = os.path.join("configs", "ev_profiles", f"{strategy_module}.yaml")
-
-            if optimize_yaml_path:
-                opt_cmd.extend(["--output-yaml", optimize_yaml_path])
-
-            try:
-                result = subprocess.run(
-                    opt_cmd,
-                    cwd=ROOT,
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                )
-                ev_optimize_status = {
-                    "command": opt_cmd,
-                    "returncode": result.returncode,
-                    "stdout": result.stdout.strip() if result.stdout else "",
-                    "stderr": result.stderr.strip() if result.stderr else "",
-                    "output_yaml": optimize_yaml_path,
-                    "output_json": args.ev_optimize_output_json,
-                }
-            except subprocess.CalledProcessError as exc:
-                ev_optimize_status = {
-                    "command": opt_cmd,
-                    "returncode": exc.returncode,
-                    "error": exc.stderr.strip() if exc.stderr else str(exc),
-                    "output_yaml": optimize_yaml_path,
-                    "output_json": args.ev_optimize_output_json,
-                }
-            except Exception as exc:
-                ev_optimize_status = {
-                    "command": opt_cmd,
-                    "returncode": None,
-                    "error": str(exc),
-                    "output_yaml": optimize_yaml_path,
-                    "output_json": args.ev_optimize_output_json,
-                }
-
-    if ev_optimize_status:
-        out["ev_optimize"] = ev_optimize_status
-
-    out_json = json.dumps(out)
-    if args.json_out:
-        with open(args.json_out, "w") as f:
-            f.write(out_json)
-    else:
-        print(out_json)
     return 0
 
 

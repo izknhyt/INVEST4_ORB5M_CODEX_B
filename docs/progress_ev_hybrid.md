@@ -15,7 +15,7 @@
 - `core/runner.py`: EV プロファイルの自動適用と ctx 注入。
 - `strategies/day_orb_5m.py`: プロファイルに基づく閾値調整ロジック。
 - `docs/state_runbook.md`: プロファイル運用手順を追記。
-- `scripts/run_sim.py`: ラン成功時に `scripts/aggregate_ev.py` を自動呼び出しし、EVプロファイル(YAML/CSV)を更新 (`--no-aggregate-ev` で無効化可)。
+- `scripts/run_sim.py`: ラン成功時に `scripts/aggregate_ev.py` を自動呼び出しし、EVプロファイル(YAML/CSV)を更新（manifest の `runner.cli_args.aggregate_ev` で制御）。
 
 ## 次に検討したい事項
 1. `scripts/aggregate_ev.py` を定期的に実行し、自動で YAML を更新するワークフロー化（cron/CI）。
@@ -26,6 +26,6 @@
 優先順: ①自動更新 → ②可視化 → ③サイズ調整。
 
 ## メモ
-- `run_sim.py --no-ev-profile` で従来ロジックとの比較ができる。
+- manifest の `runner.cli_args.use_ev_profile: false` を設定した派生 manifest で従来ロジックとの比較ができる。
 - `ctx["ev_profile_stats"]` には `long_term` と `recent` が入り、期待値と観測数が参照可能。
 - `ev_profile_obs_norm` (default 15) で観測数に対する信頼度スケールを調整可能。

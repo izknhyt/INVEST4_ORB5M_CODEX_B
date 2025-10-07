@@ -1,116 +1,80 @@
 # Codex Session Operations Guide
 
-This guide summarizes the routine Codex agents should follow to keep tasks moving continuously while maintaining alignment between `state.md`, `docs/task_backlog.md`, and `docs/todo_next.md`. It also highlights how to rely on `scripts/manage_task_cycle.py` so that each session preserves the same context.
+This guide compresses everything Codex agents need to keep tasks moving without losing context. Use it together with `docs/state_runbook.md` (state sync details) and `docs/task_backlog.md` (priorities / DoD).
 
-## Core References
-- **state.md** — Primary source for the latest `Next Task`, completion log, and operational notes. Always read and update it before and after work.
-- **docs/task_backlog.md** — Lists priorities and definitions of done. Use its anchors from `state.md`/`docs/todo_next.md` to share progress links.
-- **docs/todo_next.md** — Organizes practical next actions across In Progress, Ready, Pending Review, and Archive.
-- **docs/templates/** — Home of reusable templates such as `next_task_entry.md` and `dod_checklist.md` that Codex applies automatically.
-- **docs/checklists/p1-07_phase1_bug_refactor.md** — Checklist and tracking templates dedicated to Phase 1 bug investigations and refactoring planning. Use it to record module-level coverage, refactor candidates, and follow-up notes.
-- **docs/state_runbook.md** — Baseline operational runbook for state synchronization and archive handling.
-- **docs/codex_cloud_notes.md** — Additional guardrails when running in read-only or network-restricted cloud sandboxes.
-
-## Pre-session Routine
-1. **Review the current situation**  
-   Read `state.md`, focusing on the `Next Task` entry, open questions, and linked checklists. Confirm that the `Backlog Anchor` and `Pending Questions` slots match the intended work.
-2. **Confirm the backlog anchor**
-   Locate the task in `docs/task_backlog.md`, reread its DoD, and check `docs/todo_next.md` to ensure the task sits in the correct section (`Ready`, `In Progress`, or `Pending Review`). Adjust the target section via `--doc-section` when running automation. For a quick refresher on how the placement synchronizes with `state.md`, see [docs/state_runbook.md#task-sync](state_runbook.md#task-sync).
-3. **Prepare templates**  
-   When adding a new `Next Task`, start from `docs/templates/next_task_entry.md`. For Ready tasks, duplicate `docs/templates/dod_checklist.md` into `docs/checklists/<task-slug>.md` so progress can be tracked with checkboxes.
-4. **Sandbox & approval check**
-   Inspect the session context (for example, the IDE-provided `environment_context`) to confirm sandbox mode and approval policy. The current harness defaults to:
-   - Filesystem: `workspace-write`
-   - Network: `restricted`
-   - Approvals: `on-request`
-   Request approval when you need to rerun commands unsandboxed (e.g., external network access, privileged filesystem writes, destructive git operations). For routine read/pytest commands, approvals are unnecessary.
-
-   **Network edge cases to document before requesting approval**
-   - **Package installations (`pip`, `apt`) or binary downloads** — note why the dependency is required, which commands will be executed, and whether an offline wheel/tarball exists. Capture the proposed command in `state.md` so reviewers can validate the checksum/source beforehand.
-   - **External API calls** — specify the endpoint, authentication method, and data sensitivity. Reference any relevant contract in `docs/api_ingest_plan.md` or `configs/api_ingest.yml`, and outline fallbacks if access is denied.
-   - **Large data transfers (>10 MB)** — confirm storage targets and retention rules, then list cleanup steps. If only a sample is required, prefer slicing an existing dataset from `data/` or `validated/` to avoid unnecessary downloads.
-   - **Privileged filesystem writes** — describe the path and expected side effects. When touching host-level directories is unavoidable, outline how the change will be reverted after the task.
-   Record the approval request context inside the active `state.md` memo (or the associated `docs/todo_next.md` entry) so future sessions understand whether the approval was granted and which follow-up steps remain.
-5. **Dry-run the start command** <a id="doc-section-options"></a>
-   Execute the following command with `--dry-run` to validate anchors and dates before making real changes.
+## TL;DR Quickstart
+1. **Read the ground truth.** Open `state.md` → note the active `Next Task`, open questions, approvals in flight. Jump to the matching anchor in `docs/task_backlog.md` to confirm DoD/priority.
+2. **Pick or promote the task.** If the task is not under `In Progress`, run a dry-run of the start helper to validate anchors and dates:
    ```bash
    python3 scripts/manage_task_cycle.py --dry-run start-task \
        --anchor <docs/task_backlog.md#anchor> \
-       --record-date <YYYY-MM-DD> \
-       --promote-date <YYYY-MM-DD> \
-       --task-id <ID> \
-       --title "<Task Title>" \
-       --state-note "<State entry memo>" \
-       --doc-note "<docs/todo_next.md memo>" \
-       --doc-section <Ready|In Progress|Pending Review> \
-       [--runbook-links "<Markdown links for runbooks>"] \
-       [--pending-questions "<Key questions to track>"]
+       --record-date <YYYY-MM-DD> --promote-date <YYYY-MM-DD> \
+       --task-id <ID> --title "<Task Title>" \
+       --state-note "<One-line status>" \
+       --doc-note "<docs/todo_next.md note>" \
+       --doc-section <Ready|In Progress|Pending Review>
    ```
-   During the preview the automation cross-checks the anchor to avoid creating duplicate records. If the session still needs to reuse the existing anchor—for example when only the memos must be refreshed—add `--skip-record` so the tool intentionally bypasses the record creation step. Use `--doc-section Pending Review` when resuming a task that remains under review but requires additional iteration; the command keeps the memo in the Pending Review block of `docs/todo_next.md` while restoring the templates in `state.md`.
-   ```bash
-   python3 scripts/manage_task_cycle.py --dry-run start-task --skip-record \
-       --anchor docs/task_backlog.md#codex-session-operations-guide \
-       --record-date 2026-02-15 \
-       --promote-date 2026-02-15 \
-       --task-id OPS-CODEX-GUIDE \
-       --title "Codex Session Operations Guide" \
-       --state-note "Refresh Next Task memo" \
-       --doc-note "Carry forward memo updates" \
-       --doc-section "In Progress"
-   ```
-   Recommended uses for `--skip-record` include:
-   - Keeping the existing backlog anchor while updating only the `state.md` memo or `docs/todo_next.md` note.
-   - Rehydrating a Codex session that already populated the record and merely needs to reapply automation after manual edits.
-   - Testing template changes where creating an extra record would add noise to the log.
+   Remove `--dry-run` once the preview looks correct.
+3. **Work in small slices.** After every substantive change: update docs, run targeted tests (see below), and log findings back in `state.md` / `docs/todo_next.md` before switching context.
+4. **Wrap up.** Use `scripts/manage_task_cycle.py finish-task` (dry-run first) so `state.md`, `docs/todo_next.md`, and the backlog stay synchronized. Note any approvals granted/denied.
 
-   After confirming the preview, rerun the command without `--dry-run` to populate `state.md` and `docs/todo_next.md` with the appropriate template blocks. Usually you should run the dry run without `--skip-record` first so the tool confirms whether a record already exists; only introduce `--skip-record` when you explicitly need to reuse the anchor without creating another entry.
-   - Use `--runbook-links` to override the default `[docs/state_runbook.md](docs/state_runbook.md)` reference when another runbook is more relevant.
-   - Provide `--pending-questions` to seed the checklist item that appears under "Pending Questions" in the template so the next session inherits the right context.
+### Rapid test matrix
+Run the smallest relevant tests before handing off a change. Keep these commands handy:
 
-## Task Execution Loop
-### 1. At task start
-- Complete the template block inserted in `state.md` by summarizing context, external links, and open questions.
-- Add references to related runbooks or specifications (for example, `docs/logic_overview.md`) when extra background is required.
-- For any new subtasks, append anchor-backed notes to `docs/task_backlog.md` and cross-link them from `state.md`.
+```
+python3 -m pytest tests/test_run_sim_cli.py           # run_sim / CLI changes
+python3 -m pytest tests/test_runner.py                # BacktestRunner core
+python3 -m pytest tests/test_run_daily_workflow.py    # daily workflow pipeline
+python3 -m pytest                                      # full sweep when time allows
+```
 
-### 2. During implementation and validation
-- Check the `AGENTS.md` file in each directory before editing to respect style and testing requirements.
-- Record insights or unresolved issues in the active task memo inside `state.md`, or in the relevant entry within `docs/todo_next.md`.
-- After significant changes, run `python3 -m pytest` or the appropriate CLI command. Capture the executed commands in your notes so the next session can reproduce them.
-- For broad bug-review or refactoring sweeps, mirror your progress in `docs/checklists/p1-07_phase1_bug_refactor.md` so each session inherits the latest checklist status and candidate list.
-- When updating workflow docs, double-check that `docs/state_runbook.md` and `docs/todo_next.md` still reference the same anchors and terminology. If adjustments are needed, capture them in the same commit so the trio of documents stays synchronized.
+## Session Loop (Expanded)
 
-### 3. Closing the task
-1. Run `python3 scripts/manage_task_cycle.py --dry-run finish-task ...` to preview what will be moved into the log.
-   ```bash
-   python3 scripts/manage_task_cycle.py --dry-run finish-task \
-       --anchor <docs/task_backlog.md#anchor> \
-       --date <YYYY-MM-DD> \
-       --note "<Completion summary for state.md log>" \
-       --task-id <ID>
-   ```
-   Sample preview output:
-   ```bash
-   [dry-run] /root/.pyenv/versions/3.12.10/bin/python3 /workspace/INVEST4_ORB5M_CODEX_B/scripts/sync_task_docs.py complete --anchor 'docs/task_backlog.md#codex-session-operations-guide' --date 2026-02-14 --note 'Captured finish-task dry-run sample for documentation' --task-id OPS-CODEX-GUIDE
-   ```
-   Because the command is invoked with `--dry-run`, it produces only this preview line without modifying `state.md` or `docs/todo_next.md`. The preview shows the exact `sync_task_docs.py complete` invocation that will execute once you rerun the command without `--dry-run`, moving the corresponding entry from `state.md`'s **Next Task** block into the `## Log` archive while simultaneously relocating the task in `docs/todo_next.md`.
-2. If the dry run looks correct, rerun without `--dry-run` so `state.md` (`## Log`) and `docs/todo_next.md` update in tandem.
-3. Update the DoD checklist, archive it when done, and add links to `docs/task_backlog.md` or the relevant runbook. Ensure `docs/todo_next.md` moves the entry to the Archive section when the automation completes.
-4. Provide a Japanese summary in the final Codex response, including executed test commands and any follow-up actions.
+### 1. Pre-session
+- Read `state.md` → `Next Task`, pending approvals, open questions.
+- Cross-check `docs/task_backlog.md` (DoD) and `docs/todo_next.md` (current section). Keep anchors consistent.
+- Duplicate templates when needed:
+  - `docs/templates/next_task_entry.md` → new `state.md` entry.
+  - `docs/templates/dod_checklist.md` → `docs/checklists/<task-slug>.md`.
+- Confirm sandbox context from the IDE payload.
 
-## Ongoing Tips
-- **Chaining tasks:** List candidate follow-up tasks in the memo section of `state.md`; reuse these notes when preparing the next `start-task` command.
-- **Tracking questions:** Log open questions inside `docs/todo_next.md`. Move them to Archive once resolved so the conversation history stays searchable.
-- **Updating scripts:** Whenever `scripts/manage_task_cycle.py` or `scripts/sync_task_docs.py` changes, capture new dry-run output samples in `docs/state_runbook.md` or related READMEs so Codex can adopt new flags.
-- **Commits and PRs:** Keep commit messages and PR descriptions in English. Summaries sent back to collaborators should remain in Japanese per repo conventions.
+### 2. While implementing
+- Default goal: P0/P1 backlog first. If new work emerges, add it to the backlog with priority before starting.
+- Keep diffs tight; favour feature flags for risky refactors. Document flags in README/config comments.
+- Record approvals in the active memo: command requested, reason, outcome.
+- When touching data products (`runs/index.csv`, `reports/*`, `ops/state_archive/*`), log reproduction steps in the same commit notes and be prepared to explain in Japanese.
 
-## Quick Reference
-| Action | Recommended command |
+### 3. Wrap-up
+- Update `state.md` (`Next Task` cleared or moved), `docs/todo_next.md` (archive/memo), and the backlog (remove finished tasks once archived elsewhere).
+- Capture verification evidence (tests run, sample commands) directly in the session summary.
+- Leave `docs/task_backlog.md` with only open tasks—completed entries should move into state/todo logs instead of lingering here.
+
+## Sandbox & Approval Guardrails
+- Default harness: `workspace-write` filesystem, `restricted` network, approvals `on-request`.
+- Request approval before: installing packages, hitting external APIs, writing outside the repo, rerunning destructive git commands, or reissuing a command that failed due to sandboxing.
+- Document every approval attempt (whether granted or not) in `state.md`.
+- If the harness runs in read-only mode, plan changes as patches to share with the user; be explicit about files touched.
+
+## Command Cheatsheet
+
+| Purpose | Command |
 | --- | --- |
-| Start task dry run | `python3 scripts/manage_task_cycle.py --dry-run start-task --anchor docs/task_backlog.md#<anchor> ...` |
-| Finish task dry run | `python3 scripts/manage_task_cycle.py --dry-run finish-task --anchor docs/task_backlog.md#<anchor> ...` |
-| Create DoD checklist | `cp docs/templates/dod_checklist.md docs/checklists/<task-slug>.md` |
-| Review the state runbook | `open docs/state_runbook.md` |
-| Run tests | `python3 -m pytest` |
+| Start task (preview) | `python3 scripts/manage_task_cycle.py --dry-run start-task ...` |
+| Start task (apply) | `python3 scripts/manage_task_cycle.py start-task ...` |
+| Promote Ready → In Progress | `python3 scripts/manage_task_cycle.py promote ...` |
+| Finish task (preview) | `python3 scripts/manage_task_cycle.py --dry-run finish-task ...` |
+| Finish task (apply) | `python3 scripts/manage_task_cycle.py finish-task ...` |
+| Sync state/todo manually | `python3 scripts/sync_task_docs.py record|promote|complete ...` |
+| Quick pytest (CLI) | `python3 -m pytest tests/test_run_sim_cli.py` |
+| Full pytest | `python3 -m pytest` |
 
-Following this guide keeps `state.md` and the documents in `docs/` synchronized, preserving continuity and reproducibility across Codex sessions.
+
+## Reference Map
+- `docs/state_runbook.md` — deep dive on state synchronization, archival rules, failure recovery.
+- `docs/task_backlog.md` — authoritative list of active work and DoD; remove completed items promptly.
+- `docs/todo_next.md` — near-term actions and parking-lot notes.
+- `docs/codex_cloud_notes.md` — cloud sandbox tips, approval examples.
+- `docs/checklists/*` — task-specific checklists (link from backlog entries as needed).
+- `docs/development_roadmap.md` — phased improvement plan (immediate→long-term) tied back to backlog anchors.
+
+Keep this document close at hand; if the process drifts, update it before starting more tasks so every Codex session inherits the same guardrails.

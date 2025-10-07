@@ -236,6 +236,21 @@ def test_ingest_pull_prices_uses_symbol_specific_source(monkeypatch):
     assert Path(source_value) == expected
 
 
+def test_ingest_pull_prices_respects_local_backup_override(monkeypatch):
+    captured = _capture_run_cmd(monkeypatch)
+
+    exit_code = run_daily_workflow.main(
+        ["--ingest", "--local-backup-csv", "data/custom_backup.csv"]
+    )
+
+    assert exit_code == 0
+    assert captured, "pull_prices command should be invoked"
+    cmd = captured[0]
+    source_value = cmd[cmd.index("--source") + 1]
+    expected = (run_daily_workflow.ROOT / "data/custom_backup.csv").resolve()
+    assert Path(source_value) == expected
+
+
 def test_optimize_uses_absolute_paths(monkeypatch):
     captured = _capture_run_cmd(monkeypatch)
 

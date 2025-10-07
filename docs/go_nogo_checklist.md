@@ -2,7 +2,7 @@
 
 ## 1. データ & バックテスト
 - [ ] 最新データで `scripts/check_data_quality.py` を実行し、欠損/重複なしを確認。
-- [ ] Conservative / Bridge 両モードで最新 `run_sim.py` を実行し、Sharpe・最大DD・年間勝率が基準を満たす。
+- [ ] Conservative / Bridge 両モードで最新 manifest（例: `configs/strategies/day_orb_5m.yaml`）を指定して `python3 scripts/run_sim.py --manifest ... --csv ... --out-dir runs/go_nogo` を実行し、`run_dir` に生成された指標が Sharpe・最大DD・年間勝率の基準を満たす。
 - [ ] ベースライン `state.json` を `ops/state_archive/` から取得し、バックアップ済み。
 
 ## 2. 通知 & オペレーション

@@ -1,0 +1,77 @@
+meta:
+  id: mean_reversion_v1_no_ev
+  name: Mean Reversion (EV disabled)
+  version: "1.0"
+  category: day
+  tags: [mean_reversion, contrarian, no_ev]
+  description: |
+    Variant of the USDJPY mean reversion manifest with EV profile seeding
+    disabled. Useful for comparisons against the profile-backed configuration
+    or for cold-start incident analysis.
+
+strategy:
+  class_path: strategies.mean_reversion.MeanReversionStrategy
+  instruments:
+    - symbol: USDJPY
+      timeframe: 5m
+      mode: conservative
+  parameters:
+    or_n: 2
+    cooldown_bars: 1
+    zscore_threshold: 1.0
+    tp_atr_mult: 0.8
+    sl_atr_mult: 1.0
+    trail_atr_mult: 0.0
+    min_tp_pips: 4.0
+    min_sl_pips: 8.0
+    sl_over_tp: 1.1
+    allow_high_rv: true
+    allow_mid_rv: true
+    allow_low_rv: true
+    max_adx: 28.0
+    zscore_relief_scale: 1.2
+    zscore_penalty_scale: 1.0
+    ev_profile_obs_norm: 25.0
+
+router:
+  allowed_sessions: [LDN, NY, TOK]
+  allow_rv_bands: [low, mid, high]
+  tags: [mean_reversion, usd]
+
+risk:
+  risk_per_trade_pct: 0.1
+  max_daily_dd_pct: 8.0
+  notional_cap: 500000
+  max_concurrent_positions: 1
+  warmup_trades: 0
+
+features:
+  required: [zscore, rv_band]
+  optional: [atr14, adx14]
+
+runner:
+  runner_config:
+    threshold_lcb_pip: 0.0
+    min_or_atr_ratio: 0.0
+    allowed_sessions: [LDN, NY, TOK]
+    allow_low_rv: true
+    spread_bands:
+      narrow: 3.0
+      normal: 5.0
+      wide: 99.0
+    warmup_trades: 0
+  cli_args:
+    csv: data/sample_orb.csv
+    equity: 100000
+    auto_state: false
+    aggregate_ev: false
+    use_ev_profile: false
+    state_archive: ops/state_archive
+
+state:
+  archive_namespace: strategies.mean_reversion.MeanReversionStrategy/USDJPY/conservative/no_ev
+  ev_profile: null
+
+notes:
+  - Derived from `configs/strategies/mean_reversion.yaml`; EV profile seedingと state 保存を無効化して比較検証に利用する想定。
+  - `python3 scripts/run_sim.py --manifest configs/strategies/mean_reversion_no_ev.yaml --csv <path>` で呼び出し可能。

@@ -8,6 +8,14 @@
 - サイズ: 分数ケリー(0.25×) + ガード（1トレード≤0.5%, 日次DD≤2%, クールダウン）
 - 想定環境: 個人開発者が単一PCで実行する前提。社内アーティファクトサーバや大規模配布は不要で、必要な依存はローカル環境で `pip install` すればよい。
 
+## Codex セッション TL;DR
+- 着手前に `state.md` と `docs/task_backlog.md` のアンカーを確認し、対象タスクの DoD を把握する。
+- `python3 scripts/manage_task_cycle.py --dry-run start-task ...` でアンカーと日付を検証してから作業を開始する。
+- 実装後は関連ドキュメントを同期し、該当テスト（例: `python3 -m pytest tests/test_run_sim_cli.py`）を忘れず実行する。
+- 終了時は `--dry-run finish-task` → `finish-task` で `state.md` / `docs/todo_next.md` / バックログの整合を取る。
+- 詳細な手順は `docs/codex_workflow.md` のクイックスタートとチェックリストを参照。
+- 継続改善のロードマップは `docs/development_roadmap.md` にまとめ、タスク化した内容は `docs/task_backlog.md` へ反映する。
+
 ## 使い方（簡易）
 1) `configs/*.yml` を確認・調整
 2) バックテスト/リプレイの実装を後続コミットで追加（この雛形は骨格）
@@ -71,7 +79,7 @@ python3 scripts/manage_task_cycle.py --dry-run finish-task \
 
 ### インシデントリプレイガイド
 - インシデントごとの作業フォルダは `ops/incidents/<incident_id>/` に配置し、`incident.json`（メタデータ）、`replay_params.json`（Notebook/CLI 引数のスナップショット）、`replay_notes.md`（原因分析と対策メモ）、`artifacts/`（スクリーンショットや追加ログ）をそろえる。
-- `analysis/incident_review.ipynb` から `scripts/run_sim.py --start-ts --end-ts --no-auto-state --no-aggregate-ev` を実行し、Notebook が生成する `metrics.json` / `daily.csv` / `source_with_header.csv` は `runs/incidents/<incident_id>/` へ移動またはシンボリックリンクする。
+- `analysis/incident_review.ipynb` から `scripts/run_sim.py --manifest <manifest> --csv <source.csv> --start-ts ... --end-ts ... --json-out ...` を実行し、Notebook が生成する `metrics.json` / `daily.csv` / `source_with_header.csv` は `runs/incidents/<incident_id>/` へ移動またはシンボリックリンクする。
 - `replay_notes.md` には `## Summary` / `## Findings` / `## Actions` を設け、`Summary` 冒頭の 3 行要約を `docs/task_backlog.md#p1-02-インシデントリプレイテンプレート` の進捗メモと `state.md` の `## Log` に転記してステークホルダーへ共有する。詳細手順は [docs/state_runbook.md#インシデントリプレイワークフロー](docs/state_runbook.md#インシデントリプレイワークフロー) を参照。
 
 1. **新規タスクの登録**
@@ -107,33 +115,40 @@ python3 scripts/manage_task_cycle.py --dry-run finish-task \
 
 > 補足: すべてのコマンドで `--date` は ISO 形式 (YYYY-MM-DD) を要求し、アンカーは `docs/task_backlog.md#...` で指定してください。
 
-実行例:
+実行例（Quick Start）:
 
 ```
-python3 scripts/run_sim.py --csv data/ohlc5m.csv --symbol USDJPY --mode conservative --equity 100000
+# 定番の Day ORB manifest を使うケース
+python3 scripts/run_sim.py \
+  --manifest configs/strategies/day_orb_5m.yaml \
+  --csv validated/USDJPY/5m.csv \
+  --json-out runs/quick_metrics.json
+
+# `timestamp,open,high,low,close` 形式しか無い場合も manifest がシンボル/TF を解決
+python3 scripts/run_sim.py \
+  --manifest configs/strategies/day_orb_5m.yaml \
+  --csv USDJPY_202501_5min.csv \
+  --json-out runs/quick_metrics_basic.json
 ```
 
-特定期間のみを対象にする場合は ISO8601 形式の `--start-ts` / `--end-ts` を指定します。
-
-```
-python3 scripts/run_sim.py --csv data/usdjpy_5m_2018-2024_utc.csv --symbol USDJPY --mode conservative \
-  --start-ts 2024-01-01T00:00:00Z --end-ts 2024-03-01T00:00:00Z
-```
-
-例: EV 閾値やセッション制限を調整した実行
+期間指定は ISO8601 の `--start-ts` / `--end-ts` を併用します。
 
 ```
 python3 scripts/run_sim.py \
-  --csv data/usdjpy_5m_2018-2024_utc.csv --symbol USDJPY --mode conservative \
-  --threshold-lcb 0.3 --allow-low-rv --allowed-sessions LDN,NY \
-  --k-tp 1.2 --k-sl 0.4 --or-n 4 --warmup 10 --json-out out.json
+  --manifest configs/strategies/day_orb_5m.yaml \
+  --csv validated/USDJPY/5m.csv \
+  --start-ts 2024-01-01T00:00:00Z \
+  --end-ts 2024-03-01T00:00:00Z \
+  --json-out runs/window_metrics.json
 ```
 
-ファイル出力:
+CLI オプションは上記のみに絞り、EV/Fill/State 設定は manifest の `runner.cli_args` で制御します。トラブルシュート時は以下に注意:
+- `{"error":"csv_format","code":"missing_required_columns"}` が出た場合はヘッダを確認し、最低でも `timestamp,open/high/low/close` を揃える。
+- `{"error":"no_bars"}` はフィルタ条件でバーが存在しないことを示すため、期間とシンボルを再確認する。
 
-```
-python3 scripts/run_sim.py --csv data/ohlc5m.csv --symbol USDJPY --json-out out.json
-```
+`--out-dir <base_dir>` を指定すると `<base_dir>/<symbol>_<mode>_<timestamp>/` 以下に `params.json` / `metrics.json` / `records.csv` / `daily.csv`（存在する場合）/ `state.json` がまとめて保存され、`metrics.json` の `run_dir` からパスを辿れます。複数戦略の比較や incident 再現ではこの run ディレクトリを基点に解析してください。
+
+EV プロファイルを無効化した比較を行う場合は、`configs/strategies/mean_reversion_no_ev.yaml` のように `runner.cli_args.use_ev_profile: false` を設定した manifest を利用してください。
 
 ### オンデマンドインジェスト CLI
 - `scripts/pull_prices.py` はヒストリカルCSV（またはAPIエクスポート）から未処理バーを検出し、`raw/`→`validated/`→`features/` に冪等に追記する。

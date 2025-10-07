@@ -59,25 +59,26 @@ features:
 
 runner:
   runner_config:
-    threshold_lcb_pip: 0.5  # RunnerConfig.threshold_lcb_pip → CLI --threshold-lcb (pips).
-    min_or_atr_ratio: 0.6  # RunnerConfig.min_or_atr_ratio → CLI --min-or-atr.
-    allowed_sessions: [LDN, NY]  # RunnerConfig.allowed_sessions → CLI --allowed-sessions.
-    warmup_trades: 50  # RunnerConfig.warmup_trades → CLI --warmup.
-    fill_same_bar_policy_conservative: sl_first  # RunnerConfig.fill_same_bar_policy_conservative → CLI --fill-same-bar-policy(-conservative).
-    fill_same_bar_policy_bridge: probabilistic  # RunnerConfig.fill_same_bar_policy_bridge → CLI --fill-same-bar-policy(-bridge).
-    fill_bridge_lambda: 0.35  # RunnerConfig.fill_bridge_lambda → CLI --fill-bridge-lambda.
-    fill_bridge_drift_scale: 2.5  # RunnerConfig.fill_bridge_drift_scale → CLI --fill-bridge-drift-scale.
-    include_expected_slip: true  # RunnerConfig.include_expected_slip → CLI --include-expected-slip.
+    threshold_lcb_pip: 0.5
+    min_or_atr_ratio: 0.6
+    allowed_sessions: [LDN, NY]
+    warmup_trades: 50
+    fill_same_bar_policy_conservative: sl_first
+    fill_same_bar_policy_bridge: probabilistic
+    fill_bridge_lambda: 0.35
+    fill_bridge_drift_scale: 2.5
+    include_expected_slip: true
   cli_args:
-    equity: 100000  # scripts/run_sim.py --equity
-    threshold_lcb: 0.5  # scripts/run_sim.py --threshold-lcb
-    min_or_atr: 0.6  # scripts/run_sim.py --min-or-atr
-    allowed_sessions: LDN,NY  # scripts/run_sim.py --allowed-sessions
-    mode: conservative  # scripts/run_sim.py --mode (matches instruments[].mode when set)
+    csv: data/your_strategy.csv            # Optional default CSV path
+    equity: 100000                         # Default equity when CLI overrideは不要な場合
+    auto_state: true                       # Persist/load state archives
+    aggregate_ev: true                    # Rebuild EV profile after saving state
+    use_ev_profile: true                  # Set false to skip loading state.ev_profile
+    state_archive: ops/state_archive       # Base archive root for state snapshots
 
 state:
-  archive_namespace: strategies.your_module.YourStrategy/USDJPY/conservative  # Root passed to BacktestRunner state archiver.
-  ev_profile: configs/ev_profiles/your_strategy.yaml  # Seed profile path loaded unless CLI --no-ev-profile is set.
+  archive_namespace: strategies.your_module.YourStrategy/USDJPY/conservative
+  ev_profile: configs/ev_profiles/your_strategy.yaml
 
 notes:
   - Document operational caveats, disabling conditions, or validation steps here.
