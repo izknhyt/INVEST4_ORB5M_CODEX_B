@@ -612,6 +612,119 @@ class TestRunner(unittest.TestCase):
         state["position"]["ctx_snapshot"]["session"] = "NY"
         self.assertEqual(runner.pos.ctx_snapshot.session, "LDN")
 
+    def test_load_state_json_round_trip_normalizes_ev_keys(self):
+        runner = BacktestRunner(equity=65_000.0, symbol="USDJPY")
+        active_snapshot = TradeContextSnapshot(
+            session="LDN",
+            spread_band="normal",
+            rv_band="mid",
+            cost_base=0.2,
+            pip_value=9.5,
+        )
+        active_state = ActivePositionState(
+            side="BUY",
+            entry_px=150.0,
+            tp_px=150.3,
+            sl_px=149.7,
+            qty=1.5,
+            tp_pips=30.0,
+            sl_pips=30.0,
+            entry_ts="2024-01-01T08:00:00Z",
+            ev_key=("LDN", "normal", "mid"),
+            ctx_snapshot=active_snapshot,
+        )
+        calib_snapshot = TradeContextSnapshot(
+            session="TOK",
+            spread_band="narrow",
+            rv_band="low",
+        )
+        calib_state = CalibrationPositionState(
+            side="SELL",
+            entry_px=150.4,
+            tp_px=150.1,
+            sl_px=150.7,
+            qty=1.0,
+            entry_ts="2024-01-01T08:05:00Z",
+            ev_key=("TOK", "narrow", "low"),
+            ctx_snapshot=calib_snapshot,
+        )
+        runner.pos = active_state
+        runner.calib_positions = [calib_state]
+
+        state = runner.export_state()
+        round_tripped = json.loads(json.dumps(state))
+
+        restored = BacktestRunner(equity=65_000.0, symbol="USDJPY")
+        restored.load_state(round_tripped)
+
+        self.assertIsNotNone(restored.pos)
+        assert restored.pos is not None
+        self.assertIsInstance(restored.pos.ev_key, tuple)
+        self.assertEqual(restored.pos.ev_key, active_state.ev_key)
+        self.assertEqual(len(restored.calib_positions), 1)
+        self.assertIsInstance(restored.calib_positions[0].ev_key, tuple)
+        self.assertEqual(restored.calib_positions[0].ev_key, calib_state.ev_key)
+
+        captured_keys = []
+        original_get = restored._get_ev_manager
+
+        def capture(key):
+            captured_keys.append(key)
+            return original_get(key)
+
+        restored._get_ev_manager = capture  # type: ignore[assignment]
+
+        ctx = {
+            "session": "LDN",
+            "spread_band": "normal",
+            "rv_band": "mid",
+            "ev_key": "LDN|normal|mid",
+        }
+
+        restored.execution.finalize_trade(
+            exit_ts="2024-01-01T08:10:00Z",
+            entry_ts=restored.pos.entry_ts,
+            side=restored.pos.side,
+            entry_px=restored.pos.entry_px,
+            exit_px=restored.pos.tp_px,
+            exit_reason="tp",
+            ctx_snapshot=restored.pos.ctx_snapshot,
+            ctx=ctx,
+            qty_sample=restored.pos.qty,
+            slip_actual=restored.pos.entry_slip_pip,
+            ev_key="LDN|normal|mid",
+            tp_pips=restored.pos.tp_pips or 0.0,
+            sl_pips=restored.pos.sl_pips or 0.0,
+            debug_stage="unit_test",
+        )
+
+        pip_size_value = pip_size(restored.symbol)
+        restored.calib_positions[0].ev_key = None
+        ctx_calib = {
+            "session": "TOK",
+            "spread_band": "narrow",
+            "rv_band": "low",
+            "ev_key": ["TOK", "narrow", "low"],
+        }
+        bar = {
+            "h": 150.6,
+            "l": 150.05,
+            "timestamp": "2024-01-01T08:06:00Z",
+        }
+
+        restored.execution.resolve_calibration_positions(
+            bar=bar,
+            ctx=ctx_calib,
+            new_session=False,
+            calibrating=False,
+            mode="production",
+            pip_size_value=pip_size_value,
+        )
+
+        self.assertTrue(all(isinstance(key, tuple) for key in captured_keys))
+        self.assertIn(("LDN", "normal", "mid"), captured_keys)
+        self.assertIn(("TOK", "narrow", "low"), captured_keys)
+
     def test_build_ctx_casts_risk_per_trade_pct_from_string(self):
         cfg = RunnerConfig(risk_per_trade_pct="1.2")
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY", runner_cfg=cfg)

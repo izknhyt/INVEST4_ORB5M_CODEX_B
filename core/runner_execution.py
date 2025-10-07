@@ -10,6 +10,7 @@ from core.runner_state import (
     ActivePositionState,
     CalibrationPositionState,
     PositionState,
+    normalize_ev_key,
     snapshot_to_dict,
 )
 
@@ -31,6 +32,29 @@ class RunnerExecutionManager:
 
     def __init__(self, runner: "BacktestRunner") -> None:
         self._runner = runner
+
+    @staticmethod
+    def _default_ev_key(ctx: Mapping[str, Any]) -> tuple[str, str, Optional[Any]]:
+        session_raw = ctx.get("session")
+        if isinstance(session_raw, str) and session_raw:
+            session = session_raw
+        elif session_raw is not None:
+            session = str(session_raw)
+        else:
+            session = "TOK"
+        spread_raw = ctx.get("spread_band")
+        if isinstance(spread_raw, str) and spread_raw:
+            spread = spread_raw
+        elif spread_raw is not None:
+            spread = str(spread_raw)
+        else:
+            spread = "normal"
+        rv_raw = ctx.get("rv_band")
+        if rv_raw is None or isinstance(rv_raw, str):
+            rv = rv_raw
+        else:
+            rv = str(rv_raw)
+        return (session, spread, rv)
 
     @staticmethod
     def _coerce_probability(value: Any) -> Optional[float]:
@@ -213,11 +237,12 @@ class RunnerExecutionManager:
                 pip_size_value=pip_size_value,
                 new_session=new_session,
             )
-            ev_key = pos_state.ev_key or ctx.get("ev_key") or (
-                ctx.get("session"),
-                ctx.get("spread_band"),
-                ctx.get("rv_band"),
-            )
+            default_key = self._default_ev_key(ctx)
+            ev_key = normalize_ev_key(pos_state.ev_key)
+            if ev_key is None:
+                ev_key = normalize_ev_key(ctx.get("ev_key"))
+            if ev_key is None:
+                ev_key = default_key
             if decision.exited:
                 manager = runner._get_ev_manager(ev_key)
                 prob = self._coerce_probability(decision.p_tp)
@@ -558,12 +583,14 @@ class RunnerExecutionManager:
         runner._increment_daily("pnl_value", pnl_value)
         runner._increment_daily("slip_est", est_slip_used)
         runner._increment_daily("slip_real", slip_actual)
-        session = ctx.get("session", "TOK")
-        spread_band = ctx.get("spread_band", "normal")
-        rv_band = ctx.get("rv_band")
-        resolved_key = ev_key or ctx.get("ev_key") or (session, spread_band, rv_band)
+        default_key = self._default_ev_key(ctx)
+        resolved_key = normalize_ev_key(ev_key)
+        if resolved_key is None:
+            resolved_key = normalize_ev_key(ctx.get("ev_key"))
+        if resolved_key is None:
+            resolved_key = default_key
         if resolved_key:
-            manager = runner._get_ev_manager(tuple(resolved_key))
+            manager = runner._get_ev_manager(resolved_key)
             if prob is not None:
                 manager.update_weighted(prob)
             else:
