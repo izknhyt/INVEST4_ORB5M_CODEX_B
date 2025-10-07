@@ -1,11 +1,15 @@
 import json
-import tempfile
 import textwrap
 from pathlib import Path
 
 import pytest
 
-from scripts.run_sim import CSVFormatError, load_bars_csv, main as run_sim_main
+from scripts.run_sim import (
+    CSVFormatError,
+    CSVLoaderStats,
+    load_bars_csv,
+    main as run_sim_main,
+)
 
 
 CSV_CONTENT = """timestamp,symbol,tf,o,h,l,c,v,spread,zscore
@@ -139,6 +143,35 @@ def test_load_bars_csv_normalizes_timeframe(tmp_path: Path) -> None:
     assert [bar["tf"] for bar in bars] == ["5m", "5m"]
 
 
+def test_load_bars_csv_collects_skip_stats(tmp_path: Path) -> None:
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(
+        "timestamp,symbol,tf,o,h,l,c,v,spread\n"
+        "2024-01-01T09:00:00Z,USDJPY,5m,150.10,150.20,150.00,bad,0,0.01\n"
+        "2024-01-01T09:05:00Z,USDJPY,5m,150.11,150.21,150.01,150.13,0,0.02\n",
+        encoding="utf-8",
+    )
+
+    stats = CSVLoaderStats()
+    iterator = load_bars_csv(
+        str(csv_path),
+        symbol="USDJPY",
+        default_symbol="USDJPY",
+        default_tf="5m",
+        stats=stats,
+    )
+    bars = list(iterator)
+
+    assert len(bars) == 1
+    assert stats.skipped_rows == 1
+    assert stats.last_error_code == "price_parse_error"
+    assert stats.reason_counts["price_parse_error"] == 1
+    assert stats.last_row is not None
+    assert stats.last_row["line"] == 2
+    assert stats.last_row["row"]["c"] == "bad"
+    assert iterator.stats.skipped_rows == 1
+
+
 def test_load_bars_csv_requires_symbol_when_missing(tmp_path: Path) -> None:
     csv_path = tmp_path / "bars.csv"
     csv_path.write_text(CSV_OHLC_ONLY, encoding="utf-8")
@@ -174,6 +207,7 @@ def test_run_sim_with_manifest(tmp_path: Path) -> None:
     assert "trades" in data
     assert data["symbol"] == "USDJPY"
     assert data["mode"] == "conservative"
+    assert data["debug"]["csv_loader"]["skipped_rows"] == 0
 
 
 def test_run_sim_respects_time_window(tmp_path: Path) -> None:
@@ -202,6 +236,64 @@ def test_run_sim_respects_time_window(tmp_path: Path) -> None:
     # Expect a subset of bars was processed, so runtime metadata exists
     assert data["symbol"] == "USDJPY"
     assert data.get("manifest_id") == "test_mean_reversion"
+    assert data["debug"]["csv_loader"]["skipped_rows"] == 0
+
+
+def test_run_sim_warns_when_rows_skipped(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    manifest_path = _write_manifest(tmp_path)
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(
+        "timestamp,symbol,tf,o,h,l,c,v,spread\n"
+        "2024-01-01T08:00:00Z,USDJPY,5m,150.00,150.10,149.90,not_a_number,0,0.02\n"
+        "2024-01-01T08:05:00Z,USDJPY,5m,150.01,150.11,149.91,150.03,0,0.02\n",
+        encoding="utf-8",
+    )
+    json_out = tmp_path / "metrics.json"
+
+    rc = run_sim_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--csv",
+            str(csv_path),
+            "--json-out",
+            str(json_out),
+        ]
+    )
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert "Skipped 1 CSV row" in captured.err
+    data = json.loads(json_out.read_text(encoding="utf-8"))
+    loader_debug = data["debug"]["csv_loader"]
+    assert loader_debug["skipped_rows"] == 1
+    assert loader_debug["last_error_code"] == "price_parse_error"
+
+
+def test_run_sim_strict_raises_on_skips(tmp_path: Path) -> None:
+    manifest_path = _write_manifest(tmp_path)
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(
+        "timestamp,symbol,tf,o,h,l,c,v,spread\n"
+        "2024-01-01T08:00:00Z,USDJPY,5m,150.00,150.10,149.90,not_a_number,0,0.02\n"
+        "2024-01-01T08:05:00Z,USDJPY,5m,150.01,150.11,149.91,150.03,0,0.02\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CSVFormatError) as excinfo:
+        run_sim_main(
+            [
+                "--manifest",
+                str(manifest_path),
+                "--csv",
+                str(csv_path),
+                "--strict",
+            ]
+        )
+
+    assert excinfo.value.code == "rows_skipped"
+    assert excinfo.value.details is not None
+    assert "skipped=1" in excinfo.value.details
 
 
 def test_run_sim_creates_run_directory(tmp_path: Path) -> None:

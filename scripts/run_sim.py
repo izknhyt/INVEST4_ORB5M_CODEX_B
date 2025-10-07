@@ -21,7 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from itertools import chain
 from pathlib import Path
@@ -54,6 +54,36 @@ class CSVFormatError(Exception):
         self.details = details
         message = code if details is None else f"{code}: {details}"
         super().__init__(message)
+
+
+@dataclass
+class CSVLoaderStats:
+    """Lightweight diagnostics collected while ingesting CSV rows."""
+
+    skipped_rows: int = 0
+    last_error_code: Optional[str] = None
+    last_row: Optional[Dict[str, Any]] = None
+    reason_counts: Dict[str, int] = field(default_factory=dict)
+
+    def record_skip(self, code: str, row: Optional[Dict[str, Any]] = None) -> None:
+        self.skipped_rows += 1
+        self.last_error_code = code
+        if row is not None:
+            try:
+                self.last_row = dict(row)
+            except Exception:
+                self.last_row = {"__repr__": repr(row)}
+        self.reason_counts[code] = self.reason_counts.get(code, 0) + 1
+
+    def as_dict(self) -> Dict[str, Any]:
+        data: Dict[str, Any] = {"skipped_rows": self.skipped_rows}
+        if self.last_error_code is not None:
+            data["last_error_code"] = self.last_error_code
+        if self.last_row is not None:
+            data["last_row"] = self.last_row
+        if self.reason_counts:
+            data["reason_counts"] = dict(self.reason_counts)
+        return data
 
 
 CSV_COLUMN_ALIASES: Dict[str, tuple[str, ...]] = {
@@ -128,7 +158,13 @@ def load_bars_csv(
     end_ts: Optional[datetime] = None,
     default_symbol: Optional[str] = None,
     default_tf: str = "5m",
+    strict: bool = False,
+    stats: Optional[CSVLoaderStats] = None,
 ) -> Iterator[Dict[str, Any]]:
+    import csv  # Local import to avoid polluting module namespace unnecessarily
+
+    loader_stats = stats or CSVLoaderStats()
+
     def _iter() -> Iterator[Dict[str, Any]]:
         default_tf_normalized = (
             str(default_tf).strip().lower() if default_tf is not None else ""
@@ -169,8 +205,10 @@ def load_bars_csv(
             spread_key = alias_map.get("spread")
 
             for row in reader:
+                context = {"line": reader.line_num, "row": dict(row)}
                 ts_raw = row.get(alias_map["timestamp"])
                 if ts_raw in (None, ""):
+                    loader_stats.record_skip("timestamp_missing", context)
                     continue
 
                 try:
@@ -179,6 +217,7 @@ def load_bars_csv(
                     low_px = float(row[alias_map["l"]])
                     close_px = float(row[alias_map["c"]])
                 except (TypeError, ValueError):
+                    loader_stats.record_skip("price_parse_error", context)
                     continue
 
                 row_symbol: Optional[str]
@@ -199,7 +238,6 @@ def load_bars_csv(
                     row_tf = raw_tf.lower() if raw_tf else default_tf_normalized
                 else:
                     row_tf = default_tf_normalized
-
                 if symbol and row_symbol != symbol:
                     continue
 
@@ -208,6 +246,7 @@ def load_bars_csv(
                     try:
                         bar_dt = _normalize_datetime(_parse_iso8601(str(ts_raw)))
                     except ValueError:
+                        loader_stats.record_skip("timestamp_parse_error", context)
                         continue
                     if start_ts and bar_dt < start_ts:
                         continue
@@ -238,10 +277,18 @@ def load_bars_csv(
 
                 yield bar
 
-    import csv  # Local import to avoid polluting module namespace unnecessarily
+    class _CSVBarIterator(Iterator[Dict[str, Any]]):
+        def __init__(self, generator: Iterator[Dict[str, Any]], stats_obj: CSVLoaderStats) -> None:
+            self._generator = generator
+            self.stats = stats_obj
 
-    return _iter()
+        def __iter__(self) -> "_CSVBarIterator":
+            return self
 
+        def __next__(self) -> Dict[str, Any]:
+            return next(self._generator)
+
+    return _CSVBarIterator(_iter(), loader_stats)
 
 @dataclass
 class RuntimeConfig:
@@ -255,6 +302,7 @@ class RuntimeConfig:
     out_dir: Optional[Path]
     auto_state: bool
     aggregate_ev: bool
+    strict: bool
     state_archive_root: Path
     ev_profile_path: Optional[Path]
     use_ev_profile: bool
@@ -343,6 +391,7 @@ def _prepare_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
 
     auto_state = bool(manifest_cli.get("auto_state", True))
     aggregate_ev = bool(manifest_cli.get("aggregate_ev", True))
+    strict = bool(args.strict)
 
     state_archive_root = Path(manifest_cli.get("state_archive", "ops/state_archive"))
     state_archive_root = _resolve_repo_path(state_archive_root)
@@ -370,6 +419,7 @@ def _prepare_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
         out_dir=out_dir,
         auto_state=auto_state,
         aggregate_ev=aggregate_ev,
+        strict=strict,
         state_archive_root=state_archive_root,
         ev_profile_path=Path(ev_profile_path) if ev_profile_path else None,
         use_ev_profile=use_ev_profile,
@@ -551,6 +601,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--start-ts", type=_iso8601_arg, help="Start timestamp (ISO8601)")
     parser.add_argument("--end-ts", type=_iso8601_arg, help="End timestamp (ISO8601)")
     parser.add_argument("--out-dir", help="Directory to store run artefacts (params/state/metrics)")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Raise CSVFormatError if the loader skips any rows due to parse errors",
+    )
     return parser
 
 
@@ -564,6 +619,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     config = _prepare_runtime_config(args)
 
     csv_path = str(config.csv_path)
+    loader_stats = CSVLoaderStats()
     bars_iter = load_bars_csv(
         csv_path,
         symbol=config.symbol,
@@ -571,6 +627,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         end_ts=config.end_ts,
         default_symbol=config.symbol,
         default_tf=config.timeframe,
+        strict=config.strict,
+        stats=loader_stats,
     )
     try:
         first_bar = next(bars_iter)
@@ -610,6 +668,18 @@ def main(argv: Optional[list[str]] = None) -> int:
                 loaded_state_path = None
 
     metrics = runner.run(bars_for_runner, mode=config.mode)
+    metrics.debug["csv_loader"] = loader_stats.as_dict()
+    if loader_stats.skipped_rows:
+        last_error = loader_stats.last_error_code or "unknown"
+        print(
+            f"[run_sim] Skipped {loader_stats.skipped_rows} CSV row(s); last_error={last_error}",
+            file=sys.stderr,
+        )
+        if config.strict:
+            raise CSVFormatError(
+                "rows_skipped",
+                details=f"skipped={loader_stats.skipped_rows}, last_error={last_error}",
+            )
 
     runtime_mapping: Dict[str, Dict[str, Any]] = {}
     runtime_snapshot = getattr(metrics, "runtime", {}) or {}
@@ -626,6 +696,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
 
     out = metrics.as_dict()
+    if metrics.debug:
+        out["debug"] = metrics.debug
     out["decay"] = runner.ev_global.decay
     out["manifest_id"] = config.manifest.id
     out["symbol"] = config.symbol

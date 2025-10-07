@@ -92,7 +92,7 @@ def run_compare(args=None) -> Dict[str, Any]:
                 if fn.lower().endswith(".csv"):
                     suggestions.append(os.path.join("data", fn))
         return {"error": "csv_not_found", "path": args.csv, "suggestions": suggestions[:5]}
-    bars = list(load_bars_csv(args.csv, symbol=args.symbol))
+    bars = list(load_bars_csv(args.csv, symbol=args.symbol, strict=False))
     if not bars:
         return {"error": "no bars"}
     symbol = args.symbol or bars[0].get("symbol")
