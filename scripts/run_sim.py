@@ -382,7 +382,11 @@ def main(argv=None):
             args.symbol = manifest.strategy.instruments[0].symbol
         if manifest.strategy.instruments:
             inst_mode = manifest.strategy.instruments[0].mode
-            if inst_mode and getattr(args, "mode", None) == "conservative":
+            if (
+                inst_mode
+                and getattr(args, "mode", None) == "conservative"
+                and "mode" not in user_overrides
+            ):
                 args.mode = inst_mode
     # Resolve CSV path (allow auto-detect from data/ if not provided)
     if not args.csv:
