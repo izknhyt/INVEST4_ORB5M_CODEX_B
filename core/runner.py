@@ -8,7 +8,7 @@ Backtest/Replay Runner (skeleton)
 NOTE: Placeholder thresholds and simplified assumptions to keep dependencies minimal.
 """
 from __future__ import annotations
-from typing import Any, Callable, ClassVar, Dict, List, Mapping, Optional, Tuple, Set, Union
+from typing import Any, Callable, ClassVar, Dict, Iterable, List, Mapping, Optional, Tuple, Set, Union
 from collections import deque
 import hashlib
 import math
@@ -40,11 +40,26 @@ from core.runner_state import ActivePositionState, CalibrationPositionState, Pos
 from core.runner_features import FeatureBundle, FeaturePipeline
 
 
-def validate_bar(bar: Dict[str, Any]) -> bool:
+def _normalise_timeframes(values: Optional[Iterable[Any]]) -> Tuple[str, ...]:
+    if values is None:
+        return ("5m",)
+    normalised = []
+    for value in values:
+        text = str(value).strip().lower()
+        if text:
+            normalised.append(text)
+    if not normalised:
+        return ("5m",)
+    return tuple(dict.fromkeys(normalised))
+
+
+def validate_bar(bar: Dict[str, Any], allowed_timeframes: Optional[Iterable[Any]] = None) -> bool:
     req = ["timestamp", "symbol", "tf", "o", "h", "l", "c", "v", "spread"]
     if not all(k in bar for k in req):
         return False
-    if bar["tf"] != "5m":
+    allowed = _normalise_timeframes(allowed_timeframes)
+    tf_value = str(bar.get("tf", "")).strip().lower()
+    if tf_value not in allowed:
         return False
     o, h, l, c = bar["o"], bar["h"], bar["l"], bar["c"]
     if not (l <= min(o, c) and h >= max(o, c) and l <= h):
@@ -261,6 +276,7 @@ class RunnerConfig:
     spread_scale: Optional[float] = None
     allow_low_rv: bool = False
     allowed_sessions: Tuple[str, ...] = ("LDN", "NY")
+    allowed_timeframes: Optional[Tuple[str, ...]] = None
     strategy: StrategyConfig = field(default_factory=StrategyConfig)
     # EV warmup: number of signals to bypass EV gate (to bootstrap)
     warmup_trades: int = 50
@@ -1321,10 +1337,24 @@ class BacktestRunner:
             return "NY"
         return "TOK"
 
-    def run_partial(self, bars: List[Dict[str, Any]], mode: str = "conservative") -> Metrics:
+    def _resolve_allowed_timeframes(
+        self, override: Optional[Iterable[Any]] = None
+    ) -> Tuple[str, ...]:
+        if override is not None:
+            return _normalise_timeframes(override)
+        config_timeframes = getattr(self.rcfg, "allowed_timeframes", None)
+        return _normalise_timeframes(config_timeframes)
+
+    def run_partial(
+        self,
+        bars: List[Dict[str, Any]],
+        mode: str = "conservative",
+        allowed_timeframes: Optional[Iterable[Any]] = None,
+    ) -> Metrics:
         ps = pip_size(self.symbol)
+        allowed_tf = self._resolve_allowed_timeframes(allowed_timeframes)
         for bar in bars:
-            if not validate_bar(bar):
+            if not validate_bar(bar, allowed_timeframes=allowed_tf):
                 continue
             new_session, session, calibrating = self._update_daily_state(bar)
             features = self._compute_features(
@@ -1384,4 +1414,5 @@ class BacktestRunner:
         self._ev_profile_lookup = {}
         self._apply_ev_profile()
         self._restore_loaded_state_snapshot()
-        return self.run_partial(bars, mode=mode)
+        allowed_tf = self._resolve_allowed_timeframes()
+        return self.run_partial(bars, mode=mode, allowed_timeframes=allowed_tf)

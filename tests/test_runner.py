@@ -18,6 +18,7 @@ from core.runner import (
     ExitDecision,
     Metrics,
     RunnerConfig,
+    validate_bar,
 )
 from core.runner_features import RunnerContext
 from core.runner_execution import RunnerExecutionManager
@@ -53,6 +54,39 @@ def make_bar(ts, symbol, o, h, l, c, spread):
         "v": 0.0,
         "spread": spread,
     }
+
+
+def test_validate_bar_accepts_uppercase_timeframe() -> None:
+    bar = {
+        "timestamp": "2024-01-01T00:00:00Z",
+        "symbol": "USDJPY",
+        "tf": "5M",
+        "o": 1.0,
+        "h": 2.0,
+        "l": 0.5,
+        "c": 1.5,
+        "v": 0.0,
+        "spread": 0.0,
+    }
+
+    assert validate_bar(bar)
+
+
+def test_validate_bar_respects_allowed_timeframes() -> None:
+    bar = {
+        "timestamp": "2024-01-01T00:05:00Z",
+        "symbol": "USDJPY",
+        "tf": "15m",
+        "o": 1.0,
+        "h": 2.0,
+        "l": 0.5,
+        "c": 1.5,
+        "v": 0.0,
+        "spread": 0.0,
+    }
+
+    assert not validate_bar(bar, allowed_timeframes=("5m",))
+    assert validate_bar(bar, allowed_timeframes=("5m", "15m"))
 
 
 class TestRunner(unittest.TestCase):
