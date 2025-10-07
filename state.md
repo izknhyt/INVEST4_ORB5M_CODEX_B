@@ -5,6 +5,9 @@
 - 2026-03-31: Ensured `scripts/run_sim.py` respects `--no-ev-profile` when manifests set `state.ev_profile`,
   prevented `aggregate_ev.py` from receiving `--out-yaml` under the flag, extended
   `tests/test_run_sim_cli.py` with a regression, and ran `python3 -m pytest tests/test_run_sim_cli.py`.
+- 2026-04-02: Normalised `scripts/aggregate_ev.py` default EV profile naming to reuse the module tail,
+  added regression coverage for prefixed strategy paths in `tests/test_aggregate_ev_script.py`, updated
+  `docs/state_runbook.md` with the filename guidance, and ran `python3 -m pytest tests/test_aggregate_ev_script.py`.
 - 2026-04-01: Centralised the `--no-ev-profile` guard in `scripts/run_sim.py`, added a CLI regression ensuring
   `aggregate_ev.py` skips `--out-yaml` when the flag is provided alongside `--ev-profile`, updated
   `docs/task_backlog.md`, and ran `python3 -m pytest tests/test_run_sim_cli.py`.
