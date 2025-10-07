@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import copy
+from ast import literal_eval
 from dataclasses import dataclass, field, replace
-from typing import Any, Dict, Mapping, Optional, Type, Union
+from typing import Any, Dict, Mapping, Optional, Sequence, Type, Union
 
 from core.runner_entry import TradeContextSnapshot
 
@@ -104,6 +105,7 @@ class PositionState:
             ctx_snapshot = dict(ctx_snapshot)
         else:
             ctx_snapshot = dict(ctx_snapshot)
+        ev_key = normalize_ev_key(payload.get("ev_key"))
         return cls(
             side=str(payload.get("side")),
             entry_px=float(payload.get("entry_px")),
@@ -121,11 +123,48 @@ class PositionState:
             ll=float(payload["ll"]) if payload.get("ll") is not None else None,
             hold=int(payload.get("hold", 0) or 0),
             entry_ts=payload.get("entry_ts"),
-            ev_key=payload.get("ev_key"),
+            ev_key=ev_key,
             expected_slip_pip=float(payload.get("expected_slip_pip", 0.0) or 0.0),
             entry_slip_pip=float(payload.get("entry_slip_pip", 0.0) or 0.0),
             ctx_snapshot=ctx_snapshot,
         )
+
+
+def normalize_ev_key(value: Any) -> Optional[tuple[Any, Any, Any]]:
+    """Coerce various persisted ``ev_key`` representations into a tuple."""
+
+    if value is None:
+        return None
+    if isinstance(value, tuple):
+        return tuple(value[:3])
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        seq = list(value)[:3]
+        if not seq:
+            return None
+        if len(seq) < 3:
+            seq.extend([None] * (3 - len(seq)))
+        return tuple(seq)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            parsed = literal_eval(text)
+        except (SyntaxError, ValueError):
+            parsed = None
+        if parsed is not None and parsed is not value:
+            coerced = normalize_ev_key(parsed)
+            if coerced is not None:
+                return coerced
+        for separator in ("|", ",", "/", "-", ":"):
+            parts = [part.strip() for part in text.split(separator)]
+            if len(parts) == 3:
+                return tuple(parts)
+        parts = text.split()
+        if len(parts) == 3:
+            return tuple(parts)
+        return None
+    return None
 
 
 def _coerce_trade_ctx(
