@@ -215,13 +215,21 @@ def main() -> int:
     strategy_module, _, strategy_class = args.strategy.rpartition(".")
     if not strategy_module:
         strategy_module = args.strategy.lower()
-    module_tail = strategy_module
+
+    normalised_module = strategy_module
+    if normalised_module.startswith("strategies."):
+        normalised_module = normalised_module.split(".", 1)[1]
+
+    module_tail = normalised_module
     if module_tail:
         module_parts = module_tail.split(".", 1)
         module_tail = module_parts[1] if len(module_parts) > 1 else module_parts[0]
     else:
         module_tail = args.strategy.lower()
-    strategy_key = f"{strategy_module}.{strategy_class}" if strategy_class else strategy_module
+
+    strategy_key = (
+        f"{normalised_module}.{strategy_class}" if strategy_class else normalised_module
+    )
 
     archive_base = resolve_repo_path(Path(args.archive))
     if args.archive_namespace:

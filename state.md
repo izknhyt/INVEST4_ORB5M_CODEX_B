@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-04-04: Normalised `scripts/aggregate_ev.py` / `scripts/run_sim.py` strategy keys to accept prefixed module paths, added a CLI regression covering `strategies.day_orb_5m.DayORB5m`, refreshed `docs/state_runbook.md`, and ran `python3 -m pytest tests/test_run_sim_cli.py`.
 - 2026-04-03: Added `--skip-yaml` to `scripts/aggregate_ev.py` so CSV summaries can run without writing profiles, updated
   `scripts/run_sim.py` to append the guard when `--no-ev-profile` is set, extended CLI/script pytest coverage, and ran
   `python3 -m pytest tests/test_run_sim_cli.py tests/test_aggregate_ev_script.py`.

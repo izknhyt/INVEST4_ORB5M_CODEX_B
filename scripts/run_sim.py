@@ -446,6 +446,7 @@ def main(argv=None):
         strategy_cls = getattr(mod, cls_name)
     runner = BacktestRunner(equity=args.equity, symbol=symbol, runner_cfg=rcfg, debug=debug_for_dump, debug_sample_limit=args.dump_max, strategy_cls=strategy_cls)
     strategy_cls = runner.strategy_cls  # ensure default applied when not provided
+    strategy_state_key = _strategy_state_key(strategy_cls)
 
     ev_profile_path: Optional[str] = None
     if _ev_profile_enabled(args):
@@ -480,7 +481,7 @@ def main(argv=None):
         if manifest_state_namespace:
             archive_dir = state_archive_base / Path(manifest_state_namespace)
         else:
-            archive_dir = state_archive_base / _strategy_state_key(strategy_cls) / symbol / args.mode
+            archive_dir = state_archive_base / strategy_state_key / symbol / args.mode
         latest_state = _latest_state_file(archive_dir)
         if latest_state is not None:
             try:
@@ -648,7 +649,7 @@ def main(argv=None):
             out["state_path"] = state_path
             if not args.no_auto_state:
                 if archive_dir is None:
-                    archive_dir = state_archive_base / _strategy_state_key(strategy_cls) / symbol / args.mode
+                    archive_dir = state_archive_base / strategy_state_key / symbol / args.mode
                 archive_dir.mkdir(parents=True, exist_ok=True)
                 stamp = utcnow_aware(dt_cls=datetime).strftime("%Y%m%d_%H%M%S")
                 archive_name = f"{stamp}_{os.path.basename(run_dir)}.json"
@@ -784,7 +785,7 @@ def main(argv=None):
         agg_cmd = [
             sys.executable,
             os.path.join(ROOT, "scripts", "aggregate_ev.py"),
-            "--strategy", args.strategy,
+            "--strategy", strategy_state_key,
             "--symbol", symbol,
             "--mode", args.mode,
             "--archive", str(state_archive_base_resolved),

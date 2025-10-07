@@ -1,6 +1,7 @@
 import csv
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import textwrap
@@ -15,6 +16,7 @@ from core.runner import RunnerConfig
 from core.runner_execution import RunnerExecutionManager
 from core.runner_lifecycle import RunnerLifecycleManager
 from scripts.run_sim import load_bars_csv, main as run_sim_main
+from strategies.day_orb_5m import DayORB5m
 from strategies.mean_reversion import MeanReversionStrategy
 
 
@@ -1024,6 +1026,79 @@ class TestRunSimCLI(unittest.TestCase):
                     except OSError:
                         break
                     current = current.parent
+
+    @mock.patch("scripts.run_sim.subprocess.run")
+    @mock.patch("scripts.run_sim.BacktestRunner")
+    def test_run_sim_prefixed_strategy_passes_normalised_key_to_aggregate(self, mock_runner, mock_subproc):
+        class DummyMetrics:
+            def __init__(self):
+                self.records = []
+                self.daily = {}
+                self.runtime = {}
+                self.debug = {}
+
+            def as_dict(self):
+                return {
+                    "trades": 1,
+                    "wins": 1,
+                    "total_pips": 0.5,
+                    "sharpe": 0.0,
+                    "max_drawdown": 0.0,
+                }
+
+        runner_instance = mock_runner.return_value
+        runner_instance.strategy_cls = DayORB5m
+        runner_instance.ev_global = types.SimpleNamespace(decay=0.35)
+        runner_instance.run.return_value = DummyMetrics()
+        runner_instance.export_state.return_value = {"ev_buckets": {}, "ev_global": {}}
+
+        def _fake_run(cmd, *args, **kwargs):
+            cmd_list = list(cmd)
+            archive_base = Path(cmd_list[cmd_list.index("--archive") + 1])
+            strategy_arg = cmd_list[cmd_list.index("--strategy") + 1]
+            symbol_arg = cmd_list[cmd_list.index("--symbol") + 1]
+            mode_arg = cmd_list[cmd_list.index("--mode") + 1]
+            target_dir = archive_base / strategy_arg / symbol_arg / mode_arg
+            if not target_dir.exists():
+                raise subprocess.CalledProcessError(
+                    returncode=2,
+                    cmd=cmd_list,
+                    stderr="archive directory not found",
+                )
+            return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        mock_subproc.side_effect = _fake_run
+
+        data = None
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path = Path(tmpdir) / "bars.csv"
+            csv_path.write_text(CSV_CONTENT, encoding="utf-8")
+            json_out = Path(tmpdir) / "metrics.json"
+            archive_root = Path(tmpdir) / "state_archive"
+
+            args = [
+                "--csv",
+                str(csv_path),
+                "--equity",
+                "100000",
+                "--json-out",
+                str(json_out),
+                "--state-archive",
+                str(archive_root),
+                "--strategy",
+                "strategies.day_orb_5m.DayORB5m",
+            ]
+
+            rc = run_sim_main(args)
+            self.assertEqual(rc, 0)
+            self.assertTrue(json_out.exists())
+            data = json.loads(json_out.read_text(encoding="utf-8"))
+        aggregate_status = data.get("aggregate_ev")
+        self.assertIsNotNone(aggregate_status)
+        self.assertEqual(aggregate_status.get("returncode"), 0)
+        self.assertFalse(aggregate_status.get("error"))
+        command_args = aggregate_status.get("command", [])
+        self.assertIn("day_orb_5m.DayORB5m", command_args)
 
     @mock.patch("scripts.run_sim.subprocess.run")
     @mock.patch("scripts.run_sim.BacktestRunner")

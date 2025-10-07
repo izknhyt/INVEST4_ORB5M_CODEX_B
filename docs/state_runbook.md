@@ -104,6 +104,7 @@ python3 scripts/run_daily_workflow.py --ingest --update-state --benchmarks --sta
 - **互換性:** RunnerConfig（特にゲート設定・戦略パラメータ）を大幅に変更した際は、古い state がバイアスになる場合がある。必要に応じてリセット（初期化）を検討する。
 - **監査ログ:** `ops/state_archive/` など保存先を決め、保存日時・使った戦略パラメータと一緒にメタ情報を付与する。
 - **EVプロファイル:** `scripts/aggregate_ev.py --strategy ... --symbol ... --mode ...` を使うと、アーカイブ済み state から長期/直近期の期待値統計を集約し、`configs/ev_profiles/` に YAML プロファイルを生成できます（`strategies.mean_reversion.MeanReversionStrategy` のように指定しても `mean_reversion.yaml` といった末尾モジュール名で保存されます）。`run_sim.py` は該当プロファイルを自動ロードして EV バケットをシードします（`--no-ev-profile` で無効化可能）。
+    戦略クラスは `day_orb_5m.DayORB5m` のような短縮形と `strategies.day_orb_5m.DayORB5m` のような完全修飾のどちらを渡しても同じアーカイブ・プロファイルが解決されるよう正規化されます。
 - **アーカイブの整理（任意）:** `ops/state_archive/` は運用で増えていきます。最新 N 件のみ残す場合は `scripts/prune_state_archive.py --base ops/state_archive --keep 5` を実行してください。`--dry-run` で削除予定を確認できます。
 - **ヘルスチェック:** `scripts/check_state_health.py` を日次（`run_daily_workflow.py --state-health`）で実行し、結果を `ops/health/state_checks.json` に追記する。勝率 LCB・バケット別サンプル・滑り係数を監視し、警告が出た場合は `--webhook` で Slack 等へ通知。`--fail-on-warning` を CI/バッチに組み込むと異常時にジョブを停止できる。
 - **履歴保持:** 標準では直近 90 レコードを保持する。上限を変更する場合は `--history-limit` を調整する。履歴の可視化は Notebook or BI で `checked_at` を横軸に `ev_win_lcb` やワーニング件数をプロットする。
