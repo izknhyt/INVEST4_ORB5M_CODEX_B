@@ -28,6 +28,9 @@
 - 2025-10-07: Normalised `docs/task_backlog.md` anchors in `scripts/sync_task_docs.normalize_anchor`,
   added regression coverage for uppercase fragments in `tests/test_sync_task_template.py`,
   and ran `python3 -m pytest tests/test_manage_task_cycle.py tests/test_sync_task_template.py`.
+- 2025-10-07: Hardened `BacktestRunner._session_of_ts` ISO parsing with UTC normalisation, added
+  a debug counter for parse failures, extended regressions for session detection, and ran
+  `python3 -m pytest tests/test_runner.py`.
 - 2025-10-06: Renamed the runner entry/EV/sizing evaluation dataclasses to `EntryEvaluation` / `EVEvaluation` / `SizingEvaluation`,
   updated BacktestRunner pipelines and regression tests to consume the new names, and ran
   `python3 -m pytest tests/test_runner.py` to confirm the refactor.

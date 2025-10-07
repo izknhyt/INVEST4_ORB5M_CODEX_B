@@ -89,6 +89,26 @@ def test_validate_bar_respects_allowed_timeframes() -> None:
     assert validate_bar(bar, allowed_timeframes=("5m", "15m"))
 
 
+def test_session_of_ts_handles_extended_iso_with_offset() -> None:
+    runner = BacktestRunner(100_000.0, "USDJPY")
+    assert runner._session_of_ts("2024-01-01T09:00:00+01:00") == "LDN"
+    assert runner._session_of_ts("2024-01-01T18:30:00+05:30") == "NY"
+
+
+def test_session_of_ts_handles_basic_iso_z_suffix() -> None:
+    runner = BacktestRunner(100_000.0, "USDJPY")
+    assert runner._session_of_ts("20240101T075959Z") == "TOK"
+    assert runner._session_of_ts("20240101T131500Z") == "NY"
+
+
+def test_session_of_ts_records_parse_errors() -> None:
+    runner = BacktestRunner(100_000.0, "USDJPY", debug=True, debug_sample_limit=2)
+    assert runner._session_of_ts("invalid-ts") == "TOK"
+    assert runner.debug_counts["session_parse_error"] == 1
+    assert runner.debug_records[0]["stage"] == "session_parse_error"
+    assert runner.debug_records[0]["text"] == "invalid-ts"
+
+
 class TestRunner(unittest.TestCase):
 
     def test_runner_respects_fill_config(self):
