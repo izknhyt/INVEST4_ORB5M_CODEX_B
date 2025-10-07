@@ -5,6 +5,9 @@
 - 2026-03-31: Ensured `scripts/run_sim.py` respects `--no-ev-profile` when manifests set `state.ev_profile`,
   prevented `aggregate_ev.py` from receiving `--out-yaml` under the flag, extended
   `tests/test_run_sim_cli.py` with a regression, and ran `python3 -m pytest tests/test_run_sim_cli.py`.
+- 2026-04-01: Centralised the `--no-ev-profile` guard in `scripts/run_sim.py`, added a CLI regression ensuring
+  `aggregate_ev.py` skips `--out-yaml` when the flag is provided alongside `--ev-profile`, updated
+  `docs/task_backlog.md`, and ran `python3 -m pytest tests/test_run_sim_cli.py`.
 - 2026-03-30: Defaulted blank CSV spread/volume fields to 0.0 in `scripts/run_sim.py`,
   extended `tests/test_run_sim_cli.py` to cover tolerant parsing and CLI runs with empty values,
   documented the behaviour in `README.md`, and ran `python3 -m pytest tests/test_run_sim_cli.py`.

@@ -784,6 +784,58 @@ class TestRunSimCLI(unittest.TestCase):
         self.assertNotIn("--out-yaml", cmd_args)
 
     @mock.patch("scripts.run_sim.BacktestRunner")
+    def test_cli_no_ev_profile_flag_blocks_aggregate_out_yaml(self, mock_runner):
+        class DummyMetrics:
+            def __init__(self):
+                self.records = []
+                self.runtime = {}
+                self.debug = {}
+                self.daily = {}
+
+            def as_dict(self):
+                return {"trades": 0, "wins": 0, "total_pips": 0.0}
+
+        runner_instance = mock_runner.return_value
+        runner_instance.strategy_cls = MeanReversionStrategy
+        runner_instance.ev_global = types.SimpleNamespace(decay=0.1)
+        runner_instance.run.return_value = DummyMetrics()
+        runner_instance.export_state.return_value = {"state": "ok"}
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path = Path(tmpdir) / "bars.csv"
+            csv_path.write_text(CSV_CONTENT, encoding="utf-8")
+            json_out = Path(tmpdir) / "metrics.json"
+            ev_profile_path = Path(tmpdir) / "user_profile.yaml"
+            archive_root = Path(tmpdir) / "archive"
+
+            args = [
+                "--csv",
+                str(csv_path),
+                "--equity",
+                "100000",
+                "--json-out",
+                str(json_out),
+                "--state-archive",
+                str(archive_root),
+                "--ev-profile",
+                str(ev_profile_path),
+                "--no-ev-profile",
+            ]
+
+            with mock.patch("scripts.run_sim.subprocess.run") as mock_run:
+                mock_run.return_value = types.SimpleNamespace(returncode=0, stdout="", stderr="")
+                rc = run_sim_main(args)
+
+        self.assertEqual(rc, 0)
+        mock_runner.return_value.run.assert_called_once()
+        mock_runner.return_value.export_state.assert_called()
+        mock_run.assert_called_once()
+        cmd_args = mock_run.call_args[0][0]
+        self.assertIsInstance(cmd_args, list)
+        self.assertNotIn("--out-yaml", cmd_args)
+        self.assertIn("--out-csv", cmd_args)
+
+    @mock.patch("scripts.run_sim.BacktestRunner")
     def test_run_sim_cli_applies_fill_overrides(self, mock_runner):
         class DummyMetrics:
             def __init__(self):
