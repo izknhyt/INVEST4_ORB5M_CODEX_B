@@ -38,6 +38,7 @@ print(metrics.as_dict())
 - CSVから実行し、JSONメトリクスを出力する最小CLIを追加
   - `scripts/run_sim.py`
   - 入力CSVはヘッダ行必須: `timestamp,symbol,tf,o,h,l,c,v,spread`
+  - `v` と `spread` が空欄または欠損の場合は 0.0 として取り込み、行はスキップされません
 
 ## タスク同期スクリプト
 `state.md` と `docs/todo_next.md` を同時に更新する場合は、`scripts/sync_task_docs.py` を利用すると手戻りを防げます（DoDアンカーで対象タスクを特定します）。日次運用では対話プロンプト付きの `scripts/manage_task_cycle.py` を使うと入力漏れを避けやすく、`--dry-run` で事前確認も可能です。

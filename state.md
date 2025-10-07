@@ -2,6 +2,9 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-03-30: Defaulted blank CSV spread/volume fields to 0.0 in `scripts/run_sim.py`,
+  extended `tests/test_run_sim_cli.py` to cover tolerant parsing and CLI runs with empty values,
+  documented the behaviour in `README.md`, and ran `python3 -m pytest tests/test_run_sim_cli.py`.
 - 2026-03-29: Filtered `scripts/run_sim.py` bar streaming so only the resolved symbol feeds the runner,
   added a mixed-symbol regression test in `tests/test_run_sim_cli.py`, and ran
   `python3 -m pytest tests/test_run_sim_cli.py` for confirmation.
