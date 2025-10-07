@@ -6,6 +6,8 @@ import tempfile
 import textwrap
 import types
 import unittest
+from datetime import datetime, timezone
+from pathlib import Path
 from unittest import mock
 
 from core.sizing import compute_qty_from_ctx
@@ -611,6 +613,87 @@ class TestRunSimCLI(unittest.TestCase):
                 self.assertEqual(threshold_keys, {"stage", "ts", "side", "base_threshold", "error"})
         finally:
             sys.modules.pop(module_name, None)
+
+    @mock.patch("scripts.run_sim.subprocess.run")
+    @mock.patch("scripts.run_sim.BacktestRunner")
+    @mock.patch("scripts.run_sim.utcnow_aware")
+    def test_run_sim_aggregate_uses_resolved_archive_from_temp_cwd(self, mock_utcnow, mock_runner, mock_subproc):
+        class DummyMetrics:
+            def __init__(self):
+                self.records = []
+                self.daily = {}
+                self.runtime = {}
+                self.debug = {}
+
+            def as_dict(self):
+                return {"trades": 1, "wins": 1, "total_pips": 0.0, "sharpe": 0.0, "max_drawdown": 0.0}
+
+        mock_utcnow.return_value = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+        runner_instance = mock_runner.return_value
+        runner_instance.strategy_cls = MeanReversionStrategy
+        runner_instance.ev_global = types.SimpleNamespace(decay=0.25)
+        runner_instance.run.return_value = DummyMetrics()
+        runner_instance.export_state.return_value = {"ev_buckets": {}, "ev_global": {}}
+
+        captured = {}
+
+        def _mock_run(cmd, *args, **kwargs):
+            captured["cmd"] = cmd
+            archive_idx = cmd.index("--archive") + 1
+            archive_path = Path(cmd[archive_idx])
+            captured["archive_path"] = archive_path
+            captured["archive_exists"] = archive_path.exists()
+            captured["archive_is_absolute"] = archive_path.is_absolute()
+            return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        mock_subproc.side_effect = _mock_run
+
+        with tempfile.TemporaryDirectory() as data_dir, tempfile.TemporaryDirectory() as work_dir:
+            csv_path = os.path.join(data_dir, "bars.csv")
+            with open(csv_path, "w", encoding="utf-8") as f:
+                f.write(CSV_CONTENT)
+            json_out = os.path.join(data_dir, "metrics.json")
+            args = [
+                "--csv", csv_path,
+                "--symbol", "USDJPY",
+                "--mode", "conservative",
+                "--equity", "100000",
+                "--json-out", json_out,
+                "--no-ev-profile",
+                "--strategy", "strategies.mean_reversion.MeanReversionStrategy",
+            ]
+
+            original_cwd = os.getcwd()
+            expected_base = Path(run_sim_main.__globals__["ROOT"]).resolve() / "ops" / "state_archive"
+            timestamp = mock_utcnow.return_value.strftime("%Y%m%d_%H%M%S")
+            archive_file = expected_base / "mean_reversion.MeanReversionStrategy" / "USDJPY" / "conservative" / f"{timestamp}.json"
+
+            try:
+                os.chdir(work_dir)
+                rc = run_sim_main(args)
+            finally:
+                os.chdir(original_cwd)
+
+            self.assertEqual(rc, 0)
+            mock_subproc.assert_called()
+            cmd = captured.get("cmd")
+            self.assertIsNotNone(cmd)
+            archive_path = captured.get("archive_path")
+            self.assertIsNotNone(archive_path)
+            self.assertTrue(captured.get("archive_is_absolute"))
+            self.assertEqual(archive_path.resolve(), expected_base)
+            self.assertTrue(captured.get("archive_exists"))
+
+            if archive_file.exists():
+                archive_file.unlink()
+                current = archive_file.parent
+                stop_dir = expected_base
+                while stop_dir in current.parents:
+                    try:
+                        current.rmdir()
+                    except OSError:
+                        break
+                    current = current.parent
 
     @mock.patch("scripts.run_sim.subprocess.run")
     @mock.patch("scripts.run_sim.BacktestRunner")

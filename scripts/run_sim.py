@@ -24,6 +24,7 @@ import sys
 
 # Ensure project root is on sys.path when running as a script
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT_PATH = Path(ROOT)
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
@@ -35,6 +36,12 @@ from core.router_pipeline import PortfolioTelemetry, build_portfolio_state
 from scripts.config_utils import build_runner_config
 from configs.strategies.loader import load_manifest, StrategyManifest
 from router.router_v1 import select_candidates
+
+
+def _resolve_repo_path(path: Path) -> Path:
+    if path.is_absolute():
+        return path
+    return ROOT_PATH / path
 
 
 def _strategy_state_key(strategy_cls) -> str:
@@ -362,6 +369,7 @@ def main(argv=None):
     manifest: Optional[StrategyManifest] = None
     rcfg_base: Optional[RunnerConfig] = None
     manifest_state_namespace: Optional[str] = None
+    state_archive_base = _resolve_repo_path(Path(args.state_archive)).resolve()
     if getattr(args, "strategy_manifest", None):
         manifest = load_manifest(args.strategy_manifest)
         rcfg_base = _runner_config_from_manifest(manifest)
@@ -445,9 +453,9 @@ def main(argv=None):
     archive_save_path: Optional[str] = None
     if not args.no_auto_state:
         if manifest_state_namespace:
-            archive_dir = Path(args.state_archive) / Path(manifest_state_namespace)
+            archive_dir = state_archive_base / Path(manifest_state_namespace)
         else:
-            archive_dir = Path(args.state_archive) / _strategy_state_key(strategy_cls) / symbol / args.mode
+            archive_dir = state_archive_base / _strategy_state_key(strategy_cls) / symbol / args.mode
         latest_state = _latest_state_file(archive_dir)
         if latest_state is not None:
             try:
@@ -608,7 +616,7 @@ def main(argv=None):
             out["state_path"] = state_path
             if not args.no_auto_state:
                 if archive_dir is None:
-                    archive_dir = Path(args.state_archive) / _strategy_state_key(strategy_cls) / symbol / args.mode
+                    archive_dir = state_archive_base / _strategy_state_key(strategy_cls) / symbol / args.mode
                 archive_dir.mkdir(parents=True, exist_ok=True)
                 stamp = utcnow_aware(dt_cls=datetime).strftime("%Y%m%d_%H%M%S")
                 archive_name = f"{stamp}_{os.path.basename(run_dir)}.json"
@@ -734,11 +742,12 @@ def main(argv=None):
 
     aggregate_status: Optional[Dict[str, Any]] = None
     archive_namespace_arg: Optional[str] = None
+    state_archive_base_resolved = state_archive_base.resolve()
     if archive_dir is not None:
         try:
-            archive_namespace_arg = str(Path(archive_dir).resolve().relative_to(Path(args.state_archive).resolve()))
+            archive_namespace_arg = str(Path(archive_dir).resolve().relative_to(state_archive_base_resolved))
         except ValueError:
-            archive_namespace_arg = str(Path(archive_dir))
+            archive_namespace_arg = str(Path(archive_dir).resolve())
     if not args.no_aggregate_ev and archive_save_path:
         agg_cmd = [
             sys.executable,
@@ -746,7 +755,7 @@ def main(argv=None):
             "--strategy", args.strategy,
             "--symbol", symbol,
             "--mode", args.mode,
-            "--archive", str(args.state_archive),
+            "--archive", str(state_archive_base_resolved),
             "--recent", str(max(1, args.aggregate_recent)),
         ]
         if archive_namespace_arg:
