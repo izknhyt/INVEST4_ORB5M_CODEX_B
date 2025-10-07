@@ -145,6 +145,7 @@ python3 scripts/run_sim.py \
 CLI オプションは上記のみに絞り、EV/Fill/State 設定は manifest の `runner.cli_args` で制御します。トラブルシュート時は以下に注意:
 - `{"error":"csv_format","code":"missing_required_columns"}` が出た場合はヘッダを確認し、最低でも `timestamp,open/high/low/close` を揃える。
 - `{"error":"no_bars"}` はフィルタ条件でバーが存在しないことを示すため、期間とシンボルを再確認する。
+- CSV ローダーが行をスキップした場合は `stderr` に `[run_sim] Skipped ...` の警告が出力され、`metrics.debug.csv_loader` に統計が記録される。厳格に扱いたいケースでは `--strict` を併用すると `CSVFormatError` が送出される。
 
 `--out-dir <base_dir>` を指定すると `<base_dir>/<symbol>_<mode>_<timestamp>/` 以下に `params.json` / `metrics.json` / `records.csv` / `daily.csv`（存在する場合）/ `state.json` がまとめて保存され、`metrics.json` の `run_dir` からパスを辿れます。複数戦略の比較や incident 再現ではこの run ディレクトリを基点に解析してください。
 
