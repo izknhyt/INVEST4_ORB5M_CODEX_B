@@ -7,6 +7,8 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+
+import scripts.aggregate_ev as aggregate_ev
 from scripts.aggregate_ev import REPO_ROOT
 
 
@@ -148,3 +150,43 @@ def test_aggregate_ev_supports_archive_namespace(tmp_path: Path) -> None:
 
     assert "Wrote YAML profile" in result.stdout
     assert out_yaml.exists()
+
+
+def test_default_output_uses_module_tail(tmp_path: Path, monkeypatch, capsys) -> None:
+    archive_base = tmp_path / "ops" / "state_archive"
+    strategy = "strategies.mean_reversion.MeanReversionStrategy"
+    symbol = "USDJPY"
+    mode = "conservative"
+
+    archive_dir = archive_base / strategy / symbol / mode
+    archive_dir.mkdir(parents=True)
+    write_state(
+        archive_dir / "20240101_000000.json",
+        alpha=1.0,
+        beta=1.0,
+        global_alpha=2.0,
+        global_beta=2.0,
+    )
+
+    monkeypatch.setattr(aggregate_ev, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "aggregate_ev.py",
+            "--archive",
+            str(archive_base),
+            "--strategy",
+            strategy,
+            "--symbol",
+            symbol,
+            "--mode",
+            mode,
+        ],
+    )
+
+    assert aggregate_ev.main() == 0
+    captured = capsys.readouterr()
+    default_profile = tmp_path / "configs" / "ev_profiles" / "mean_reversion.yaml"
+    assert default_profile.exists()
+    assert "mean_reversion.yaml" in captured.out

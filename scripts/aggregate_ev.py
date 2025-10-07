@@ -210,6 +210,12 @@ def main() -> int:
     strategy_module, _, strategy_class = args.strategy.rpartition(".")
     if not strategy_module:
         strategy_module = args.strategy.lower()
+    module_tail = strategy_module
+    if module_tail:
+        module_parts = module_tail.split(".", 1)
+        module_tail = module_parts[1] if len(module_parts) > 1 else module_parts[0]
+    else:
+        module_tail = args.strategy.lower()
     strategy_key = f"{strategy_module}.{strategy_class}" if strategy_class else strategy_module
 
     archive_base = resolve_repo_path(Path(args.archive))
@@ -251,7 +257,11 @@ def main() -> int:
         beta_prior=args.beta_prior,
     )
 
-    out_yaml_base = Path(args.out_yaml) if args.out_yaml else Path("configs/ev_profiles") / f"{strategy_module}.yaml"
+    out_yaml_base = (
+        Path(args.out_yaml)
+        if args.out_yaml
+        else Path("configs/ev_profiles") / f"{module_tail}.yaml"
+    )
     out_yaml = resolve_repo_path(out_yaml_base)
     out_yaml.parent.mkdir(parents=True, exist_ok=True)
     with out_yaml.open("w") as f:
