@@ -47,6 +47,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import re
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Tuple
@@ -247,9 +248,20 @@ def _merge_doc_template(block: List[str], template_lines: List[str]) -> List[str
 
 def normalize_anchor(anchor: str) -> str:
     anchor = anchor.strip()
-    if not anchor.startswith("docs/task_backlog.md#"):
+    prefix = "docs/task_backlog.md#"
+    if not anchor.startswith(prefix):
         raise SyncError("Anchor must include 'docs/task_backlog.md#'")
-    return anchor
+
+    fragment = anchor[len(prefix) :]
+    fragment = unicodedata.normalize("NFKC", fragment).strip()
+    if not fragment:
+        raise SyncError("Anchor fragment cannot be empty")
+
+    fragment = re.sub(r"\s+", "-", fragment.lower())
+    if not fragment:
+        raise SyncError("Anchor fragment cannot be empty")
+
+    return f"{prefix}{fragment}"
 
 
 def ensure_anchor_comment(line: str, anchor: str) -> str:

@@ -2,6 +2,9 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2025-10-07: Normalised `docs/task_backlog.md` anchors in `scripts/sync_task_docs.normalize_anchor`,
+  added regression coverage for uppercase fragments in `tests/test_sync_task_template.py`,
+  and ran `python3 -m pytest tests/test_manage_task_cycle.py tests/test_sync_task_template.py`.
 - 2025-10-06: Renamed the runner entry/EV/sizing evaluation dataclasses to `EntryEvaluation` / `EVEvaluation` / `SizingEvaluation`,
   updated BacktestRunner pipelines and regression tests to consume the new names, and ran
   `python3 -m pytest tests/test_runner.py` to confirm the refactor.
