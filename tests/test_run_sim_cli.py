@@ -782,6 +782,7 @@ class TestRunSimCLI(unittest.TestCase):
         cmd_args = mock_run.call_args[0][0]
         self.assertIsInstance(cmd_args, list)
         self.assertNotIn("--out-yaml", cmd_args)
+        self.assertIn("--skip-yaml", cmd_args)
 
     @mock.patch("scripts.run_sim.BacktestRunner")
     def test_cli_no_ev_profile_flag_blocks_aggregate_out_yaml(self, mock_runner):
@@ -834,6 +835,7 @@ class TestRunSimCLI(unittest.TestCase):
         self.assertIsInstance(cmd_args, list)
         self.assertNotIn("--out-yaml", cmd_args)
         self.assertIn("--out-csv", cmd_args)
+        self.assertIn("--skip-yaml", cmd_args)
 
     @mock.patch("scripts.run_sim.BacktestRunner")
     def test_run_sim_cli_applies_fill_overrides(self, mock_runner):
