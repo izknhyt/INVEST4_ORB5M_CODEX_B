@@ -415,6 +415,8 @@ def main(argv=None):
         print(json.dumps({"error": "no bars"}))
         return 1
     symbol = args.symbol or first_bar.get("symbol")
+    if args.symbol is None:
+        args.symbol = symbol
     rcfg = build_runner_config(args, base=rcfg_base)
     debug_for_dump = args.debug or bool(args.dump_csv) or bool(args.dump_daily) or bool(args.out_dir)
     from importlib import import_module
@@ -467,7 +469,14 @@ def main(argv=None):
                 loaded_state_path = str(latest_state)
             except Exception:
                 loaded_state_path = None
-    bars_for_runner = chain([first_bar], bars_iter)
+    if symbol is None:
+        bars_for_runner = chain([first_bar], bars_iter)
+    else:
+        initial_bars = [first_bar] if first_bar.get("symbol") == symbol else []
+        bars_for_runner = chain(
+            initial_bars,
+            (bar for bar in bars_iter if bar.get("symbol") == symbol),
+        )
     metrics = runner.run(bars_for_runner, mode=args.mode)
     router_results = None
     if manifest is not None:
