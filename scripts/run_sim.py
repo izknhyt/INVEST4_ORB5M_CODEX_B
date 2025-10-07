@@ -460,15 +460,16 @@ def main(argv=None):
         for profile_path in candidates:
             if not profile_path:
                 continue
-            if not profile_path.exists():
+            resolved_profile = _resolve_repo_path(profile_path)
+            if not resolved_profile.exists():
                 continue
             try:
-                with profile_path.open() as f:
+                with resolved_profile.open() as f:
                     ev_profile = yaml.safe_load(f)
                 if ev_profile:
                     runner.ev_profile = ev_profile
                     runner._apply_ev_profile()
-                    ev_profile_path = str(profile_path)
+                    ev_profile_path = str(resolved_profile)
                     break
             except Exception:
                 continue

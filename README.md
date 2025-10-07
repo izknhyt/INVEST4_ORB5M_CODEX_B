@@ -113,6 +113,8 @@ python3 scripts/manage_task_cycle.py --dry-run finish-task \
 python3 scripts/run_sim.py --csv data/ohlc5m.csv --symbol USDJPY --mode conservative --equity 100000
 ```
 
+リポジトリ外の作業ディレクトリから起動しても、既定の EV プロファイル（`configs/ev_profiles/<strategy>.yaml`）や `--ev-profile` で指定した相対パスはリポジトリルート基準で解決されます。
+
 特定期間のみを対象にする場合は ISO8601 形式の `--start-ts` / `--end-ts` を指定します。
 
 ```
