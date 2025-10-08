@@ -55,7 +55,7 @@
     - 主要ランブック: [docs/state_runbook.md](./state_runbook.md)
   - Pending Questions:
     - [ ] Clarify gating metrics, data dependencies, or open questions.
-  - DoD チェックリスト: [docs/templates/dod_checklist.md](./templates/dod_checklist.md) を [docs/checklists/p2_manifest.md](./checklists/p2_manifest.md) にコピーし、進捗リンクを更新する。
+  - DoD チェックリスト: [docs/templates/dod_checklist.md](./templates/dod_checklist.md) を [p2_manifest.md](./checklists/p2_manifest.md) にコピーし、進捗リンクを更新する。
 
 - ~~**Workflow Integration Guide**~~ (Backlog: `docs/task_backlog.md` → "ワークフロー統合" section) — `state.md` 2024-06-18, 2025-09-29, 2026-02-13, 2025-10-08 ✅ <!-- anchor: docs/task_backlog.md#codex-session-operations-guide -->
   <!-- REVIEW: Archived after confirming workflow loop, dry-run coverage, and template links met the reviewer DoD. -->
