@@ -381,13 +381,21 @@ def _prepare_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
     else:
         equity = float(manifest_cli.get("equity", 100000.0))
 
-    out_dir: Optional[Path]
+    out_dir_value: Optional[Path]
     if args.out_dir:
-        out_dir = Path(args.out_dir)
+        out_dir_value = Path(args.out_dir)
     elif manifest_cli.get("out_dir"):
-        out_dir = Path(manifest_cli["out_dir"])
+        out_dir_value = Path(manifest_cli["out_dir"])
     else:
-        out_dir = None
+        out_dir_value = None
+
+    resolved_out_dir: Optional[Path] = None
+    if out_dir_value is not None:
+        resolved_out_dir = (
+            out_dir_value
+            if out_dir_value.is_absolute()
+            else _resolve_repo_path(out_dir_value)
+        )
 
     auto_state = bool(manifest_cli.get("auto_state", True))
     aggregate_ev = bool(manifest_cli.get("aggregate_ev", True))
@@ -406,7 +414,7 @@ def _prepare_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
     strategy_cls = _load_strategy_class(manifest.strategy.class_path)
     runner_cfg = _runner_config_from_manifest(manifest)
 
-    run_base_dir = config_out_dir = out_dir
+    run_base_dir = resolved_out_dir
 
     return RuntimeConfig(
         manifest=manifest,
@@ -416,7 +424,7 @@ def _prepare_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
         equity=equity,
         start_ts=args.start_ts,
         end_ts=args.end_ts,
-        out_dir=out_dir,
+        out_dir=resolved_out_dir,
         auto_state=auto_state,
         aggregate_ev=aggregate_ev,
         strict=strict,
@@ -428,7 +436,7 @@ def _prepare_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
         mode=mode,
         runner_config=runner_cfg,
         strategy_cls=strategy_cls,
-        run_base_dir=config_out_dir,
+        run_base_dir=run_base_dir,
     )
 
 
