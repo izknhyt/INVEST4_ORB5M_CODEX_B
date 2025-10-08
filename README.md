@@ -161,6 +161,28 @@ CLI オプションは上記のみに絞り、EV/Fill/State 設定は manifest �
 
 EV プロファイルを無効化した比較を行う場合は、`configs/strategies/mean_reversion_no_ev.yaml` のように `runner.cli_args.use_ev_profile: false` を設定した manifest を利用してください。
 
+### 通知レイテンシの集計
+
+通知フローの SLO をモニタリングする場合は `scripts/analyze_signal_latency.py` を利用します。CSV を読み込みつつ JSON/CSV のサマリを保存できます。
+
+```bash
+python3 scripts/analyze_signal_latency.py \
+  --input ops/signal_latency.csv \
+  --slo-threshold 5 \
+  --failure-threshold 0.01 \
+  --out-json ops/latency_summary.json \
+  --out-csv ops/latency_summary.csv
+```
+
+主なオプション:
+
+- `--slo-threshold`: p95 レイテンシの上限（秒）。閾値を超えると `thresholds.p95_latency.breach` が `true` になり、終了コード 1 を返します。
+- `--failure-threshold`: 失敗率の上限（0〜1 の小数）。超過すると `thresholds.failure_rate.breach` が `true` になります。
+- `--out-json`: 閾値判定を含む JSON サマリの保存先。従来の `--json-out` も互換のままです。
+- `--out-csv`: メトリクス/閾値/違反フラグをテーブル形式で出力する CSV の保存先。
+
+どちらの閾値も超えない場合のみ終了コード 0 を返します。CSV 出力には `metric,value,threshold,breach` の 4 列が含まれ、ダッシュボード取り込みやバッチ検証に利用できます。
+
 ### オンデマンドインジェスト CLI
 - `scripts/pull_prices.py` はヒストリカルCSV（またはAPIエクスポート）から未処理バーを検出し、`raw/`→`validated/`→`features/` に冪等に追記する。
 - `python3 scripts/run_daily_workflow.py --ingest --use-dukascopy` が現在の標準経路。Dukascopy から最新5mバーを取得し、そのまま `pull_prices.ingest_records` に渡して CSV/特徴量を同期する。必要に応じて `--dukascopy-offer-side ask` で ASK 側に切り替えられ、指定がなければ BID 側（既定値）を取得する。Dukascopy が失敗するか、取得した最終バーが `--dukascopy-freshness-threshold-minutes`（既定 90 分）より古い場合は自動で yfinance (`period="7d"`) へ切り替わり、`--yfinance-lookback-minutes`（既定 60 分）を基準に再取得ウィンドウを決めつつ同一の CSV/特徴量更新が継続する。詳細なフォールバック手順は [docs/api_ingest_plan.md](docs/api_ingest_plan.md) を参照。
