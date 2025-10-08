@@ -3,6 +3,7 @@
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
 - 2026-04-12: Added manifest instrument selection flags to `scripts/run_sim.py`, refreshed CLI regression/README guidance, and ran `python3 -m pytest`.
+- 2026-04-13: Normalised `scripts/run_sim.py` JSON output path resolution for relative values, added a CLI regression verifying repo-root anchoring, refreshed README guidance, and ran `python3 -m pytest tests/test_run_sim_cli.py`.
 - 2026-04-11: Hardened `scripts/run_sim.py` EV aggregation failure handling to bubble subprocess output with a non-zero exit, added a CLI regression for the failure path, and ran `python3 -m pytest`.
 - 2026-04-09: Added CSV loader diagnostics/strict mode to `scripts/run_sim.py`, plumbed stats into CLI outputs/docs, updated grid/compare helpers, extended CLI tests, and ran `python3 -m pytest`.
 - 2026-04-10: Refactored `RunnerExecutionManager` entry flow to iterate multiple intents with per-order metrics, updated fill handling, added multi-intent runner regression, and ran `python3 -m pytest tests/test_runner.py`.
