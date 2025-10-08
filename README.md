@@ -129,6 +129,14 @@ python3 scripts/run_sim.py \
   --manifest configs/strategies/day_orb_5m.yaml \
   --csv USDJPY_202501_5min.csv \
   --json-out runs/quick_metrics_basic.json
+
+# 複数インストゥルメント定義の manifest では `--symbol` / `--mode` で対象を指定
+python3 scripts/run_sim.py \
+  --manifest path/to/multi_instrument_manifest.yaml \
+  --csv validated/EURUSD/15m.csv \
+  --symbol EURUSD \
+  --mode bridge \
+  --json-out runs/eurusd_bridge_metrics.json
 ```
 
 期間指定は ISO8601 の `--start-ts` / `--end-ts` を併用します。
@@ -146,6 +154,7 @@ CLI オプションは上記のみに絞り、EV/Fill/State 設定は manifest �
 - `{"error":"csv_format","code":"missing_required_columns"}` が出た場合はヘッダを確認し、最低でも `timestamp,open/high/low/close` を揃える。
 - `{"error":"no_bars"}` はフィルタ条件でバーが存在しないことを示すため、期間とシンボルを再確認する。
 - CSV ローダーが行をスキップした場合は `stderr` に `[run_sim] Skipped ...` の警告が出力され、`metrics.debug.csv_loader` に統計が記録される。厳格に扱いたいケースでは `--strict` を併用すると `CSVFormatError` が送出される。
+- 複数の `strategy.instruments` を含む manifest では `--symbol`（必要に応じて `--mode`）で対象を選択し、指定に合致しない場合は `{"error":"instrument_not_found"}` が返る。
 
 `--out-dir <base_dir>` を指定すると `<base_dir>/<symbol>_<mode>_<timestamp>/` 以下に `params.json` / `metrics.json` / `records.csv` / `daily.csv`（存在する場合）/ `state.json` がまとめて保存され、`metrics.json` の `run_dir` からパスを辿れます。複数戦略の比較や incident 再現ではこの run ディレクトリを基点に解析してください。
 
