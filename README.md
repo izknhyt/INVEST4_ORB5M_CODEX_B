@@ -139,6 +139,8 @@ python3 scripts/run_sim.py \
   --json-out runs/eurusd_bridge_metrics.json
 ```
 
+相対パスで指定した `--json-out runs/<name>.json` は、カレントディレクトリに関わらずリポジトリ直下の `runs/` フォルダに保存されます。
+
 期間指定は ISO8601 の `--start-ts` / `--end-ts` を併用します。
 
 ```
