@@ -5,7 +5,7 @@
 - サンプル戦略として `strategies/reversion_stub.py` を追加。低ボラ時の閾値緩和・高ボラ時のブロック動作を確認済み。`
 - 2025-12-02: `strategies/mean_reversion.py` を導入し、RV/ADX フィルタや ATR ベースのリスクリワード計算、EV プロファイル補正を実装。`configs/strategies/mean_reversion.yaml` / `configs/ev_profiles/mean_reversion.yaml` を刷新し、`tests/test_mean_reversion_strategy.py` でゲート・閾値・サイズ計算の回帰を確保。
 - manifest を介して任意戦略を注入できるよう `configs/strategies/*.yaml` を標準化。
-- `scripts/run_sim.py --manifest` が RunnerConfig の許容セッション/リスク上限と戦略パラメータ（例: `allow_high_rv` / `zscore_threshold`）を自動適用し、`Strategy.on_start` に渡すフローを整備。回帰テスト: `tests/test_run_sim_cli.py`。DoD: [docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化)。
+- `scripts/run_sim.py --manifest` が RunnerConfig の許容セッション/リスク上限と戦略パラメータ（例: `allow_high_rv` / `zscore_threshold`）を自動適用し、`Strategy.on_start` に渡すフローを整備。回帰テスト: `tests/test_run_sim_cli.py`。DoD: [docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化](./task_backlog.md#p2-マルチ戦略ポートフォリオ化)。
 - 2025-12-05: Day ORB のリテスト要求ロジックで初回ブレイク方向（buy/sell）を記録し、方向ごとにリテスト判定を分岐するよう更新。`tests/test_day_orb_retest.py` で売りブレイクが OR 安値へ戻らないケースの回帰を追加し、誤検知を防止。
 
 ## 2. EV 閾値ケーススタディ

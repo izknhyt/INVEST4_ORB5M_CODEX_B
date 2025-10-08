@@ -26,6 +26,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - **P0-12 Codex-first documentation cleanup**
   - **DoD**: Codex operator workflow has a one-page quickstart (`docs/codex_quickstart.md`), the detailed checklist (`docs/state_runbook.md`) is trimmed to actionable bullet lists, README points to both, and `docs/development_roadmap.md` captures immediate→mid-term improvements with backlog links. Backlogとテンプレートは新フローに沿って更新済みであること。
   - **Notes**: Focus on reducing duplication between `docs/codex_quickstart.md`, `docs/codex_workflow.md`, README, and `docs/state_runbook.md`; ensure sandbox/approval rules stay explicit.
+  - 2026-04-24: Normalised internal documentation links to use relative paths so Markdown previews and GitHub navigation stay consistent. Synced quickstart/workflow docs with the updated guideline and logged the change in `state.md`.
 - ~~**P0-13 run_daily_workflow local CSV override fix**~~ (2026-04-07 完了): `scripts/run_daily_workflow.py` がデフォルト ingest で `pull_prices.py` を呼び出す際に `--local-backup-csv` のパスを尊重する。
   - 2026-04-07: CLI オプションを `pull_prices` コマンドへ伝播し、回帰テスト `tests/test_run_daily_workflow.py::test_ingest_pull_prices_respects_local_backup_override` を追加。`python3 -m pytest` を実行して確認。
 - 2026-04-05: `scripts/run_sim.py` を manifest-first CLI へ再設計し、OutDir 実行時にランフォルダ (`params.json` / `metrics.json` / `records.csv` / `daily.csv`) が生成されるよう統合。`tests/test_run_sim_cli.py` / README / `docs/checklists/multi_strategy_validation.md` を更新。
@@ -56,20 +57,20 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 
 ## P1: ローリング検証 + 健全性モニタリング（Archive）
 
-フェーズ1タスクの詳細な進捗記録は [docs/task_backlog_p1_archive.md](docs/task_backlog_p1_archive.md) に保管されています。歴史的な参照が必要な場合は同アーカイブを参照してください。
+フェーズ1タスクの詳細な進捗記録は [docs/task_backlog_p1_archive.md](./task_backlog_p1_archive.md) に保管されています。歴史的な参照が必要な場合は同アーカイブを参照してください。
 
 ## P2: マルチ戦略ポートフォリオ化
 
 ### ~~P2-01 戦略マニフェスト整備~~ ✅ (2026-01-08 クローズ)
 - スキャル/デイ/スイングの候補戦略ごとに、依存特徴量・セッション・リスク上限を YAML で定義し、ルーターが参照できるようにする (`configs/strategies/*.yaml`)。
   - 2025-10-09: `configs/strategies/templates/base_strategy.yaml` に共通テンプレートと記述ガイドを追加し、新規戦略のマニフェスト整備を着手しやすくした。
-- 2024-06-22: `scripts/run_sim.py --manifest` でマニフェストを読み込み、RunnerConfig の許容セッション/リスク上限と戦略固有パラメータを `Strategy.on_start` に直結するフローを整備。`tests/test_run_sim_cli.py` で manifest 経由のパラメタ伝播を検証。DoD: [フェーズ1-戦略別ゲート整備](docs/progress_phase1.md#1-戦略別ゲート整備)。
+- 2024-06-22: `scripts/run_sim.py --manifest` でマニフェストを読み込み、RunnerConfig の許容セッション/リスク上限と戦略固有パラメータを `Strategy.on_start` に直結するフローを整備。`tests/test_run_sim_cli.py` で manifest 経由のパラメタ伝播を検証。DoD: [フェーズ1-戦略別ゲート整備](./progress_phase1.md#1-戦略別ゲート整備)。
   - 2026-01-08: `strategies/scalping_template.py` / `strategies/day_template.py` を追加し、`tokyo_micro_mean_reversion`・`session_momentum_continuation` の manifest/実装を新設。`python3 -m pytest tests/test_strategy_manifest.py` で loader 整合性を確認。次ステップは run_sim CLI ドライランと DoD チェック更新。
 
 ### ~~P2-02 ルーター拡張~~ ✅ (2026-02-13 クローズ)
 - 現行ルールベース (`router/router_v0.py`) を拡張し、カテゴリ配分・相関・キャパ制約を反映。戦略ごとの state/EV/サイズ情報を統合してスコアリングする。
   - 設計ガイド: [docs/router_architecture.md](router_architecture.md)
-  - DoD: [docs/checklists/p2_router.md](docs/checklists/p2_router.md)
+  - DoD: [docs/checklists/p2_router.md](./checklists/p2_router.md)
   - 2026-01-27: `router/router_v1.select_candidates` がカテゴリ/グロスヘッドルームを参照してスコアへボーナス/ペナルティを適用し、理由ログへ残差状況を記録するよう拡張。`tests/test_router_v1.py` にヘッドルーム差分のスコア回帰を追加し、`docs/checklists/p2_router.md` の DoD を更新。
   - 2026-02-05: `scripts/build_router_snapshot.py` に `--correlation-window-minutes` を追加し、相関行列と併せて窓幅メタデータを `telemetry.json` / ポートフォリオサマリーへ保存。`PortfolioTelemetry` / `PortfolioState` が新フィールドを保持できるよう拡張し、`tests/test_report_portfolio_summary.py` に CLI 回帰とヘルプ出力確認を追加。
   - 2026-02-07: `core/router_pipeline.manifest_category_budget` で manifest `governance.category_budget_pct` を吸い上げつつ、`scripts/build_router_snapshot.py --category-budget-csv` から外部 CSV を取り込んで `telemetry.json` へ集約。`router_v1` はカテゴリ予算超過時に `status=warning|breach` を理由ログへ記録し、段階的にペナルティを強化する。`tests/test_router_pipeline.py` / `tests/test_router_v1.py` へカテゴリ予算ヘッドルームとスコア調整の回帰を追加。

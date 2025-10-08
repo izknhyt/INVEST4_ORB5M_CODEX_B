@@ -338,9 +338,11 @@ def ensure_checklist_note(block: List[str], task_id: str | None) -> List[str]:
         return block
     slug = slugify_task_id(task_id)
     target_path = f"{CHECKLIST_DIR}/{slug}.md"
+    template_link = CHECKLIST_TEMPLATE.replace("docs/", "./", 1)
+    target_link = target_path.replace("docs/", "./", 1)
     note = (
-        f"  - DoD チェックリスト: [{CHECKLIST_TEMPLATE}]({CHECKLIST_TEMPLATE}) を"
-        f" [{target_path}]({target_path}) にコピーし、進捗リンクを更新する。"
+        f"  - DoD チェックリスト: [{CHECKLIST_TEMPLATE}]({template_link}) を"
+        f" [{target_path}]({target_link}) にコピーし、進捗リンクを更新する。"
     )
     for line in block:
         if "DoD チェックリスト" in line:
@@ -561,8 +563,8 @@ def apply_next_task_template(
         pending_questions,
     )
     rendered_template = _render_template(template_lines, context)
-    state_template = list(rendered_template)
-    docs_template = list(rendered_template)
+    state_template = [line.replace("](./", "](docs/") for line in rendered_template]
+    docs_template = [line.replace("](docs/", "](./") for line in rendered_template]
 
     state_lines = read_lines(STATE_PATH)
     state_lines, state_block = remove_state_entry(state_lines, anchor)
