@@ -8,7 +8,7 @@
 ## 1. 作業フロー
 1. バックログの P0/P1 から対象タスクを選定し、想定成果物（コード／ドキュメント／レポート）を英語でメモする。
 2. 関連ディレクトリの README や設計資料を確認して依存スクリプトや必要テストを洗い出す。
-3. 実装後は `python3 -m pytest` を実行し、必要に応じて `python3 scripts/run_sim.py --csv <sample>` など最小検証を追加で行う。
+3. 実装後は `python3 -m pytest` を実行し、必要に応じて `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv` など最小検証を追加で行う。
 4. 成果を反映した後は `docs/task_backlog.md` や関連ドキュメントを更新し、リンクや補足を残す。
 5. コミットメッセージと PR 説明には対応タスク・主要変更点・実行テストを英語で記載し、PR の最終サマリーは日本語でまとめる。
 

@@ -8,7 +8,7 @@
 ## Workflow Expectations
 1. Select a task from the P0/P1 backlog, and jot down the intended deliverables (code, docs, reports) in English notes.
 2. Inspect directory-level READMEs or design specs to identify dependencies and required tests before changing files.
-3. After implementation, run `python3 -m pytest` and add targeted validations such as `python3 scripts/run_sim.py --csv <sample>` when needed.
+3. After implementation, run `python3 -m pytest` and add targeted validations such as `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv` when needed.
 4. Update [docs/task_backlog.md](docs/task_backlog.md) and any related documents to reflect the completed work, adding links or commentary.
 5. Write commit messages and PR descriptions in English covering task context, major changes, and executed tests, then summarize the PR in Japanese.
 
