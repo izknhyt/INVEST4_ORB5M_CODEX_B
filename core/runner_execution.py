@@ -72,6 +72,26 @@ class RunnerExecutionManager:
             return 1.0
         return prob
 
+    @staticmethod
+    def _should_count_ev_pass(ev_result: Any, calibrating: bool) -> bool:
+        """Determine whether EV pass metrics should increment."""
+        outcome = getattr(ev_result, "outcome", None)
+        if outcome is None or not getattr(outcome, "passed", False):
+            return False
+        if calibrating:
+            return True
+        bypass = bool(getattr(ev_result, "bypass", False))
+        if not bypass:
+            return True
+        ev_lcb = getattr(ev_result, "ev_lcb", None)
+        threshold = getattr(ev_result, "threshold_lcb", None)
+        if ev_lcb is None or threshold is None:
+            return True
+        try:
+            return float(ev_lcb) >= float(threshold)
+        except (TypeError, ValueError):
+            return True
+
     # ----- Position management ----------------------------------------------------
     def compute_exit_decision(
         self,
@@ -274,7 +294,6 @@ class RunnerExecutionManager:
             runner.debug_counts["no_breakout"] += 1
             runner._append_debug_record("no_breakout", ts=runner._last_timestamp)
             return
-        runner._increment_daily("breakouts")
         entry_result = runner._evaluate_entry_conditions(
             pending=pending,
             features=features,
@@ -307,47 +326,91 @@ class RunnerExecutionManager:
         intents = list(runner.stg.signals())
         if not intents:
             runner.debug_counts["gate_block"] += 1
+            runner._increment_daily("gate_block")
             return
-        intent = intents[0]
-        spec = OrderSpec(
-            side=intent.side,
-            entry=intent.price,
-            tp_pips=intent.oco["tp_pips"],
-            sl_pips=intent.oco["sl_pips"],
-            trail_pips=intent.oco.get("trail_pips", 0.0),
-            slip_cap_pip=features.ctx["slip_cap_pip"],
+
+        additional_intents = len(intents) - 1
+        if additional_intents > 0:
+            runner._increment_daily("gate_pass", additional_intents)
+            if self._should_count_ev_pass(ev_result, calibrating):
+                runner._increment_daily("ev_pass", additional_intents)
+
+        fill_engine = (
+            runner.fill_engine_c if mode == "conservative" else runner.fill_engine_b
         )
-        fill_engine = runner.fill_engine_c if mode == "conservative" else runner.fill_engine_b
-        result = fill_engine.simulate(
-            {
-                "o": bar["o"],
-                "h": bar["h"],
-                "l": bar["l"],
-                "c": bar["c"],
-                "pip": pip_size_value,
-                "spread": bar["spread"],
-            },
-            spec,
-        )
-        if not result.get("fill"):
-            return
-        trade_ctx_snapshot = runner._compose_trade_context_snapshot(
-            ctx=sizing_ctx,
-            features=features,
-        )
-        state = self.process_fill_result(
-            intent=intent,
-            spec=spec,
-            result=result,
-            bar=bar,
-            ctx=features.ctx,
-            ctx_dbg=sizing_ctx,
-            trade_ctx_snapshot=trade_ctx_snapshot,
-            calibrating=calibrating,
-            pip_size_value=pip_size_value,
-        )
-        if not calibrating and runner._warmup_left > 0:
-            runner._warmup_left -= 1
+        bar_ctx = {
+            "o": bar["o"],
+            "h": bar["h"],
+            "l": bar["l"],
+            "c": bar["c"],
+            "pip": pip_size_value,
+            "spread": bar["spread"],
+        }
+
+        current_ev_result = ev_result
+        base_sizing_ctx = sizing_ctx
+
+        for index, intent in enumerate(intents):
+            if (
+                not calibrating
+                and current_ev_result.bypass
+                and runner._warmup_left <= 0
+            ):
+                fresh_ev_result = runner._evaluate_ev_threshold(
+                    entry=entry_result,
+                    pending=pending,
+                    calibrating=calibrating,
+                    timestamp=runner._last_timestamp,
+                )
+                if not fresh_ev_result.outcome.passed:
+                    break
+                fresh_ev_result.apply_to(features.ctx)
+                fresh_sizing_result = runner._check_slip_and_sizing(
+                    ctx=fresh_ev_result.context,
+                    ev_result=fresh_ev_result,
+                    calibrating=calibrating,
+                    timestamp=runner._last_timestamp,
+                )
+                if not fresh_sizing_result.outcome.passed:
+                    break
+                fresh_sizing_result.apply_to(features.ctx)
+                current_ev_result = fresh_ev_result
+                base_sizing_ctx = fresh_sizing_result.context
+
+            if index == 0:
+                ctx_for_intent = base_sizing_ctx
+            else:
+                ctx_for_intent = SizingContext(**base_sizing_ctx._constructor_kwargs())
+
+            runner._increment_daily("breakouts")
+            spec = OrderSpec(
+                side=intent.side,
+                entry=intent.price,
+                tp_pips=intent.oco["tp_pips"],
+                sl_pips=intent.oco["sl_pips"],
+                trail_pips=intent.oco.get("trail_pips", 0.0),
+                slip_cap_pip=features.ctx["slip_cap_pip"],
+            )
+            result = fill_engine.simulate(bar_ctx, spec)
+            if not result.get("fill"):
+                continue
+            trade_ctx_snapshot = runner._compose_trade_context_snapshot(
+                ctx=ctx_for_intent,
+                features=features,
+            )
+            self.process_fill_result(
+                intent=intent,
+                spec=spec,
+                result=result,
+                bar=bar,
+                ctx=features.ctx,
+                ctx_dbg=ctx_for_intent,
+                trade_ctx_snapshot=trade_ctx_snapshot,
+                calibrating=calibrating,
+                pip_size_value=pip_size_value,
+            )
+            if not calibrating and runner._warmup_left > 0:
+                runner._warmup_left -= 1
 
     def process_fill_result(
         self,
