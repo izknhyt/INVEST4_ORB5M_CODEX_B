@@ -98,7 +98,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 
 **完了記録**
 - `docs/checklists/p1-07_phase1_bug_refactor.md` へ調査チェックボード・テスト手順・リファクタリング計画テンプレ・ドキュメント更新チェックを追加し、DoD セクションの項目を全て充足。
-- `docs/todo_next.md` の Ready から当該タスクを除外し、Archive へ移動。`state.md` の `## Log` に完了メモを追記し、`## Next Task` からアンカーを取り外した。
+- `docs/todo_next.md` の Ready から当該タスクを除外し、[docs/todo_next_archive.md](docs/todo_next_archive.md) へ移動。`state.md` の `## Log` に完了メモを追記し、`## Next Task` からアンカーを取り外した。
 - バックログ本節をクローズ扱いに変更し、後続作業は必要に応じて新タスク（例: P2 系列）として起票する方針。
 
 **進捗メモ（アーカイブ）**

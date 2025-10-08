@@ -55,7 +55,7 @@ python3 scripts/manage_task_cycle.py --dry-run finish-task \
     --task-id P1-07
 ```
 
-ドライランで内容を確認したうえで `--dry-run` を外す。完了後は `state.md` と `docs/todo_next.md` の該当ブロックを Archive/Log へ移動する。
+ドライランで内容を確認したうえで `--dry-run` を外す。完了後は `state.md` の該当ブロックを Log へ移し、[docs/todo_next_archive.md](../todo_next_archive.md) へエントリを移動する。
 
 ## リファクタリング計画テンプレート
 - [x] リファクタリング候補を「影響範囲」「期待効果」「リスク」「リグレッションテスト」の列で整理するテンプレートを追加した。
@@ -107,4 +107,4 @@ python3 scripts/manage_task_cycle.py --dry-run finish-task \
 ## クローズ条件
 - [x] 主要バグ観点（実行系、戦略ロジック、データパイプライン、ドキュメントギャップ）について調査完了/未解決/フォローアップのステータスが整理され、`docs/todo_next.md` へリンクされている。
 - [x] リファクタリング候補リストに優先度付けと担当候補が記載され、次フェーズ以降に引き継ぐための TODO が残っていない。
-- [x] 本チェックリストをすべて更新し、`docs/task_backlog.md` / `docs/todo_next.md` / `state.md` の該当エントリを Archive/Log へ移動した。
+- [x] 本チェックリストをすべて更新し、`docs/task_backlog.md` / [docs/todo_next_archive.md](../todo_next_archive.md) / `state.md` の該当エントリを Archive/Log へ移動した。
