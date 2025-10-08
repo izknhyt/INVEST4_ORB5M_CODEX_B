@@ -433,6 +433,43 @@ def test_run_sim_relative_out_dir_resolves_to_repo(
         shutil.rmtree(resolved_base, ignore_errors=True)
 
 
+def test_run_sim_relative_json_out_resolves_to_repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest_path = _write_manifest(tmp_path)
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(CSV_CONTENT, encoding="utf-8")
+
+    json_relative = Path("runs") / f"cli_{uuid.uuid4().hex}.json"
+    json_expected = ROOT_PATH / json_relative
+
+    if json_expected.exists():
+        json_expected.unlink()
+
+    monkeypatch.chdir(tmp_path)
+
+    try:
+        rc = run_sim_main(
+            [
+                "--manifest",
+                str(manifest_path),
+                "--csv",
+                str(csv_path),
+                "--json-out",
+                str(json_relative),
+            ]
+        )
+
+        assert rc == 0
+        assert json_expected.exists()
+        assert json_expected.parent == ROOT_PATH / "runs"
+        data = json.loads(json_expected.read_text(encoding="utf-8"))
+        assert data.get("symbol") == "USDJPY"
+    finally:
+        if json_expected.exists():
+            json_expected.unlink()
+
+
 def test_run_sim_reports_aggregate_ev_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

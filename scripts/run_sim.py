@@ -435,11 +435,21 @@ def _prepare_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
         raise SystemExit(json.dumps({"error": "csv_required"}))
     csv_path = _resolve_repo_path(Path(csv_path_value))
 
-    json_out: Optional[Path]
+    json_out_value: Optional[Path]
     if args.json_out:
-        json_out = Path(args.json_out)
+        json_out_value = Path(args.json_out)
     elif manifest_cli.get("json_out"):
-        json_out = Path(manifest_cli["json_out"])
+        json_out_value = Path(manifest_cli["json_out"])
+    else:
+        json_out_value = None
+
+    json_out: Optional[Path]
+    if json_out_value is not None:
+        json_out = (
+            json_out_value
+            if json_out_value.is_absolute()
+            else _resolve_repo_path(json_out_value)
+        )
     else:
         json_out = None
 
