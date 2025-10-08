@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-05-03: Promoted docs/task_backlog.md P0-12 / P0-07 entries to headings with explicit anchors and confirmed docs/development_roadmap.md links resolve.
 - 2026-05-02: Updated `docs/todo_next_archive.md` P2-01 DoD 行のリンク表示を `p2_manifest.md` へ揃え、`docs/checklists/` のファイル構成と一致することを確認。
 - 2026-05-01: Refreshed `docs/development_roadmap.md` mid-term EV calibration note to link the existing `docs/ev_tuning.md` procedures and drop the placeholder wording。
 - 2026-04-30: Updated `docs/todo_next_archive.md` so the P2-01 archive references `./checklists/p2_manifest.md`, fixed remaining `p2-01` checklist slugs, and re-ran `rg 'docs/checklists/' docs/todo_next_archive.md` to confirm link targets。
