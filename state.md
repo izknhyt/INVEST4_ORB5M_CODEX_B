@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-04-20: P1 バックログを docs/task_backlog_p1_archive.md へ移設し、旧アンカー参照をアーカイブへ更新。
 - 2026-04-19: `docs/todo_next.md` の Archive セクション文面を整理し、`manage_task_cycle` プレースホルダのみを残したポインタへ刷新。`docs/codex_quickstart.md` / `docs/todo_next_archive.md` も新アーカイブ参照へ揃え、クロスドキュメントの参照先を統一。
 - 2026-04-18: `docs/todo_next.md` の Archive セクションを新設した [docs/todo_next_archive.md](docs/todo_next_archive.md) へ移設し、プレースホルダとアンカー検知用コメントを残した。README / codex ワークフロードキュメント / DoD テンプレ類の参照先を新アーカイブへ更新。
 - 2026-04-17: Observability dashboard pipeline を実装し、`analysis/dashboard/` のローダーと `analysis/export_dashboard_data.py` CLI で EV/スリッページ/勝率LCB/ターンオーバーを統合。`analysis/portfolio_monitor.ipynb` と `docs/observability_dashboard.md` を追加し、`docs/task_backlog.md` を更新。`python3 -m pytest` と `python3 analysis/export_dashboard_data.py --out-json /tmp/dashboard.json --portfolio-telemetry reports/portfolio_samples/router_demo/telemetry.json` を実行。
@@ -277,8 +278,8 @@
 - 2025-12-07: `router/router_v1.select_candidates` で `ev_lcb` 理由文字列の生成時に `float` キャストを挟み、変換失敗時は警告ログへ回して理由に追加しないよう調整。`python3 -m pytest tests/test_router_v1.py` を実行しフォーマット例外が発生しないことを確認。
 - 2025-12-06: `core/runner._reset_runtime_state` で `Metrics(starting_equity=self.equity)` を使用し、再初期化時にエクイティカーブが口座初期値から始まるよう調整。`Metrics.record_trade` でも空カーブ時に初期値を補完し、`docs/backtest_runner_logging.md` へベースライン記述を追記。`python3 -m pytest tests/test_runner.py` を実行して Sharpe/最大DD 計算が期待通り維持されることを確認。
 - 2025-12-05: `core/runner._build_ctx` で `realized_vol` が `NaN` を返しても RV バンド計算が破綻しないようにガードを追加。`python3 -m pytest tests/test_runner.py tests/test_run_daily_workflow.py` を実行して回帰が維持されることを確認。
-- [P1-04] 2025-10-16 価格インジェストAPI基盤整備 — DoD: [docs/task_backlog.md#p1-04-価格インジェストapi基盤整備](docs/task_backlog.md#p1-04-価格インジェストapi基盤整備) — Dukascopy ベースの自動インジェストを正式経路として仕上げ、REST/API ルートは保留ステータスで再開条件を整理する。
-  - Backlog Anchor: [価格インジェストAPI基盤整備 (P1-04)](docs/task_backlog.md#p1-04-価格インジェストapi基盤整備)
+- [P1-04] 2025-10-16 価格インジェストAPI基盤整備 — DoD: [docs/task_backlog_p1_archive.md#p1-04-価格インジェストapi基盤整備](docs/task_backlog_p1_archive.md#p1-04-価格インジェストapi基盤整備) — Dukascopy ベースの自動インジェストを正式経路として仕上げ、REST/API ルートは保留ステータスで再開条件を整理する。
+  - Backlog Anchor: [価格インジェストAPI基盤整備 (P1-04)](docs/task_backlog_p1_archive.md#p1-04-価格インジェストapi基盤整備)
   - Vision / Runbook References:
     - [readme/設計方針（投資_3_）v_1.md](readme/設計方針（投資_3_）v_1.md)
     - [docs/state_runbook.md](docs/state_runbook.md)
@@ -326,8 +327,8 @@
   - 2025-11-08: `run_daily_workflow.py --ingest --use-dukascopy` 実行時に `dukascopy_python` が未導入でも yfinance フォールバックで継続できるようにし、pytest (`tests/test_run_daily_workflow.py::test_dukascopy_missing_dependency_falls_back_to_yfinance`) で回帰確認。
   - 2025-11-09: yfinance フォールバック時に `--yfinance-lookback-minutes` を参照して再取得ウィンドウを決定するよう更新。冗長な再処理を抑えつつ長期停止後に手動調整できるよう、README / state runbook / 回帰テスト / backlog メモを同期。
 
-- [P1-07] 2025-12-05 フェーズ1 バグチェック & リファクタリング運用整備 — DoD: [docs/task_backlog.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備](docs/task_backlog.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備) — フェーズ1の資産を対象にバグチェック観点とリファクタリング計画を共通化し、継続作業の引き継ぎを容易にする。
-  - Backlog Anchor: [フェーズ1 バグチェック & リファクタリング運用整備 (P1-07)](docs/task_backlog.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備)
+- [P1-07] 2025-12-05 フェーズ1 バグチェック & リファクタリング運用整備 — DoD: [docs/task_backlog_p1_archive.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備](docs/task_backlog_p1_archive.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備) — フェーズ1の資産を対象にバグチェック観点とリファクタリング計画を共通化し、継続作業の引き継ぎを容易にする。
+  - Backlog Anchor: [フェーズ1 バグチェック & リファクタリング運用整備 (P1-07)](docs/task_backlog_p1_archive.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備)
   - Vision / Runbook References:
     - [docs/checklists/p1-07_phase1_bug_refactor.md](docs/checklists/p1-07_phase1_bug_refactor.md)
     - [docs/codex_workflow.md](docs/codex_workflow.md)
@@ -346,8 +347,8 @@
 - 継続中に要調整点が出た場合はエントリ内に追記し、完了時にログへ移した後も追跡できるよう関連ドキュメントへリンクを残す。
 - 新規に `Next Task` へ追加する際は、方針整合性を確認するために [docs/logic_overview.md](docs/logic_overview.md) や [docs/simulation_plan.md](docs/simulation_plan.md) を参照し、必要なら関連メモへリンクする。
 
-- [P1-01] 2025-09-28 ローリング検証パイプライン — DoD: [docs/task_backlog.md#p1-01-ローリング検証パイプライン](docs/task_backlog.md#p1-01-ローリング検証パイプライン) — DoDを再確認し、365/180/90Dローリング更新と閾値監視の自動運用に向けたタスク整理を開始。
-  - Backlog Anchor: [ローリング検証パイプライン (P1-01)](docs/task_backlog.md#p1-01-ローリング検証パイプライン)
+- [P1-01] 2025-09-28 ローリング検証パイプライン — DoD: [docs/task_backlog_p1_archive.md#p1-01-ローリング検証パイプライン](docs/task_backlog_p1_archive.md#p1-01-ローリング検証パイプライン) — DoDを再確認し、365/180/90Dローリング更新と閾値監視の自動運用に向けたタスク整理を開始。
+  - Backlog Anchor: [ローリング検証パイプライン (P1-01)](docs/task_backlog_p1_archive.md#p1-01-ローリング検証パイプライン)
   - Vision / Runbook References:
     - [docs/logic_overview.md](docs/logic_overview.md)
     - [docs/simulation_plan.md](docs/simulation_plan.md)

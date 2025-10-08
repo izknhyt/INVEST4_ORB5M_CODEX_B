@@ -3,7 +3,7 @@
 This helper centralises updates to ``state.md`` and ``docs/todo_next.md`` so the
 tracking workflow stays consistent.  The script understands task entries by the
 ``docs/task_backlog.md`` anchor (for example
-``docs/task_backlog.md#p1-02-インシデントリプレイテンプレート``) and can
+``docs/task_backlog_p1_archive.md#p1-02-インシデントリプレイテンプレート``) and can
 move the matching block across sections in both files.
 
 Usage summary:
@@ -13,18 +13,18 @@ python3 scripts/sync_task_docs.py record \
     --task-id P1-02 \
     --title "インシデントリプレイテンプレート" \
     --date 2024-06-20 \
-    --anchor docs/task_backlog.md#p1-02-インシデントリプレイテンプレート \
+    --anchor docs/task_backlog_p1_archive.md#p1-02-インシデントリプレイテンプレート \
     --doc-note "Notebook テンプレ整備の初期設計" \
     --doc-section Ready
 
 python3 scripts/sync_task_docs.py promote \
-    --anchor docs/task_backlog.md#p1-02-インシデントリプレイテンプレート \
+    --anchor docs/task_backlog_p1_archive.md#p1-02-インシデントリプレイテンプレート \
     --task-id P1-02 \
     --title "インシデントリプレイテンプレート" \
     --date 2024-06-21
 
 python3 scripts/sync_task_docs.py complete \
-    --anchor docs/task_backlog.md#p1-02-インシデントリプレイテンプレート \
+    --anchor docs/task_backlog_p1_archive.md#p1-02-インシデントリプレイテンプレート \
     --date 2024-06-22 \
     --note "Notebook テンプレを整備し、incident 再現テストを保存"
 ```
@@ -248,11 +248,16 @@ def _merge_doc_template(block: List[str], template_lines: List[str]) -> List[str
 
 def normalize_anchor(anchor: str) -> str:
     anchor = anchor.strip()
-    prefix = "docs/task_backlog.md#"
-    if not anchor.startswith(prefix):
-        raise SyncError("Anchor must include 'docs/task_backlog.md#'")
+    if "#" not in anchor:
+        raise SyncError("Anchor must include a fragment")
 
-    fragment = anchor[len(prefix) :]
+    path, fragment = anchor.split("#", 1)
+    path = path.strip()
+    allowed_paths = {"docs/task_backlog.md", "docs/task_backlog_p1_archive.md"}
+    if path not in allowed_paths:
+        allowed = " or ".join(sorted(allowed_paths))
+        raise SyncError(f"Anchor must include '{allowed}'")
+
     fragment = unicodedata.normalize("NFKC", fragment).strip()
     if not fragment:
         raise SyncError("Anchor fragment cannot be empty")
@@ -261,7 +266,7 @@ def normalize_anchor(anchor: str) -> str:
     if not fragment:
         raise SyncError("Anchor fragment cannot be empty")
 
-    return f"{prefix}{fragment}"
+    return f"{path}#{fragment}"
 
 
 def ensure_anchor_comment(line: str, anchor: str) -> str:

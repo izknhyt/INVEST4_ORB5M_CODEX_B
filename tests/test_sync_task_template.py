@@ -144,8 +144,8 @@ def test_apply_next_task_template_defaults_ready_section(tmp_path, monkeypatch):
 
 
 def test_normalize_anchor_slugifies_uppercase_fragment() -> None:
-    anchor = "docs/task_backlog.md#P1-Example Task  "
+    anchor = "docs/task_backlog_p1_archive.md#P1-Example Task  "
     assert (
         sync.normalize_anchor(anchor)
-        == "docs/task_backlog.md#p1-example-task"
+        == "docs/task_backlog_p1_archive.md#p1-example-task"
     )
