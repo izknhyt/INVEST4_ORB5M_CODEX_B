@@ -8,7 +8,7 @@
 
 ## Ready 昇格チェック
 - [x] `state.md` / `docs/todo_next.md` に本タスクのテンプレートブロックを作成し、アンカーと Pending Questions を設定済み。
-- [x] `docs/codex_workflow.md` / `docs/state_runbook.md` の該当手順を再読し、既存ワークフローと矛盾しないことを確認した。
+- [x] `docs/codex_quickstart.md` / `docs/codex_workflow.md` / `docs/state_runbook.md` の該当手順を再読し、既存ワークフローと矛盾しないことを確認した。
 - [x] フェーズ1の既存成果 (`docs/progress_phase1.md`) とバグ調査ログ (`ops/incidents/` など) を確認し、抜け漏れがないか把握した。
 
 > Ready 昇格時に参照したログ: `state.md` 2025-12-05 エントリ、`docs/todo_next.md#ready` の P1-07 ノート、`ops/incidents/` 直近 3 件のリプレイ記録。
@@ -25,7 +25,7 @@
 | `scripts/run_daily_workflow.py` | 価格インジェストのフォールバック鎖と CLI 引数解決 | ✅ 2026-01-07 | `tests/test_run_daily_workflow.py` のフォールバック系シナリオが全緑。`state.md` 2026-01-07 ログでシンボル固有 CSV を再検証済み。 | 2026-01-07 |
 | `core/runner.py` / sizing | 日次メトリクス集計とサイジングガード | ✅ 2025-12-30 | `_increment_daily` / `_update_rv_thresholds` 抽出後に `python3 -m pytest tests/test_runner.py` 150 件が成功。 | 2025-12-30 |
 | データパイプライン (`scripts/pull_prices.py`, `check_benchmark_freshness.py`) | 欠損・遅延ハンドリングと鮮度アラート | ✅ 2025-11-18 | `ingest_meta` の `synthetic_local` 取扱いを `tests/test_check_benchmark_freshness.py` で固定。合成バー時は advisory へ降格。 | 2025-11-18 |
-| ドキュメント (`docs/benchmark_runbook.md`, `docs/state_runbook.md`) | 再実行手順とフォールバック手順の整合 | ✅ 2025-11-20 | フォールバックチェーンと CLI 例を runbook に統合済み。今後の更新は `docs/codex_workflow.md` にリンク。 | 2025-11-20 |
+| ドキュメント (`docs/benchmark_runbook.md`, `docs/state_runbook.md`) | 再実行手順とフォールバック手順の整合 | ✅ 2025-11-20 | フォールバックチェーンと CLI 例を runbook に統合済み。今後の更新は `docs/codex_quickstart.md` と `docs/codex_workflow.md` にリンク。 | 2025-11-20 |
 
 調査済み項目は ✅ と更新日を記載し、未完了の場合は「⏳ yyyy-mm-dd」を記入する。新たなバグ観点を追加した際は本テーブルへ行を追記し、`state.md` のログと照合する。
 
@@ -81,6 +81,7 @@ python3 scripts/manage_task_cycle.py --dry-run finish-task \
 - [ ] README / readme/配下
 - [ ] docs/state_runbook.md
 - [ ] docs/benchmark_runbook.md
+- [ ] docs/codex_quickstart.md
 - [ ] docs/codex_workflow.md
 - [ ] docs/task_backlog.md
 - [ ] state.md

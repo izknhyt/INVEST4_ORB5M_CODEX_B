@@ -1,78 +1,68 @@
 # Codex Session Operations Guide
 
-This guide compresses everything Codex agents need to keep tasks moving without losing context. Use it together with `docs/state_runbook.md` (state sync details) and `docs/task_backlog.md` (priorities / DoD).
+One-page の流れは [docs/codex_quickstart.md](codex_quickstart.md) に集約しています。本ガイドはクイックスタートで触れた各ステップを深掘りし、アンカー/テンプレート/スクリプトの使い分けを整理した詳細版です。
 
-## TL;DR Quickstart
-1. **Read the ground truth.** Open `state.md` → note the active `Next Task`, open questions, approvals in flight. Jump to the matching anchor in `docs/task_backlog.md` to confirm DoD/priority.
-2. **Pick or promote the task.** If the task is not under `In Progress`, run a dry-run of the start helper to validate anchors and dates:
-   ```bash
-   python3 scripts/manage_task_cycle.py --dry-run start-task \
-       --anchor <docs/task_backlog.md#anchor> \
-       --record-date <YYYY-MM-DD> --promote-date <YYYY-MM-DD> \
-       --task-id <ID> --title "<Task Title>" \
-       --state-note "<One-line status>" \
-       --doc-note "<docs/todo_next.md note>" \
-       --doc-section <Ready|In Progress|Pending Review>
-   ```
-   Remove `--dry-run` once the preview looks correct.
-3. **Work in small slices.** After every substantive change: update docs, run targeted tests (see below), and log findings back in `state.md` / `docs/todo_next.md` before switching context.
-4. **Wrap up.** Use `scripts/manage_task_cycle.py finish-task` (dry-run first) so `state.md`, `docs/todo_next.md`, and the backlog stay synchronized. Note any approvals granted/denied.
+## このガイドの使い方
+- **まずクイックスタートを確認** — `state.md`・`docs/task_backlog.md`・`docs/todo_next.md` の同期手順はクイックスタートで概観できます。
+- **作業前の再読ポイント** — 影響するランブック（例: `docs/state_runbook.md` / `docs/benchmark_runbook.md`）と該当チェックリストを開いた状態で着手する。
+- **作業後のクロスチェック** — `README.md` の Codex セクションと本ドキュメントの記述が揃っているかを確認し、差異があれば同じコミットで修正する。
 
-### Rapid test matrix
-Run the smallest relevant tests before handing off a change. Keep these commands handy:
+## Quickstart の補足
+クイックスタートの 3 ステップ（準備 → 実装ループ → Wrap-up）を以下の観点から補足します。
 
-```
-python3 -m pytest tests/test_run_sim_cli.py           # run_sim / CLI changes
-python3 -m pytest tests/test_runner.py                # BacktestRunner core
-python3 -m pytest tests/test_run_daily_workflow.py    # daily workflow pipeline
-python3 -m pytest                                      # full sweep when time allows
-```
+1. **準備**
+   - `state.md` と `docs/todo_next.md` のアンカーが一致しているか確認し、ズレていたら `scripts/manage_task_cycle.py --dry-run start-task ...` で出力をチェックしてから整合させる。
+   - Ready から In Progress へ引き上げる場合は、DoD チェックリストを `docs/checklists/<task>.md` に配置し、リンクを `docs/todo_next.md` に追加する。
+2. **実装ループ**
+   - テストは最小単位で即時に実行する（例: CLI を触ったら `python3 -m pytest tests/test_run_sim_cli.py`）。
+   - 仕様変更に伴うドキュメント更新は「同じ PR / コミット内で完結」が原則。特にランブックと README の差異が残らないよう注意する。
+   - 進捗を `state.md` と `docs/todo_next.md` の両方に書く。クイックスタートに記載した順番（state → todo）を守ると `manage_task_cycle` でも衝突しない。
+3. **Wrap-up**
+   - `scripts/manage_task_cycle.py --dry-run finish-task --anchor <...>` で close-out を確認し、出力が `sync_task_docs.py complete` の呼び出しになっているか見る。
+   - `docs/task_backlog.md` の該当項目に進捗ノートを追加し、完了した場合はバックログから削除する。DoD が残っている場合は未完了扱いにする。
 
-## Session Loop (Expanded)
+## Session Loop（詳細）
 
-<!-- REVIEW: Added explicit pre-session anchor per reviewer request so cross-doc links remain stable. -->
 ### <a id="pre-session-routine"></a>1. Pre-session routine
-- Read `state.md` → `Next Task`, pending approvals, open questions.
-- Cross-check `docs/task_backlog.md` (DoD) and `docs/todo_next.md` (current section). Keep anchors consistent.
-- Duplicate templates when needed:
-  - `docs/templates/next_task_entry.md` → new `state.md` entry.
-  - `docs/templates/dod_checklist.md` → `docs/checklists/<task-slug>.md`.
-- Confirm sandbox context from the IDE payload.
+- `state.md` → `## Next Task` のメモ・Pending Questions・承認待ちを確認。
+- `docs/task_backlog.md` の DoD と進捗ノートを読み、達成条件・レビュー観点を共有理解にする。
+- テンプレ適用:
+  - `docs/templates/next_task_entry.md` → `state.md` の追記に使用。
+  - `docs/templates/dod_checklist.md` → `docs/checklists/<task-slug>.md` として保存。
+- Sandbox 条件（ファイル書き込み/ネットワーク/承認フロー）を `docs/codex_cloud_notes.md` で再確認する。
 
 ### 2. While implementing
-- Default goal: P0/P1 backlog first. If new work emerges, add it to the backlog with priority before starting.
-- Keep diffs tight; favour feature flags for risky refactors. Document flags in README/config comments.
-- Record approvals in the active memo: command requested, reason, outcome.
-- When touching data products (`runs/index.csv`, `reports/*`, `ops/state_archive/*`), log reproduction steps in the same commit notes and be prepared to explain in Japanese.
+- **優先順位:** P0 → P1 → P2 の順で対応。新しい課題が見つかったら backlog に登録してから着手する。
+- **スコープ管理:** 大規模変更は feature flag を利用し、`README.md` と該当ランブックにフラグ利用手順を残す。
+- **承認ログ:** 依頼した承認内容（コマンド・目的・結果）を `state.md` に追記。
+- **データプロダクト:** `runs/` / `reports/` / `ops/` など成果物を触る場合はコミットメッセージに再現コマンドを記録。
 
 ### 3. Wrap-up
-- Update `state.md` (`Next Task` cleared or moved), `docs/todo_next.md` (archive/memo), and the backlog (remove finished tasks once archived elsewhere).
-- Capture verification evidence (tests run, sample commands) directly in the session summary.
-- Leave `docs/task_backlog.md` with only open tasks—completed entries should move into state/todo logs instead of lingering here.
+- `state.md` → `## Log` にセッション結果を追記し、`## Next Task` から完了したタスクを除外。
+- `docs/todo_next.md` は `In Progress` → `Archive` へ移動し、アンカーコメント（`<!-- anchor: ... -->`）が残っているか確認。
+- `docs/task_backlog.md` の対象項目にリンクやノートを追加する。完了済みなら該当タスクを打ち消し線で囲み、進捗メモを最終ログとして残す。
+- テスト証跡（実行コマンド）はコミットメッセージと PR テンプレの両方に記録する。
 
 ## Sandbox & Approval Guardrails
-- Default harness: `workspace-write` filesystem, `restricted` network, approvals `on-request`.
-- Request approval before: installing packages, hitting external APIs, writing outside the repo, rerunning destructive git commands, or reissuing a command that failed due to sandboxing.
-- Document every approval attempt (whether granted or not) in `state.md`.
-- If the harness runs in read-only mode, plan changes as patches to share with the user; be explicit about files touched.
+- 既定のハーネスは `workspace-write` / `restricted` / approvals `on-request`。
+- 以下の操作は事前承認が必要: 追加パッケージのインストール、外部 API 呼び出し、リポジトリ外書き込み、破壊的な git 操作再実行。
+- 承認リクエストは `state.md` へ「背景・想定コマンド・結果」を記録。
+- Read-only 環境ではパッチ提案に切り替え、触ったファイルと手順を明示する。
 
 ## Command Cheatsheet
 
-| Purpose | Command |
+| 目的 | コマンド |
 | --- | --- |
-| Start task (preview) | `python3 scripts/manage_task_cycle.py --dry-run start-task ...` |
-| Start task (apply) | `python3 scripts/manage_task_cycle.py start-task ...` |
-| Promote Ready → In Progress | `python3 scripts/manage_task_cycle.py promote ...` |
-| Finish task (preview) | `python3 scripts/manage_task_cycle.py --dry-run finish-task ...` |
-| Finish task (apply) | `python3 scripts/manage_task_cycle.py finish-task ...` |
-| Sync state/todo manually | `python3 scripts/sync_task_docs.py record|promote|complete ...` |
-| Quick pytest (CLI) | `python3 -m pytest tests/test_run_sim_cli.py` |
-| Full pytest | `python3 -m pytest` |
+| Ready 昇格（プレビュー） | `python3 scripts/manage_task_cycle.py --dry-run start-task --anchor <...>` |
+| Ready 昇格（適用） | `python3 scripts/manage_task_cycle.py start-task --anchor <...>` |
+| Ready → In Progress のみ | `python3 scripts/manage_task_cycle.py promote --anchor <...>` |
+| タスク完了（プレビュー） | `python3 scripts/manage_task_cycle.py --dry-run finish-task --anchor <...>` |
+| タスク完了（適用） | `python3 scripts/manage_task_cycle.py finish-task --anchor <...>` |
+| 手動同期（record/promote/complete） | `python3 scripts/sync_task_docs.py <subcommand> ...` |
+| 代表的な pytest | `python3 -m pytest tests/test_run_sim_cli.py` / `python3 -m pytest tests/test_runner.py` |
+| フルテスト | `python3 -m pytest` |
 
-<!-- REVIEW: Documented finish-task dry-run walkthrough so reviewers can verify close-out evidence quickly. -->
 ### Finish-task dry-run example
-
-Preview the close-out flow before applying it:
 
 ```bash
 python3 scripts/manage_task_cycle.py --dry-run finish-task \
@@ -81,28 +71,27 @@ python3 scripts/manage_task_cycle.py --dry-run finish-task \
     --note "Captured finish-task dry-run sample for documentation"
 ```
 
-The preview prints the underlying `sync_task_docs.py complete` invocation without mutating `state.md` or `docs/todo_next.md`. Once the output matches expectations, rerun the command without `--dry-run`.
+プレビューでは `sync_task_docs.py complete` がエコーされ、副作用なくコマンドを確認できます。問題なければ `--dry-run` を外して実行してください。
 
-<!-- REVIEW: Added doc-section option breakdown to resolve missing anchor flagged during review. -->
 ## <a id="doc-section-options"></a>Doc Section Options
 
-Use the `--doc-section` flag to control where the helper inserts or updates the task memo in `docs/todo_next.md`:
+`--doc-section` フラグで `docs/todo_next.md` の挿入先を制御します。
 
-| `--doc-section` value | Inserts into… | Typical use case |
+| `--doc-section` 値 | 挿入先 | 使いどころ |
 | --- | --- | --- |
-| `Ready` | `## Ready` | Capturing intake notes before execution. |
-| `In Progress` | `### In Progress` | Active sessions logging day-to-day findings. |
-| `Pending Review` | `### Pending Review` | Handing off work that needs approvals or QA. |
+| `Ready` | `## Ready` | 受付待ちタスクを登録するとき。
+| `In Progress` | `### In Progress` | 現在進行中のメモを更新するとき。
+| `Pending Review` | `### Pending Review` | レビュー待ちの共有や再開時に利用。
 
-When resuming an archived or deferred task, run a dry-run first to confirm the helper locates the existing anchor comment (for example, `<!-- anchor: docs/task_backlog.md#codex-session-operations-guide -->`). If the preview shows a duplicate, cancel the run and fix the anchor before applying.
-
+既存アンカーを持つタスクを再開する際は必ず `--dry-run` で確認し、重複が出る場合はアンカーコメントを修正してから再実行します。
 
 ## Reference Map
-- `docs/state_runbook.md` — deep dive on state synchronization, archival rules, failure recovery.
-- `docs/task_backlog.md` — authoritative list of active work and DoD; remove completed items promptly.
-- `docs/todo_next.md` — near-term actions and parking-lot notes.
-- `docs/codex_cloud_notes.md` — cloud sandbox tips, approval examples.
-- `docs/checklists/*` — task-specific checklists (link from backlog entries as needed).
-- `docs/development_roadmap.md` — phased improvement plan (immediate→long-term) tied back to backlog anchors.
+- `docs/codex_quickstart.md` — 1 ページの流れ、セッション全体のチェックリスト。
+- `docs/state_runbook.md` — state 保存/復元とインシデント運用の詳細な手順。
+- `docs/task_backlog.md` — 優先順位付きタスク一覧と DoD。
+- `docs/todo_next.md` — 直近の作業キューとメモ。
+- `docs/codex_cloud_notes.md` — Sandbox/承認フローの補足。
+- `docs/development_roadmap.md` — 即応〜中期の改善方針。
+- `docs/checklists/*` — タスク固有の DoD。Ready 昇格時にリンクを設定する。
 
-Keep this document close at hand; if the process drifts, update it before starting more tasks so every Codex session inherits the same guardrails.
+クイックスタートと本ガイドを常に同期させ、手順の乖離が生じた場合は最優先で修正してください。
