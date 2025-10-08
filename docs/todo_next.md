@@ -29,9 +29,10 @@
 
 ## Archive（達成済み）
 
-- 過去の達成済みログは [docs/todo_next_archive.md](docs/todo_next_archive.md) へ移動しました。履歴を参照する際はアーカイブファイルを確認してください。
-- `manage_task_cycle` のアンカープレースホルダは下記に残しています（削除しないでください）。
+> 過去の達成済みログは [docs/todo_next_archive.md](docs/todo_next_archive.md) に集約しました。履歴が必要な場合はアーカイブファイルを参照してください。
+> `manage_task_cycle` のアンカープレースホルダのみ下記に残しています（削除しないでください）。
 
+<!-- manage_task_cycle archive placeholder -->
 ✅ <!-- anchor placeholder to satisfy manage_task_cycle start-task detection -->
 - <!-- docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化 -->
   - DoD チェックリスト: [docs/templates/dod_checklist.md](docs/templates/dod_checklist.md) を [docs/checklists/p2_manifest.md](docs/checklists/p2_manifest.md) にコピーし、進捗リンクを更新する。
