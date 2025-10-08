@@ -25,7 +25,7 @@
   - 追加戦略の manifest 整備やカテゴリ配分強化（`docs/checklists/p2_manifest.md`, `docs/checklists/p2_router.md`）を段階的に進める。
   - ルーターの執行メトリクスを拡充し、`scripts/build_router_snapshot.py` のテレメトリ出力と `docs/router_architecture.md` の計画を同期する。
 - **EV プロファイル自動校正フロー** — [docs/task_backlog.md#p3-観測性・レポート自動化](task_backlog.md#p3-観測性・レポート自動化)
-  - `scripts/aggregate_ev.py` のパラメータ調整手順を `docs/ev_tuning.md`（作成予定）と連動させ、DoD に必要なテスト/ログを明示する。
+  - `scripts/aggregate_ev.py` のパラメータ調整手順は [docs/ev_tuning.md](ev_tuning.md) に整理済みなので、DoD に必要なテストやログ要件をそこで明示した内容と同期する。
 
 ## Long Term (3ヶ月〜)
 - **Rust/C++ への I/O/Execution 移行準備** — [docs/task_backlog.md#継続タスク--保守](task_backlog.md#継続タスク--保守)
