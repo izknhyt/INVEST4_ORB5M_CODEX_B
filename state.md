@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-04-21: README のオンデマンドインジェスト CLI 節で `scripts/fetch_prices_api.py` の重複箇条書きを統合し、Sandbox フォールバック説明を保持したまま冗長記述を解消。
 - 2026-04-20: P1 バックログを docs/task_backlog_p1_archive.md へ移設し、旧アンカー参照をアーカイブへ更新。
 - 2026-04-19: `docs/todo_next.md` の Archive セクション文面を整理し、`manage_task_cycle` プレースホルダのみを残したポインタへ刷新。`docs/codex_quickstart.md` / `docs/todo_next_archive.md` も新アーカイブ参照へ揃え、クロスドキュメントの参照先を統一。
 - 2026-04-18: `docs/todo_next.md` の Archive セクションを新設した [docs/todo_next_archive.md](docs/todo_next_archive.md) へ移設し、プレースホルダとアンカー検知用コメントを残した。README / codex ワークフロードキュメント / DoD テンプレ類の参照先を新アーカイブへ更新。
