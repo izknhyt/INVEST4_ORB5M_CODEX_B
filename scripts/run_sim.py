@@ -165,6 +165,24 @@ def load_bars_csv(
 
     loader_stats = stats or CSVLoaderStats()
 
+    def _format_strict_details(
+        reason: str, context: Optional[Dict[str, Any]]
+    ) -> str:
+        parts = [f"skipped={loader_stats.skipped_rows}", f"last_error={reason}"]
+        if isinstance(context, dict):
+            line = context.get("line")
+            if line is not None:
+                parts.append(f"line={line}")
+        return ", ".join(parts)
+
+    def _record_skip(reason: str, context: Optional[Dict[str, Any]] = None) -> None:
+        loader_stats.record_skip(reason, context)
+        if strict:
+            raise CSVFormatError(
+                "rows_skipped",
+                details=_format_strict_details(reason, context),
+            )
+
     def _iter() -> Iterator[Dict[str, Any]]:
         default_tf_normalized = (
             str(default_tf).strip().lower() if default_tf is not None else ""
@@ -208,7 +226,7 @@ def load_bars_csv(
                 context = {"line": reader.line_num, "row": dict(row)}
                 ts_raw = row.get(alias_map["timestamp"])
                 if ts_raw in (None, ""):
-                    loader_stats.record_skip("timestamp_missing", context)
+                    _record_skip("timestamp_missing", context)
                     continue
 
                 try:
@@ -217,7 +235,7 @@ def load_bars_csv(
                     low_px = float(row[alias_map["l"]])
                     close_px = float(row[alias_map["c"]])
                 except (TypeError, ValueError):
-                    loader_stats.record_skip("price_parse_error", context)
+                    _record_skip("price_parse_error", context)
                     continue
 
                 row_symbol: Optional[str]
@@ -246,7 +264,7 @@ def load_bars_csv(
                     try:
                         bar_dt = _normalize_datetime(_parse_iso8601(str(ts_raw)))
                     except ValueError:
-                        loader_stats.record_skip("timestamp_parse_error", context)
+                        _record_skip("timestamp_parse_error", context)
                         continue
                     if start_ts and bar_dt < start_ts:
                         continue
