@@ -20,6 +20,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2025-09-29: Added `docs/codex_workflow.md` to consolidate operational guidance for Codex agents and clarified the relationship with `docs/state_runbook.md` and the template directory.
 - 2025-10-16: Supplemented cloud-run guardrails in `docs/codex_cloud_notes.md` and linked them from the workflow guide to improve sandbox handoffs.
 - 2026-02-13: Refreshed `docs/codex_workflow.md` with sandbox/approval guidance (workspace-write + on-request approvals), highlighted `--doc-section` usage for aligning `docs/todo_next.md`, and reiterated `scripts/manage_task_cycle.py` dry-run examples. Synced references with `docs/state_runbook.md` and template links.
+- 2026-04-17: Implemented the observability dashboard pipeline (`analysis/export_dashboard_data.py`, `analysis/dashboard/*`, `analysis/portfolio_monitor.ipynb`) and documented refresh/reporting expectations in `docs/observability_dashboard.md`.
 
 ## P0: 即着手（オンデマンドインジェスト + 基盤整備）
 - **P0-12 Codex-first documentation cleanup**
