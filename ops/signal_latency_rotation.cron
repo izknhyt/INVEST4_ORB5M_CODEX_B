@@ -1,0 +1,3 @@
+# Example cron configuration for rotating ops/signal_latency.csv (UTC)
+# Replace /opt/codex with the actual repository root on the target host.
+5 0 * * * cd /opt/codex && /usr/bin/env bash ops/rotate_signal_latency.sh >> /var/log/signal_latency_rotation.log 2>&1
