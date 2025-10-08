@@ -23,6 +23,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2026-04-17: Implemented the observability dashboard pipeline (`analysis/export_dashboard_data.py`, `analysis/dashboard/*`, `analysis/portfolio_monitor.ipynb`) and documented refresh/reporting expectations in `docs/observability_dashboard.md`.
 
 ## P0: 即着手（オンデマンドインジェスト + 基盤整備）
+<a id="p0-12-codex-first-documentation-cleanup"></a>
 - **P0-12 Codex-first documentation cleanup**
   - **DoD**: Codex operator workflow has a one-page quickstart (`docs/codex_quickstart.md`), the detailed checklist (`docs/state_runbook.md`) is trimmed to actionable bullet lists, README points to both, and `docs/development_roadmap.md` captures immediate→mid-term improvements with backlog links. Backlogとテンプレートは新フローに沿って更新済みであること。
   - **Notes**: Focus on reducing duplication between `docs/codex_quickstart.md`, `docs/codex_workflow.md`, README, and `docs/state_runbook.md`; ensure sandbox/approval rules stay explicit.
@@ -51,7 +52,8 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   `aggregate_ev.py` が `--out-yaml` を受け取らないことを回帰テストで確認。`python3 -m pytest tests/test_run_sim_cli.py`
   を実行。
 - ~~**state 更新ワーカー**~~ (完了): `scripts/update_state.py` に部分実行ワークフローを実装し、`BacktestRunner.run_partial` と状態スナップショット/EVアーカイブ連携を整備。`ops/state_archive/<strategy>/<symbol>/<mode>/` へ最新5件を保持し、更新後は `scripts/aggregate_ev.py` を自動起動するようにした。
-- ~~**runs/index 再構築スクリプト整備**~~ (完了): `scripts/rebuild_runs_index.py` が `scripts/run_sim.py` の出力列 (k_tr, gate/EV debug など) と派生指標 (win_rate, pnl_per_trade) を欠損なく復元し、`tests/test_rebuild_runs_index.py` で fixtures 検証を追加。
+<a id="p0-07"></a>
+- ~~**P0-07 runs/index 再構築スクリプト整備**~~ (完了): `scripts/rebuild_runs_index.py` が `scripts/run_sim.py` の出力列 (k_tr, gate/EV debug など) と派生指標 (win_rate, pnl_per_trade) を欠損なく復元し、`tests/test_rebuild_runs_index.py` で fixtures 検証を追加。
 - ~~**ベースライン/ローリング run 起動ジョブ**~~ (2024-06-12 完了): `scripts/run_benchmark_pipeline.py` でベースライン/ローリング run → サマリー → スナップショット更新を一括化し、`run_daily_workflow.py --benchmarks` から呼び出せるようにした。`tests/test_run_benchmark_pipeline.py` で順序・引数伝播・失敗処理を回帰テスト化。
   - 2024-06-05: `tests/test_run_benchmark_runs.py` を追加し、`--dry-run`/通常実行の双方で JSON 出力・アラート生成・スナップショット更新が期待通りであることを検証。
 - ~~**P0-09 オンデマンド Day ORB シミュレーション確認**~~ (2026-02-13 完了): `python3 scripts/run_sim.py --csv data/usdjpy_5m_2018-2024_utc.csv --symbol USDJPY --mode conservative --equity 100000` を実行し、最新の Day ORB 状態で 50 件トレード・総損益 -132.09 pips を確認。`ops/state_archive/day_orb_5m.DayORB5m/USDJPY/conservative/20251005_132055.json` を生成し、EV プロファイルを再集計した。
