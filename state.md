@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2025-10-08: Drafted `docs/codex_quickstart.md`, trimmed `docs/state_runbook.md` checklists, refreshed README/roadmap/backlog links, and ran `python3 scripts/manage_task_cycle.py --dry-run finish-task --anchor docs/task_backlog.md#p0-12-codex-first-documentation-cleanup --date 2025-10-08 --note "Refreshed Codex quickstart, state runbook, and roadmap anchors"`.
 - 2026-04-14: Hardened `load_bars_csv` strict enforcement to raise when rows are skipped, extended CLI loader regressions for strict vs tolerant parsing, confirmed script helpers keep `strict=False`, and ran `python3 -m pytest tests/test_run_sim_cli.py`.
 - 2026-04-12: Added manifest instrument selection flags to `scripts/run_sim.py`, refreshed CLI regression/README guidance, and ran `python3 -m pytest`.
 - 2026-04-13: Normalised `scripts/run_sim.py` JSON output path resolution for relative values, added a CLI regression verifying repo-root anchoring, refreshed README guidance, and ran `python3 -m pytest tests/test_run_sim_cli.py`.

@@ -9,6 +9,7 @@
 - [ ] 高レベルのビジョンガイド（例: [docs/logic_overview.md](../logic_overview.md), [docs/simulation_plan.md](../simulation_plan.md)）を再読し、タスク方針が整合している。
 - [ ] 対象フェーズの進捗ノート（例: `docs/progress_phase*.md`）を確認し、前提条件や未解決の検証ギャップがない。
 - [ ] 関連ランブック（例: [docs/state_runbook.md](../state_runbook.md), [docs/benchmark_runbook.md](../benchmark_runbook.md)）を再読し、必要なオペレーション手順が揃っている。
+- [ ] [docs/codex_quickstart.md](../codex_quickstart.md) / [docs/codex_workflow.md](../codex_workflow.md) の該当手順を確認し、アンカーやチェックリストの更新が必要か判断した。
 - [ ] バックログ該当項目の DoD を最新化し、関係者へ共有済みである。
 
 ## バックログ固有の DoD

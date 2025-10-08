@@ -9,12 +9,11 @@
 - 想定環境: 個人開発者が単一PCで実行する前提。社内アーティファクトサーバや大規模配布は不要で、必要な依存はローカル環境で `pip install` すればよい。
 
 ## Codex セッション TL;DR
-- 着手前に `state.md` と `docs/task_backlog.md` のアンカーを確認し、対象タスクの DoD を把握する。
-- `python3 scripts/manage_task_cycle.py --dry-run start-task ...` でアンカーと日付を検証してから作業を開始する。
-- 実装後は関連ドキュメントを同期し、該当テスト（例: `python3 -m pytest tests/test_run_sim_cli.py`）を忘れず実行する。
-- 終了時は `--dry-run finish-task` → `finish-task` で `state.md` / `docs/todo_next.md` / バックログの整合を取る。
-- 詳細な手順は `docs/codex_workflow.md` のクイックスタートとチェックリストを参照。
-- 継続改善のロードマップは `docs/development_roadmap.md` にまとめ、タスク化した内容は `docs/task_backlog.md` へ反映する。
+- 1 ページの流れは [docs/codex_quickstart.md](docs/codex_quickstart.md)、詳細手順は [docs/codex_workflow.md](docs/codex_workflow.md) を参照。
+- 着手前に `state.md` と `docs/task_backlog.md` のアンカーを突き合わせ、必要なら `python3 scripts/manage_task_cycle.py --dry-run start-task ...` で昇格を確認。
+- 実装中は小さな差分ごとにテスト（例: `python3 -m pytest tests/test_run_sim_cli.py`）を実行し、ドキュメントを同じコミットで更新。
+- Wrap-up では `python3 scripts/manage_task_cycle.py --dry-run finish-task --anchor <...>` で同期内容を確認し、`docs/todo_next.md` / `state.md` / backlog を揃える。
+- 即応〜中期の改善計画は [docs/development_roadmap.md](docs/development_roadmap.md) に整理されており、DoD の根拠は `docs/checklists/` と backlog で追跡する。
 
 ## 使い方（簡易）
 1) `configs/*.yml` を確認・調整

@@ -8,7 +8,7 @@
 
 ## Ready 昇格チェック
 - [x] `state.md` / `docs/todo_next.md` に In Progress エントリを追加し、アンカーと Pending Questions を設定した。
-- [x] `docs/codex_workflow.md` / `docs/state_runbook.md` の Manifest 運用手順を再読し、更新が必要か確認した。
+- [x] `docs/codex_quickstart.md` / `docs/codex_workflow.md` / `docs/state_runbook.md` の Manifest 運用手順を再読し、更新が必要か確認した。
 - [x] `docs/progress_phase1.md#1-戦略別ゲート整備` を確認し、既存実装との整合を把握した。
 
 ## 目標物 (DoD)
