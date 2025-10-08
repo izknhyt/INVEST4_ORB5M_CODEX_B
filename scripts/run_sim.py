@@ -353,10 +353,77 @@ def _runner_config_from_manifest(manifest: StrategyManifest) -> RunnerConfig:
     return rcfg
 
 
+def _describe_instrument(instrument) -> str:
+    mode = getattr(instrument, "mode", None) or "conservative"
+    mode_str = str(mode).strip() or "conservative"
+    return f"{instrument.symbol}/{instrument.timeframe}/{mode_str}"
+
+
+def _select_instrument(
+    manifest: StrategyManifest,
+    *,
+    symbol: Optional[str] = None,
+    mode: Optional[str] = None,
+) -> Any:
+    instruments = list(manifest.strategy.instruments)
+    if not instruments:
+        raise SystemExit(json.dumps({"error": "instrument_missing"}))
+
+    symbol_filter = symbol.upper().strip() if symbol else None
+    mode_filter = mode.strip().lower() if mode else None
+
+    def _instrument_mode(value: Any) -> str:
+        inst_mode = getattr(value, "mode", None)
+        normalized = str(inst_mode).strip().lower() if inst_mode is not None else "conservative"
+        return normalized if normalized else "conservative"
+
+    matches = []
+    for inst in instruments:
+        inst_symbol = inst.symbol.upper().strip()
+        inst_mode = _instrument_mode(inst)
+        if symbol_filter and inst_symbol != symbol_filter:
+            continue
+        if mode_filter and inst_mode != mode_filter:
+            continue
+        matches.append(inst)
+
+    if symbol_filter or mode_filter:
+        if not matches:
+            raise SystemExit(
+                json.dumps(
+                    {
+                        "error": "instrument_not_found",
+                        "symbol": symbol_filter,
+                        "mode": mode_filter,
+                        "choices": [_describe_instrument(inst) for inst in instruments],
+                    }
+                )
+            )
+        if len(matches) > 1:
+            raise SystemExit(
+                json.dumps(
+                    {
+                        "error": "instrument_ambiguous",
+                        "symbol": symbol_filter,
+                        "mode": mode_filter,
+                        "choices": [_describe_instrument(inst) for inst in matches],
+                        "hint": "Specify both --symbol and --mode to disambiguate",
+                    }
+                )
+            )
+        return matches[0]
+
+    return instruments[0]
+
+
 def _prepare_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
     manifest_path = _resolve_repo_path(Path(args.manifest))
     manifest = load_manifest(manifest_path)
-    instrument = manifest.strategy.instruments[0]
+    instrument = _select_instrument(
+        manifest,
+        symbol=args.symbol,
+        mode=args.mode,
+    )
     symbol = instrument.symbol
     timeframe = instrument.timeframe
     mode = instrument.mode or "conservative"
@@ -613,6 +680,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--manifest", required=True, help="Path to strategy manifest YAML")
     parser.add_argument("--csv", help="Override CSV input path (manifest defaults otherwise)")
     parser.add_argument("--json-out", help="Write metrics JSON to the specified path")
+    parser.add_argument(
+        "--symbol",
+        help="Select manifest instrument by symbol when multiple entries exist",
+    )
+    parser.add_argument(
+        "--mode",
+        help="Select manifest instrument by execution mode when multiple entries share the symbol",
+    )
     parser.add_argument("--equity", type=float, help="Override equity (default from manifest or 100000)")
     parser.add_argument("--start-ts", type=_iso8601_arg, help="Start timestamp (ISO8601)")
     parser.add_argument("--end-ts", type=_iso8601_arg, help="End timestamp (ISO8601)")
