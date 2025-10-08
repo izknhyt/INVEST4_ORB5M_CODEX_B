@@ -23,8 +23,8 @@
 
 ## 成果物とログ更新
 - [x] `state.md` の `## Log` へ完了サマリを追記した。
-- [x] [docs/todo_next.md](../todo_next.md) の該当エントリを Archive へ移動した。
+- [x] [docs/todo_next_archive.md](../todo_next_archive.md) の該当エントリへ移し、`docs/todo_next.md` 側からは削除した。
 - [x] 関連コード/レポート/Notebook のパスを記録した。
 - [ ] レビュー/承認者を記録した。
 
-> Ready 昇格チェックと固有 DoD を満たしたら、`docs/todo_next.md` から本チェックリストへリンクし、進捗を同期してください。
+> Ready 昇格チェックと固有 DoD を満たしたら、`docs/todo_next.md` から本チェックリストへリンクし、完了後はアーカイブ ([docs/todo_next_archive.md](../todo_next_archive.md)) へ移して同期してください。

@@ -19,7 +19,7 @@
 
 ## 成果物とログ更新
 - [ ] `state.md` の `## Log` へ完了サマリを追記した。
-- [ ] [docs/todo_next.md](../todo_next.md) の該当エントリを Archive へ移動した。
+- [ ] [docs/todo_next_archive.md](../todo_next_archive.md) の該当エントリへ移し、`docs/todo_next.md` 側からは削除した。
 - [ ] 関連コード/レポート/Notebook のパスを記録した。
 - [ ] レビュー/承認者を記録した。
 

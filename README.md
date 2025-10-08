@@ -110,7 +110,7 @@ python3 scripts/manage_task_cycle.py --dry-run finish-task \
        --anchor docs/task_backlog.md#p1-10-ローリング検証パイプライン \
        --note "Sharpe/最大DD の監視とローリングrunの自動起動を整備"
    ```
-   - `state.md` から当該タスクを削除し `## Log` に完了メモを追記、`docs/todo_next.md` は `## Archive` セクションへストライク付きで移動し日付/✅が補完されます。
+   - `state.md` から当該タスクを削除し `## Log` に完了メモを追記、`docs/todo_next.md` から該当ブロックを外して [docs/todo_next_archive.md](docs/todo_next_archive.md) へストライク付きで移すと日付/✅が補完されます。
 
 > 補足: すべてのコマンドで `--date` は ISO 形式 (YYYY-MM-DD) を要求し、アンカーは `docs/task_backlog.md#...` で指定してください。
 

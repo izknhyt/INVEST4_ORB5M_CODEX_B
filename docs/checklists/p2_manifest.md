@@ -31,7 +31,7 @@
 - [x] 追加した検証ログを `state.md` の該当ブロックへ追記。
 
 ## ドキュメント同期
-- [x] `docs/todo_next.md` の In Progress 項目を最新化し、完了後は Archive へ移動。
+- [x] `docs/todo_next.md` の In Progress 項目を最新化し、完了後は [docs/todo_next_archive.md](../todo_next_archive.md) へ移動。
 - [x] `docs/task_backlog.md` の P2 セクションへ進捗メモを追記。
 - [x] `state.md` に完了ログを記録し、Next Task を更新。
 

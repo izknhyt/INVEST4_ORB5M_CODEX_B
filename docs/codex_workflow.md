@@ -39,7 +39,7 @@ One-page の流れは [docs/codex_quickstart.md](codex_quickstart.md) に集約�
 
 ### 3. Wrap-up
 - `state.md` → `## Log` にセッション結果を追記し、`## Next Task` から完了したタスクを除外。
-- `docs/todo_next.md` は `In Progress` → `Archive` へ移動し、アンカーコメント（`<!-- anchor: ... -->`）が残っているか確認。
+- `docs/todo_next.md` の該当ブロックを [docs/todo_next_archive.md](docs/todo_next_archive.md) へ移動し、アンカーコメント（`<!-- anchor: ... -->`）が残っているか確認。
 - `docs/task_backlog.md` の対象項目にリンクやノートを追加する。完了済みなら該当タスクを打ち消し線で囲み、進捗メモを最終ログとして残す。
 - テスト証跡（実行コマンド）はコミットメッセージと PR テンプレの両方に記録する。
 
