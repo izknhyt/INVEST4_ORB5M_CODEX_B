@@ -25,6 +25,14 @@ CSV_CONTENT = """timestamp,symbol,tf,o,h,l,c,v,spread,zscore
 """
 
 
+CSV_MULTI_SYMBOL = """timestamp,symbol,tf,o,h,l,c,v,spread,zscore
+2024-01-01T08:00:00Z,USDJPY,5m,150.00,150.10,149.90,150.02,0,0.02,0.0
+2024-01-01T08:05:00Z,USDJPY,5m,150.01,150.11,149.91,150.03,0,0.02,0.3
+2024-01-01T09:00:00Z,EURUSD,15m,1.1000,1.1010,1.0990,1.1005,0,0.02,0.1
+2024-01-01T09:15:00Z,EURUSD,15m,1.1006,1.1016,1.0996,1.1008,0,0.02,0.2
+"""
+
+
 CSV_OHLC_ONLY = textwrap.dedent(
     """\
     timestamp,open,high,low,close
@@ -110,6 +118,22 @@ def _write_manifest(
         "aggregate_ev: false", f"aggregate_ev: {'true' if aggregate_ev else 'false'}"
     )
     path = tmpdir / "manifest.yaml"
+    path.write_text(manifest, encoding="utf-8")
+    return path
+
+
+def _write_multi_instrument_manifest(tmpdir: Path) -> Path:
+    manifest = MANIFEST_TEMPLATE.replace(
+        "  instruments:\n    - symbol: USDJPY\n      timeframe: 5m\n      mode: conservative",
+        "  instruments:\n"
+        "    - symbol: USDJPY\n"
+        "      timeframe: 5m\n"
+        "      mode: conservative\n"
+        "    - symbol: EURUSD\n"
+        "      timeframe: 15m\n"
+        "      mode: bridge",
+    )
+    path = tmpdir / "manifest_multi.yaml"
     path.write_text(manifest, encoding="utf-8")
     return path
 
@@ -252,6 +276,35 @@ def test_run_sim_respects_time_window(tmp_path: Path) -> None:
     # Expect a subset of bars was processed, so runtime metadata exists
     assert data["symbol"] == "USDJPY"
     assert data.get("manifest_id") == "test_mean_reversion"
+    assert data["debug"]["csv_loader"]["skipped_rows"] == 0
+
+
+def test_run_sim_can_select_non_default_instrument(tmp_path: Path) -> None:
+    manifest_path = _write_multi_instrument_manifest(tmp_path)
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(CSV_MULTI_SYMBOL, encoding="utf-8")
+    json_out = tmp_path / "metrics.json"
+
+    rc = run_sim_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--csv",
+            str(csv_path),
+            "--json-out",
+            str(json_out),
+            "--symbol",
+            "EURUSD",
+            "--mode",
+            "bridge",
+        ]
+    )
+
+    assert rc == 0
+    assert json_out.exists()
+    data = json.loads(json_out.read_text(encoding="utf-8"))
+    assert data["symbol"] == "EURUSD"
+    assert data["mode"] == "bridge"
     assert data["debug"]["csv_loader"]["skipped_rows"] == 0
 
 
