@@ -1,5 +1,7 @@
 import json
+import shutil
 import textwrap
+import uuid
 from pathlib import Path
 
 import pytest
@@ -7,6 +9,7 @@ import pytest
 from scripts.run_sim import (
     CSVFormatError,
     CSVLoaderStats,
+    ROOT_PATH,
     load_bars_csv,
     main as run_sim_main,
 )
@@ -323,3 +326,42 @@ def test_run_sim_creates_run_directory(tmp_path: Path) -> None:
     assert params_path.exists()
     metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
     assert metrics.get("run_dir") == str(run_path)
+
+
+def test_run_sim_relative_out_dir_resolves_to_repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest_path = _write_manifest(tmp_path)
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(CSV_CONTENT, encoding="utf-8")
+    relative_base = Path("tmp_run_sim") / f"cli_{uuid.uuid4().hex}"
+    resolved_base = (ROOT_PATH / relative_base).resolve()
+
+    if resolved_base.exists():
+        shutil.rmtree(resolved_base)
+
+    monkeypatch.chdir(tmp_path)
+
+    try:
+        rc = run_sim_main(
+            [
+                "--manifest",
+                str(manifest_path),
+                "--csv",
+                str(csv_path),
+                "--out-dir",
+                str(relative_base),
+            ]
+        )
+
+        assert rc == 0
+        run_dirs = list(resolved_base.iterdir())
+        assert len(run_dirs) == 1
+        run_dir = run_dirs[0]
+        run_dir_resolved = run_dir.resolve()
+        root_resolved = ROOT_PATH.resolve()
+        assert run_dir_resolved.is_dir()
+        assert run_dir.parent == resolved_base
+        assert run_dir_resolved == root_resolved or root_resolved in run_dir_resolved.parents
+    finally:
+        shutil.rmtree(resolved_base, ignore_errors=True)

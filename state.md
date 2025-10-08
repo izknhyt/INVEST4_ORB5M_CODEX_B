@@ -4,6 +4,7 @@
 - Review this file before starting any task to confirm the latest context and checklist.
 - 2026-04-09: Added CSV loader diagnostics/strict mode to `scripts/run_sim.py`, plumbed stats into CLI outputs/docs, updated grid/compare helpers, extended CLI tests, and ran `python3 -m pytest`.
 - 2026-04-10: Refactored `RunnerExecutionManager` entry flow to iterate multiple intents with per-order metrics, updated fill handling, added multi-intent runner regression, and ran `python3 -m pytest tests/test_runner.py`.
+- 2025-10-08: Normalised `scripts/run_sim.py` relative out_dir handling to resolve against the repo root, added a CLI regression covering directory creation from a different working directory, and ran `python3 -m pytest tests/test_run_sim_cli.py`.
 - 2026-04-08: Normalised timeframe handling across `load_bars_csv` and `validate_bar`, plumbed runner timeframe whitelists, extended CLI/runner tests for uppercase bars, and ran `python3 -m pytest`.
 - 2026-04-07: Propagated `--local-backup-csv` overrides from `run_daily_workflow.py` to the default `pull_prices` ingest path, added a CLI regression in `tests/test_run_daily_workflow.py`, and ran `python3 -m pytest`.
 - 2026-04-03: Added `--skip-yaml` to `scripts/aggregate_ev.py` so CSV summaries can run without writing profiles, updated
