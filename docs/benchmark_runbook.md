@@ -48,6 +48,44 @@
 - 365/180/90D の実行頻度やアラート閾値を変更したら、`python3 scripts/manage_task_cycle.py start-task --anchor docs/task_backlog.md#p1-01-ローリング検証パイプライン --task-id P1-01 --title "ローリング検証パイプライン"` などで Next Task テンプレートを再適用し、`state.md`・`docs/todo_next.md` のメモと本ランブックを同期する。
 - 変更のサマリは `state.md` の `## Log` に追記し、関連する Slack 通知設定ファイルやインフラ設定の更新手順もこのセクションからリンクする。
 
+## 週次サマリー通知フロー
+
+- `scripts/summarize_runs.py` を使うと、`runs/index.csv` の集計、`reports/benchmark_summary.json` のベースライン/ローリング指標、`reports/portfolio_summary.json` のカテゴリ利用率、`ops/health/state_checks.json` のヘルスチェック履歴を 1 つの JSON に束ねて Webhook へ送信できる。
+- デフォルトで全コンポーネントを収集するが、`--include runs --include benchmarks` のように明示すれば必要なブロックだけを対象にできる。YAML 設定ファイル（`--config ops/summarize.yml`）に `include:` と `destinations.webhooks:` を定義しておけば、Cron からは `--config` のみで再利用できる。
+- Webhook が利用できない環境では `--dry-run-webhook` を付けるとネットワーク送信をスキップしつつ JSON を生成できる。失敗時に即座にエラーへ落としたい場合は `--fail-on-webhook-error` を追加する。
+
+### 実行例
+
+```bash
+python3 scripts/summarize_runs.py \
+  --runs-root runs \
+  --benchmark-summary reports/benchmark_summary.json \
+  --portfolio-summary reports/portfolio_summary.json \
+  --health-checks ops/health/state_checks.json \
+  --out-json /tmp/weekly_summary.json \
+  --webhook-url http://example.com --dry-run-webhook
+```
+
+### 設定ファイル例
+
+```yaml
+include:
+  - runs
+  - benchmarks
+  - portfolio
+  - health
+destinations:
+  webhooks:
+    - url: https://hooks.slack.com/services/XXX/YYY/ZZZ
+      timeout: 8
+      headers:
+        X-Slack-Retry-Num: "0"
+  fail_on_error: true
+```
+
+- 上記 YAML を `ops/summarize.yml` に保存し、CLI では `python3 scripts/summarize_runs.py --config ops/summarize.yml --out-json reports/weekly_summary.json` のように呼び出す。CLI 引数で渡した `--include` や `--webhook-url` は設定ファイルを上書きする。
+- `out-json` に保存されるファイルには Webhook 配信結果（HTTP ステータス/エラーメッセージ）が追記されるため、Cron ログと併せて通知可否を後追いできる。
+
 ## 推奨 CLI
 ```bash
 python3 scripts/run_benchmark_pipeline.py \
