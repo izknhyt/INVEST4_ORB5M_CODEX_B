@@ -31,9 +31,9 @@
 **進捗メモ**
 - 2026-02-21: Fixed a calibration regression where `_resolve_calibration_positions` stopped updating pooled EV after the calibration window elapsed. Added regression `tests/test_runner.py::test_calibration_positions_resolve_after_period` to ensure calibration trades opened during warmup continue to settle and feed EV statistics, and reran targeted pytest for the runner suite.
 - 2026-02-13: Verified the counter/record documentation against the latest runner implementation, confirmed that the CSV/daily investigation flow covers `ev_bypass` warm-up tracking, and re-ran `python3 -m pytest tests/test_runner.py tests/test_run_sim_cli.py` to lock regression coverage before closing the task.
-- 2026-01-18: Logged EV warm-up bypass events as `ev_bypass` debug records (capturing `warmup_left` / `warmup_total`), refreshed regression coverage in `tests/test_runner.py`, and expanded [docs/backtest_runner_logging.md](docs/backtest_runner_logging.md) with the new fields.
+- 2026-01-18: Logged EV warm-up bypass events as `ev_bypass` debug records (capturing `warmup_left` / `warmup_total`), refreshed regression coverage in `tests/test_runner.py`, and expanded [docs/backtest_runner_logging.md](./backtest_runner_logging.md) with the new fields.
 - 2025-10-13: Added CLI regression `tests/test_run_sim_cli.py::test_run_sim_debug_records_capture_hook_failures` to lock the debug counters/records when hook exceptions are raised, and expanded the logging reference with the coverage note.
-- 2025-10-08: Added helper-based dispatch and logging reference. See [docs/backtest_runner_logging.md](docs/backtest_runner_logging.md) for counter/record definitions and EV investigation flow.
+- 2025-10-08: Added helper-based dispatch and logging reference. See [docs/backtest_runner_logging.md](./backtest_runner_logging.md) for counter/record definitions and EV investigation flow.
 
 ### ~~P1-06 Fill エンジン / ブローカー仕様アライン~~ ✅ (2026-02-13 クローズ)
 - `core/fill_engine.py` と RunnerConfig を拡張して `SameBarPolicy` / Brownian Bridge パラメータを制御し、manifest (`runner.runner_config.fill_*`) で調整できるよう整備。`python3 -m pytest tests/test_fill_engine.py tests/test_runner.py tests/test_run_sim_cli.py` で回帰確認。
@@ -44,7 +44,7 @@
 
 **完了記録**
 - `docs/checklists/p1-07_phase1_bug_refactor.md` へ調査チェックボード・テスト手順・リファクタリング計画テンプレ・ドキュメント更新チェックを追加し、DoD セクションの項目を全て充足。
-- `docs/todo_next.md` の Ready から当該タスクを除外し、[docs/todo_next_archive.md](docs/todo_next_archive.md) へ移動。`state.md` の `## Log` に完了メモを追記し、`## Next Task` からアンカーを取り外した。
+- `docs/todo_next.md` の Ready から当該タスクを除外し、[docs/todo_next_archive.md](./todo_next_archive.md) へ移動。`state.md` の `## Log` に完了メモを追記し、`## Next Task` からアンカーを取り外した。
 - バックログ本節をクローズ扱いに変更し、後続作業は必要に応じて新タスク（例: P2 系列）として起票する方針。
 
 **進捗メモ（アーカイブ）**
