@@ -20,7 +20,7 @@ Codex オペレータが 1 セッションで追従すべき流れを 1 ペー�
 - 変更をレビュー → `git status` / `git diff` で不要ファイルが無いか確認。
 - テスト証跡を整理 → 実行したコマンドを `state.md` ログとコミットメッセージに記録。
 - `scripts/manage_task_cycle.py --dry-run finish-task --anchor <docs/task_backlog.md#...>` で close-out をプレビューし、問題なければ `--dry-run` を外して適用。
-- `docs/todo_next.md` の該当ブロックを [docs/todo_next_archive.md](todo_next_archive.md) へ移動し、`README.md` / ランブックのリンクが最新であることを確認。
+- `docs/todo_next.md` の該当ブロックを [docs/todo_next_archive.md](docs/todo_next_archive.md) へ移動し、`README.md` / ランブックのリンクが最新であることを確認。
 
 ## 4. よく使うコマンド
 | 目的 | コマンド例 |

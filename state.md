@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-04-19: `docs/todo_next.md` の Archive セクション文面を整理し、`manage_task_cycle` プレースホルダのみを残したポインタへ刷新。`docs/codex_quickstart.md` / `docs/todo_next_archive.md` も新アーカイブ参照へ揃え、クロスドキュメントの参照先を統一。
 - 2026-04-18: `docs/todo_next.md` の Archive セクションを新設した [docs/todo_next_archive.md](docs/todo_next_archive.md) へ移設し、プレースホルダとアンカー検知用コメントを残した。README / codex ワークフロードキュメント / DoD テンプレ類の参照先を新アーカイブへ更新。
 - 2026-04-17: Observability dashboard pipeline を実装し、`analysis/dashboard/` のローダーと `analysis/export_dashboard_data.py` CLI で EV/スリッページ/勝率LCB/ターンオーバーを統合。`analysis/portfolio_monitor.ipynb` と `docs/observability_dashboard.md` を追加し、`docs/task_backlog.md` を更新。`python3 -m pytest` と `python3 analysis/export_dashboard_data.py --out-json /tmp/dashboard.json --portfolio-telemetry reports/portfolio_samples/router_demo/telemetry.json` を実行。
 - 2026-04-15: Extended `scripts/analyze_signal_latency.py` with JSON/CSV SLO出力と `--failure-threshold`、`ops/rotate_signal_latency.sh` / `ops/signal_latency_rotation.cron` を追加して日次ローテーション手順を整備。`docs/signal_ops.md` / `README.md` を更新し、`tests/test_analyze_signal_latency.py` で SLO 違反検知を回帰。`python3 -m pytest` と CLI 実行例 (`python3 scripts/analyze_signal_latency.py --input /tmp/latency_sample.csv --out-json /tmp/latency.json --out-csv /tmp/latency.csv`) を完了。
