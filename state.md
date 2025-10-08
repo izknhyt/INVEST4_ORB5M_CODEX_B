@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-04-28: Inserted explicit anchors for P0-12 / P0-07 in `docs/task_backlog.md` and verified roadmap links resolve to the updated sections.
 - 2026-04-27: Corrected the example link in `docs/task_backlog.md` to reference `docs/progress_phase1.md`, keeping backlog guidance aligned with the actual file structure.
 - 2026-04-26: README のオンデマンドインジェスト CLI 節で `scripts/fetch_prices_api.py` の REST API ガイダンスを単一の箇条書きに統合し、Sandbox 向け注意点をサブ項目へ整理して重複記述を解消。
 - 2026-04-25: Re-verified all `docs/` Markdown for stray `] (docs/...)` links, found none, and updated `docs/codex_workflow.md` with the explicit `docs/docs` failure note so future sessions keep using `./`-style relative paths.
