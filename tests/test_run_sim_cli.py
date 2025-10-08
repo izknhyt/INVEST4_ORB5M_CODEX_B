@@ -3,6 +3,7 @@ import shutil
 import textwrap
 import uuid
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -95,9 +96,21 @@ MANIFEST_TEMPLATE = textwrap.dedent(
 )
 
 
-def _write_manifest(tmpdir: Path) -> Path:
+def _write_manifest(
+    tmpdir: Path,
+    *,
+    auto_state: bool = False,
+    aggregate_ev: bool = False,
+) -> Path:
+    manifest = MANIFEST_TEMPLATE
+    manifest = manifest.replace(
+        "auto_state: false", f"auto_state: {'true' if auto_state else 'false'}"
+    )
+    manifest = manifest.replace(
+        "aggregate_ev: false", f"aggregate_ev: {'true' if aggregate_ev else 'false'}"
+    )
     path = tmpdir / "manifest.yaml"
-    path.write_text(MANIFEST_TEMPLATE, encoding="utf-8")
+    path.write_text(manifest, encoding="utf-8")
     return path
 
 
@@ -365,3 +378,55 @@ def test_run_sim_relative_out_dir_resolves_to_repo(
         assert run_dir_resolved == root_resolved or root_resolved in run_dir_resolved.parents
     finally:
         shutil.rmtree(resolved_base, ignore_errors=True)
+
+
+def test_run_sim_reports_aggregate_ev_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    manifest_path = _write_manifest(
+        tmp_path, auto_state=True, aggregate_ev=True
+    )
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(CSV_CONTENT, encoding="utf-8")
+    json_out = tmp_path / "metrics.json"
+
+    captured_kwargs: dict[str, Any] = {}
+
+    class DummyResult:
+        def __init__(self) -> None:
+            self.returncode = 2
+            self.stdout = "aggregate stdout\n"
+            self.stderr = "aggregate stderr\n"
+
+    def fake_run(cmd: list[str], **kwargs: Any) -> DummyResult:
+        captured_kwargs["cmd"] = cmd
+        captured_kwargs["kwargs"] = kwargs
+        return DummyResult()
+
+    monkeypatch.setattr("scripts.run_sim.subprocess.run", fake_run)
+
+    rc = run_sim_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--csv",
+            str(csv_path),
+            "--json-out",
+            str(json_out),
+        ]
+    )
+
+    assert rc == 1
+    assert json_out.exists()
+
+    captured = capsys.readouterr()
+    assert "aggregate_ev stdout" in captured.err
+    assert "aggregate stdout" in captured.err
+    assert "aggregate_ev stderr" in captured.err
+    assert "aggregate stderr" in captured.err
+    assert "Failed to aggregate EV" in captured.err
+
+    assert captured_kwargs["kwargs"]["capture_output"] is True
+    assert captured_kwargs["kwargs"]["text"] is True

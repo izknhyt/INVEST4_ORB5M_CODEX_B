@@ -485,7 +485,15 @@ def _aggregate_ev(namespace_path: Path, config: RuntimeConfig) -> None:
         pass
     if config.ev_profile_path:
         cmd.extend(["--out-yaml", str(config.ev_profile_path)])
-    subprocess.run(cmd, check=False)
+    result = subprocess.run(cmd, check=False, capture_output=True, text=True)
+    if result.returncode != 0:
+        if result.stdout:
+            print("[run_sim] aggregate_ev stdout:", file=sys.stderr)
+            print(result.stdout.rstrip("\n"), file=sys.stderr)
+        if result.stderr:
+            print("[run_sim] aggregate_ev stderr:", file=sys.stderr)
+            print(result.stderr.rstrip("\n"), file=sys.stderr)
+        raise RuntimeError(f"aggregate_ev failed with exit code {result.returncode}")
 
 
 def _store_run_summary(run_dir: Path, config: RuntimeConfig) -> None:
@@ -742,7 +750,11 @@ def main(argv: Optional[list[str]] = None) -> int:
                 json.dump(state_payload, f, ensure_ascii=False, indent=2)
 
     if config.aggregate_ev and archive_save_path:
-        _aggregate_ev(archive_dir or _resolve_state_archive(config), config)
+        try:
+            _aggregate_ev(archive_dir or _resolve_state_archive(config), config)
+        except Exception as exc:
+            print(f"[run_sim] Failed to aggregate EV: {exc}", file=sys.stderr)
+            return 1
 
     return 0
 
