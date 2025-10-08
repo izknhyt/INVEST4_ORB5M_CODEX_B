@@ -6,7 +6,7 @@
 
 各タスクに着手する前に、該当するバックログ項目を `state.md` の `Next Task` ブロックへ明示的に引き込み、進行中であることを記録してください。作業完了後は、成果ノートや反省点を `docs/todo_next.md` に反映し、`state.md` の完了ログと整合するよう同期します。
 
-- 例: [P1-02] 2024-06-18 state.md ログ / [docs/progress_phase1.md](docs/progress_phase1.md)
+- 例: [P1-02] 2024-06-18 state.md ログ / [`docs/progress_phase1.md`](docs/progress_phase1.md)
 
 ### Codex Session Operations Guide
 Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_next.md`, and `docs/task_backlog.md` synchronized across sessions, including how to use the supporting scripts and templates.
