@@ -2,6 +2,8 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-04-22: `docs/api_ingest_plan.md` の Error Handling & Observability 節で `ops/runtime_snapshot.json.ingest_meta.<symbol>_<tf>`
+  の説明を一つの箇条書きへ統合し、ローカルバックアップパスの補足を保持したまま重複を解消。
 - 2026-04-21: README のオンデマンドインジェスト CLI 節で `scripts/fetch_prices_api.py` の重複箇条書きを統合し、Sandbox フォールバック説明を保持したまま冗長記述を解消。
 - 2026-04-20: P1 バックログを docs/task_backlog_p1_archive.md へ移設し、旧アンカー参照をアーカイブへ更新。
 - 2026-04-19: `docs/todo_next.md` の Archive セクション文面を整理し、`manage_task_cycle` プレースホルダのみを残したポインタへ刷新。`docs/codex_quickstart.md` / `docs/todo_next_archive.md` も新アーカイブ参照へ揃え、クロスドキュメントの参照先を統一。
