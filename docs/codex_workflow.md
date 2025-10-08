@@ -30,7 +30,8 @@ python3 -m pytest                                      # full sweep when time al
 
 ## Session Loop (Expanded)
 
-### 1. Pre-session
+<!-- REVIEW: Added explicit pre-session anchor per reviewer request so cross-doc links remain stable. -->
+### <a id="pre-session-routine"></a>1. Pre-session routine
 - Read `state.md` → `Next Task`, pending approvals, open questions.
 - Cross-check `docs/task_backlog.md` (DoD) and `docs/todo_next.md` (current section). Keep anchors consistent.
 - Duplicate templates when needed:
@@ -67,6 +68,33 @@ python3 -m pytest                                      # full sweep when time al
 | Sync state/todo manually | `python3 scripts/sync_task_docs.py record|promote|complete ...` |
 | Quick pytest (CLI) | `python3 -m pytest tests/test_run_sim_cli.py` |
 | Full pytest | `python3 -m pytest` |
+
+<!-- REVIEW: Documented finish-task dry-run walkthrough so reviewers can verify close-out evidence quickly. -->
+### Finish-task dry-run example
+
+Preview the close-out flow before applying it:
+
+```bash
+python3 scripts/manage_task_cycle.py --dry-run finish-task \
+    --anchor docs/task_backlog.md#codex-session-operations-guide \
+    --date 2026-02-14 \
+    --note "Captured finish-task dry-run sample for documentation"
+```
+
+The preview prints the underlying `sync_task_docs.py complete` invocation without mutating `state.md` or `docs/todo_next.md`. Once the output matches expectations, rerun the command without `--dry-run`.
+
+<!-- REVIEW: Added doc-section option breakdown to resolve missing anchor flagged during review. -->
+## <a id="doc-section-options"></a>Doc Section Options
+
+Use the `--doc-section` flag to control where the helper inserts or updates the task memo in `docs/todo_next.md`:
+
+| `--doc-section` value | Inserts into… | Typical use case |
+| --- | --- | --- |
+| `Ready` | `## Ready` | Capturing intake notes before execution. |
+| `In Progress` | `### In Progress` | Active sessions logging day-to-day findings. |
+| `Pending Review` | `### Pending Review` | Handing off work that needs approvals or QA. |
+
+When resuming an archived or deferred task, run a dry-run first to confirm the helper locates the existing anchor comment (for example, `<!-- anchor: docs/task_backlog.md#codex-session-operations-guide -->`). If the preview shows a duplicate, cancel the run and fix the anchor before applying.
 
 
 ## Reference Map

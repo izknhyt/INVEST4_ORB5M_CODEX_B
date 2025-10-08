@@ -446,14 +446,7 @@
 - 2026-03-09: Replaced runner entry/EV/sizing contexts with typed dataclasses, refactored the feature pipeline and gating flow to
   propagate structured contexts, updated trade snapshot helpers, and refreshed runner feature/unit tests to assert the new
   attribute-based API. Ran `python3 -m pytest tests/test_runner_features.py tests/test_runner.py`.
+
+- [OPS-CODEX-GUIDE] 2025-10-08: Aligned workflow docs with review feedback. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
 ## Next Task
-- Backlog Anchor: [Codex Session Operations Guide](docs/task_backlog.md#codex-session-operations-guide)
-- Vision / Runbook References:
-  - [docs/codex_workflow.md](docs/codex_workflow.md)
-  - [docs/state_runbook.md](docs/state_runbook.md)
-  - [docs/todo_next.md](docs/todo_next.md)
-- Pending Questions / Notes:
-  - [x] Collect reviewer feedback on the updated sandbox/approval guidance and confirm whether additional network-related edge cases require examples. → Captured explicit network approval matrix in `docs/codex_workflow.md` and noted documentation touchpoints for reviewer follow-up.
-  - [x] Verify that downstream docs (`docs/todo_next.md`, `docs/state_runbook.md`) remain aligned after the latest update. → Updated both docs in the same pass and cross-checked anchors/terminology.
-  - [x] Decide if further automation samples (e.g., `finish-task` dry-run output) should be captured before archiving the task. → Existing samples already cover start/finish dry runs; documented no additional snippets required.
-- Scope (EN): Finalise the Codex session operations guide updates and confirm supporting docs remain in sync before closing the task.
+- 未設定。`docs/task_backlog.md` の P0 / P1 セクションから次のタスクを選定し、テンプレートに沿って登録してください。
