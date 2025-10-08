@@ -43,7 +43,7 @@
  
 
 - ~~**戦略マニフェスト整備**~~ (Backlog: `docs/task_backlog.md` → [P2-01](./task_backlog.md#p2-マルチ戦略ポートフォリオ化)) — `state.md` 2026-01-08 ✅ <!-- anchor: docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化 -->
-  - `configs/strategies/*.yaml` を整理し、依存特徴量・セッション・リスク上限を統一形式で記述。`docs/checklists/p2_manifest.md` の DoD を参照して、RunnerConfig/CLI へのパラメータ伝播を検証する。
+  - `configs/strategies/*.yaml` を整理し、依存特徴量・セッション・リスク上限を統一形式で記述。[docs/checklists/p2_manifest.md](./checklists/p2_manifest.md) の DoD を参照して、RunnerConfig/CLI へのパラメータ伝播を検証する。
   - `scripts/run_sim.py --manifest` の引数マッピングを再確認し、必要なら loader/CLI を更新。pytest (`tests/test_run_sim_cli.py`, `tests/test_mean_reversion_strategy.py` など) をターゲットに追加実行する。
   - 2026-01-08: `strategies/scalping_template.py` / `strategies/day_template.py` / `strategies/tokyo_micro_mean_reversion.py` / `strategies/session_momentum_continuation.py` を追加し、対応する manifest (`configs/strategies/*.yaml`) を新設。`python3 -m pytest tests/test_strategy_manifest.py` (2 passed) と `python3 -m pytest tests/test_run_sim_cli.py -k manifest` (1 passed, 4 deselected) を実行済み。
   - 2026-01-08: `python3 scripts/run_sim.py --manifest configs/strategies/tokyo_micro_mean_reversion.yaml --csv data/sample_orb.csv --json-out /tmp/tokyo_micro.json`、`python3 scripts/run_sim.py --manifest configs/strategies/session_momentum_continuation.yaml --csv data/sample_orb.csv --json-out /tmp/session_momo.json`、`python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv data/sample_orb.csv --json-out /tmp/day_orb.json` を完了。manifest 経由の CLI 配線を確認し、DoD テスト項目を更新済み。各 manifest の `runner.cli_args` で auto_state / aggregate_ev を制御しながら再実行。
@@ -55,7 +55,7 @@
     - 主要ランブック: [docs/state_runbook.md](./state_runbook.md)
   - Pending Questions:
     - [ ] Clarify gating metrics, data dependencies, or open questions.
-  - DoD チェックリスト: [docs/templates/dod_checklist.md](./templates/dod_checklist.md) を [docs/checklists/p2-01.md](./checklists/p2-01.md) にコピーし、進捗リンクを更新する。
+  - DoD チェックリスト: [docs/templates/dod_checklist.md](./templates/dod_checklist.md) を [docs/checklists/p2_manifest.md](./checklists/p2_manifest.md) にコピーし、進捗リンクを更新する。
 
 - ~~**Workflow Integration Guide**~~ (Backlog: `docs/task_backlog.md` → "ワークフロー統合" section) — `state.md` 2024-06-18, 2025-09-29, 2026-02-13, 2025-10-08 ✅ <!-- anchor: docs/task_backlog.md#codex-session-operations-guide -->
   <!-- REVIEW: Archived after confirming workflow loop, dry-run coverage, and template links met the reviewer DoD. -->
