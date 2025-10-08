@@ -2256,6 +2256,72 @@ class TestRunner(unittest.TestCase):
             self.assertEqual(daily_entry["wins"], 1)
         self.assertEqual(stub_ev.last_update, False)
 
+    def test_maybe_enter_trade_rechecks_ev_after_warmup_consumed(self):
+        runner, pending, breakout, features, calibrating = self._prepare_breakout_environment(
+            warmup_left=1
+        )
+        self.assertFalse(calibrating)
+        low_ev = self.DummyEV(ev_lcb=-0.4, p_lcb=0.4)
+        runner._get_ev_manager = lambda key: low_ev
+        features.entry_ctx.ev_manager = low_ev
+        features.entry_ctx.cost_pips = features.entry_ctx.base_cost_pips
+        features.ctx["ev_oco"] = low_ev
+        features.ctx.setdefault("slip_cap_pip", runner.rcfg.slip_cap_pip)
+        features.ctx.setdefault("expected_slip_pip", 0.0)
+        features.ctx.setdefault("ev_key", ("LDN", "normal", "mid"))
+        pip_value = pip_size(runner.symbol)
+        base_entry = pending["entry"]
+        intent_primary = OrderIntent(
+            pending["side"],
+            qty=1.0,
+            price=base_entry,
+            oco={
+                "tp_pips": pending["tp_pips"],
+                "sl_pips": pending["sl_pips"],
+                "trail_pips": pending["trail_pips"],
+            },
+        )
+        intent_secondary = OrderIntent(
+            pending["side"],
+            qty=1.0,
+            price=base_entry + pip_value,
+            oco={
+                "tp_pips": pending["tp_pips"],
+                "sl_pips": pending["sl_pips"],
+                "trail_pips": pending["trail_pips"],
+            },
+        )
+        fill_primary = {
+            "fill": True,
+            "entry_px": intent_primary.price,
+            "exit_px": intent_primary.price + pip_value,
+            "exit_reason": "tp",
+        }
+
+        with patch.object(runner, "_call_ev_threshold", return_value=0.2), patch.object(
+            runner.stg,
+            "signals",
+            return_value=[intent_primary, intent_secondary],
+        ), patch.object(
+            runner.fill_engine_c,
+            "simulate",
+            side_effect=[fill_primary],
+        ) as mock_sim:
+            runner._maybe_enter_trade(
+                bar=breakout,
+                features=features,
+                mode="conservative",
+                pip_size_value=pip_value,
+                calibrating=calibrating,
+            )
+
+        self.assertEqual(mock_sim.call_count, 1)
+        self.assertEqual(runner._warmup_left, 0)
+        self.assertEqual(len(runner.records), 1)
+        self.assertEqual(runner.metrics.trades, 1)
+        self.assertEqual(runner.debug_counts["ev_reject"], 1)
+        self.assertEqual(runner.debug_counts["ev_bypass"], 1)
+
     def test_calibration_warmup_counter_remains_unchanged(self):
         runner, pending, breakout, features, calibrating = self._prepare_breakout_environment(
             warmup_left=3,

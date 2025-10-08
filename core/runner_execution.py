@@ -335,10 +335,6 @@ class RunnerExecutionManager:
             if self._should_count_ev_pass(ev_result, calibrating):
                 runner._increment_daily("ev_pass", additional_intents)
 
-        contexts = [sizing_ctx]
-        for _ in range(additional_intents):
-            contexts.append(SizingContext(**sizing_ctx._constructor_kwargs()))
-
         fill_engine = (
             runner.fill_engine_c if mode == "conservative" else runner.fill_engine_b
         )
@@ -351,7 +347,41 @@ class RunnerExecutionManager:
             "spread": bar["spread"],
         }
 
-        for intent, ctx_for_intent in zip(intents, contexts):
+        current_ev_result = ev_result
+        base_sizing_ctx = sizing_ctx
+
+        for index, intent in enumerate(intents):
+            if (
+                not calibrating
+                and current_ev_result.bypass
+                and runner._warmup_left <= 0
+            ):
+                fresh_ev_result = runner._evaluate_ev_threshold(
+                    entry=entry_result,
+                    pending=pending,
+                    calibrating=calibrating,
+                    timestamp=runner._last_timestamp,
+                )
+                if not fresh_ev_result.outcome.passed:
+                    break
+                fresh_ev_result.apply_to(features.ctx)
+                fresh_sizing_result = runner._check_slip_and_sizing(
+                    ctx=fresh_ev_result.context,
+                    ev_result=fresh_ev_result,
+                    calibrating=calibrating,
+                    timestamp=runner._last_timestamp,
+                )
+                if not fresh_sizing_result.outcome.passed:
+                    break
+                fresh_sizing_result.apply_to(features.ctx)
+                current_ev_result = fresh_ev_result
+                base_sizing_ctx = fresh_sizing_result.context
+
+            if index == 0:
+                ctx_for_intent = base_sizing_ctx
+            else:
+                ctx_for_intent = SizingContext(**base_sizing_ctx._constructor_kwargs())
+
             runner._increment_daily("breakouts")
             spec = OrderSpec(
                 side=intent.side,
