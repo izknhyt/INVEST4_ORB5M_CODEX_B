@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-04-26: README のオンデマンドインジェスト CLI 節で `scripts/fetch_prices_api.py` の REST API ガイダンスを単一の箇条書きに統合し、Sandbox 向け注意点をサブ項目へ整理して重複記述を解消。
 - 2026-04-25: Re-verified all `docs/` Markdown for stray `] (docs/...)` links, found none, and updated `docs/codex_workflow.md` with the explicit `docs/docs` failure note so future sessions keep using `./`-style relative paths.
 - 2026-04-24: Normalised `docs/` internal links to relative paths, verified cleanup with `rg '\\]\(docs/' docs`, refreshed `docs/task_backlog.md` notes, and added link hygiene guidance to the workflow doc.
 - 2026-04-23: README のオンデマンドインジェスト CLI 節で `scripts/fetch_prices_api.py` の案内を再整理し、重複記述を 1 つの箇条書きへ統合したまま API キー運用・Sandbox フォールバックの説明を保持。
