@@ -2,6 +2,8 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-04-29: Converted the docs/task_backlog.md sample entry to link directly to docs/progress_phase1.md, checked for lingering
+  docs/progress/ paths, and ensured the target document exists for navigation.
 - 2026-04-28: Created placeholder docs for roadmap long-term items referenced in docs/development_roadmap.md and rechecked link resolution.
 - 2026-04-28: Inserted explicit anchors for P0-12 / P0-07 in `docs/task_backlog.md` and verified roadmap links resolve to the updated sections.
 - 2026-04-27: Corrected the example link in `docs/task_backlog.md` to reference `docs/progress_phase1.md`, keeping backlog guidance aligned with the actual file structure.
