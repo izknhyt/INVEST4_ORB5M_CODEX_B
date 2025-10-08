@@ -98,6 +98,7 @@ def test_session_of_ts_handles_extended_iso_with_offset() -> None:
 def test_session_of_ts_handles_basic_iso_z_suffix() -> None:
     runner = BacktestRunner(100_000.0, "USDJPY")
     assert runner._session_of_ts("20240101T075959Z") == "TOK"
+    assert runner._session_of_ts("20240101T080000Z") == "LDN"
     assert runner._session_of_ts("20240101T131500Z") == "NY"
 
 
@@ -107,6 +108,20 @@ def test_session_of_ts_records_parse_errors() -> None:
     assert runner.debug_counts["session_parse_error"] == 1
     assert runner.debug_records[0]["stage"] == "session_parse_error"
     assert runner.debug_records[0]["text"] == "invalid-ts"
+
+
+def test_update_daily_state_classifies_basic_iso_session() -> None:
+    runner = BacktestRunner(100_000.0, "USDJPY")
+    bar_ldn = {"timestamp": "20240101T080000Z"}
+    new_session, session, calibrating = runner._update_daily_state(bar_ldn)
+    assert new_session is True
+    assert session == "LDN"
+    assert calibrating is False
+
+    bar_same_session = {"timestamp": "20240101T081500Z"}
+    new_session_repeat, session_repeat, _ = runner._update_daily_state(bar_same_session)
+    assert new_session_repeat is False
+    assert session_repeat == "LDN"
 
 
 class TestRunner(unittest.TestCase):

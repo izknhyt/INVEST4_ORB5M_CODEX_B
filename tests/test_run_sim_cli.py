@@ -1,3 +1,8 @@
+"""Integration tests for ``scripts/run_sim`` CLI behaviour.
+
+Validation command: ``python3 -m pytest tests/test_run_sim_cli.py``
+"""
+
 import json
 import textwrap
 from pathlib import Path
@@ -13,11 +18,11 @@ from scripts.run_sim import (
 
 
 CSV_CONTENT = """timestamp,symbol,tf,o,h,l,c,v,spread,zscore
-2024-01-01T08:00:00Z,USDJPY,5m,150.00,150.10,149.90,150.02,0,0.02,0.0
-2024-01-01T08:05:00Z,USDJPY,5m,150.01,150.11,149.91,150.03,0,0.02,0.3
-2024-01-01T08:10:00Z,USDJPY,5m,150.02,150.12,149.92,150.04,0,0.02,0.8
-2024-01-01T08:15:00Z,USDJPY,5m,150.03,150.13,149.93,150.05,0,0.02,-0.7
-2024-01-01T08:20:00Z,USDJPY,5m,150.04,150.14,149.94,150.06,0,0.02,0.6
+20240101T080000Z,USDJPY,5M,150.00,150.10,149.90,150.02,0,0.02,0.0
+20240101T080500Z,USDJPY,5m,150.01,150.11,149.91,150.03,0,0.02,0.3
+20240101T081000Z,USDJPY,5M,150.02,150.12,149.92,150.04,0,0.02,1.6
+20240101T081500Z,USDJPY,5m,150.03,150.13,149.93,150.05,0,0.02,-0.7
+20240101T082000Z,USDJPY,5m,150.04,150.14,149.94,150.06,0,0.02,0.6
 """
 
 
@@ -68,7 +73,7 @@ MANIFEST_TEMPLATE = textwrap.dedent(
       max_daily_dd_pct: 8.0
       notional_cap: 500000
       max_concurrent_positions: 1
-      warmup_trades: 0
+      warmup_trades: 2
     features:
       required: [zscore, rv_band]
       optional: [atr14, adx14]
@@ -82,7 +87,7 @@ MANIFEST_TEMPLATE = textwrap.dedent(
           narrow: 3.0
           normal: 5.0
           wide: 99.0
-        warmup_trades: 0
+        warmup_trades: 2
       cli_args:
         equity: 100000
         auto_state: false
@@ -204,7 +209,8 @@ def test_run_sim_with_manifest(tmp_path: Path) -> None:
     assert rc == 0
     assert json_out.exists()
     data = json.loads(json_out.read_text(encoding="utf-8"))
-    assert "trades" in data
+    assert data["trades"] > 0
+    assert data.get("runtime", {}).get("fills", 0) > 0
     assert data["symbol"] == "USDJPY"
     assert data["mode"] == "conservative"
     assert data["debug"]["csv_loader"]["skipped_rows"] == 0
@@ -270,7 +276,9 @@ def test_run_sim_warns_when_rows_skipped(tmp_path: Path, capsys: pytest.CaptureF
     assert loader_debug["last_error_code"] == "price_parse_error"
 
 
-def test_run_sim_strict_raises_on_skips(tmp_path: Path) -> None:
+def test_run_sim_strict_raises_on_skips(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     manifest_path = _write_manifest(tmp_path)
     csv_path = tmp_path / "bars.csv"
     csv_path.write_text(
@@ -294,6 +302,8 @@ def test_run_sim_strict_raises_on_skips(tmp_path: Path) -> None:
     assert excinfo.value.code == "rows_skipped"
     assert excinfo.value.details is not None
     assert "skipped=1" in excinfo.value.details
+    captured = capsys.readouterr()
+    assert "Skipped 1 CSV row" in captured.err
 
 
 def test_run_sim_creates_run_directory(tmp_path: Path) -> None:

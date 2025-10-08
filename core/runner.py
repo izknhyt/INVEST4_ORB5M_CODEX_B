@@ -893,19 +893,26 @@ class BacktestRunner:
             ts = bar.get("timestamp")
         except Exception:
             ts = None
-        day: Optional[int]
-        date_str: Optional[str]
+        day: Optional[int] = None
+        date_str: Optional[str] = None
         sess = "TOK"
-        try:
-            if isinstance(ts, str):
-                day = int(ts[8:10])
-                date_str = ts[:10]
-                sess = self._session_of_ts(ts)
-                self._last_timestamp = ts
+        if isinstance(ts, str):
+            parsed_dt = self._parse_session_timestamp(ts)
+            self._last_timestamp = ts
+            if parsed_dt is not None:
+                parsed_utc = parsed_dt.astimezone(timezone.utc)
+                day = parsed_utc.day
+                date_str = parsed_utc.date().isoformat()
+                hour = parsed_utc.hour
+                if 8 <= hour <= 12:
+                    sess = "LDN"
+                elif 13 <= hour <= 21:
+                    sess = "NY"
+                else:
+                    sess = "TOK"
             else:
-                day = None
-                date_str = None
-        except Exception:
+                sess = self._session_of_ts(ts)
+        else:
             day = None
             date_str = None
         if not isinstance(ts, str) and isinstance(bar.get("timestamp"), str):
