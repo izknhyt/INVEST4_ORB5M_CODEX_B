@@ -2,6 +2,10 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist.
+- 2026-04-12: Hardened `tests/test_run_sim_cli.py` skip-diagnostics coverage to assert reason counts and error messaging, re-ran
+  `python3 -m pytest tests/test_run_sim_cli.py tests/test_runner.py` followed by the full `python3 -m pytest` sweep.
+- 2026-04-11: Extended `tests/test_run_sim_cli.py` for ISO basic timestamps/uppercase TF coverage, added session regression in
+  `tests/test_runner.py`, ensured strict/tolerant skip diagnostics surface counts, and ran `python3 -m pytest tests/test_run_sim_cli.py tests/test_runner.py`.
 - 2026-04-09: Added CSV loader diagnostics/strict mode to `scripts/run_sim.py`, plumbed stats into CLI outputs/docs, updated grid/compare helpers, extended CLI tests, and ran `python3 -m pytest`.
 - 2026-04-10: Refactored `RunnerExecutionManager` entry flow to iterate multiple intents with per-order metrics, updated fill handling, added multi-intent runner regression, and ran `python3 -m pytest tests/test_runner.py`.
 - 2026-04-08: Normalised timeframe handling across `load_bars_csv` and `validate_bar`, plumbed runner timeframe whitelists, extended CLI/runner tests for uppercase bars, and ran `python3 -m pytest`.
