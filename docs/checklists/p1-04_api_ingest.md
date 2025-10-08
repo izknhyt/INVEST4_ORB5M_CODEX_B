@@ -1,7 +1,7 @@
 # DoD チェックリスト — 価格インジェストAPI基盤整備
 
 - タスク名: 価格インジェストAPI基盤整備
-- バックログ ID / アンカー: P1-04 / docs/task_backlog.md#p1-04-価格インジェストapi基盤整備
+- バックログ ID / アンカー: P1-04 / docs/task_backlog_p1_archive.md#p1-04-価格インジェストapi基盤整備
 - 担当: Codex Operator
 - チェックリスト保存先: docs/checklists/p1-04_api_ingest.md
 
@@ -91,7 +91,7 @@
 - `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6 --ingest-timeframe USDJPY_5m`
   - `ok: true` かつ `errors: []`・`advisories: []` を確認。`benchmark_pipeline` 側の遅延は 0.59h 以内、`ingest_metadata.freshness_minutes=0.614` を出力。
 - `ops/runtime_snapshot.json.benchmark_pipeline.USDJPY_conservative` を再確認し、`warnings: []`・`threshold_alerts: []` のまま `alert.triggered=true`（Sharpe delta 情報共有用）でエラー無しを確認。
-- ドキュメント同期: `state.md` ログ、[docs/todo_next_archive.md](../todo_next_archive.md)、`docs/task_backlog.md#p1-04-価格インジェストapi基盤整備` へ完了メモを追加し、本チェックリストの未チェック項目をクローズ。
+- ドキュメント同期: `state.md` ログ、[docs/todo_next_archive.md](../todo_next_archive.md)、`docs/task_backlog_p1_archive.md#p1-04-価格インジェストapi基盤整備` へ完了メモを追加し、本チェックリストの未チェック項目をクローズ。
 
 ### 2025-11-24 Synthetic extension toggle
 - 運用側の要望で、ローカル CSV 復旧時に合成バーを挿入せず鮮度遅延を可視化したいケースに対応。`python3 scripts/run_daily_workflow.py --ingest --use-dukascopy --disable-synthetic-extension` を追加し、`ingest_meta` に `synthetic_local` が含まれない経路を選択できるようにした。

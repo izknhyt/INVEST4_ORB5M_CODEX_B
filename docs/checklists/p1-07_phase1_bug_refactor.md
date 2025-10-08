@@ -1,7 +1,7 @@
 # DoD チェックリスト — フェーズ1 バグチェック & リファクタリング運用整備
 
 - チェックリスト保存先: docs/checklists/p1-07_phase1_bug_refactor.md
-- バックログ: [docs/task_backlog.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備](../task_backlog.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備)
+- バックログ: [docs/task_backlog_p1_archive.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備](../task_backlog_p1_archive.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備)
 - 関連テンプレ: [docs/templates/dod_checklist.md](../templates/dod_checklist.md), [docs/templates/next_task_entry.md](../templates/next_task_entry.md)
 
 > Ready 昇格チェックと固有 DoD は進捗に応じて更新し、完了後は関連ドキュメントから本チェックリストへリンクしてください。
@@ -40,7 +40,7 @@
 
 ```
 python3 scripts/manage_task_cycle.py --dry-run start-task \
-    --anchor docs/task_backlog.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備 \
+    --anchor docs/task_backlog_p1_archive.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備 \
     --record-date $(date +%Y-%m-%d) \
     --task-id P1-07 \
     --title "フェーズ1 バグチェック & リファクタリング運用整備" \
@@ -49,7 +49,7 @@ python3 scripts/manage_task_cycle.py --dry-run start-task \
     --doc-section Ready
 
 python3 scripts/manage_task_cycle.py --dry-run finish-task \
-    --anchor docs/task_backlog.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備 \
+    --anchor docs/task_backlog_p1_archive.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備 \
     --date $(date +%Y-%m-%d) \
     --note "チェックボード更新と state/docs の同期完了" \
     --task-id P1-07
@@ -95,7 +95,7 @@ python3 scripts/manage_task_cycle.py --dry-run finish-task \
 - [x] `docs/todo_next.md` の Ready または In Progress セクションへ項目を追加し、実装チームが次セッションで着手しやすい状態にした。
 - [x] `state.md` に本タスクを参照するノートを追記し、進捗ログとの同期手順を示した。
 
-> バックログ: `docs/task_backlog.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備`
+> バックログ: `docs/task_backlog_p1_archive.md#p1-07-フェーズ1-バグチェック--リファクタリング運用整備`
 > Ready ノート: `docs/todo_next.md#ready`
 > State 参照: `state.md` 2025-12-05 / 2025-12-30 エントリ
 

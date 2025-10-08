@@ -55,7 +55,7 @@ print(metrics.as_dict())
 ```bash
 # Ready から In Progress への着手時
 python3 scripts/manage_task_cycle.py --dry-run start-task \
-    --anchor docs/task_backlog.md#p1-01-ローリング検証パイプライン \
+    --anchor docs/task_backlog_p1_archive.md#p1-01-ローリング検証パイプライン \
     --record-date 2024-06-22 \
     --promote-date 2024-06-22 \
     --task-id P1-01 \
@@ -68,7 +68,7 @@ python3 scripts/manage_task_cycle.py --dry-run start-task \
 
 # 完了処理（In Progress → Archive）
 python3 scripts/manage_task_cycle.py --dry-run finish-task \
-    --anchor docs/task_backlog.md#p1-01-ローリング検証パイプライン \
+    --anchor docs/task_backlog_p1_archive.md#p1-01-ローリング検証パイプライン \
     --date 2024-06-24 \
     --note "ローリング365D/180D/90Dのrunを自動化し、state/log/docsを同期" \
     --task-id P1-01
@@ -79,7 +79,7 @@ python3 scripts/manage_task_cycle.py --dry-run finish-task \
 ### インシデントリプレイガイド
 - インシデントごとの作業フォルダは `ops/incidents/<incident_id>/` に配置し、`incident.json`（メタデータ）、`replay_params.json`（Notebook/CLI 引数のスナップショット）、`replay_notes.md`（原因分析と対策メモ）、`artifacts/`（スクリーンショットや追加ログ）をそろえる。
 - `analysis/incident_review.ipynb` から `scripts/run_sim.py --manifest <manifest> --csv <source.csv> --start-ts ... --end-ts ... --json-out ...` を実行し、Notebook が生成する `metrics.json` / `daily.csv` / `source_with_header.csv` は `runs/incidents/<incident_id>/` へ移動またはシンボリックリンクする。
-- `replay_notes.md` には `## Summary` / `## Findings` / `## Actions` を設け、`Summary` 冒頭の 3 行要約を `docs/task_backlog.md#p1-02-インシデントリプレイテンプレート` の進捗メモと `state.md` の `## Log` に転記してステークホルダーへ共有する。詳細手順は [docs/state_runbook.md#インシデントリプレイワークフロー](docs/state_runbook.md#インシデントリプレイワークフロー) を参照。
+- `replay_notes.md` には `## Summary` / `## Findings` / `## Actions` を設け、`Summary` 冒頭の 3 行要約を `docs/task_backlog_p1_archive.md#p1-02-インシデントリプレイテンプレート` の進捗メモと `state.md` の `## Log` に転記してステークホルダーへ共有する。詳細手順は [docs/state_runbook.md#インシデントリプレイワークフロー](docs/state_runbook.md#インシデントリプレイワークフロー) を参照。
 
 1. **新規タスクの登録**
    ```bash
@@ -87,7 +87,7 @@ python3 scripts/manage_task_cycle.py --dry-run finish-task \
        --task-id P1-10 \
        --title "ローリング検証パイプライン" \
        --date 2024-06-21 \
-       --anchor docs/task_backlog.md#p1-10-ローリング検証パイプライン \
+       --anchor docs/task_backlog_p1_archive.md#p1-10-ローリング検証パイプライン \
        --doc-section Ready \
        --doc-note "ローリング窓の自動起動シーケンスを草案化"
    ```
@@ -99,7 +99,7 @@ python3 scripts/manage_task_cycle.py --dry-run finish-task \
        --task-id P1-10 \
        --title "ローリング検証パイプライン" \
        --date 2024-06-22 \
-       --anchor docs/task_backlog.md#p1-10-ローリング検証パイプライン
+       --anchor docs/task_backlog_p1_archive.md#p1-10-ローリング検証パイプライン
    ```
    - `state.md` の `## Next Task` を更新し、`docs/todo_next.md` の該当ブロックが `### In Progress` へ移動します。
 
@@ -107,7 +107,7 @@ python3 scripts/manage_task_cycle.py --dry-run finish-task \
    ```bash
    python3 scripts/sync_task_docs.py complete \
        --date 2024-06-23 \
-       --anchor docs/task_backlog.md#p1-10-ローリング検証パイプライン \
+       --anchor docs/task_backlog_p1_archive.md#p1-10-ローリング検証パイプライン \
        --note "Sharpe/最大DD の監視とローリングrunの自動起動を整備"
    ```
    - `state.md` から当該タスクを削除し `## Log` に完了メモを追記、`docs/todo_next.md` から該当ブロックを外して [docs/todo_next_archive.md](docs/todo_next_archive.md) へストライク付きで移すと日付/✅が補完されます。
