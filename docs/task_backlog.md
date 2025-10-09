@@ -81,6 +81,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2026-05-28: Wired `scripts/run_daily_workflow.py --check-data-quality` to enforce the new coverage thresholds, updated README / `docs/state_runbook.md` with escalation guidance, and expanded pytest coverage to validate the orchestration command.
 - 2026-05-29: Enabled `scripts/check_data_quality.py --webhook` to deliver `data_quality_failure` alerts with coverage context, propagated webhook and timeout overrides from `run_daily_workflow.py --check-data-quality`, refreshed README/state runbook guidance, and extended pytest coverage for the new alert flow.
 - 2026-05-31: Added duplicate saturation guards to `scripts/check_data_quality.py` via `--fail-on-duplicate-groups`, wired the daily workflow default to fail when five or more duplicate timestamp groups remain after filtering, refreshed README / docs/data_quality_ops.md guidance, and expanded pytest coverage to exercise the new failure paths.
+- 2026-06-01: Added `--fail-on-duplicate-occurrences` to `scripts/check_data_quality.py` so audits can fail when a single timestamp grows beyond the allowed repetition count, propagated the threshold through `scripts/run_daily_workflow.py`, refreshed README / docs/data_quality_ops.md guidance, and extended pytest coverage for the new guard.
 
 <a id="p0-14-data-quality-gap-report"></a>
 ### P0-14 Data quality gap reporting

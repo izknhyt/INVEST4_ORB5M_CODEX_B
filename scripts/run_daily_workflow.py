@@ -1207,6 +1207,16 @@ def _build_data_quality_cmd(args, bars_csv: str):
                 str(args.data_quality_duplicate_groups_threshold),
             ]
         )
+    if (
+        args.data_quality_duplicate_occurrences_threshold is not None
+        and args.data_quality_duplicate_occurrences_threshold > 0
+    ):
+        cmd.extend(
+            [
+                "--fail-on-duplicate-occurrences",
+                str(args.data_quality_duplicate_occurrences_threshold),
+            ]
+        )
     if args.webhook:
         cmd.extend(["--webhook", args.webhook])
         if args.data_quality_webhook_timeout is not None:
@@ -1591,6 +1601,15 @@ def main(argv=None) -> int:
         ),
     )
     parser.add_argument(
+        "--data-quality-duplicate-occurrences-threshold",
+        type=int,
+        default=3,
+        help=(
+            "Fail the data quality audit when the maximum duplicate occurrences reach "
+            "the specified threshold (set to 0 to disable; default: 3)"
+        ),
+    )
+    parser.add_argument(
         "--data-quality-webhook-timeout",
         type=float,
         default=None,
@@ -1703,6 +1722,13 @@ def main(argv=None) -> int:
         and args.data_quality_duplicate_groups_threshold < 0
     ):
         raise SystemExit("--data-quality-duplicate-groups-threshold must be at least 0")
+    if (
+        args.data_quality_duplicate_occurrences_threshold is not None
+        and args.data_quality_duplicate_occurrences_threshold < 0
+    ):
+        raise SystemExit(
+            "--data-quality-duplicate-occurrences-threshold must be at least 0"
+        )
 
 
     if args.ingest:

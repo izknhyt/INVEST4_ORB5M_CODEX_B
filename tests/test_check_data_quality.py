@@ -513,6 +513,24 @@ def test_main_fails_when_duplicate_groups_reach_threshold(tmp_path, capsys):
     assert "duplicate_groups" in captured.err
 
 
+def test_main_fails_when_duplicate_occurrences_reach_threshold(tmp_path, capsys):
+    csv_path = tmp_path / "sample.csv"
+    _write_sample_csv(csv_path)
+
+    rc = check_data_quality.main(
+        [
+            "--csv",
+            str(csv_path),
+            "--fail-on-duplicate-occurrences",
+            "2",
+        ]
+    )
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "duplicate_max_occurrences" in captured.err
+
+
 def test_main_allows_duplicate_threshold_zero(tmp_path, capsys):
     csv_path = tmp_path / "sample.csv"
     _write_sample_csv(csv_path)
@@ -531,6 +549,24 @@ def test_main_allows_duplicate_threshold_zero(tmp_path, capsys):
     assert "FAILURE" not in captured.err
 
 
+def test_main_allows_duplicate_occurrence_threshold_zero(tmp_path, capsys):
+    csv_path = tmp_path / "sample.csv"
+    _write_sample_csv(csv_path)
+
+    rc = check_data_quality.main(
+        [
+            "--csv",
+            str(csv_path),
+            "--fail-on-duplicate-occurrences",
+            "0",
+        ]
+    )
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert "duplicate_max_occurrences" not in captured.err
+
+
 def test_main_rejects_negative_duplicate_group_threshold(tmp_path):
     csv_path = tmp_path / "sample.csv"
     _write_sample_csv(csv_path)
@@ -541,6 +577,23 @@ def test_main_rejects_negative_duplicate_group_threshold(tmp_path):
                 "--csv",
                 str(csv_path),
                 "--fail-on-duplicate-groups",
+                "-1",
+            ]
+        )
+
+    assert "at least 0" in str(excinfo.value)
+
+
+def test_main_rejects_negative_duplicate_occurrence_threshold(tmp_path):
+    csv_path = tmp_path / "sample.csv"
+    _write_sample_csv(csv_path)
+
+    with pytest.raises(SystemExit) as excinfo:
+        check_data_quality.main(
+            [
+                "--csv",
+                str(csv_path),
+                "--fail-on-duplicate-occurrences",
                 "-1",
             ]
         )
