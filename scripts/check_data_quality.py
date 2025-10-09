@@ -6,6 +6,7 @@ import csv
 import json
 import math
 import re
+import sys
 from collections import Counter, defaultdict
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -67,6 +68,23 @@ def parse_args(argv=None):
         help=(
             "Coverage ratio threshold used to flag calendar days with insufficient data "
             "when --calendar-day-summary is enabled (default: 0.98)"
+        ),
+    )
+    p.add_argument(
+        "--fail-under-coverage",
+        type=float,
+        default=None,
+        help=(
+            "Exit with status 1 when the overall coverage ratio falls below this threshold "
+            "(0-1, optional)"
+        ),
+    )
+    p.add_argument(
+        "--fail-on-calendar-day-warnings",
+        action="store_true",
+        help=(
+            "Exit with status 1 when calendar-day coverage warnings are present in the summary "
+            "(requires --calendar-day-summary)"
         ),
     )
     return p.parse_args(argv)
@@ -704,6 +722,17 @@ def main(argv=None):
         threshold = args.calendar_day_coverage_threshold
         if threshold < 0 or threshold > 1:
             raise SystemExit("--calendar-day-coverage-threshold must be between 0 and 1")
+    if getattr(args, "fail_under_coverage", None) is not None:
+        coverage_threshold = args.fail_under_coverage
+        if coverage_threshold < 0 or coverage_threshold > 1:
+            raise SystemExit("--fail-under-coverage must be between 0 and 1")
+    if (
+        getattr(args, "fail_on_calendar_day_warnings", False)
+        and not getattr(args, "calendar_day_summary", False)
+    ):
+        raise SystemExit(
+            "--fail-on-calendar-day-warnings requires --calendar-day-summary"
+        )
     start_ts = None
     if getattr(args, "start_timestamp", None):
         try:
@@ -735,6 +764,45 @@ def main(argv=None):
             args.calendar_day_coverage_threshold if args.calendar_day_summary else None
         ),
     )
+    failure_reasons: List[str] = []
+    fail_under = getattr(args, "fail_under_coverage", None)
+    if fail_under is not None:
+        coverage_ratio = summary.get("coverage_ratio")
+        if coverage_ratio is None:
+            failure_reasons.append(
+                "coverage ratio unavailable for --fail-under-coverage enforcement"
+            )
+        elif coverage_ratio < fail_under:
+            failure_reasons.append(
+                (
+                    "coverage_ratio "
+                    f"{coverage_ratio:.6f} fell below threshold {fail_under:.6f}"
+                )
+            )
+
+    if getattr(args, "fail_on_calendar_day_warnings", False):
+        calendar_summary = summary.get("calendar_day_summary")
+        if not calendar_summary:
+            failure_reasons.append(
+                "calendar day summary missing despite --fail-on-calendar-day-warnings"
+            )
+        else:
+            warnings = calendar_summary.get("warnings") or []
+            if warnings:
+                warning_count = len(warnings)
+                truncated = calendar_summary.get("warnings_truncated", False)
+                if truncated:
+                    failure_reasons.append(
+                        (
+                            f"{warning_count}+ calendar day warnings below coverage threshold "
+                            "(truncated)"
+                        )
+                    )
+                else:
+                    failure_reasons.append(
+                        f"{warning_count} calendar day warnings below coverage threshold"
+                    )
+
     print(summary)
     if getattr(args, "out_json", None):
         out_path = Path(args.out_json)
@@ -757,6 +825,10 @@ def main(argv=None):
         out_dup_json.parent.mkdir(parents=True, exist_ok=True)
         with out_dup_json.open("w", encoding="utf-8") as f:
             json.dump(duplicate_records, f, indent=2, ensure_ascii=False)
+    if failure_reasons:
+        for reason in failure_reasons:
+            print(f"[check_data_quality] FAILURE: {reason}", file=sys.stderr)
+        return 1
     return 0
 
 
