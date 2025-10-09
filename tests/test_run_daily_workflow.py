@@ -219,6 +219,11 @@ def test_check_data_quality_command_defaults(monkeypatch):
     )
     assert calendar_threshold == pytest.approx(0.98)
     assert int(cmd[cmd.index("--calendar-day-max-report") + 1]) == 10
+    assert "--fail-on-duplicate-groups" in cmd
+    duplicate_threshold = int(
+        cmd[cmd.index("--fail-on-duplicate-groups") + 1]
+    )
+    assert duplicate_threshold == 5
 
 
 def test_check_data_quality_propagates_webhook(monkeypatch):
@@ -269,6 +274,8 @@ def test_check_data_quality_supports_overrides(monkeypatch, tmp_path):
             "0.93",
             "--data-quality-calendar-max-report",
             "5",
+            "--data-quality-duplicate-groups-threshold",
+            "7",
         ]
     )
 
@@ -296,6 +303,23 @@ def test_check_data_quality_supports_overrides(monkeypatch, tmp_path):
     assert float(cmd[cmd.index("--calendar-day-coverage-threshold") + 1]) == pytest.approx(
         0.93
     )
+    assert int(cmd[cmd.index("--fail-on-duplicate-groups") + 1]) == 7
+
+
+def test_check_data_quality_disables_duplicate_guard(monkeypatch):
+    captured = _capture_run_cmd(monkeypatch)
+
+    exit_code = run_daily_workflow.main(
+        [
+            "--check-data-quality",
+            "--data-quality-duplicate-groups-threshold",
+            "0",
+        ]
+    )
+
+    assert exit_code == 0
+    cmd = captured[0]
+    assert "--fail-on-duplicate-groups" not in cmd
 
 
 def test_check_data_quality_validates_thresholds():
@@ -314,6 +338,10 @@ def test_check_data_quality_validates_thresholds():
     with pytest.raises(SystemExit):
         run_daily_workflow.main(
             ["--check-data-quality", "--data-quality-webhook-timeout", "0"]
+        )
+    with pytest.raises(SystemExit):
+        run_daily_workflow.main(
+            ["--check-data-quality", "--data-quality-duplicate-groups-threshold", "-1"]
         )
 
 

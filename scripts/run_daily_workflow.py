@@ -1197,6 +1197,16 @@ def _build_data_quality_cmd(args, bars_csv: str):
         cmd.extend(
             ["--fail-under-coverage", str(args.data_quality_coverage_threshold)]
         )
+    if (
+        args.data_quality_duplicate_groups_threshold is not None
+        and args.data_quality_duplicate_groups_threshold > 0
+    ):
+        cmd.extend(
+            [
+                "--fail-on-duplicate-groups",
+                str(args.data_quality_duplicate_groups_threshold),
+            ]
+        )
     if args.webhook:
         cmd.extend(["--webhook", args.webhook])
         if args.data_quality_webhook_timeout is not None:
@@ -1572,6 +1582,15 @@ def main(argv=None) -> int:
         help="Maximum number of calendar-day entries retained in the summary",
     )
     parser.add_argument(
+        "--data-quality-duplicate-groups-threshold",
+        type=int,
+        default=5,
+        help=(
+            "Fail the data quality audit when duplicate timestamp groups reach the "
+            "specified threshold (set to 0 to disable; default: 5)"
+        ),
+    )
+    parser.add_argument(
         "--data-quality-webhook-timeout",
         type=float,
         default=None,
@@ -1679,6 +1698,11 @@ def main(argv=None) -> int:
         and args.data_quality_webhook_timeout <= 0
     ):
         raise SystemExit("--data-quality-webhook-timeout must be positive")
+    if (
+        args.data_quality_duplicate_groups_threshold is not None
+        and args.data_quality_duplicate_groups_threshold < 0
+    ):
+        raise SystemExit("--data-quality-duplicate-groups-threshold must be at least 0")
 
 
     if args.ingest:
