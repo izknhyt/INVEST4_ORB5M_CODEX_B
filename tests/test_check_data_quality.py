@@ -40,6 +40,10 @@ def test_audit_summarises_gaps_and_coverage(tmp_path):
             "line_numbers": [4, 5],
         }
     ]
+    assert summary["duplicate_max_occurrences"] == 2
+    assert summary["duplicate_first_timestamp"] == "2024-01-01T00:15:00"
+    assert summary["duplicate_last_timestamp"] == "2024-01-01T00:15:00"
+    assert summary["duplicate_timestamp_span_minutes"] == pytest.approx(0.0)
     assert summary["gap_count"] == 1
     assert summary["max_gap_minutes"] == pytest.approx(10.0)
     assert summary["total_gap_minutes"] == pytest.approx(10.0)
@@ -286,3 +290,31 @@ def test_duplicate_report_truncation(tmp_path):
     assert summary["duplicate_groups"] == 3
     assert len(summary["duplicate_details"]) == 1
     assert summary["duplicate_details_truncated"] is True
+    assert summary["duplicate_max_occurrences"] == 2
+    assert summary["duplicate_first_timestamp"] == "2024-01-01T00:00:00"
+    assert summary["duplicate_last_timestamp"] == "2024-01-01T00:10:00"
+    assert summary["duplicate_timestamp_span_minutes"] == pytest.approx(10.0)
+
+
+def test_duplicate_details_prioritise_high_occurrence(tmp_path):
+    csv_path = tmp_path / "dups_weighted.csv"
+    rows = [
+        "timestamp,symbol,tf,o,h,l,c,v,spread",
+        "2024-01-01T00:00:00Z,USDJPY,5m,1,1,1,1,0,0",
+        "2024-01-01T00:00:00Z,USDJPY,5m,1,1,1,1,0,0",
+        "2024-01-01T00:05:00Z,USDJPY,5m,1,1,1,1,0,0",
+        "2024-01-01T00:05:00Z,USDJPY,5m,1,1,1,1,0,0",
+        "2024-01-01T00:05:00Z,USDJPY,5m,1,1,1,1,0,0",
+        "2024-01-01T00:10:00Z,USDJPY,5m,1,1,1,1,0,0",
+    ]
+    csv_path.write_text("\n".join(rows), encoding="utf-8")
+
+    summary = check_data_quality.audit(csv_path, max_duplicate_report=2)
+
+    assert [item["timestamp"] for item in summary["duplicate_details"]] == [
+        "2024-01-01T00:05:00",
+        "2024-01-01T00:00:00",
+    ]
+    assert summary["duplicate_details"][0]["occurrences"] == 3
+    assert summary["duplicate_details"][1]["occurrences"] == 2
+    assert summary["duplicate_max_occurrences"] == 3
