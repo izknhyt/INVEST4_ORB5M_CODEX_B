@@ -27,7 +27,7 @@
 3. 影響範囲が広い変更では [docs/documentation_portal.md](docs/documentation_portal.md) の各カテゴリから該当ランブック / テンプレートを開き、DoD と再現手順を揃えてから作業に入る。
 
 ## Developer Quickstart
-1. Python 3.10+ 環境を準備し、`pip install -r requirements.txt`（必要に応じて追加依存を [docs/dependencies.md](docs/dependencies.md) で確認）。
+1. Python 3.10+ 環境を準備する。初回セットアップでは `pip install pytest` を実行してテストスイートを動かせる状態にし、チャート生成や表計算が必要になった場合は `pip install pandas matplotlib` を追加する。その他の任意依存と推奨インストール順は [docs/dependencies.md](docs/dependencies.md) を参照し、必要なコマンド（例: ダカスコピー連携時の `pip install dukascopy-python`）を適宜実行する。
 2. `python3 -m pytest` を実行してベースラインのテストがグリーンであることを確認。
 3. `state.md` / `docs/todo_next.md` / `docs/task_backlog.md` のアンカーを揃え、作業ログとドキュメント更新を同じコミットで行う。
 4. 実装後は使用したテストコマンドと生成物を `state.md` ログおよび PR 説明に記録する。
