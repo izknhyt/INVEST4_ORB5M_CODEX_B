@@ -7,7 +7,7 @@ import json
 import math
 import re
 from collections import Counter
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from statistics import median
 from typing import Dict, List, Sequence, Set, Tuple
@@ -29,16 +29,25 @@ def parse_args(argv=None):
                    help="Maximum number of gaps retained in the summary payload (default: 20)")
     p.add_argument("--expected-interval-minutes", type=float, default=None,
                    help="Override the expected bar interval in minutes (default: auto-detect from tf column or timestamps)")
+    p.add_argument("--start-timestamp", default=None,
+                   help="Optional ISO-8601 timestamp (UTC) marking the inclusive start of the audit window")
+    p.add_argument("--end-timestamp", default=None,
+                   help="Optional ISO-8601 timestamp (UTC) marking the inclusive end of the audit window")
     return p.parse_args(argv)
 
 
-def parse_row(row: Dict[str, str]):
-    raw_ts = row["timestamp"].strip().replace(" ", "T")
+def _parse_timestamp(value: str) -> datetime:
+    raw_ts = value.strip().replace(" ", "T")
     if raw_ts.endswith("Z"):
         raw_ts = raw_ts[:-1]
     ts = datetime.fromisoformat(raw_ts)
     if ts.tzinfo is not None:
         ts = ts.astimezone(timezone.utc).replace(tzinfo=None)
+    return ts
+
+
+def parse_row(row: Dict[str, str]):
+    ts = _parse_timestamp(row["timestamp"])
     tf = row.get("tf", "").strip()
     symbol = row.get("symbol")
     return ts, tf, symbol
@@ -193,6 +202,8 @@ def _audit_internal(
     max_gap_report: int = 20,
     capture_gap_details: bool = False,
     expected_interval_minutes: float | None = None,
+    start_timestamp: datetime | None = None,
+    end_timestamp: datetime | None = None,
 ):
     missing_cols = 0
     bad_rows = 0
@@ -218,6 +229,11 @@ def _audit_internal(
                 float(row["c"])
             except Exception:
                 bad_rows += 1
+                continue
+
+            if start_timestamp and ts < start_timestamp:
+                continue
+            if end_timestamp and ts > end_timestamp:
                 continue
 
             total_rows += 1
@@ -271,6 +287,8 @@ def _audit_internal(
     summary = {
         "csv": str(csv_path),
         "symbol_filter": symbol,
+        "start_timestamp_filter": start_timestamp.isoformat() if start_timestamp else None,
+        "end_timestamp_filter": end_timestamp.isoformat() if end_timestamp else None,
         "missing_cols": missing_cols,
         "bad_rows": bad_rows,
         "duplicates": duplicates,
@@ -307,6 +325,8 @@ def audit(
     *,
     max_gap_report: int = 20,
     expected_interval_minutes: float | None = None,
+    start_timestamp: datetime | None = None,
+    end_timestamp: datetime | None = None,
 ) -> Dict[str, object]:
     summary, _ = _audit_internal(
         csv_path,
@@ -314,6 +334,8 @@ def audit(
         max_gap_report=max_gap_report,
         capture_gap_details=False,
         expected_interval_minutes=expected_interval_minutes,
+        start_timestamp=start_timestamp,
+        end_timestamp=end_timestamp,
     )
     return summary
 
@@ -347,12 +369,28 @@ def main(argv=None):
     csv_path = Path(args.csv)
     if not csv_path.exists():
         raise SystemExit(f"CSV not found: {csv_path}")
+    start_ts = None
+    if getattr(args, "start_timestamp", None):
+        try:
+            start_ts = _parse_timestamp(args.start_timestamp)
+        except Exception as exc:
+            raise SystemExit(f"invalid --start-timestamp value: {args.start_timestamp}") from exc
+    end_ts = None
+    if getattr(args, "end_timestamp", None):
+        try:
+            end_ts = _parse_timestamp(args.end_timestamp)
+        except Exception as exc:
+            raise SystemExit(f"invalid --end-timestamp value: {args.end_timestamp}") from exc
+    if start_ts and end_ts and start_ts > end_ts:
+        raise SystemExit("--start-timestamp must be earlier than or equal to --end-timestamp")
     summary, gap_records = _audit_internal(
         csv_path,
         args.symbol,
         max_gap_report=max(1, args.max_gap_report),
         capture_gap_details=bool(args.out_gap_csv),
         expected_interval_minutes=args.expected_interval_minutes,
+        start_timestamp=start_ts,
+        end_timestamp=end_ts,
     )
     print(summary)
     if getattr(args, "out_json", None):
