@@ -4,6 +4,7 @@
 
 - **Codex-first documentation cleanup** (Backlog: `docs/task_backlog.md` → [P0-12](./task_backlog.md#p0-12-codex-first-documentation-cleanup)) — 2026-05-05 完了 <!-- anchor: docs/task_backlog.md#p0-12-codex-first-documentation-cleanup -->
   - Consolidated quickstart/workflow/state runbook into aligned three-step guides, refreshed README / roadmap / todo-next anchors, and logged deliverables in `state.md` と backlog. `python3 -m pytest` を完走し、docs/todo_next アーカイブへ移動。
+  - 2026-05-06: Authored [docs/documentation_portal.md](documentation_portal.md) as the navigation hub, reorganised README onboarding sections, and updated quickstart/workflow guidance to point at the new portal。`docs/todo_next.md` / `state.md` / backlog のログを同期。
 - **ルーター拡張** (Backlog: `docs/task_backlog.md` → [P2-マルチ戦略ポートフォリオ化](./task_backlog.md#p2-マルチ戦略ポートフォリオ化)) — 2026-02-13 完了 <!-- anchor: docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化 -->
   - Finalised PortfolioState budgeting, correlation scoring, and execution-health penalties. Synced `docs/checklists/p2_router.md`, refreshed `docs/progress_phase2.md` deliverable notes, updated backlog progress, and ran `python3 -m pytest tests/test_router_v1.py tests/test_router_pipeline.py` before closing。
 - **マルチ戦略比較バリデーション** (Backlog: `docs/task_backlog.md` → [P2-マルチ戦略ポートフォリオ化](./task_backlog.md#p2-マルチ戦略ポートフォリオ化)) — 2026-02-13 完了

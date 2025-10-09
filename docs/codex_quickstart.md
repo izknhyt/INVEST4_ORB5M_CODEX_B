@@ -3,6 +3,7 @@
 Codex オペレータが 1 セッションで辿るべき流れを、チェックリスト主体で 1 ページにまとめました。詳細ガイドや補足テンプレートは [docs/codex_workflow.md](codex_workflow.md) / [docs/state_runbook.md](state_runbook.md) を参照してください。
 
 ## 1. セッション前チェック
+- [ ] [docs/documentation_portal.md](documentation_portal.md) を開き、関連ランブックや設計ドキュメントの位置を確認する。
 - [ ] `state.md` → `## Next Task` の担当タスクと Pending Questions を確認する。
 - [ ] [docs/task_backlog.md](task_backlog.md) で該当アンカーの DoD / 進捗ノートを再確認する。
 - [ ] [docs/todo_next.md](todo_next.md) でアンカー位置（Ready / In Progress / Pending Review）を確認し、必要なら `python3 scripts/manage_task_cycle.py --dry-run start-task --anchor <...>` で昇格手順をプレビューする。
