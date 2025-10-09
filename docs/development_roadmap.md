@@ -4,8 +4,8 @@
 
 ## Immediate (今すぐ着手)
 - **P0-12 Codex-first documentation cleanup** — [docs/task_backlog.md#p0-12-codex-first-documentation-cleanup](task_backlog.md#p0-12-codex-first-documentation-cleanup)
-  - クイックスタート / ランブック / README の導線統一、チェックリストの簡素化、`manage_task_cycle` の完了フロー検証を同一スプリントで実施する。
-  - `docs/todo_next.md`・`docs/checklists/` のアンカーと DoD リンクが新フローに沿っているかセッション毎に点検する。
+  - クイックスタート / ワークフロー / README を 3 ステップ構成で統一し、チェックリストとテンプレ参照を最新化する。
+  - `docs/todo_next.md`・`state.md`・`docs/checklists/` のアンカーが揃っているかセッション毎に点検し、`manage_task_cycle` の dry-run 例を添えて同期を検証する。
 - **Codex ops backlog hygiene** — [docs/task_backlog.md#codex-session-operations-guide](task_backlog.md#codex-session-operations-guide)
   - `state.md` / `docs/todo_next.md` のテンプレ同期手順を再確認し、テンプレ修正時は manage_task_cycle の dry-run を添える。
   - Sandbox ガイド（`docs/codex_cloud_notes.md`）や PR テンプレの更新があれば README / ランブックと同時に反映する。

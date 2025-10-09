@@ -6,7 +6,7 @@
 
 各タスクに着手する前に、該当するバックログ項目を `state.md` の `Next Task` ブロックへ明示的に引き込み、進行中であることを記録してください。作業完了後は、成果ノートや反省点を `docs/todo_next.md` に反映し、`state.md` の完了ログと整合するよう同期します。
 
-- 例: [P1-02] 2024-06-18 state.md ログ / [`docs/progress_phase1.md`](docs/progress_phase1.md)
+- 例: [P1-02] 2024-06-18 state.md ログ / [`docs/progress_phase1.md`](./progress_phase1.md)
 
 ### Codex Session Operations Guide
 Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_next.md`, and `docs/task_backlog.md` synchronized across sessions, including how to use the supporting scripts and templates.
@@ -30,6 +30,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - **Notes**: Focus on reducing duplication between `docs/codex_quickstart.md`, `docs/codex_workflow.md`, README, and `docs/state_runbook.md`; ensure sandbox/approval rules stay explicit.
 - 2026-04-24: Normalised internal documentation links to use relative paths so Markdown previews and GitHub navigation stay consistent. Synced quickstart/workflow docs with the updated guideline and logged the change in `state.md`.
 - 2026-04-25: Re-audited `docs/` Markdown to ensure no `] (docs/...)` style links slipped back in, expanded the workflow guideline with the failure mode, and recorded the hygiene check in `state.md`.
+- 2026-05-05: Restructured Codex quickstart/workflow/state runbook into aligned 3-step guides, refreshed README / `docs/todo_next.md` / roadmap anchors, and added deliverable tracking to `state.md`.
 - ~~**P0-13 run_daily_workflow local CSV override fix**~~ (2026-04-07 完了): `scripts/run_daily_workflow.py` がデフォルト ingest で `pull_prices.py` を呼び出す際に `--local-backup-csv` のパスを尊重する。
   - 2026-04-07: CLI オプションを `pull_prices` コマンドへ伝播し、回帰テスト `tests/test_run_daily_workflow.py::test_ingest_pull_prices_respects_local_backup_override` を追加。`python3 -m pytest` を実行して確認。
 - 2026-04-05: `scripts/run_sim.py` を manifest-first CLI へ再設計し、OutDir 実行時にランフォルダ (`params.json` / `metrics.json` / `records.csv` / `daily.csv`) が生成されるよう統合。`tests/test_run_sim_cli.py` / README / `docs/checklists/multi_strategy_validation.md` を更新。
