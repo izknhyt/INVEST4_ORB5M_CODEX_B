@@ -137,6 +137,8 @@ python3 scripts/check_data_quality.py \
 - `--expected-interval-minutes` で期待タイムフレームを明示すると、5m 以外のバーやカスタム期待値に合わせて欠損推定を再計算できます（未指定時は `tf` カラムまたは観測間隔から自動判定）。
 - `--start-timestamp` / `--end-timestamp` で ISO-8601 形式の監査ウィンドウ（UTC 基準、両端含む）を指定でき、部分期間のギャップ調査に利用できます。サマリーには適用したフィルタ値も `start_timestamp_filter` / `end_timestamp_filter` として残ります。
 - `--calendar-day-summary` を使うと UTC カレンダーベースで 1 日ごとのカバレッジ比率を集計し、`--calendar-day-coverage-threshold` で指定した下限を下回る日を `calendar_day_summary.warnings` に優先表示します（既定 0.98）。`--calendar-day-max-report` でワースト日一覧の件数を制御できます。
+- `--fail-under-coverage` を指定すると、総合カバレッジ比率が下限（0〜1 の小数）を下回った場合に終了コード 1 で失敗扱いになり、サマリー出力後に理由が stderr へ表示されます。
+- `--fail-on-calendar-day-warnings` は `--calendar-day-summary` と併用し、`warnings` に 1 件以上の日が出現した場合に終了コード 1 を返します。しきい値を `--calendar-day-coverage-threshold` で調整し、複数日がトリガーした場合は件数とトランケーション状況が stderr へ通知されます。
 - 既存の stdout / JSON レイアウトは維持されるため、既存オートメーションはフラグを追加しない限り挙動が変わりません。
 
 ### オンデマンドインジェスト CLI

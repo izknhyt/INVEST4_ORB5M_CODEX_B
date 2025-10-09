@@ -474,3 +474,78 @@ def test_main_supports_calendar_day_summary(tmp_path, capsys):
     assert calendar["details"][0]["date"] == "2024-01-02"
     assert calendar["warnings"][0]["date"] == "2024-01-02"
     assert calendar["coverage_threshold"] == pytest.approx(0.9)
+
+
+def test_main_fails_when_coverage_below_threshold(tmp_path, capsys):
+    csv_path = tmp_path / "sample.csv"
+    _write_sample_csv(csv_path)
+
+    rc = check_data_quality.main(
+        [
+            "--csv",
+            str(csv_path),
+            "--fail-under-coverage",
+            "0.9",
+        ]
+    )
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "coverage_ratio" in captured.err
+    assert "FAILURE" in captured.err
+
+
+def test_main_requires_calendar_summary_for_warning_failures(tmp_path):
+    csv_path = tmp_path / "sample.csv"
+    _write_sample_csv(csv_path)
+
+    with pytest.raises(SystemExit) as excinfo:
+        check_data_quality.main(
+            [
+                "--csv",
+                str(csv_path),
+                "--fail-on-calendar-day-warnings",
+            ]
+        )
+
+    assert "requires --calendar-day-summary" in str(excinfo.value)
+
+
+def test_main_fails_when_calendar_day_warnings_present(tmp_path, capsys):
+    csv_path = tmp_path / "multi_day.csv"
+    _write_multi_day_csv(csv_path)
+
+    rc = check_data_quality.main(
+        [
+            "--csv",
+            str(csv_path),
+            "--calendar-day-summary",
+            "--calendar-day-coverage-threshold",
+            "0.9",
+            "--fail-on-calendar-day-warnings",
+        ]
+    )
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "calendar day warnings" in captured.err
+
+
+def test_main_passes_when_calendar_day_warnings_absent(tmp_path, capsys):
+    csv_path = tmp_path / "multi_day.csv"
+    _write_multi_day_csv(csv_path)
+
+    rc = check_data_quality.main(
+        [
+            "--csv",
+            str(csv_path),
+            "--calendar-day-summary",
+            "--calendar-day-coverage-threshold",
+            "0.1",
+            "--fail-on-calendar-day-warnings",
+        ]
+    )
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert captured.err == ""
