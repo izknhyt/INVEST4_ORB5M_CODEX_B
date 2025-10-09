@@ -2,6 +2,8 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-05-18: Normalised `scripts/check_data_quality.py` timestamp parsing to accept trailing `Z`/offset markers, updated the
+  pytest fixture plus backlog/todo notes, and re-ran `python3 -m pytest` to confirm coverage remains green.
 - 2026-05-17: Closed out P0-12 Codex-first documentation cleanup by archiving the Pending Review entry, completing the remaining DoD checklist action, updating backlog/todo archive notes, and re-running `python3 -m pytest` to keep the suite green.
 - 2026-05-16: Finalised P0-14 data quality gap reporting hand-off by archiving the todo entry, capturing reproduction commands/output paths, ticking the DoD checklist, updating backlog notes, and running `python3 -m pytest` to keep regressions green.
 - 2026-05-15: Initiated P0-14 data quality gap reporting to extend `scripts/check_data_quality.py` with exportable gap tables and richer metrics; synced backlog/todo checklists before coding.
@@ -491,3 +493,4 @@
 - Pending Review — [docs/task_backlog.md#p0-13-data-quality-audit](docs/task_backlog.md#p0-13-data-quality-audit)
   - Deliverables (English): Extended CLI summary metrics (row coverage, monotonicity, gaps), JSON export path, regression tests covering audit logic and CLI output.
   - Notes: Validate backward compatibility on stdout while enabling automation-friendly outputs for cron jobs.
+  - 2026-05-18: Added UTC/offset timestamp handling to the audit CLI and refreshed the pytest fixture to confirm coverage.

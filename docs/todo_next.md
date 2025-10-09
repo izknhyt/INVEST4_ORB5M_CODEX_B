@@ -27,6 +27,7 @@
 - [docs/task_backlog.md#p0-13-data-quality-audit](./task_backlog.md#p0-13-data-quality-audit) <!-- anchor: docs/task_backlog.md#p0-13-data-quality-audit -->
   - Deliverables (English): Extended CLI summary metrics (row coverage, monotonicity, gaps), JSON export path, regression tests covering audit logic and CLI output.
   - Notes: Validate backward compatibility on stdout while enabling automation-friendly outputs for cron jobs.
+  - 2026-05-18: Added UTC/offset timestamp handling to the audit CLI and refreshed the pytest fixture to confirm coverage.
 
 - レビュー中のタスクを再開する際は `scripts/manage_task_cycle.py --doc-section Pending Review` を用いると、`docs/todo_next.md` の配置を維持したまま `state.md` のテンプレートを再適用できる。
 

@@ -70,6 +70,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - **Notes**: Keep compatibility with existing CLI usage while expanding summary fidelity so cron jobs can persist machine-readable outputs. Document new expectations in backlog notes and ensure pytest coverage stays green.
 - **DoD チェックリスト**: [docs/checklists/p0-13_data_quality_audit.md](checklists/p0-13_data_quality_audit.md)
 - 2026-05-14: Added coverage/monotonic metrics and JSON export support to the audit CLI, introduced pytest coverage for summary stats and CLI output, and verified `python3 -m pytest tests/test_check_data_quality.py` passes alongside the full suite.
+- 2026-05-18: Normalised timestamp parsing in `scripts/check_data_quality.py` to accept `Z` suffixes and timezone offsets, updating the pytest fixture to cover UTC/offset inputs so audits don't drop valid rows.
 
 <a id="p0-14-data-quality-gap-report"></a>
 ### P0-14 Data quality gap reporting
