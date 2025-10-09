@@ -24,6 +24,8 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2026-04-17: Implemented the observability dashboard pipeline (`analysis/export_dashboard_data.py`, `analysis/dashboard/*`, `analysis/portfolio_monitor.ipynb`) and documented refresh/reporting expectations in `docs/observability_dashboard.md`.
 
 ## P0: 即着手（オンデマンドインジェスト + 基盤整備）
+
+**Status Update (2026-06-15)**: Live `data_quality_failure` alert validation remains on hold until production emits the first alert. Operational bandwidth is redirected toward P2 portfolio reporting deliverables and P3 observability automation planning.
 <a id="p0-12-codex-first-documentation-cleanup"></a>
 ### ~~P0-12 Codex-first documentation cleanup~~ ✅ (2026-05-17 クローズ)
 
@@ -162,6 +164,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 
 - <a id="p2-portfolio-evaluation"></a>**ポートフォリオ評価レポート**: 複数戦略を同時に流した場合の資本使用率・相関・ドローダウンを集計する `analysis/portfolio_monitor.ipynb` と `reports/portfolio_summary.json` を追加。
   - 2026-01-16: `analysis/portfolio_monitor.py` と `scripts/report_portfolio_summary.py` を実装し、`reports/portfolio_samples/router_demo/` のフィクスチャで JSON スキーマを固定。`python3 -m pytest` と CLI ドライランでカテゴリ利用率・相関ヒートマップ・合成ドローダウンの算出を確認し、`docs/logic_overview.md#ポートフォリオ監視` に運用手順と判断基準を追記。
+  - 2026-06-15: Re-prioritised for near-term delivery—refresh CLI walkthrough, publish artefact links, and lock regression coverage ahead of P3 automation work.
 ### ~~P2-MS マルチ戦略比較バリデーション~~ ✅ (2026-02-13 クローズ)
 - Day ORB と Mean Reversion (`strategies/mean_reversion.py`) を同一 CSV で走らせ、`docs/checklists/multi_strategy_validation.md` に沿ってゲート通過数・EV リジェクト数・期待値差をレビュー。DoD: チェックリストの全項目を完了し、比較サマリをレビュー用ドキュメントへ共有する。
   - 2025-12-02: Mean Reversion 戦略の本実装を `strategies/mean_reversion.py` へ移行し、`configs/strategies/mean_reversion.yaml` / `configs/ev_profiles/mean_reversion.yaml` を整備。`analysis/broker_fills.ipynb` を公開してブローカー別比較を Notebook でも検証可能にし、`tests/test_mean_reversion_strategy.py` を追加してゲート・EV 調整ロジックの回帰を確保。
@@ -172,6 +175,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - **週次レポート生成**: `scripts/summarize_runs.py` を拡張し、ベースライン/ローリング run・カテゴリ別稼働率・ヘルスチェック結果をまとめて Webhook送信。
   - 2026-04-16: `scripts/summarize_runs.py` を通知ペイロード生成フローに刷新し、`--config` での include/宛先制御と Webhook ドライランを追加。`docs/benchmark_runbook.md` に運用手順を記載し、`tests/test_summarize_runs.py` で集計精度と Webhook ペイロードを回帰テスト化。
 - **ダッシュボード整備**: EV 推移、滑り推定、勝率 LCB、ターンオーバーの KPI を 1 つの Notebook or BI に集約し、運用判断を迅速化。
+  - 2026-06-15: Kickoff scope drafted—define telemetry refresh cadence, weekly summary payload template, and dashboard data export checklist once P2 reporting refresh is stable.
 
 ## 継続タスク / 保守
 - データスキーマ検証 (`scripts/check_data_quality.py`) を cron 化し、異常リストを `analysis/data_quality.md` に追記。

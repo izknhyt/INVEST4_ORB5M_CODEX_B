@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-06-15: Deferred the P0 live-alert validation loop until production emits the first `data_quality_failure`, reorganised docs/todo/backlog to prioritise the P2 portfolio report refresh and scoped the first P3 observability automation milestone.
 - 2026-06-14: Blocked duplicate acknowledgement rows by default in `scripts/record_data_quality_alert.py`, added a `--allow-duplicate` escape hatch, refreshed docs/data_quality_ops.md & ops/health/data_quality_alerts.md, synced backlog/todo/checklist updates, and ran `python3 -m pytest` to keep the suite green。
 - 2026-06-13: Hardened `scripts/record_data_quality_alert.py` against malformed coverage ratios and timezone-less timestamps, documented the guardrails in docs/data_quality_ops.md, synced backlog/todo entries, and ran `python3 -m pytest` to keep the suite green。
 - 2026-06-12: Promoted P2 portfolio evaluation report to Ready by adding deliverable notes in docs/todo_next.md and anchoring the backlog entry for quick reference。
@@ -512,4 +513,4 @@
 
 - [OPS-CODEX-GUIDE] 2025-10-08: Aligned workflow docs with review feedback. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
 ## Next Task
-- Monitor for the first production `data_quality_failure` alert so we can validate the acknowledgement workflow and escalation logging with a live payload.
+- Prepare the P2 portfolio evaluation report refresh (sample CLI run, artefact links, pytest/CLI regression check) while planning the first P3 observability automation milestone.
