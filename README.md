@@ -130,6 +130,7 @@ python3 scripts/check_data_quality.py \
 
 - デフォルトのサマリーには `missing_rows_estimate` / `total_gap_minutes` / `average_gap_minutes` / `gap_details`（上位ギャップの詳細）を含みます。
 - `--max-gap-report` でサマリー内に保持するギャップ件数を制御しつつ、`--out-gap-csv` を指定すれば全ギャップ表を CSV にエクスポートできます。
+- `--expected-interval-minutes` で期待タイムフレームを明示すると、5m 以外のバーやカスタム期待値に合わせて欠損推定を再計算できます（未指定時は `tf` カラムまたは観測間隔から自動判定）。
 - 既存の stdout / JSON レイアウトは維持されるため、既存オートメーションはフラグを追加しない限り挙動が変わりません。
 
 ### オンデマンドインジェスト CLI
