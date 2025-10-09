@@ -190,25 +190,29 @@ def test_check_data_quality_command_defaults(monkeypatch):
     assert captured, "run_cmd should be invoked"
     cmd = captured[0]
     assert "check_data_quality.py" in cmd[1]
+    expected_csv = run_daily_workflow._resolve_default_bars_csv("USDJPY")
     _assert_path_arg(
         cmd,
         "--csv",
-        run_daily_workflow.ROOT / "validated/USDJPY/5m.csv",
+        expected_csv,
     )
+    tf_token = Path(expected_csv).stem.lower()
+    symbol_lower = "usdjpy"
+    dq_dir = run_daily_workflow.ROOT / "reports/data_quality"
     _assert_path_arg(
         cmd,
         "--out-json",
-        run_daily_workflow.ROOT / "reports/data_quality/usdjpy_5m_summary.json",
+        dq_dir / f"{symbol_lower}_{tf_token}_summary.json",
     )
     _assert_path_arg(
         cmd,
         "--out-gap-csv",
-        run_daily_workflow.ROOT / "reports/data_quality/usdjpy_5m_gap_inventory.csv",
+        dq_dir / f"{symbol_lower}_{tf_token}_gap_inventory.csv",
     )
     _assert_path_arg(
         cmd,
         "--out-gap-json",
-        run_daily_workflow.ROOT / "reports/data_quality/usdjpy_5m_gap_inventory.json",
+        dq_dir / f"{symbol_lower}_{tf_token}_gap_inventory.json",
     )
     assert "--calendar-day-summary" in cmd
     assert "--fail-on-calendar-day-warnings" in cmd
@@ -344,6 +348,32 @@ def test_check_data_quality_disables_duplicate_occurrence_guard(monkeypatch):
     assert exit_code == 0
     cmd = captured[0]
     assert "--fail-on-duplicate-occurrences" not in cmd
+
+
+def test_default_bars_prefers_header(monkeypatch, tmp_path):
+    repo_root = tmp_path / "repo"
+    header_path = repo_root / "validated/USDJPY/5m_with_header.csv"
+    legacy_path = repo_root / "validated/USDJPY/5m.csv"
+    header_path.parent.mkdir(parents=True, exist_ok=True)
+    legacy_path.write_text("timestamp,symbol,tf,o,h,l,c,v,spread\n", encoding="utf-8")
+    header_path.write_text("timestamp,symbol,tf,o,h,l,c,v,spread\n", encoding="utf-8")
+    monkeypatch.setattr(run_daily_workflow, "ROOT", repo_root)
+
+    default_path = run_daily_workflow._resolve_default_bars_csv("USDJPY")
+
+    assert default_path == header_path
+
+
+def test_default_bars_falls_back_when_header_missing(monkeypatch, tmp_path):
+    repo_root = tmp_path / "repo"
+    legacy_path = repo_root / "validated/USDJPY/5m.csv"
+    legacy_path.parent.mkdir(parents=True, exist_ok=True)
+    legacy_path.write_text("timestamp,symbol,tf,o,h,l,c,v,spread\n", encoding="utf-8")
+    monkeypatch.setattr(run_daily_workflow, "ROOT", repo_root)
+
+    default_path = run_daily_workflow._resolve_default_bars_csv("USDJPY")
+
+    assert default_path == legacy_path
 
 
 def test_check_data_quality_validates_thresholds():

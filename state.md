@@ -2,6 +2,9 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-06-12: Promoted P2 portfolio evaluation report to Ready by adding deliverable notes in docs/todo_next.md and anchoring the backlog entry for quick reference。
+- 2026-06-12: Closed P0-15 data quality alert operations loop by forcing a coverage failure (`--expected-interval-minutes 1`), confirming gap/summary artefacts under `reports/data_quality/`, recording the acknowledgement with `python3 scripts/record_data_quality_alert.py`, updating docs/data_quality_ops.md & docs/todo_next.md, and running `python3 -m pytest` to ensure the suite stays green。
+- 2026-06-02: Implemented `scripts/record_data_quality_alert.py` and captured a live log entry to verify Markdown formatting. Updated docs/data_quality_ops.md with CLI usage, synced backlog notes, and ran `python3 -m pytest` to confirm the suite remains green.
 - 2026-05-30: Documented the `data_quality_failure` alert operations loop via docs/data_quality_ops.md, seeded ops/health/data_quality_alerts.md for acknowledgement tracking, refreshed README / docs/documentation_portal.md / docs/task_backlog.md / docs/todo_next.md links, and ran `python3 -m pytest` to keep regressions green.
 - 2026-06-01: Extended the duplicate saturation controls by adding `--fail-on-duplicate-occurrences` to `scripts/check_data_quality.py`, propagated the new guard and defaults through `scripts/run_daily_workflow.py`, refreshed README / docs/data_quality_ops.md / docs/task_backlog.md guidance, and ran `python3 -m pytest` to keep the suite green.
 - 2026-05-31: Added duplicate saturation failure guards to `scripts/check_data_quality.py`, enabled the daily workflow to fail when five or more duplicate timestamp groups persist, refreshed README / docs/data_quality_ops.md guidance, updated the backlog entry, and ran `python3 -m pytest` to confirm the suite stays green.

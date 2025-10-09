@@ -119,16 +119,30 @@ python3 scripts/analyze_signal_latency.py \
 
 ```bash
 python3 scripts/check_data_quality.py \
-  --csv validated/USDJPY/5m.csv \
+  --csv validated/USDJPY/5m_with_header.csv \
   --out-json reports/data_quality/usdjpy_5m_summary.json \
   --max-gap-report 10
 
+# 推奨: 運用と同じガードを再現する場合
 python3 scripts/check_data_quality.py \
-  --csv validated/USDJPY/5m.csv \
+  --csv validated/USDJPY/5m_with_header.csv \
+  --symbol USDJPY \
+  --out-json reports/data_quality/usdjpy_5m_summary.json \
+  --calendar-day-summary \
+  --calendar-day-coverage-threshold 0.98 \
+  --fail-under-coverage 0.995 \
+  --fail-on-calendar-day-warnings \
+  --fail-on-duplicate-groups 5 \
+  --fail-on-duplicate-occurrences 3
+
+python3 scripts/check_data_quality.py \
+  --csv validated/USDJPY/5m_with_header.csv \
   --symbol USDJPY \
   --out-gap-csv reports/data_quality/usdjpy_5m_gaps.csv \
   --out-gap-json reports/data_quality/usdjpy_5m_gaps.json \
   --min-gap-minutes 15
+
+`scripts/run_daily_workflow.py --check-data-quality` also prefers `validated/<SYMBOL>/5m_with_header.csv` and only falls back to the legacy headerless snapshot if needed. Passing a headerless CSV to the audit CLI increments `missing_cols` and prevents coverage ratio checks, so use the headered snapshot for manual runs as well.
 ```
 
 - デフォルトのサマリーには `missing_rows_estimate` / `total_gap_minutes` / `average_gap_minutes` / `gap_details`（上位ギャップの詳細）を含みます。

@@ -3,25 +3,25 @@
     "strategy_key": "strategies.day_orb_5m.DayORB5m",
     "symbol": "USDJPY",
     "mode": "conservative",
-    "generated_at": "2025-10-07T14:42:44Z",
-    "files_total": 3,
-    "recent_count": 3,
+    "generated_at": "2025-10-09T15:12:26Z",
+    "files_total": 4,
+    "recent_count": 4,
     "latest_state_ts": null,
     "alpha_prior": 1.0,
     "beta_prior": 1.0
   },
   "global": {
     "long_term": {
-      "alpha_avg": 26.021303155981585,
-      "beta_avg": 23.978696593571417,
-      "p_mean": 0.5204260657264147,
-      "observations": 3
+      "alpha_avg": 25.762842341135443,
+      "beta_avg": 24.237157410905166,
+      "p_mean": 0.5152568493779643,
+      "observations": 4
     },
     "recent": {
-      "alpha_avg": 26.021303155981585,
-      "beta_avg": 23.978696593571417,
-      "p_mean": 0.5204260657264147,
-      "observations": 3
+      "alpha_avg": 25.762842341135443,
+      "beta_avg": 24.237157410905166,
+      "p_mean": 0.5152568493779643,
+      "observations": 4
     }
   },
   "buckets": [
@@ -35,13 +35,13 @@
         "alpha_avg": 1.865842380864,
         "beta_avg": 5.613723337663999,
         "p_mean": 0.24945865188964517,
-        "observations": 3
+        "observations": 4
       },
       "recent": {
         "alpha_avg": 1.865842380864,
         "beta_avg": 5.613723337663999,
         "p_mean": 0.24945865188964517,
-        "observations": 3
+        "observations": 4
       }
     },
     {
@@ -54,13 +54,13 @@
         "alpha_avg": 1.0,
         "beta_avg": 1.0,
         "p_mean": 0.5,
-        "observations": 3
+        "observations": 4
       },
       "recent": {
         "alpha_avg": 1.0,
         "beta_avg": 1.0,
         "p_mean": 0.5,
-        "observations": 3
+        "observations": 4
       }
     },
     {
@@ -73,13 +73,13 @@
         "alpha_avg": 28.69572725204131,
         "beta_avg": 21.303060183316514,
         "p_mean": 0.5739284635480669,
-        "observations": 3
+        "observations": 4
       },
       "recent": {
         "alpha_avg": 28.69572725204131,
         "beta_avg": 21.303060183316514,
         "p_mean": 0.5739284635480669,
-        "observations": 3
+        "observations": 4
       }
     },
     {
@@ -89,16 +89,16 @@
         "rv_band": "high"
       },
       "long_term": {
-        "alpha_avg": 24.636010442891546,
-        "beta_avg": 20.05584707788403,
-        "p_mean": 0.5512415864889747,
-        "observations": 3
+        "alpha_avg": 24.39130927264427,
+        "beta_avg": 20.35327223440808,
+        "p_mean": 0.5451231959516678,
+        "observations": 4
       },
       "recent": {
-        "alpha_avg": 24.636010442891546,
-        "beta_avg": 20.05584707788403,
-        "p_mean": 0.5512415864889747,
-        "observations": 3
+        "alpha_avg": 24.39130927264427,
+        "beta_avg": 20.35327223440808,
+        "p_mean": 0.5451231959516678,
+        "observations": 4
       }
     },
     {
@@ -111,13 +111,13 @@
         "alpha_avg": 1.0,
         "beta_avg": 1.0,
         "p_mean": 0.5,
-        "observations": 3
+        "observations": 4
       },
       "recent": {
         "alpha_avg": 1.0,
         "beta_avg": 1.0,
         "p_mean": 0.5,
-        "observations": 3
+        "observations": 4
       }
     },
     {
@@ -130,13 +130,13 @@
         "alpha_avg": 24.09331469056019,
         "beta_avg": 25.805482091107834,
         "p_mean": 0.4828436003373065,
-        "observations": 3
+        "observations": 4
       },
       "recent": {
         "alpha_avg": 24.09331469056019,
         "beta_avg": 25.805482091107834,
         "p_mean": 0.4828436003373065,
-        "observations": 3
+        "observations": 4
       }
     },
     {
@@ -149,13 +149,13 @@
         "alpha_avg": 1.0,
         "beta_avg": 1.0,
         "p_mean": 0.5,
-        "observations": 3
+        "observations": 4
       },
       "recent": {
         "alpha_avg": 1.0,
         "beta_avg": 1.0,
         "p_mean": 0.5,
-        "observations": 3
+        "observations": 4
       }
     },
     {
@@ -168,13 +168,13 @@
         "alpha_avg": 1.0,
         "beta_avg": 1.0,
         "p_mean": 0.5,
-        "observations": 3
+        "observations": 4
       },
       "recent": {
         "alpha_avg": 1.0,
         "beta_avg": 1.0,
         "p_mean": 0.5,
-        "observations": 3
+        "observations": 4
       }
     },
     {
@@ -187,13 +187,13 @@
         "alpha_avg": 1.0,
         "beta_avg": 1.0,
         "p_mean": 0.5,
-        "observations": 3
+        "observations": 4
       },
       "recent": {
         "alpha_avg": 1.0,
         "beta_avg": 1.0,
         "p_mean": 0.5,
-        "observations": 3
+        "observations": 4
       }
     }
   ]

@@ -30,10 +30,9 @@ consistent location.
     configured threshold.
   - `generated_at`: UTC timestamp recorded by the CLI.
 - **Artifacts to inspect**
-  - `reports/data_quality/<symbol>_<tf>_summary.json`
-  - `reports/data_quality/<symbol>_<tf>_gap_inventory.csv|json`
-  - Optional duplicate exports if the CLI was invoked with
-    `--out-duplicates-*` flags.
+  - `reports/data_quality/<symbol_lower>_<tf_token>_summary.json` — structured audit summary covering coverage ratios, gap metrics, and calendar-day details.
+  - `reports/data_quality/<symbol_lower>_<tf_token>_gap_inventory.csv` / `.json` — full gap inventory exported when `--out-gap-csv` / `--out-gap-json` are provided (the daily workflow enables both). The CSV is emitted with headers even when no gaps are present, making downstream parsing deterministic.
+  - Optional duplicate exports in the same directory if the CLI was invoked with `--out-duplicates-*` flags.
 
 ## Immediate Triage Checklist
 
@@ -46,23 +45,34 @@ consistent location.
    reported `coverage_ratio`, `gap_count`, and
    `calendar_day_summary.warnings` match the alert payload.
 3. **Inspect gap/duplicate inventories** — Use the exported CSV/JSON
-   inventories to identify which UTC ranges require backfills or
-   deduplication. If the daily workflow was invoked with the default
-   manifest, the inventories reside under `reports/data_quality/`.
+   inventories in `reports/data_quality/` to identify which UTC ranges
+   require backfills or deduplication. Gap filenames follow the
+   `<symbol_lower>_<tf_token>_gap_inventory.csv|json` pattern; open the
+   CSV (for example with `python3 - <<'PY'` previews) to confirm the
+   `start_timestamp` and `missing_rows_estimate` columns before drafting
+   a remediation plan.
 4. **Reproduce locally if needed** — Run the CLI with the flags that
    triggered the alert to confirm whether the issue persists or has
    been resolved by a manual retry. Example reproduction:
 
    ```bash
    python3 scripts/check_data_quality.py \
-     --csv validated/USDJPY/5m.csv \
+     --csv validated/USDJPY/5m_with_header.csv \
      --symbol USDJPY \
      --out-json reports/data_quality/usdjpy_5m_summary.json \
      --out-gap-csv reports/data_quality/usdjpy_5m_gap_inventory.csv \
+     --out-gap-json reports/data_quality/usdjpy_5m_gap_inventory.json \
      --calendar-day-summary \
      --fail-under-coverage 0.995 \
      --fail-on-calendar-day-warnings
    ```
+
+   The CLI prefers the headered snapshot. Running against
+   `validated/<SYMBOL>/5m.csv` (legacy headerless format) increments the
+   `missing_cols` counter and suppresses coverage ratio checks, so verify
+   `5m_with_header.csv` exists before attempting a reproduction. Capture
+   the reported `coverage_ratio` and `calendar_day_summary.warnings`
+   values from stdout — they feed directly into the acknowledgement log.
 
 5. **Schedule remediation** — Decide whether the resolution requires a
    data backfill (`scripts/pull_prices.py`), manual CSV patching, or an
@@ -74,8 +84,23 @@ consistent location.
 Log every alert and follow-up inside
 [`ops/health/data_quality_alerts.md`](../ops/health/data_quality_alerts.md)
 so reviewers can verify that each notification received an owner and
-resolution. Append a row to the Markdown table with the following
-fields:
+resolution. Prefer the helper CLI to avoid manual Markdown edits:
+
+```bash
+python3 scripts/record_data_quality_alert.py \
+  --alert-timestamp 2026-06-12T09:41:00Z \
+  --symbol USDJPY \
+  --coverage-ratio 0.2018 \
+  --status investigating \
+  --ack-by codex \
+  --remediation "Reviewing reports/data_quality/usdjpy_5m_summary.json" \
+  --follow-up "docs/task_backlog.md#p0-15-data-quality-alert-ops"
+```
+
+Append new rows to the top of the table so the latest alerts stay
+visible. Add `--dry-run` to preview the Markdown row or `--ack-timestamp`
+when recording historical acknowledgements. Keep the following column
+definitions handy while confirming the payload:
 
 | Column | Description |
 | --- | --- |
@@ -92,6 +117,13 @@ Keep the log sorted with newest entries at the top and include command
 snippets (for example `python3 scripts/pull_prices.py --symbol USDJPY`
 or reruns of the audit CLI) inside the `remediation` column for quick
 replay.
+
+To sanity-check the payload before writing, run the helper with
+`--dry-run` — the Markdown row prints to stdout without modifying the log.
+Once the contents look correct, rerun the command without `--dry-run` to
+append the entry. The tool automatically inserts the row beneath the table
+header and normalises multi-line remediation notes by replacing newlines
+with `<br>` tags.
 
 ## Escalation Triggers
 

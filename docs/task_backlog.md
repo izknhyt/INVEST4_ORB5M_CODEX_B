@@ -17,6 +17,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - Links to related runbooks and templates are included so future sessions can reproduce the same procedure.
 
 **Progress Notes**
+- 2026-06-18: Removed the duplicated "値動きの読み取り" section from `readme/設計方針（投資_3_）v_1.md` so the design reference lists each feature guideline once.
 - 2025-09-29: Added `docs/codex_workflow.md` to consolidate operational guidance for Codex agents and clarified the relationship with `docs/state_runbook.md` and the template directory.
 - 2025-10-16: Supplemented cloud-run guardrails in `docs/codex_cloud_notes.md` and linked them from the workflow guide to improve sandbox handoffs.
 - 2026-02-13: Refreshed `docs/codex_workflow.md` with sandbox/approval guidance (workspace-write + on-request approvals), highlighted `--doc-section` usage for aligning `docs/todo_next.md`, and reiterated `scripts/manage_task_cycle.py` dry-run examples. Synced references with `docs/state_runbook.md` and template links.
@@ -24,7 +25,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 
 ## P0: 即着手（オンデマンドインジェスト + 基盤整備）
 <a id="p0-12-codex-first-documentation-cleanup"></a>
-### P0-12 Codex-first documentation cleanup
+### ~~P0-12 Codex-first documentation cleanup~~ ✅ (2026-05-17 クローズ)
 
 - **DoD**: Codex operator workflow has a one-page quickstart (`docs/codex_quickstart.md`), the detailed checklist (`docs/state_runbook.md`) is trimmed to actionable bullet lists, README points to both, and `docs/development_roadmap.md` captures immediate→mid-term improvements with backlog links. Backlogとテンプレートは新フローに沿って更新済みであること。
 - **Notes**: Focus on reducing duplication between `docs/codex_quickstart.md`, `docs/codex_workflow.md`, README, and `docs/state_runbook.md`; ensure sandbox/approval rules stay explicit.
@@ -64,7 +65,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - ~~**state 更新ワーカー**~~ (完了): `scripts/update_state.py` に部分実行ワークフローを実装し、`BacktestRunner.run_partial` と状態スナップショット/EVアーカイブ連携を整備。`ops/state_archive/<strategy>/<symbol>/<mode>/` へ最新5件を保持し、更新後は `scripts/aggregate_ev.py` を自動起動するようにした。
 
 <a id="p0-13-data-quality-audit"></a>
-### P0-13 Data quality audit enhancements
+### ~~P0-13 Data quality audit enhancements~~ ✅ (2026-06-12 クローズ)
 
 - **DoD**: `scripts/check_data_quality.py` reports coverage metrics (row counts, start/end timestamps, gap totals), supports JSON exports for automation, and adds regression tests that validate the computed statistics and CLI behaviour.
 - **Notes**: Keep compatibility with existing CLI usage while expanding summary fidelity so cron jobs can persist machine-readable outputs. Document new expectations in backlog notes and ensure pytest coverage stays green.
@@ -82,9 +83,11 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2026-05-29: Enabled `scripts/check_data_quality.py --webhook` to deliver `data_quality_failure` alerts with coverage context, propagated webhook and timeout overrides from `run_daily_workflow.py --check-data-quality`, refreshed README/state runbook guidance, and extended pytest coverage for the new alert flow.
 - 2026-05-31: Added duplicate saturation guards to `scripts/check_data_quality.py` via `--fail-on-duplicate-groups`, wired the daily workflow default to fail when five or more duplicate timestamp groups remain after filtering, refreshed README / docs/data_quality_ops.md guidance, and expanded pytest coverage to exercise the new failure paths.
 - 2026-06-01: Added `--fail-on-duplicate-occurrences` to `scripts/check_data_quality.py` so audits can fail when a single timestamp grows beyond the allowed repetition count, propagated the threshold through `scripts/run_daily_workflow.py`, refreshed README / docs/data_quality_ops.md guidance, and extended pytest coverage for the new guard.
+- 2026-06-02: Updated `scripts/run_daily_workflow.py` to prefer headered validated CSVs (`5m_with_header.csv`) when building downstream commands, falling back to legacy `5m.csv` only when required. Adjusted `tests/test_run_daily_workflow.py` to cover the new default and legacy fallback so data-quality checks no longer fail on headerless historical snapshots.
+- 2026-06-02: Revalidated data-quality thresholds (coverage 0.995 / calendar-day 0.98 / duplicate groups 5 / duplicate occurrences 3) across README、docs/data_quality_ops.md、`scripts/run_daily_workflow.py` defaults、および CLI ドキュメントを照合し、運用手順との整合を確認した。
 
 <a id="p0-14-data-quality-gap-report"></a>
-### P0-14 Data quality gap reporting
+### ~~P0-14 Data quality gap reporting~~ ✅ (2026-06-12 クローズ)
 
 - **DoD**: `scripts/check_data_quality.py` can surface full gap inventories with missing-row estimates, export the gap table for downstream tooling, and documents the workflow alongside regression coverage for the new CLI options.
 - **Notes**: Preserve backward compatibility for existing summary keys while extending the payload with richer metrics (`missing_rows_estimate`, aggregate gap stats). Ensure optional outputs are guarded behind CLI flags so existing automation keeps running unchanged.
@@ -94,8 +97,9 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2026-05-16: Documented artefact destinations and review hand-off details, archived the todo entry, and marked the DoD checklist complete for reviewer pickup.
 - 2026-05-21: Added ISO-8601 `--start-timestamp` / `--end-timestamp` filters to `scripts/check_data_quality.py` so partial range audits surface precise gap counts. Updated README guidance, extended pytest coverage, and ensured the summary payload records applied window bounds.
 - 2026-05-22: Added `--min-gap-minutes` filtering and `--out-gap-json` export to `scripts/check_data_quality.py` so reviewers can ignore sub-threshold gaps while still tracking the skipped totals. Synced README usage notes and expanded pytest coverage for the new CLI paths.
+- 2026-06-12: Revalidated `--out-gap-*` exports against `validated/USDJPY/5m_with_header.csv`, documented default artefact locations and review steps in `docs/data_quality_ops.md`, and refreshed README samples to point at the headered snapshot used by the daily workflow.
 <a id="p0-15-data-quality-alert-ops"></a>
-### P0-15 Data quality alert operations loop
+### ~~P0-15 Data quality alert operations loop~~ ✅ (2026-06-12 クローズ)
 
 - **DoD**: Operators can acknowledge and escalate `data_quality_failure` webhook alerts using a documented runbook and shared log, and cross-document references point to the workflow from the README and portal.
 - **Notes**: Ensure remediation commands are captured so reviewers can replay the fix. Keep escalation criteria aligned with the production thresholds defined in `scripts/check_data_quality.py`.
@@ -105,6 +109,8 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - README / documentation portal reference the new runbook so operators can discover it without digging through history.
 - 2026-05-30: Documented the review loop, created the acknowledgement log template, and linked the runbook from the README and documentation portal.
 - 2025-10-09: Piloted the acknowledgement workflow with a dry-run failure by forcing a 1m expected interval, logged the entry in [ops/health/data_quality_alerts.md](../ops/health/data_quality_alerts.md), and confirmed the runbook/backlog cross-references capture escalation hand-offs.
+- 2026-06-02: Added `scripts/record_data_quality_alert.py` to capture acknowledgement rows programmatically, documented usage in `docs/data_quality_ops.md`, and created pytest coverage so operators can log alerts without hand-editing Markdown.
+- 2026-06-12: Simulated a coverage failure via `--expected-interval-minutes 1`, verified the CLI exports and acknowledged the alert with `scripts/record_data_quality_alert.py`, then re-ran the audit with production flags to confirm a clean pass. Logged the workflow update in `docs/data_quality_ops.md` and refreshed the acknowledgement table.
 
 <a id="p0-07"></a>
 ### P0-07 runs/index 再構築スクリプト整備 (完了)
@@ -137,7 +143,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - 2026-02-11: `PortfolioTelemetry` / `build_portfolio_state` が `correlation_meta` を保持し、`scripts/build_router_snapshot.py` がテレメトリへメタデータをエクスポートするよう整備。ポートフォリオサマリーの相関ヒートマップには `bucket_category` / `bucket_budget_pct` を含め、`tests/test_report_portfolio_summary.py` / `tests/test_router_pipeline.py` で回帰を追加。`docs/router_architecture.md` / `docs/checklists/p2_router.md` にバケット情報の公開手順を追記。
   - 2026-02-13: Closed the v2 preparation loop by reconciling runner telemetry, documenting the category/correlation scoring path, and marking the DoD checklist complete. Updated `docs/progress_phase2.md` with the English deliverable plan, synced `docs/checklists/p2_router.md`, and ran `python3 -m pytest tests/test_router_v1.py tests/test_router_pipeline.py` to confirm the final regression set.
 
-- **ポートフォリオ評価レポート**: 複数戦略を同時に流した場合の資本使用率・相関・ドローダウンを集計する `analysis/portfolio_monitor.ipynb` と `reports/portfolio_summary.json` を追加。
+- <a id="p2-portfolio-evaluation"></a>**ポートフォリオ評価レポート**: 複数戦略を同時に流した場合の資本使用率・相関・ドローダウンを集計する `analysis/portfolio_monitor.ipynb` と `reports/portfolio_summary.json` を追加。
   - 2026-01-16: `analysis/portfolio_monitor.py` と `scripts/report_portfolio_summary.py` を実装し、`reports/portfolio_samples/router_demo/` のフィクスチャで JSON スキーマを固定。`python3 -m pytest` と CLI ドライランでカテゴリ利用率・相関ヒートマップ・合成ドローダウンの算出を確認し、`docs/logic_overview.md#ポートフォリオ監視` に運用手順と判断基準を追記。
 ### ~~P2-MS マルチ戦略比較バリデーション~~ ✅ (2026-02-13 クローズ)
 - Day ORB と Mean Reversion (`strategies/mean_reversion.py`) を同一 CSV で走らせ、`docs/checklists/multi_strategy_validation.md` に沿ってゲート通過数・EV リジェクト数・期待値差をレビュー。DoD: チェックリストの全項目を完了し、比較サマリをレビュー用ドキュメントへ共有する。

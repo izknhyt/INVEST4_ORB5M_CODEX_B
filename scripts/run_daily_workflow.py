@@ -219,6 +219,17 @@ def _resolve_path_argument(
     return candidate
 
 
+def _resolve_default_bars_csv(symbol: str) -> Path:
+    """Return the preferred validated bars CSV for *symbol*, preferring header variants."""
+
+    symbol_upper = symbol.upper()
+    base_dir = ROOT / "validated" / symbol_upper
+    header_candidate = base_dir / "5m_with_header.csv"
+    if header_candidate.exists():
+        return header_candidate
+    return base_dir / "5m.csv"
+
+
 def _resolve_optimize_csv_path(symbol: str, bars_override: Optional[str]) -> str:
     """Return the CSV path for optimize runs, honoring overrides."""
 
@@ -1692,9 +1703,10 @@ def main(argv=None) -> int:
             symbol_upper = fx_candidate
     args.symbol = symbol_upper
 
+    default_bars_csv = _resolve_default_bars_csv(symbol_upper)
     bars_path = _resolve_path_argument(
         args.bars,
-        default=ROOT / f"validated/{symbol_upper}/5m.csv",
+        default=default_bars_csv,
     )
     if bars_path is None:  # defensive guard; default ensures this should not happen
         raise RuntimeError("unable to resolve validated bars CSV path")

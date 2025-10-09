@@ -17,9 +17,10 @@
 
 ### In Progress
 
-- [P0-15 Data quality alert operations loop](./task_backlog.md#p0-15-data-quality-alert-ops) — Dry-run acknowledgement recorded in ops/health/data_quality_alerts.md; monitor for the first live alert to validate escalation logging with production payloads.
+- （なし）
 ### Ready
 
+- [P2 Portfolio evaluation report](./task_backlog.md#p2-portfolio-evaluation) — Deliverables (EN): refresh `analysis/portfolio_monitor.py` CLI docs, add sample `scripts/report_portfolio_summary.py` run + artefact links, ensure pytest/CLI regression coverage remains green.
 
 
 
@@ -36,4 +37,4 @@
 ✅ <!-- anchor placeholder to satisfy manage_task_cycle start-task detection -->
 - <!-- docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化 -->
   - DoD チェックリスト: [docs/templates/dod_checklist.md](./templates/dod_checklist.md) を [docs/checklists/p2_manifest.md](./checklists/p2_manifest.md) にコピーし、進捗リンクを更新する。
-
+- 2026-06-12: Closed [P0-15 Data quality alert operations loop](./task_backlog.md#p0-15-data-quality-alert-ops) via simulated coverage failure, acknowledgement log entry (`scripts/record_data_quality_alert.py`), docs/data_quality_ops.md update, and full pytest run。
