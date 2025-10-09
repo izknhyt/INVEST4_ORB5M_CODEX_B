@@ -31,6 +31,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2026-04-24: Normalised internal documentation links to use relative paths so Markdown previews and GitHub navigation stay consistent. Synced quickstart/workflow docs with the updated guideline and logged the change in `state.md`.
 - 2026-04-25: Re-audited `docs/` Markdown to ensure no `] (docs/...)` style links slipped back in, expanded the workflow guideline with the failure mode, and recorded the hygiene check in `state.md`.
 - 2026-05-05: Restructured Codex quickstart/workflow/state runbook into aligned 3-step guides, refreshed README / `docs/todo_next.md` / roadmap anchors, and added deliverable tracking to `state.md`.
+- 2026-05-06: Added [docs/documentation_portal.md](documentation_portal.md) as the navigation hub, reorganised README for new-contributor onboarding, and synced quickstart/workflow links.
 - ~~**P0-13 run_daily_workflow local CSV override fix**~~ (2026-04-07 完了): `scripts/run_daily_workflow.py` がデフォルト ingest で `pull_prices.py` を呼び出す際に `--local-backup-csv` のパスを尊重する。
   - 2026-04-07: CLI オプションを `pull_prices` コマンドへ伝播し、回帰テスト `tests/test_run_daily_workflow.py::test_ingest_pull_prices_respects_local_backup_override` を追加。`python3 -m pytest` を実行して確認。
 - 2026-04-05: `scripts/run_sim.py` を manifest-first CLI へ再設計し、OutDir 実行時にランフォルダ (`params.json` / `metrics.json` / `records.csv` / `daily.csv`) が生成されるよう統合。`tests/test_run_sim_cli.py` / README / `docs/checklists/multi_strategy_validation.md` を更新。

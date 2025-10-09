@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-05-06: Authored `docs/documentation_portal.md` to map all runbooks, reorganised README onboarding flow, and synced quickstart/workflow references plus todo/backlog anchors。
 - 2026-05-04: Long-term roadmap links refreshed—expanded `docs/architecture_migration.md`, `docs/observability_plan.md`, and `docs/audit_playbook.md` placeholders and revalidated `docs/development_roadmap.md` references。
 - 2026-05-03: Promoted docs/task_backlog.md P0-12 / P0-07 entries to headings with explicit anchors and confirmed docs/development_roadmap.md links resolve.
 - 2026-05-02: Updated `docs/todo_next_archive.md` P2-01 DoD 行のリンク表示を `p2_manifest.md` へ揃え、`docs/checklists/` のファイル構成と一致することを確認。
