@@ -6,7 +6,7 @@ import csv
 import json
 from collections import Counter
 import math
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Set
 
@@ -28,7 +28,12 @@ def parse_args(argv=None):
 
 
 def parse_row(row: Dict[str, str]):
-    ts = datetime.fromisoformat(row["timestamp"].replace(" ", "T"))
+    raw_ts = row["timestamp"].strip().replace(" ", "T")
+    if raw_ts.endswith("Z"):
+        raw_ts = raw_ts[:-1]
+    ts = datetime.fromisoformat(raw_ts)
+    if ts.tzinfo is not None:
+        ts = ts.astimezone(timezone.utc).replace(tzinfo=None)
     tf = row.get("tf", "").strip()
     symbol = row.get("symbol")
     return ts, tf, symbol
