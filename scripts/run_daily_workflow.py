@@ -229,6 +229,42 @@ def _resolve_optimize_csv_path(symbol: str, bars_override: Optional[str]) -> str
     return str(resolved)
 
 
+def _resolve_data_quality_outputs(
+    args: argparse.Namespace,
+    *,
+    bars_csv: str,
+) -> Dict[str, Path]:
+    """Derive default output paths for the data quality audit."""
+
+    tf_token = Path(bars_csv).stem.lower()
+    symbol_lower = args.symbol.upper().lower()
+    base_dir = _resolve_path_argument(
+        args.data_quality_output_dir,
+        default=ROOT / "reports/data_quality",
+    )
+    if base_dir is None:
+        base_dir = (ROOT / "reports/data_quality").resolve()
+
+    summary_path = _resolve_path_argument(
+        args.data_quality_summary_json,
+        default=base_dir / f"{symbol_lower}_{tf_token}_summary.json",
+    )
+    gap_csv_path = _resolve_path_argument(
+        args.data_quality_gap_csv,
+        default=base_dir / f"{symbol_lower}_{tf_token}_gap_inventory.csv",
+    )
+    gap_json_path = _resolve_path_argument(
+        args.data_quality_gap_json,
+        default=base_dir / f"{symbol_lower}_{tf_token}_gap_inventory.json",
+    )
+
+    return {
+        "summary": summary_path,
+        "gap_csv": gap_csv_path,
+        "gap_json": gap_json_path,
+    }
+
+
 def _tf_to_minutes(tf: str) -> int:
     """Convert a timeframe string into minutes with defensive defaults."""
 
@@ -1131,6 +1167,40 @@ def _build_benchmark_freshness_cmd(args):
     return cmd
 
 
+def _build_data_quality_cmd(args, bars_csv: str):
+    outputs = _resolve_data_quality_outputs(args, bars_csv=bars_csv)
+    cmd = [
+        sys.executable,
+        str(ROOT / "scripts/check_data_quality.py"),
+        "--csv",
+        bars_csv,
+        "--symbol",
+        args.symbol.upper(),
+        "--out-json",
+        str(outputs["summary"]),
+        "--calendar-day-summary",
+        "--calendar-day-max-report",
+        str(args.data_quality_calendar_max_report),
+    ]
+    if args.data_quality_calendar_threshold is not None:
+        cmd.extend(
+            [
+                "--calendar-day-coverage-threshold",
+                str(args.data_quality_calendar_threshold),
+            ]
+        )
+    if outputs["gap_csv"] is not None:
+        cmd.extend(["--out-gap-csv", str(outputs["gap_csv"])])
+    if outputs["gap_json"] is not None:
+        cmd.extend(["--out-gap-json", str(outputs["gap_json"])])
+    if args.data_quality_coverage_threshold is not None:
+        cmd.extend(
+            ["--fail-under-coverage", str(args.data_quality_coverage_threshold)]
+        )
+    cmd.append("--fail-on-calendar-day-warnings")
+    return cmd
+
+
 def _build_update_state_cmd(args, bars_csv):
     return [
         sys.executable,
@@ -1434,6 +1504,64 @@ def main(argv=None) -> int:
         action="store_true",
         help="Validate benchmark timestamps recorded in runtime snapshot",
     )
+    parser.add_argument(
+        "--check-data-quality",
+        action="store_true",
+        help=(
+            "Audit validated bars with check_data_quality and fail when coverage or "
+            "calendar-day thresholds are breached"
+        ),
+    )
+    parser.add_argument(
+        "--data-quality-output-dir",
+        default=None,
+        help="Directory for data quality reports (default: reports/data_quality)",
+    )
+    parser.add_argument(
+        "--data-quality-summary-json",
+        default=None,
+        help=(
+            "Override path for the data quality summary JSON output (default derived "
+            "from symbol/timeframe)"
+        ),
+    )
+    parser.add_argument(
+        "--data-quality-gap-csv",
+        default=None,
+        help=(
+            "Override path for the data quality gap inventory CSV (default derived "
+            "from symbol/timeframe)"
+        ),
+    )
+    parser.add_argument(
+        "--data-quality-gap-json",
+        default=None,
+        help=(
+            "Override path for the data quality gap inventory JSON (default derived "
+            "from symbol/timeframe)"
+        ),
+    )
+    parser.add_argument(
+        "--data-quality-coverage-threshold",
+        type=float,
+        default=0.995,
+        help="Minimum overall coverage ratio required before failing the audit (0-1)",
+    )
+    parser.add_argument(
+        "--data-quality-calendar-threshold",
+        type=float,
+        default=0.98,
+        help=(
+            "Calendar-day coverage threshold used to flag warnings and trigger "
+            "failures (0-1)"
+        ),
+    )
+    parser.add_argument(
+        "--data-quality-calendar-max-report",
+        type=int,
+        default=10,
+        help="Maximum number of calendar-day entries retained in the summary",
+    )
     parser.add_argument("--benchmark-windows", default="365,180,90", help="Rolling windows in days for benchmarks")
     parser.add_argument(
         "--min-sharpe",
@@ -1521,6 +1649,17 @@ def main(argv=None) -> int:
 
     synthetic_allowed = not args.disable_synthetic_extension
 
+    if args.data_quality_coverage_threshold is not None:
+        coverage_threshold = args.data_quality_coverage_threshold
+        if coverage_threshold < 0 or coverage_threshold > 1:
+            raise SystemExit("--data-quality-coverage-threshold must be between 0 and 1")
+    if args.data_quality_calendar_threshold is not None:
+        calendar_threshold = args.data_quality_calendar_threshold
+        if calendar_threshold < 0 or calendar_threshold > 1:
+            raise SystemExit("--data-quality-calendar-threshold must be between 0 and 1")
+    if args.data_quality_calendar_max_report < 1:
+        raise SystemExit("--data-quality-calendar-max-report must be at least 1")
+
 
     if args.ingest:
         exit_code = _dispatch_ingest(
@@ -1531,6 +1670,7 @@ def main(argv=None) -> int:
         if exit_code:
             return exit_code
     mode_builders = [
+        (args.check_data_quality, lambda: _build_data_quality_cmd(args, bars_csv)),
         (args.update_state, lambda: _build_update_state_cmd(args, bars_csv)),
         (args.benchmarks, lambda: _build_benchmark_pipeline_cmd(args, bars_csv)),
         (args.state_health, _build_state_health_cmd),

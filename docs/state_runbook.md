@@ -22,7 +22,7 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
 ## オンデマンド起動（ノート PC 向け）
 - 基本コマンド:
   ```bash
-  python3 scripts/run_daily_workflow.py --ingest --update-state --benchmarks --state-health --benchmark-summary
+  python3 scripts/run_daily_workflow.py --ingest --check-data-quality --update-state --benchmarks --state-health --benchmark-summary
   ```
 - 取り込みの代表オプション:
   - ローカル CSV: `python3 scripts/pull_prices.py --source data/usdjpy_5m_2018-2024_utc.csv`
@@ -32,9 +32,15 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
     - `--disable-synthetic-extension` — 合成バーを生成せず鮮度遅延を観測。
     - `--dukascopy-offer-side ask` — ASK 側取得へ切替。
 - 実行後の確認ポイント:
+  - `reports/data_quality/<symbol>_<tf>_summary.json` / `_gap_inventory.{csv,json}` を開き、`coverage_ratio` や
+    `calendar_day_summary.warnings` がしきい値内であることを確認。必要に応じて
+    `--data-quality-coverage-threshold` / `--data-quality-calendar-threshold` を調整する。
   - `ops/runtime_snapshot.json.ingest_meta.<symbol>_<tf>` の `source_chain` / `freshness_minutes`。
   - `ops/logs/ingest_anomalies.jsonl` の異常記録。
   - ローカル CSV 利用時に `local_backup_path` が期待通りか。
+  - データ品質監査が終了コード 1 で停止した場合は `reports/data_quality/` の JSON/CSV を確認し、欠損日の再取得または
+    フォールバック経路の再実行を行う。復旧後は `--check-data-quality` を再実行してアラート解消を確認し、原因と対応を
+    `state.md` に記録する。
 - API 直接取得を再開する場合:
   - `configs/api_ingest.yml` の `activation_criteria` を満たしているか確認。
   - シークレットの暗号化保存と環境変数同期を実施。
