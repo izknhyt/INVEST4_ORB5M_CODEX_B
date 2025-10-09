@@ -331,8 +331,34 @@ def _audit_internal(
     # so non-consecutive repeats are captured as well.
     duplicates = duplicate_row_count
     duplicate_groups = len(duplicate_details)
-    duplicate_samples = duplicate_details[: max(1, max_duplicate_report)]
-    duplicates_truncated = len(duplicate_details) > len(duplicate_samples)
+    duplicate_details_sorted = sorted(
+        duplicate_details,
+        key=lambda item: (-item["occurrences"], item["timestamp"]),
+    )
+    duplicate_samples = duplicate_details_sorted[: max(1, max_duplicate_report)]
+    duplicates_truncated = len(duplicate_details_sorted) > len(duplicate_samples)
+
+    duplicate_max_occurrences = (
+        max((item["occurrences"] for item in duplicate_details_sorted), default=0)
+    )
+    duplicate_first_timestamp = None
+    duplicate_last_timestamp = None
+    duplicate_timestamp_span_minutes = None
+    if duplicate_details_sorted:
+        duplicate_first_timestamp = min(
+            item["timestamp"] for item in duplicate_details_sorted
+        )
+        duplicate_last_timestamp = max(
+            item["timestamp"] for item in duplicate_details_sorted
+        )
+        first_dt = _parse_timestamp(duplicate_first_timestamp)
+        last_dt = _parse_timestamp(duplicate_last_timestamp)
+        if last_dt >= first_dt:
+            duplicate_timestamp_span_minutes = (
+                last_dt - first_dt
+            ).total_seconds() / 60.0
+        else:
+            duplicate_timestamp_span_minutes = 0.0
 
     if len(tf_minutes_counter) > 1:
         distinct_intervals = ", ".join(
@@ -364,6 +390,10 @@ def _audit_internal(
         "duplicate_groups": duplicate_groups,
         "duplicate_details": duplicate_samples,
         "duplicate_details_truncated": duplicates_truncated,
+        "duplicate_max_occurrences": duplicate_max_occurrences,
+        "duplicate_first_timestamp": duplicate_first_timestamp,
+        "duplicate_last_timestamp": duplicate_last_timestamp,
+        "duplicate_timestamp_span_minutes": duplicate_timestamp_span_minutes,
         "tf_distribution": dict(tf_counter),
         "symbol_distribution": dict(symbol_counter),
         "gaps": [
@@ -392,7 +422,7 @@ def _audit_internal(
         "ignored_gap_minutes": ignored_gap_minutes,
         "ignored_missing_rows_estimate": ignored_missing_rows_estimate,
     }
-    return summary, full_gap_details, duplicate_details
+    return summary, full_gap_details, duplicate_details_sorted
 
 
 def audit(
