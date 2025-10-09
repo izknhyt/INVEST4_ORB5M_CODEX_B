@@ -78,6 +78,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - **DoD チェックリスト**: [docs/checklists/p0-14_data_quality_gap_report.md](checklists/p0-14_data_quality_gap_report.md)
 - _New_: Establish the end-to-end workflow (CLI → JSON/CSV export → README usage notes) and keep pytest passing.
 - 2026-05-15: Added missing-row estimates, aggregate gap metrics, configurable reporting limits, and gap CSV export to `scripts/check_data_quality.py`; refreshed README usage and extended pytest coverage (`python3 -m pytest`).
+- 2026-05-16: Documented artefact destinations and review hand-off details, archived the todo entry, and marked the DoD checklist complete for reviewer pickup.
 <a id="p0-07"></a>
 ### P0-07 runs/index 再構築スクリプト整備 (完了)
 

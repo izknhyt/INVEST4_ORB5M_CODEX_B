@@ -2,6 +2,12 @@
 
 過去の `docs/todo_next.md` Archive セクションに掲載していた完了済みタスクのログをこのファイルへ集約しました。各エントリのアンカーコメントは従来通り維持しています。README / codex 系ワークフロードキュメント / DoD テンプレートからの参照先も本アーカイブへ統一しました。
 
+- **Data quality gap reporting** (Backlog: `docs/task_backlog.md` → [P0-14](./task_backlog.md#p0-14-data-quality-gap-report)) — 2026-05-16 完了 <!-- anchor: docs/task_backlog.md#p0-14-data-quality-gap-report -->
+  - Finalised the reviewer hand-off by documenting gap CSV/JSON destinations (`reports/data_quality/`) and reproduction commands.
+    - `python3 scripts/check_data_quality.py --csv validated/USDJPY/5m.csv --symbol USDJPY --out-json reports/data_quality/usdjpy_5m_summary.json --out-gap-csv reports/data_quality/usdjpy_5m_gap_inventory.csv --max-gap-report 50`
+  - Logged the session outcomes in `state.md`, updated backlog progress notes, and checked in the refreshed DoD checklist.
+  - Reviewer: pending assignment (recorded for follow-up once review occurs).
+
 - **Codex-first documentation cleanup** (Backlog: `docs/task_backlog.md` → [P0-12](./task_backlog.md#p0-12-codex-first-documentation-cleanup)) — 2026-05-05 完了 <!-- anchor: docs/task_backlog.md#p0-12-codex-first-documentation-cleanup -->
   - Consolidated quickstart/workflow/state runbook into aligned three-step guides, refreshed README / roadmap / todo-next anchors, and logged deliverables in `state.md` と backlog. `python3 -m pytest` を完走し、docs/todo_next アーカイブへ移動。
   - 2026-05-06: Authored [docs/documentation_portal.md](documentation_portal.md) as the navigation hub, reorganised README onboarding sections, and updated quickstart/workflow guidance to point at the new portal。`docs/todo_next.md` / `state.md` / backlog のログを同期。
