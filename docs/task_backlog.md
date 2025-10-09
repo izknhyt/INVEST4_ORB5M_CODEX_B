@@ -119,6 +119,16 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - **Notes**: Guard against malformed webhook payloads or manual data entry errors so the shared acknowledgement log stays machine-parseable for audits.
 - 2026-06-13: Added argparse validators for coverage ratios and ISO8601 timestamps, ensured offset inputs convert to `Z`-suffix form, documented the workflow in `docs/data_quality_ops.md`, and extended `tests/test_record_data_quality_alert.py` with conversion/error-path coverage.
 
+<a id="p0-17-data-quality-acknowledgement-duplicate-guard"></a>
+### ~~P0-17 Data quality acknowledgement duplicate guard~~ ✅ (2026-06-14 クローズ)
+
+- **DoD**:
+  - `scripts/record_data_quality_alert.py` detects acknowledgement rows that already reference the same alert timestamp, symbol, and timeframe and fails loudly instead of appending duplicates (with an override flag when duplicate entries are intentional).
+  - Regression tests cover both the failure path and the override behaviour.
+  - `docs/data_quality_ops.md` and `ops/health/data_quality_alerts.md` explain the duplicate guard so operators understand how to recover when the CLI refuses to append a row.
+- **Notes**: Keep the shared log free from repeated entries for the same alert so auditors can reconcile acknowledgements without guessing which row is authoritative. Provide a clear override for historical imports or intentionally duplicated records.
+- 2026-06-14: Added duplicate-detection to `scripts/record_data_quality_alert.py`, introduced a `--allow-duplicate` override, documented the guard in `docs/data_quality_ops.md` / `ops/health/data_quality_alerts.md`, updated the DoD checklist, and extended regression tests to cover the new behaviours.
+
 <a id="p0-07"></a>
 ### P0-07 runs/index 再構築スクリプト整備 (完了)
 
