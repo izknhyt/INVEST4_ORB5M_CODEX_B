@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-05-15: Initiated P0-14 data quality gap reporting to extend `scripts/check_data_quality.py` with exportable gap tables and richer metrics; synced backlog/todo checklists before coding.
 - 2026-05-13: Revalidated documentation alignment for P0-12, synced `docs/todo_next.md` Pending Review entry with `state.md`, updated `docs/state_runbook.md` command examples to mirror the quickstart/workflow, refreshed the backlog memo, and ran `python3 -m pytest` to confirm regressions remain green.
 - 2026-05-14: Enhanced `scripts/check_data_quality.py` with coverage/monotonic metrics and JSON export support, added pytest coverage via `tests/test_check_data_quality.py`, updated the backlog (`P0-13`) and todo-next Pending Review entries, and executed `python3 -m pytest` to keep the suite green.
 - 2026-05-12: Drafted docs/checklists/p0-12_doc_cleanup.md and linked it from docs/task_backlog.md plus docs/documentation_portal.md to standardise P0-12 documentation hygiene checks; ran `python3 -m pytest` to keep the regression suite green.
@@ -390,6 +391,7 @@
   - 2025-10-16: 最新バーの供給が途絶しているため、P1-04 で API インジェスト基盤を設計・整備し、鮮度チェックのブロッカーを解消する計画。
 
 ## Log
+- [P0-14] 2026-05-15: Extended `scripts/check_data_quality.py` with missing-row estimates, aggregate gap metrics, configurable reporting limits, and `--out-gap-csv`; updated README usage guidance, refreshed the DoD checklist, and ran `python3 -m pytest` to confirm the suite stays green.
 - [P0-12] 2026-05-05: Realigned Codex operator documentation into a three-step quickstart/workflow/state-runbook set, refreshed README / docs/development_roadmap.md / docs/todo_next.md / docs/todo_next_archive.md anchors, updated backlog progress, and executed `python3 -m pytest` to confirm regressions stayed green.
 - [Ops] 2026-05-03: Reconciled run_sim CLI documentation with the manifest-first workflow by updating backlog notes and repo guidance (AGENTS.md / agent.md / scripts/AGENTS.md), and annotated historical state entries so deprecated flags point to the manifest-driven replacements.
 - [P0] 2026-03-23: Fixed the run_sim manifest aggregation regression by plumbing a dedicated
@@ -484,6 +486,9 @@
 
 - [OPS-CODEX-GUIDE] 2025-10-08: Aligned workflow docs with review feedback. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
 ## Next Task
+- Pending Review — [docs/task_backlog.md#p0-14-data-quality-gap-report](docs/task_backlog.md#p0-14-data-quality-gap-report)
+  - Deliverables (English): Enriched audit metrics, gap CSV export, pytest coverage, README usage guidance.
+  - Notes: Reviewers should validate backward compatibility for stdout/JSON payloads and exercise the new CLI flags.
 - Pending Review — [docs/task_backlog.md#p0-12-codex-first-documentation-cleanup](docs/task_backlog.md#p0-12-codex-first-documentation-cleanup)
   - Deliverables (English): README doc hub alignment, documentation_portal hygiene checklist, quickstart/workflow/state_runbook cross-link refresh.
   - Notes: Ensure newcomers can follow a single orientation path and that portal tables reflect every updated runbook.
