@@ -65,7 +65,8 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
 - `ops/state_archive/` の世代管理は `python3 scripts/prune_state_archive.py --dry-run --keep 5` で確認してから実行する。
 - `RunnerConfig` を大幅に変更した場合は古い state を破棄するか再計測する。
 - `python3 scripts/check_state_health.py` を日次実行し、`ops/health/state_checks.json` の異常をレビューする。
-- `scripts/manage_task_cycle.py` の `start-task` / `finish-task` を優先し、アンカーは [docs/codex_quickstart.md](codex_quickstart.md) と揃える。
+- Ready 昇格時は `python3 scripts/manage_task_cycle.py --dry-run start-task --anchor <...>` で手順をプレビューし、適用時は `python3 scripts/manage_task_cycle.py start-task --anchor <...>` を実行する（Quickstart / Workflow と同一手順）。
+- Wrap-up では `python3 scripts/manage_task_cycle.py --dry-run finish-task --anchor <...>` で close-out を確認し、適用時に `python3 scripts/manage_task_cycle.py finish-task --anchor <...>` を用いる。アンカーは常に [docs/codex_quickstart.md](codex_quickstart.md) と同期させる。
 - Ready 昇格時は [docs/templates/dod_checklist.md](templates/dod_checklist.md) をコピーし、`docs/checklists/<task>.md` で進捗を追跡する。
 
 ## 参考リンク
