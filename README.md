@@ -125,11 +125,14 @@ python3 scripts/check_data_quality.py \
 python3 scripts/check_data_quality.py \
   --csv validated/USDJPY/5m.csv \
   --symbol USDJPY \
-  --out-gap-csv reports/data_quality/usdjpy_5m_gaps.csv
+  --out-gap-csv reports/data_quality/usdjpy_5m_gaps.csv \
+  --out-gap-json reports/data_quality/usdjpy_5m_gaps.json \
+  --min-gap-minutes 15
 ```
 
 - デフォルトのサマリーには `missing_rows_estimate` / `total_gap_minutes` / `average_gap_minutes` / `gap_details`（上位ギャップの詳細）を含みます。
-- `--max-gap-report` でサマリー内に保持するギャップ件数を制御しつつ、`--out-gap-csv` を指定すれば全ギャップ表を CSV にエクスポートできます。
+- `--max-gap-report` でサマリー内に保持するギャップ件数を制御しつつ、`--out-gap-csv` や `--out-gap-json` を指定すればフィルタ適用後のギャップ表を CSV/JSON へエクスポートできます。
+- `--min-gap-minutes` を指定すると、指定値より短いギャップは集計・エクスポートの対象から除外され、代わりに `ignored_gap_count` / `ignored_gap_minutes` / `ignored_missing_rows_estimate` がサマリーに記録されます。
 - `--expected-interval-minutes` で期待タイムフレームを明示すると、5m 以外のバーやカスタム期待値に合わせて欠損推定を再計算できます（未指定時は `tf` カラムまたは観測間隔から自動判定）。
 - `--start-timestamp` / `--end-timestamp` で ISO-8601 形式の監査ウィンドウ（UTC 基準、両端含む）を指定でき、部分期間のギャップ調査に利用できます。サマリーには適用したフィルタ値も `start_timestamp_filter` / `end_timestamp_filter` として残ります。
 - 既存の stdout / JSON レイアウトは維持されるため、既存オートメーションはフラグを追加しない限り挙動が変わりません。

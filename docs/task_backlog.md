@@ -84,6 +84,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2026-05-15: Added missing-row estimates, aggregate gap metrics, configurable reporting limits, and gap CSV export to `scripts/check_data_quality.py`; refreshed README usage and extended pytest coverage (`python3 -m pytest`).
 - 2026-05-16: Documented artefact destinations and review hand-off details, archived the todo entry, and marked the DoD checklist complete for reviewer pickup.
 - 2026-05-21: Added ISO-8601 `--start-timestamp` / `--end-timestamp` filters to `scripts/check_data_quality.py` so partial range audits surface precise gap counts. Updated README guidance, extended pytest coverage, and ensured the summary payload records applied window bounds.
+- 2026-05-22: Added `--min-gap-minutes` filtering and `--out-gap-json` export to `scripts/check_data_quality.py` so reviewers can ignore sub-threshold gaps while still tracking the skipped totals. Synced README usage notes and expanded pytest coverage for the new CLI paths.
 <a id="p0-07"></a>
 ### P0-07 runs/index 再構築スクリプト整備 (完了)
 

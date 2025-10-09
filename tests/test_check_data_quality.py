@@ -45,6 +45,10 @@ def test_audit_summarises_gaps_and_coverage(tmp_path):
     assert summary["gap_details"][0]["missing_rows_estimate"] == 1
     assert summary["expected_interval_minutes"] == pytest.approx(5.0)
     assert summary["expected_interval_source"] in {"tf_column", "observed_diff"}
+    assert summary["min_gap_minutes"] == pytest.approx(0.0)
+    assert summary["ignored_gap_count"] == 0
+    assert summary["ignored_gap_minutes"] == pytest.approx(0.0)
+    assert summary["ignored_missing_rows_estimate"] == 0
 
 
 def test_main_writes_json_summary(tmp_path, capsys):
@@ -72,6 +76,7 @@ def test_main_writes_json_summary(tmp_path, capsys):
     assert payload["missing_rows_estimate"] == 1
     assert payload["expected_interval_minutes"] == pytest.approx(5.0)
     assert payload["expected_interval_source"] in {"tf_column", "observed_diff"}
+    assert payload["ignored_gap_count"] == 0
 
 
 def test_main_writes_gap_csv(tmp_path, capsys):
@@ -95,6 +100,25 @@ def test_main_writes_gap_csv(tmp_path, capsys):
     assert rows[0]["start_timestamp"] == "2024-01-01T00:05:00"
     assert rows[0]["end_timestamp"] == "2024-01-01T00:15:00"
     assert rows[0]["missing_rows_estimate"] == "1"
+
+
+def test_main_writes_gap_json(tmp_path, capsys):
+    csv_path = tmp_path / "sample.csv"
+    _write_sample_csv(csv_path)
+
+    gap_json = tmp_path / "gaps.json"
+    rc = check_data_quality.main([
+        "--csv",
+        str(csv_path),
+        "--out-gap-json",
+        str(gap_json),
+    ])
+
+    assert rc == 0
+    capsys.readouterr()
+    gap_payload = json.loads(gap_json.read_text(encoding="utf-8"))
+    assert len(gap_payload) == 1
+    assert gap_payload[0]["gap_minutes"] == pytest.approx(10.0)
 
 
 def test_main_rejects_inverted_time_window(tmp_path):
@@ -142,6 +166,7 @@ def test_expected_interval_detection_and_override(tmp_path):
     assert overridden["missing_rows_estimate"] == 3
     assert overridden["gap_count"] == 2
     assert overridden["expected_interval_source"] == "override"
+    assert overridden["ignored_gap_count"] == 0
 
 
 def test_time_window_filters_limit_analysis(tmp_path):
@@ -163,3 +188,32 @@ def test_time_window_filters_limit_analysis(tmp_path):
     assert summary["missing_rows_estimate"] == 1
     assert summary["start_timestamp_filter"] == "2024-01-01T00:05:00"
     assert summary["end_timestamp_filter"] == "2024-01-01T00:15:00"
+    assert summary["ignored_gap_count"] == 0
+
+
+def test_min_gap_filtering_excludes_small_gaps(tmp_path):
+    csv_path = tmp_path / "sample.csv"
+    _write_sample_csv(csv_path)
+
+    summary = check_data_quality.audit(csv_path, min_gap_minutes=12.0)
+
+    assert summary["gap_count"] == 0
+    assert summary["ignored_gap_count"] == 1
+    assert summary["ignored_gap_minutes"] == pytest.approx(10.0)
+    assert summary["ignored_missing_rows_estimate"] == 1
+    assert summary["missing_rows_estimate"] == 0
+
+
+def test_main_rejects_negative_min_gap(tmp_path):
+    csv_path = tmp_path / "sample.csv"
+    _write_sample_csv(csv_path)
+
+    with pytest.raises(SystemExit) as excinfo:
+        check_data_quality.main([
+            "--csv",
+            str(csv_path),
+            "--min-gap-minutes",
+            "-1",
+        ])
+
+    assert "non-negative" in str(excinfo.value)
