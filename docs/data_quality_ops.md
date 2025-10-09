@@ -102,6 +102,13 @@ visible. Add `--dry-run` to preview the Markdown row or `--ack-timestamp`
 when recording historical acknowledgements. Keep the following column
 definitions handy while confirming the payload:
 
+- The helper refuses coverage ratios outside the inclusive `[0, 1]` range
+  and rejects timestamps missing an explicit offset or `Z` suffix. This
+  prevents malformed input from corrupting the shared log.
+- Offset timestamps are normalised to UTC with a `Z` suffix so later
+  automation can diff acknowledgement rows without handling per-entry
+  timezone math.
+
 | Column | Description |
 | --- | --- |
 | `alert_timestamp` | `generated_at` value from the webhook payload |

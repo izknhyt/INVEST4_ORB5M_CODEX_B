@@ -75,3 +75,87 @@ def test_inserts_row_above_existing_entries(tmp_path: Path):
     lines = log_path.read_text(encoding="utf-8").splitlines()
     assert lines[2].startswith("| 2025-11-01T08:00:00Z | EURUSD")
     assert lines[3].startswith("| 2025-10-09T12:13:30Z | USDJPY")
+
+
+def test_normalises_offset_timestamps(tmp_path: Path):
+    log_path = tmp_path / "ops/health/data_quality_alerts.md"
+    args = [
+        "--alert-timestamp",
+        "2025-10-10T12:00:00+09:00",
+        "--symbol",
+        "USDJPY",
+        "--coverage-ratio",
+        "0.932",
+        "--ack-by",
+        "codex",
+        "--status",
+        "investigating",
+        "--ack-timestamp",
+        "2025-10-10T01:30:00-04:00",
+        "--log-path",
+        str(log_path),
+    ]
+
+    run_cli(tmp_path, args)
+
+    lines = [
+        line
+        for line in log_path.read_text(encoding="utf-8").splitlines()
+        if line.startswith("| 2025")
+    ]
+    assert lines, "Expected at least one acknowledgement row"
+    row = lines[0]
+    cells = [cell.strip() for cell in row.split("|")[1:-1]]
+    assert cells[0] == "2025-10-10T03:00:00Z"
+    assert cells[5] == "2025-10-10T05:30:00Z"
+    assert cells[3] == "0.9320"
+
+
+def test_rejects_out_of_range_coverage_ratio(tmp_path: Path):
+    log_path = tmp_path / "ops/health/data_quality_alerts.md"
+    args = [
+        "--alert-timestamp",
+        "2025-10-10T12:00:00Z",
+        "--symbol",
+        "USDJPY",
+        "--coverage-ratio",
+        "1.2",
+        "--ack-by",
+        "codex",
+        "--status",
+        "investigating",
+        "--log-path",
+        str(log_path),
+    ]
+
+    with pytest.raises(subprocess.CalledProcessError) as excinfo:
+        run_cli(tmp_path, args)
+
+    stderr = excinfo.value.stderr
+    assert "--coverage-ratio" in stderr
+    assert "between 0 and 1" in stderr
+
+
+def test_rejects_timestamp_without_timezone(tmp_path: Path):
+    log_path = tmp_path / "ops/health/data_quality_alerts.md"
+    args = [
+        "--alert-timestamp",
+        "2025-10-10T12:00:00",
+        "--symbol",
+        "USDJPY",
+        "--coverage-ratio",
+        "0.9",
+        "--ack-by",
+        "codex",
+        "--status",
+        "investigating",
+        "--log-path",
+        str(log_path),
+    ]
+
+    with pytest.raises(subprocess.CalledProcessError) as excinfo:
+        run_cli(tmp_path, args)
+
+    stderr = excinfo.value.stderr
+    assert "--alert-timestamp" in stderr
+    assert "timezone" in stderr

@@ -38,3 +38,4 @@
 - <!-- docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化 -->
   - DoD チェックリスト: [docs/templates/dod_checklist.md](./templates/dod_checklist.md) を [docs/checklists/p2_manifest.md](./checklists/p2_manifest.md) にコピーし、進捗リンクを更新する。
 - 2026-06-12: Closed [P0-15 Data quality alert operations loop](./task_backlog.md#p0-15-data-quality-alert-ops) via simulated coverage failure, acknowledgement log entry (`scripts/record_data_quality_alert.py`), docs/data_quality_ops.md update, and full pytest run。
+- 2026-06-13: Completed [P0-16 Data quality acknowledgement input validation](./task_backlog.md#p0-16-data-quality-ack-validation) by hardening the CLI against malformed ratios/timestamps, documenting the guardrails, and extending regression coverage.
