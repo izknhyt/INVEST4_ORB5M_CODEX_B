@@ -2,8 +2,9 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
-- 2026-05-25: Added `--min-duplicate-occurrences` filtering to `scripts/check_data_quality.py`, surfaced ignored duplicate counters in summaries/exports, refreshed README/backlog guidance, and ran `python3 -m pytest` to keep regressions green.
+- 2026-05-27: Audited P0-13/P0-14 documentation so duplicate filtering and calendar-day coverage features stay aligned, refreshed backlog DoD/checklists, and ran `python3 -m pytest` to confirm the suite remains green.
 - 2026-05-26: Extended `scripts/check_data_quality.py` with a calendar-day coverage summary (`--calendar-day-summary` + threshold/max-report controls) so audits can highlight low-coverage UTC days, refreshed README/backlog guidance, and ran `python3 -m pytest` to confirm the suite stays green.
+- 2026-05-25: Added `--min-duplicate-occurrences` filtering to `scripts/check_data_quality.py`, surfaced ignored duplicate counters in summaries/exports, refreshed README/backlog guidance, and ran `python3 -m pytest` to keep regressions green.
 - 2026-05-24: Prioritised P0-13 duplicate severity metrics by sorting groups by occurrence count, exposing summary timestamps/spans, refreshing README/backlog notes, and running `python3 -m pytest` to keep the suite green.
 - 2026-05-23: Extended P0-13 data quality audits with duplicate timestamp inventories (`--out-duplicates-csv` / `--out-duplicates-json`) and summary truncation controls, refreshed README/backlog guidance, and reran `python3 -m pytest` to confirm the suite stays green.
 - 2026-05-21: Extended P0-14 gap reporting with ISO-8601 `--start-timestamp` / `--end-timestamp` filters in `scripts/check_data_quality.py`, refreshed README/backlog guidance, and executed `python3 -m pytest` to verify the suite remains green.

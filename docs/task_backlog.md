@@ -66,7 +66,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 <a id="p0-13-data-quality-audit"></a>
 ### P0-13 Data quality audit enhancements
 
-- **DoD**: `scripts/check_data_quality.py` reports coverage metrics (row counts, start/end timestamps, gap totals), supports JSON exports for automation, and adds regression tests that validate the computed statistics and CLI behaviour.
+- **DoD**: `scripts/check_data_quality.py` reports coverage metrics (row counts, start/end timestamps, gap totals), surfaces duplicate severity metrics with configurable filtering/exports (including `--min-duplicate-occurrences` and ignored counters), optionally emits calendar-day coverage summaries, supports JSON exports for automation, and keeps regression tests that validate the computed statistics and CLI behaviour.
 - **Notes**: Keep compatibility with existing CLI usage while expanding summary fidelity so cron jobs can persist machine-readable outputs. Document new expectations in backlog notes and ensure pytest coverage stays green.
 - **DoD チェックリスト**: [docs/checklists/p0-13_data_quality_audit.md](checklists/p0-13_data_quality_audit.md)
 - 2026-05-14: Added coverage/monotonic metrics and JSON export support to the audit CLI, introduced pytest coverage for summary stats and CLI output, and verified `python3 -m pytest tests/test_check_data_quality.py` passes alongside the full suite.
@@ -81,7 +81,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 <a id="p0-14-data-quality-gap-report"></a>
 ### P0-14 Data quality gap reporting
 
-- **DoD**: `scripts/check_data_quality.py` can surface full gap inventories with missing-row estimates, export the gap table for downstream tooling, and documents the workflow alongside regression coverage for the new CLI options.
+- **DoD**: `scripts/check_data_quality.py` can surface full gap inventories with missing-row estimates, honour ISO-8601 window bounds and minimum-gap thresholds while tracking ignored statistics, export the gap table to CSV/JSON for downstream tooling, and document the workflow alongside regression coverage for the new CLI options.
 - **Notes**: Preserve backward compatibility for existing summary keys while extending the payload with richer metrics (`missing_rows_estimate`, aggregate gap stats). Ensure optional outputs are guarded behind CLI flags so existing automation keeps running unchanged.
 - **DoD チェックリスト**: [docs/checklists/p0-14_data_quality_gap_report.md](checklists/p0-14_data_quality_gap_report.md)
 - _New_: Establish the end-to-end workflow (CLI → JSON/CSV export → README usage notes) and keep pytest passing.

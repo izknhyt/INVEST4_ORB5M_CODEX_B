@@ -17,6 +17,8 @@
 - [x] CLI に `--out-json` オプションを追加し、構造化サマリをファイル出力できるようにした。
 - [x] 新フィールドと CLI オプションを回帰する pytest (`tests/test_check_data_quality.py`) を実装し、CSV フィクスチャを生成するテストヘルパーを整備した。
 - [x] サマリ出力の後方互換性（標準出力の辞書表記）が維持されていることを確認した。
+- [x] 重複タイムスタンプの詳細（`duplicate_max_occurrences` / `duplicate_first_timestamp` / `duplicate_last_timestamp` / `duplicate_timestamp_span_minutes` など）を集計し、`--min-duplicate-occurrences` フィルタと無視件数 (`ignored_duplicate_groups` / `ignored_duplicate_rows`) をサマリとエクスポートへ反映させた。
+- [x] `--calendar-day-summary` と関連フラグ（`--calendar-day-coverage-threshold` / `--calendar-day-max-report`）で UTC 日別カバレッジを算出し、しきい値を下回る日をハイライトするワークフローを README / backlog / テストで保証した。
 
 ## 成果物とログ更新
 - [x] `state.md` の `## Work State Log` へ完了サマリを追記した。

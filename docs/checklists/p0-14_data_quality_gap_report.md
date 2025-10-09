@@ -17,6 +17,8 @@
 - [x] `scripts/check_data_quality.py` に gap テーブルを外部ファイルへ書き出す CLI オプションを実装した。
 - [x] 新しいメトリクスと CLI オプションをカバーする pytest を追加し、`python3 -m pytest` がグリーンである。
 - [x] README などの利用ガイドへ新オプションの使い方と想定ワークフローを追記した。
+- [x] 監査ウィンドウフィルタ（`--start-timestamp` / `--end-timestamp`）とギャップ最小値フィルタ（`--min-gap-minutes`）がサマリとエクスポートへ反映され、無視したギャップ統計 (`ignored_gap_count` / `ignored_gap_minutes` / `ignored_missing_rows_estimate`) を記録している。
+- [x] ギャップテーブルの JSON エクスポート (`--out-gap-json`) を提供し、README / backlog / テストで再現手順を保証した。
 
 ## 成果物とログ更新
 - [x] `state.md` の `## Log` へ完了サマリを追記した。
