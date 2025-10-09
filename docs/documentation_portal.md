@@ -38,6 +38,7 @@ This portal groups every maintained document into a small set of entry points so
 | [todo_next.md](todo_next.md) | Near-term task queue kept in sync with `state.md`. | While updating task status or planning the next block of work. |
 | [todo_next_archive.md](todo_next_archive.md) | Historical record of completed tasks and references to past work. | When reviewing precedent or retrieving archived context. |
 | [codex_cloud_notes.md](codex_cloud_notes.md) | Sandbox and approval guardrails for remote or restricted environments. | When running in constrained environments or requesting approvals. |
+| [checklists/p0-12_doc_cleanup.md](checklists/p0-12_doc_cleanup.md) | Definition-of-Done checklist for the documentation cleanup task. | While auditing README/quickstart/workflow alignment or planning new doc edits. |
 
 ## Development & Architecture
 | Document | Purpose | When to use |
