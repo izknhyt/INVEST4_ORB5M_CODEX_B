@@ -44,6 +44,9 @@ def test_audit_summarises_gaps_and_coverage(tmp_path):
     assert summary["duplicate_first_timestamp"] == "2024-01-01T00:15:00"
     assert summary["duplicate_last_timestamp"] == "2024-01-01T00:15:00"
     assert summary["duplicate_timestamp_span_minutes"] == pytest.approx(0.0)
+    assert summary["duplicate_min_occurrences"] == 2
+    assert summary["ignored_duplicate_groups"] == 0
+    assert summary["ignored_duplicate_rows"] == 0
     assert summary["gap_count"] == 1
     assert summary["max_gap_minutes"] == pytest.approx(10.0)
     assert summary["total_gap_minutes"] == pytest.approx(10.0)
@@ -92,6 +95,9 @@ def test_main_writes_json_summary(tmp_path, capsys):
     assert payload["ignored_gap_count"] == 0
     assert payload["duplicate_groups"] == 1
     assert payload["duplicate_details_truncated"] is False
+    assert payload["duplicate_min_occurrences"] == 2
+    assert payload["ignored_duplicate_groups"] == 0
+    assert payload["ignored_duplicate_rows"] == 0
 
 
 def test_main_writes_gap_csv(tmp_path, capsys):
@@ -254,6 +260,8 @@ def test_min_gap_filtering_excludes_small_gaps(tmp_path):
     assert summary["ignored_gap_minutes"] == pytest.approx(10.0)
     assert summary["ignored_missing_rows_estimate"] == 1
     assert summary["missing_rows_estimate"] == 0
+    assert summary["ignored_duplicate_groups"] == 0
+    assert summary["ignored_duplicate_rows"] == 0
 
 
 def test_main_rejects_negative_min_gap(tmp_path):
@@ -269,6 +277,21 @@ def test_main_rejects_negative_min_gap(tmp_path):
         ])
 
     assert "non-negative" in str(excinfo.value)
+
+
+def test_main_rejects_invalid_min_duplicate_occurrences(tmp_path):
+    csv_path = tmp_path / "sample.csv"
+    _write_sample_csv(csv_path)
+
+    with pytest.raises(SystemExit) as excinfo:
+        check_data_quality.main([
+            "--csv",
+            str(csv_path),
+            "--min-duplicate-occurrences",
+            "1",
+        ])
+
+    assert "at least 2" in str(excinfo.value)
 
 
 def test_duplicate_report_truncation(tmp_path):
@@ -294,6 +317,9 @@ def test_duplicate_report_truncation(tmp_path):
     assert summary["duplicate_first_timestamp"] == "2024-01-01T00:00:00"
     assert summary["duplicate_last_timestamp"] == "2024-01-01T00:10:00"
     assert summary["duplicate_timestamp_span_minutes"] == pytest.approx(10.0)
+    assert summary["duplicate_min_occurrences"] == 2
+    assert summary["ignored_duplicate_groups"] == 0
+    assert summary["ignored_duplicate_rows"] == 0
 
 
 def test_duplicate_details_prioritise_high_occurrence(tmp_path):
@@ -318,3 +344,68 @@ def test_duplicate_details_prioritise_high_occurrence(tmp_path):
     assert summary["duplicate_details"][0]["occurrences"] == 3
     assert summary["duplicate_details"][1]["occurrences"] == 2
     assert summary["duplicate_max_occurrences"] == 3
+    assert summary["ignored_duplicate_groups"] == 0
+    assert summary["ignored_duplicate_rows"] == 0
+
+
+def test_min_duplicate_occurrences_filters_summary_and_exports(tmp_path, capsys):
+    csv_path = tmp_path / "dups_filtered.csv"
+    rows = [
+        "timestamp,symbol,tf,o,h,l,c,v,spread",
+        "2024-01-01T00:00:00Z,USDJPY,5m,1,1,1,1,0,0",
+        "2024-01-01T00:00:00Z,USDJPY,5m,1,1,1,1,0,0",
+        "2024-01-01T00:05:00Z,USDJPY,5m,1,1,1,1,0,0",
+        "2024-01-01T00:05:00Z,USDJPY,5m,1,1,1,1,0,0",
+        "2024-01-01T00:05:00Z,USDJPY,5m,1,1,1,1,0,0",
+        "2024-01-01T00:10:00Z,USDJPY,5m,1,1,1,1,0,0",
+        "2024-01-01T00:10:00Z,USDJPY,5m,1,1,1,1,0,0",
+    ]
+    csv_path.write_text("\n".join(rows), encoding="utf-8")
+
+    summary = check_data_quality.audit(
+        csv_path,
+        min_duplicate_occurrences=3,
+    )
+
+    assert summary["duplicate_groups"] == 1
+    assert summary["duplicates"] == 2
+    assert [item["timestamp"] for item in summary["duplicate_details"]] == [
+        "2024-01-01T00:05:00",
+    ]
+    assert summary["duplicate_min_occurrences"] == 3
+    assert summary["ignored_duplicate_groups"] == 2
+    assert summary["ignored_duplicate_rows"] == 2
+
+    dup_csv = tmp_path / "dups_filtered.csv.out"
+    dup_json = tmp_path / "dups_filtered.json"
+    rc = check_data_quality.main(
+        [
+            "--csv",
+            str(csv_path),
+            "--min-duplicate-occurrences",
+            "3",
+            "--out-duplicates-csv",
+            str(dup_csv),
+            "--out-duplicates-json",
+            str(dup_json),
+        ]
+    )
+
+    assert rc == 0
+    capsys.readouterr()
+    dup_rows = list(csv.DictReader(dup_csv.open(encoding="utf-8")))
+    assert dup_rows == [
+        {
+            "timestamp": "2024-01-01T00:05:00",
+            "occurrences": "3",
+            "line_numbers": "4,5,6",
+        }
+    ]
+    dup_payload = json.loads(dup_json.read_text(encoding="utf-8"))
+    assert dup_payload == [
+        {
+            "timestamp": "2024-01-01T00:05:00",
+            "occurrences": 3,
+            "line_numbers": [4, 5, 6],
+        }
+    ]

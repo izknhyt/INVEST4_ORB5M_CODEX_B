@@ -39,6 +39,12 @@ def parse_args(argv=None):
                    help="Optional JSON output path containing the complete gap inventory after filters")
     p.add_argument("--max-duplicate-report", type=int, default=20,
                    help="Maximum number of duplicate timestamp groups retained in the summary payload (default: 20)")
+    p.add_argument(
+        "--min-duplicate-occurrences",
+        type=int,
+        default=2,
+        help="Only include duplicate timestamp groups with at least this many occurrences in summaries and exports (default: 2)",
+    )
     p.add_argument("--out-duplicates-csv", default=None,
                    help="Optional CSV output path containing duplicate timestamp details")
     p.add_argument("--out-duplicates-json", default=None,
@@ -232,6 +238,7 @@ def _audit_internal(
     start_timestamp: datetime | None = None,
     end_timestamp: datetime | None = None,
     min_gap_minutes: float = 0.0,
+    min_duplicate_occurrences: int = 2,
 ):
     missing_cols = 0
     bad_rows = 0
@@ -276,12 +283,10 @@ def _audit_internal(
             timestamp_line_numbers[ts].append(line_number)
 
     duplicate_details: List[Dict[str, object]] = []
-    duplicate_row_count = 0
     for ts in sorted(timestamp_line_numbers.keys()):
         line_numbers = timestamp_line_numbers[ts]
         if len(line_numbers) <= 1:
             continue
-        duplicate_row_count += len(line_numbers) - 1
         duplicate_details.append(
             {
                 "timestamp": ts.isoformat(),
@@ -329,27 +334,40 @@ def _audit_internal(
 
     # Prefer aggregate duplicate counts computed across the full timestamp set
     # so non-consecutive repeats are captured as well.
-    duplicates = duplicate_row_count
-    duplicate_groups = len(duplicate_details)
     duplicate_details_sorted = sorted(
         duplicate_details,
         key=lambda item: (-item["occurrences"], item["timestamp"]),
     )
-    duplicate_samples = duplicate_details_sorted[: max(1, max_duplicate_report)]
-    duplicates_truncated = len(duplicate_details_sorted) > len(duplicate_samples)
+    min_duplicate_occurrences = max(2, min_duplicate_occurrences)
+    filtered_duplicate_details = [
+        item
+        for item in duplicate_details_sorted
+        if item["occurrences"] >= min_duplicate_occurrences
+    ]
+    duplicates = sum(item["occurrences"] - 1 for item in filtered_duplicate_details)
+    duplicate_groups = len(filtered_duplicate_details)
+    duplicate_samples = filtered_duplicate_details[: max(1, max_duplicate_report)]
+    duplicates_truncated = len(filtered_duplicate_details) > len(duplicate_samples)
+
+    ignored_duplicate_groups = len(duplicate_details_sorted) - duplicate_groups
+    ignored_duplicate_rows = sum(
+        item["occurrences"] - 1
+        for item in duplicate_details_sorted
+        if item["occurrences"] < min_duplicate_occurrences
+    )
 
     duplicate_max_occurrences = (
-        max((item["occurrences"] for item in duplicate_details_sorted), default=0)
+        max((item["occurrences"] for item in filtered_duplicate_details), default=0)
     )
     duplicate_first_timestamp = None
     duplicate_last_timestamp = None
     duplicate_timestamp_span_minutes = None
-    if duplicate_details_sorted:
+    if filtered_duplicate_details:
         duplicate_first_timestamp = min(
-            item["timestamp"] for item in duplicate_details_sorted
+            item["timestamp"] for item in filtered_duplicate_details
         )
         duplicate_last_timestamp = max(
-            item["timestamp"] for item in duplicate_details_sorted
+            item["timestamp"] for item in filtered_duplicate_details
         )
         first_dt = _parse_timestamp(duplicate_first_timestamp)
         last_dt = _parse_timestamp(duplicate_last_timestamp)
@@ -394,6 +412,9 @@ def _audit_internal(
         "duplicate_first_timestamp": duplicate_first_timestamp,
         "duplicate_last_timestamp": duplicate_last_timestamp,
         "duplicate_timestamp_span_minutes": duplicate_timestamp_span_minutes,
+        "duplicate_min_occurrences": min_duplicate_occurrences,
+        "ignored_duplicate_groups": ignored_duplicate_groups,
+        "ignored_duplicate_rows": ignored_duplicate_rows,
         "tf_distribution": dict(tf_counter),
         "symbol_distribution": dict(symbol_counter),
         "gaps": [
@@ -422,7 +443,7 @@ def _audit_internal(
         "ignored_gap_minutes": ignored_gap_minutes,
         "ignored_missing_rows_estimate": ignored_missing_rows_estimate,
     }
-    return summary, full_gap_details, duplicate_details_sorted
+    return summary, full_gap_details, filtered_duplicate_details
 
 
 def audit(
@@ -435,6 +456,7 @@ def audit(
     start_timestamp: datetime | None = None,
     end_timestamp: datetime | None = None,
     min_gap_minutes: float = 0.0,
+    min_duplicate_occurrences: int = 2,
 ) -> Dict[str, object]:
     summary, _, _ = _audit_internal(
         csv_path,
@@ -446,6 +468,7 @@ def audit(
         start_timestamp=start_timestamp,
         end_timestamp=end_timestamp,
         min_gap_minutes=min_gap_minutes,
+        min_duplicate_occurrences=min_duplicate_occurrences,
     )
     return summary
 
@@ -497,6 +520,11 @@ def main(argv=None):
         raise SystemExit(f"CSV not found: {csv_path}")
     if getattr(args, "min_gap_minutes", 0.0) is not None and args.min_gap_minutes < 0:
         raise SystemExit("--min-gap-minutes must be non-negative")
+    if (
+        getattr(args, "min_duplicate_occurrences", None) is not None
+        and args.min_duplicate_occurrences < 2
+    ):
+        raise SystemExit("--min-duplicate-occurrences must be at least 2")
     start_ts = None
     if getattr(args, "start_timestamp", None):
         try:
@@ -521,6 +549,7 @@ def main(argv=None):
         start_timestamp=start_ts,
         end_timestamp=end_ts,
         min_gap_minutes=args.min_gap_minutes,
+        min_duplicate_occurrences=args.min_duplicate_occurrences,
     )
     print(summary)
     if getattr(args, "out_json", None):
