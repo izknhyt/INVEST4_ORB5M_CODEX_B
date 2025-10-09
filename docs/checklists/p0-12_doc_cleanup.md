@@ -21,7 +21,7 @@
 
 ## 成果物とログ更新
 - [x] `state.md` の `## Log` に完了サマリと実行コマンドを英語で追記し、`## Next Task` の該当項目を整理した。
-- [ ] [docs/todo_next.md](../todo_next.md) から当該タスクをアーカイブへ移し、[docs/todo_next_archive.md](../todo_next_archive.md) に成果リンクを残した。
+- [x] [docs/todo_next.md](../todo_next.md) から当該タスクをアーカイブへ移し、[docs/todo_next_archive.md](../todo_next_archive.md) に成果リンクを残した。
 - [x] `docs/task_backlog.md` の進捗メモへ実装した変更と参照ドキュメントのリンクを追加した。
 - [x] PR / コミットメッセージで更新したドキュメント一覧と検証コマンドを共有した。
 

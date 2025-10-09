@@ -24,9 +24,6 @@
 
 ### Pending Review
 
-- [docs/task_backlog.md#p0-12-codex-first-documentation-cleanup](./task_backlog.md#p0-12-codex-first-documentation-cleanup) <!-- anchor: docs/task_backlog.md#p0-12-codex-first-documentation-cleanup -->
-  - Deliverables (English): README doc hub alignment, documentation_portal hygiene checklist, quickstart/workflow/state_runbook cross-link refresh.
-  - Notes: Ensure newcomers can follow a single orientation path and that portal tables reflect every updated runbook.
 - [docs/task_backlog.md#p0-13-data-quality-audit](./task_backlog.md#p0-13-data-quality-audit) <!-- anchor: docs/task_backlog.md#p0-13-data-quality-audit -->
   - Deliverables (English): Extended CLI summary metrics (row coverage, monotonicity, gaps), JSON export path, regression tests covering audit logic and CLI output.
   - Notes: Validate backward compatibility on stdout while enabling automation-friendly outputs for cron jobs.
