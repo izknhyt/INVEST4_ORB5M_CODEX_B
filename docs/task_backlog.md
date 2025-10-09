@@ -102,6 +102,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - `ops/health/data_quality_alerts.md` hosts the acknowledgement table template kept in reverse chronological order.
   - README / documentation portal reference the new runbook so operators can discover it without digging through history.
 - 2026-05-30: Documented the review loop, created the acknowledgement log template, and linked the runbook from the README and documentation portal.
+- 2025-10-09: Piloted the acknowledgement workflow with a dry-run failure by forcing a 1m expected interval, logged the entry in [ops/health/data_quality_alerts.md](../ops/health/data_quality_alerts.md), and confirmed the runbook/backlog cross-references capture escalation hand-offs.
 
 <a id="p0-07"></a>
 ### P0-07 runs/index 再構築スクリプト整備 (完了)
