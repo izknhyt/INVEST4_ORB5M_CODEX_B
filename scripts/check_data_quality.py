@@ -7,7 +7,7 @@ import json
 import math
 import re
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from statistics import median
 from typing import Dict, List, Sequence, Set, Tuple
@@ -49,6 +49,26 @@ def parse_args(argv=None):
                    help="Optional CSV output path containing duplicate timestamp details")
     p.add_argument("--out-duplicates-json", default=None,
                    help="Optional JSON output path containing duplicate timestamp details")
+    p.add_argument(
+        "--calendar-day-summary",
+        action="store_true",
+        help="Include per-calendar-day coverage metrics in the summary payload (UTC)",
+    )
+    p.add_argument(
+        "--calendar-day-max-report",
+        type=int,
+        default=10,
+        help="Maximum number of calendar day entries retained in the summary payload (default: 10)",
+    )
+    p.add_argument(
+        "--calendar-day-coverage-threshold",
+        type=float,
+        default=0.98,
+        help=(
+            "Coverage ratio threshold used to flag calendar days with insufficient data "
+            "when --calendar-day-summary is enabled (default: 0.98)"
+        ),
+    )
     return p.parse_args(argv)
 
 
@@ -227,6 +247,137 @@ def _analyse_timestamps(
     )
 
 
+def _build_calendar_day_summary(
+    timestamps: Sequence[datetime],
+    *,
+    interval_minutes: float,
+    max_gap_report: int,
+    min_gap_minutes: float,
+    filtered_duplicate_details: Sequence[Dict[str, object]],
+    coverage_threshold: float | None,
+    max_report: int,
+):
+    if not timestamps:
+        expected_rows_per_day = (
+            int(round(1440.0 / interval_minutes)) if interval_minutes > 0 else None
+        )
+        return {
+            "coverage_threshold": coverage_threshold,
+            "expected_rows_per_day": expected_rows_per_day,
+            "count": 0,
+            "details": [],
+            "details_truncated": False,
+            "warnings": [],
+            "warnings_truncated": False,
+        }
+
+    sorted_timestamps = sorted(timestamps)
+    buckets: dict[date, List[datetime]] = defaultdict(list)
+    for ts in sorted_timestamps:
+        buckets[ts.date()].append(ts)
+
+    entries: List[Dict[str, object]] = []
+    for day in sorted(buckets.keys()):
+        day_timestamps = buckets[day]
+        (
+            _,
+            _,
+            _,
+            _,
+            _,
+            gap_minutes,
+            total_gap_minutes,
+            missing_rows_estimate,
+            _,
+            ignored_gap_count,
+            ignored_gap_minutes,
+            ignored_missing_rows_estimate,
+        ) = _analyse_timestamps(
+            day_timestamps,
+            interval_minutes=interval_minutes,
+            max_gap_report=max_gap_report,
+            capture_gap_details=False,
+            min_gap_minutes=min_gap_minutes,
+        )
+
+        unique_count = len(set(day_timestamps))
+        expected_rows = None
+        coverage_ratio = None
+        if day_timestamps and interval_minutes > 0:
+            span_minutes = (
+                day_timestamps[-1] - day_timestamps[0]
+            ).total_seconds() / 60.0
+            expected_rows = int(round(span_minutes / interval_minutes)) + 1
+            if expected_rows > 0:
+                coverage_ratio = unique_count / expected_rows
+
+        duplicates_for_day = [
+            item
+            for item in filtered_duplicate_details
+            if _parse_timestamp(item["timestamp"]).date() == day
+        ]
+        duplicates = sum(item["occurrences"] - 1 for item in duplicates_for_day)
+        duplicate_groups = len(duplicates_for_day)
+        duplicate_max_occurrences = max(
+            (item["occurrences"] for item in duplicates_for_day),
+            default=0,
+        )
+
+        entries.append(
+            {
+                "date": day.isoformat(),
+                "start_timestamp": day_timestamps[0].isoformat(),
+                "end_timestamp": day_timestamps[-1].isoformat(),
+                "row_count": len(day_timestamps),
+                "unique_timestamps": unique_count,
+                "missing_rows_estimate": missing_rows_estimate,
+                "gap_count": len(gap_minutes),
+                "max_gap_minutes": max(gap_minutes) if gap_minutes else 0.0,
+                "total_gap_minutes": total_gap_minutes,
+                "ignored_gap_count": ignored_gap_count,
+                "ignored_gap_minutes": ignored_gap_minutes,
+                "ignored_missing_rows_estimate": ignored_missing_rows_estimate,
+                "coverage_ratio": coverage_ratio,
+                "expected_rows": expected_rows,
+                "duplicates": duplicates,
+                "duplicate_groups": duplicate_groups,
+                "duplicate_max_occurrences": duplicate_max_occurrences,
+            }
+        )
+
+    def _coverage_sort_key(item: Dict[str, object]) -> tuple[float, str]:
+        coverage = item.get("coverage_ratio")
+        if coverage is None:
+            return (float("inf"), item["date"])
+        return (coverage, item["date"])
+
+    sorted_entries = sorted(entries, key=_coverage_sort_key)
+    max_report = max(1, max_report)
+    details = sorted_entries[:max_report]
+    warnings_all = [
+        entry
+        for entry in sorted_entries
+        if entry["coverage_ratio"] is not None
+        and coverage_threshold is not None
+        and entry["coverage_ratio"] < coverage_threshold
+    ]
+    warnings = warnings_all[:max_report]
+
+    expected_rows_per_day = (
+        int(round(1440.0 / interval_minutes)) if interval_minutes > 0 else None
+    )
+
+    return {
+        "coverage_threshold": coverage_threshold,
+        "expected_rows_per_day": expected_rows_per_day,
+        "count": len(entries),
+        "details": details,
+        "details_truncated": len(sorted_entries) > len(details),
+        "warnings": warnings,
+        "warnings_truncated": len(warnings_all) > len(warnings),
+    }
+
+
 def _audit_internal(
     csv_path: Path,
     symbol: str | None = None,
@@ -239,6 +390,9 @@ def _audit_internal(
     end_timestamp: datetime | None = None,
     min_gap_minutes: float = 0.0,
     min_duplicate_occurrences: int = 2,
+    calendar_day_summary: bool = False,
+    calendar_day_max_report: int = 10,
+    calendar_day_coverage_threshold: float | None = None,
 ):
     missing_cols = 0
     bad_rows = 0
@@ -443,6 +597,16 @@ def _audit_internal(
         "ignored_gap_minutes": ignored_gap_minutes,
         "ignored_missing_rows_estimate": ignored_missing_rows_estimate,
     }
+    if calendar_day_summary:
+        summary["calendar_day_summary"] = _build_calendar_day_summary(
+            timestamps,
+            interval_minutes=interval_minutes,
+            max_gap_report=max(1, max_gap_report),
+            min_gap_minutes=effective_min_gap,
+            filtered_duplicate_details=filtered_duplicate_details,
+            coverage_threshold=calendar_day_coverage_threshold,
+            max_report=calendar_day_max_report,
+        )
     return summary, full_gap_details, filtered_duplicate_details
 
 
@@ -457,6 +621,9 @@ def audit(
     end_timestamp: datetime | None = None,
     min_gap_minutes: float = 0.0,
     min_duplicate_occurrences: int = 2,
+    calendar_day_summary: bool = False,
+    calendar_day_max_report: int = 10,
+    calendar_day_coverage_threshold: float | None = None,
 ) -> Dict[str, object]:
     summary, _, _ = _audit_internal(
         csv_path,
@@ -469,6 +636,9 @@ def audit(
         end_timestamp=end_timestamp,
         min_gap_minutes=min_gap_minutes,
         min_duplicate_occurrences=min_duplicate_occurrences,
+        calendar_day_summary=calendar_day_summary,
+        calendar_day_max_report=calendar_day_max_report,
+        calendar_day_coverage_threshold=calendar_day_coverage_threshold,
     )
     return summary
 
@@ -525,6 +695,15 @@ def main(argv=None):
         and args.min_duplicate_occurrences < 2
     ):
         raise SystemExit("--min-duplicate-occurrences must be at least 2")
+    if (
+        getattr(args, "calendar_day_max_report", None) is not None
+        and args.calendar_day_max_report < 1
+    ):
+        raise SystemExit("--calendar-day-max-report must be at least 1")
+    if getattr(args, "calendar_day_coverage_threshold", None) is not None:
+        threshold = args.calendar_day_coverage_threshold
+        if threshold < 0 or threshold > 1:
+            raise SystemExit("--calendar-day-coverage-threshold must be between 0 and 1")
     start_ts = None
     if getattr(args, "start_timestamp", None):
         try:
@@ -550,6 +729,11 @@ def main(argv=None):
         end_timestamp=end_ts,
         min_gap_minutes=args.min_gap_minutes,
         min_duplicate_occurrences=args.min_duplicate_occurrences,
+        calendar_day_summary=bool(args.calendar_day_summary),
+        calendar_day_max_report=max(1, args.calendar_day_max_report),
+        calendar_day_coverage_threshold=(
+            args.calendar_day_coverage_threshold if args.calendar_day_summary else None
+        ),
     )
     print(summary)
     if getattr(args, "out_json", None):

@@ -22,6 +22,19 @@ def _write_sample_csv(path: Path) -> None:
     path.write_text("\n".join(rows), encoding="utf-8")
 
 
+def _write_multi_day_csv(path: Path) -> None:
+    rows = [
+        "timestamp,symbol,tf,o,h,l,c,v,spread",
+        "2024-01-01T00:00:00Z,USDJPY,5m,1,1,1,1,0,0",
+        "2024-01-01T00:05:00Z,USDJPY,5m,1,1,1,1,0,0",
+        "2024-01-01T00:10:00Z,USDJPY,5m,1,1,1,1,0,0",
+        "2024-01-02T00:00:00Z,USDJPY,5m,1,1,1,1,0,0",
+        "2024-01-02T00:05:00Z,USDJPY,5m,1,1,1,1,0,0",
+        "2024-01-02T00:15:00Z,USDJPY,5m,1,1,1,1,0,0",
+    ]
+    path.write_text("\n".join(rows), encoding="utf-8")
+
+
 def test_audit_summarises_gaps_and_coverage(tmp_path):
     csv_path = tmp_path / "sample.csv"
     _write_sample_csv(csv_path)
@@ -409,3 +422,55 @@ def test_min_duplicate_occurrences_filters_summary_and_exports(tmp_path, capsys)
             "line_numbers": [4, 5, 6],
         }
     ]
+
+
+def test_calendar_day_summary_highlights_low_coverage(tmp_path):
+    csv_path = tmp_path / "multi_day.csv"
+    _write_multi_day_csv(csv_path)
+
+    summary = check_data_quality.audit(
+        csv_path,
+        calendar_day_summary=True,
+        calendar_day_max_report=5,
+        calendar_day_coverage_threshold=0.95,
+    )
+
+    calendar = summary["calendar_day_summary"]
+    assert calendar["count"] == 2
+    assert calendar["coverage_threshold"] == pytest.approx(0.95)
+    assert calendar["expected_rows_per_day"] == 288
+    # Worst coverage day should be surfaced first.
+    assert calendar["details"][0]["date"] == "2024-01-02"
+    assert calendar["details"][0]["coverage_ratio"] == pytest.approx(0.75)
+    assert calendar["details"][0]["missing_rows_estimate"] == 1
+    assert calendar["details"][0]["gap_count"] == 1
+    assert calendar["warnings"][0]["date"] == "2024-01-02"
+    assert calendar["warnings"][0]["coverage_ratio"] == pytest.approx(0.75)
+
+
+def test_main_supports_calendar_day_summary(tmp_path, capsys):
+    csv_path = tmp_path / "multi_day.csv"
+    _write_multi_day_csv(csv_path)
+    out_path = tmp_path / "summary.json"
+
+    rc = check_data_quality.main(
+        [
+            "--csv",
+            str(csv_path),
+            "--out-json",
+            str(out_path),
+            "--calendar-day-summary",
+            "--calendar-day-max-report",
+            "2",
+            "--calendar-day-coverage-threshold",
+            "0.9",
+        ]
+    )
+
+    assert rc == 0
+    capsys.readouterr()
+    payload = json.loads(out_path.read_text(encoding="utf-8"))
+    calendar = payload["calendar_day_summary"]
+    assert calendar["details"][0]["date"] == "2024-01-02"
+    assert calendar["warnings"][0]["date"] == "2024-01-02"
+    assert calendar["coverage_threshold"] == pytest.approx(0.9)

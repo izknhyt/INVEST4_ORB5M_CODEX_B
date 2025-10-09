@@ -76,6 +76,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2026-05-23: Captured duplicate timestamp inventories via `--out-duplicates-csv` / `--out-duplicates-json`, added summary truncation controls (`--max-duplicate-report`), refreshed README guidance, and extended pytest coverage so reviewers can locate problematic rows directly from the audit output.
 - 2026-05-24: Prioritised duplicate groups by occurrence count in the audit summary, surfaced `duplicate_max_occurrences` / `duplicate_first_timestamp` / `duplicate_last_timestamp` / `duplicate_timestamp_span_minutes`, updated README guidance, and expanded pytest coverage to lock the new metrics.
 - 2026-05-25: Added `--min-duplicate-occurrences` filtering to focus audits on severe timestamp collisions, exposed `ignored_duplicate_groups` / `ignored_duplicate_rows` counters in summaries, refreshed README guidance, and extended pytest coverage for the filtered exports.
+- 2026-05-26: Added calendar-day coverage segmentation to `scripts/check_data_quality.py` (`--calendar-day-summary`) so reviewers can flag low-coverage UTC days via JSON payloads, updated README usage guidance, and extended pytest coverage for the new CLI flow.
 
 <a id="p0-14-data-quality-gap-report"></a>
 ### P0-14 Data quality gap reporting
