@@ -17,7 +17,6 @@
 
 ### In Progress
 
-- [P2 Portfolio evaluation report](./task_backlog.md#p2-portfolio-evaluation) — Draft refreshed CLI walkthrough (sample `scripts/report_portfolio_summary.py` invocation, artefact links) and enumerate pytest/CLI regression coverage to keep green while iterating on the report template.
 
 ### On Hold
 

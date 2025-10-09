@@ -1,6 +1,6 @@
 {
-  "generated_at": "2025-10-05T00:21:18.886064+00:00",
-  "input_dir": "reports/portfolio_samples/router_demo",
+  "generated_at": "2025-10-09T23:40:26.624061+00:00",
+  "input_dir": "runs/router_pipeline/latest",
   "strategies": [
     {
       "manifest_id": "day_orb_5m_v1",
@@ -29,46 +29,60 @@
   "category_utilisation": [
     {
       "category": "day",
-      "utilisation_pct": 18.75,
+      "utilisation_pct": 0.5,
       "cap_pct": 40.0,
-      "headroom_pct": 21.25,
-      "utilisation_ratio": 0.46875
+      "headroom_pct": 39.5,
+      "utilisation_ratio": 0.0125,
+      "budget_pct": 40.0,
+      "budget_headroom_pct": 39.5,
+      "budget_utilisation_ratio": 0.0125,
+      "budget_status": "ok"
     },
     {
       "category": "scalping",
-      "utilisation_pct": 12.08,
+      "utilisation_pct": 0.16,
       "cap_pct": 15.0,
-      "headroom_pct": 2.92,
-      "utilisation_ratio": 0.8053333333333333
+      "headroom_pct": 14.84,
+      "utilisation_ratio": 0.010666666666666666,
+      "budget_pct": 15.0,
+      "budget_headroom_pct": 14.84,
+      "budget_utilisation_ratio": 0.010666666666666666,
+      "budget_status": "ok"
     }
   ],
   "gross_exposure": {
-    "current_pct": 30.5,
-    "cap_pct": 55.0,
-    "headroom_pct": 24.5
+    "current_pct": 0.33,
+    "cap_pct": 20.0,
+    "headroom_pct": 19.67
   },
   "correlation_heatmap": [
     {
       "source": "day_orb_5m_v1",
       "target": "tokyo_micro_mean_reversion_v0",
-      "correlation": 0.42
+      "correlation": 0.983594117613896,
+      "target_strategy_id": "tokyo_micro_mean_reversion_v0",
+      "bucket_category": "scalping",
+      "bucket_budget_pct": 15.0
     },
     {
       "source": "scalping",
       "target": "day_orb_5m_v1",
-      "correlation": 0.35
+      "correlation": 0.983594117613896,
+      "target_strategy_id": "day_orb_5m_v1",
+      "bucket_category": "day",
+      "bucket_budget_pct": 40.0
+    },
+    {
+      "source": "tokyo",
+      "target": "day_orb_5m_v1",
+      "correlation": 0.983594117613896,
+      "target_strategy_id": "day_orb_5m_v1",
+      "bucket_category": "day",
+      "bucket_budget_pct": 40.0
     }
   ],
-  "execution_health": {
-    "day_orb_5m_v1": {
-      "reject_rate": 0.012,
-      "slippage_bps": 2.5
-    },
-    "tokyo_micro_mean_reversion_v0": {
-      "reject_rate": 0.032,
-      "slippage_bps": 4.1
-    }
-  },
+  "correlation_window_minutes": 240.0,
+  "execution_health": {},
   "drawdowns": {
     "aggregate": {
       "max_drawdown_pct": 0.3140108657728156,
@@ -102,7 +116,7 @@
   },
   "aggregate_equity_curve": [
     {
-      "ts": "2025-01-01T00:00:00Z",
+      "ts": "2025-01-01T00:00:00.000000Z",
       "equity": 200000.0
     },
     {

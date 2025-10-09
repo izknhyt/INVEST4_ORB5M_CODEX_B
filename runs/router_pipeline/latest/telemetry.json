@@ -1,0 +1,78 @@
+{
+  "active_positions": {
+    "day_orb_5m_v1": 1,
+    "tokyo_micro_mean_reversion_v0": 2
+  },
+  "category_budget_headroom_pct": {
+    "day": 39.75,
+    "scalping": 14.92
+  },
+  "category_budget_pct": {
+    "day": 40.0,
+    "scalping": 15.0
+  },
+  "category_caps_pct": {
+    "day": 40.0,
+    "scalping": 15.0
+  },
+  "category_utilisation_pct": {
+    "day": 0.25,
+    "scalping": 0.08
+  },
+  "correlation_meta": {
+    "day_orb_5m_v1": {
+      "tokyo_micro_mean_reversion_v0": {
+        "bucket_budget_pct": 15.0,
+        "bucket_category": "scalping",
+        "category": "scalping",
+        "category_budget_pct": 15.0,
+        "strategy_id": "tokyo_micro_mean_reversion_v0"
+      }
+    },
+    "scalping": {
+      "day_orb_5m_v1": {
+        "bucket_budget_pct": 40.0,
+        "bucket_category": "day",
+        "category": "day",
+        "category_budget_pct": 40.0,
+        "strategy_id": "day_orb_5m_v1"
+      }
+    },
+    "tokyo": {
+      "day_orb_5m_v1": {
+        "bucket_budget_pct": 40.0,
+        "bucket_category": "day",
+        "category": "day",
+        "category_budget_pct": 40.0,
+        "strategy_id": "day_orb_5m_v1"
+      }
+    },
+    "tokyo_micro_mean_reversion_v0": {
+      "day_orb_5m_v1": {
+        "bucket_budget_pct": 40.0,
+        "bucket_category": "day",
+        "category": "day",
+        "category_budget_pct": 40.0,
+        "strategy_id": "day_orb_5m_v1"
+      }
+    }
+  },
+  "correlation_window_minutes": 240.0,
+  "execution_health": {},
+  "gross_exposure_cap_pct": 20.0,
+  "gross_exposure_pct": 0.33,
+  "strategy_correlations": {
+    "day_orb_5m_v1": {
+      "tokyo_micro_mean_reversion_v0": 0.983594117613896
+    },
+    "scalping": {
+      "day_orb_5m_v1": 0.983594117613896
+    },
+    "tokyo": {
+      "day_orb_5m_v1": 0.983594117613896
+    },
+    "tokyo_micro_mean_reversion_v0": {
+      "day_orb_5m_v1": 0.983594117613896
+    }
+  }
+}
