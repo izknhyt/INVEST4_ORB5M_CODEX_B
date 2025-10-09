@@ -20,6 +20,6 @@
 
 ## 成果物とログ更新
 - [x] `state.md` の `## Log` へ完了サマリを追記した。
-- [ ] [docs/todo_next_archive.md](../todo_next_archive.md) の該当エントリへ移し、`docs/todo_next.md` からは削除した。
-- [ ] 生成物（JSON/CSV）の保存先や再現コマンドを記録した。
-- [ ] レビュー/承認者を記録した。
+- [x] [docs/todo_next_archive.md](../todo_next_archive.md) の該当エントリへ移し、`docs/todo_next.md` からは削除した。
+- [x] 生成物（JSON/CSV）の保存先や再現コマンドを記録した。
+- [x] レビュー/承認者を記録した。
