@@ -2,8 +2,13 @@
 
 Codex オペレータが 1 セッションで辿るべき流れを、チェックリスト主体で 1 ページにまとめました。詳細ガイドや補足テンプレートは [docs/codex_workflow.md](codex_workflow.md) / [docs/state_runbook.md](state_runbook.md) を参照してください。
 
+## 0. 初めてのセットアップ
+- [ ] [docs/documentation_portal.md](documentation_portal.md) の "First Session Playbook" で役割と初回導線を把握する。
+- [ ] [docs/dependencies.md](dependencies.md) の手順で Python / 追加依存をインストールし、`python3 -m pytest` が通ることを確認する。
+- [ ] `state.md` / [docs/task_backlog.md](task_backlog.md) / [docs/todo_next.md](todo_next.md) のアンカーが一致しているかを確認する（ずれていればバックログの DoD に沿って補正する）。
+
 ## 1. セッション前チェック
-- [ ] [docs/documentation_portal.md](documentation_portal.md) を開き、Orientation Cheat Sheet でクイックスタート / ワークフロー / state ランブックの役割を確認する。
+- [ ] [docs/documentation_portal.md](documentation_portal.md) を開き、Orientation Cheat Sheet から本セッションで参照するランブックを把握する。
 - [ ] `state.md` → `## Next Task` の担当タスクと Pending Questions を確認する。
 - [ ] [docs/task_backlog.md](task_backlog.md) で該当アンカーの DoD / 進捗ノートを再確認する。
 - [ ] [docs/todo_next.md](todo_next.md) でアンカー位置（Ready / In Progress / Pending Review）を確認し、必要なら `python3 scripts/manage_task_cycle.py --dry-run start-task --anchor <...>` で昇格手順をプレビューする。
@@ -12,7 +17,7 @@ Codex オペレータが 1 セッションで辿るべき流れを、チェッ�
 ## 2. 実装ループ（反復）
 | ステップ | アクション | 参照 |
 | --- | --- | --- |
-| 1. 設計レビュー | README / ランブック / チェックリストで影響範囲を洗い出し、必要なテストや出力ファイルをメモする。 | [docs/codex_workflow.md](codex_workflow.md#pre-session-routine) |
+| 1. 設計レビュー | README / ランブック / チェックリストで影響範囲を洗い出し、必要なテストや出力ファイルをメモする。Portal のテーブルから関連資料を逆引きする。 | [docs/codex_workflow.md](codex_workflow.md#pre-session-routine) |
 | 2. 小さく実装 | 差分を細かく区切り、影響単位で `python3 -m pytest -k <selector>` 等のテストを即時実行する。 | [docs/codex_workflow.md](codex_workflow.md#session-loop-detail) |
 | 3. ドキュメント即時更新 | 仕様や運用手順を変えたら同じブランチで `docs/` を更新し、DoD の根拠を残す。 | [docs/codex_workflow.md](codex_workflow.md#change-sync) |
 | 4. 状態同期 | `state.md` と `docs/todo_next.md` に進捗を追記し、アンカーが揃っているか確認する。 | [docs/codex_workflow.md](codex_workflow.md#change-sync) |
@@ -23,7 +28,7 @@ Codex オペレータが 1 セッションで辿るべき流れを、チェッ�
 - [ ] `git status` / `git diff` で不要ファイルや差分漏れが無いか確認する。
 - [ ] 実行したテストコマンドを `state.md` のログとコミットメッセージに記録する。
 - [ ] `python3 scripts/manage_task_cycle.py --dry-run finish-task --anchor <docs/task_backlog.md#...>` で close-out をプレビューし、問題なければ `--dry-run` を外して適用する。
-- [ ] `docs/todo_next.md` のブロックを [docs/todo_next_archive.md](todo_next_archive.md) へ移し、README / ランブックのリンクが最新か再確認する。
+- [ ] `docs/todo_next.md` のブロックを [docs/todo_next_archive.md](todo_next_archive.md) へ移し、[docs/documentation_portal.md](documentation_portal.md) の該当テーブルが最新リンクを指しているか再確認する。
 
 ## 4. 代表コマンド
 | 目的 | コマンド例 |
@@ -41,6 +46,7 @@ Codex オペレータが 1 セッションで辿るべき流れを、チェッ�
 - [docs/task_backlog.md](task_backlog.md) — 優先順位と DoD。進捗メモもここに集約。
 - [docs/todo_next.md](todo_next.md) — 直近の作業キュー。`manage_task_cycle` で同期。
 - [docs/development_roadmap.md](development_roadmap.md) — 即応〜中期の改善計画。
+- [docs/documentation_portal.md](documentation_portal.md) — 参照ドキュメントの位置とメンテナンスチェックリスト。
 
 ---
 このクイックスタートは `README.md` の Codex セクションと常に同期させます。内容を更新した場合は README / ランブック / テンプレートのアンカーも同じコミットで調整してください。

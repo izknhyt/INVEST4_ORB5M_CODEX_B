@@ -9,16 +9,22 @@
 - 想定環境: 個人開発者が単一PCで実行する前提。社内アーティファクトサーバや大規模配布は不要で、必要な依存はローカル環境で `pip install` すればよい。
 
 ## ドキュメントハブ
-- **最初に読むもの**: [docs/documentation_portal.md](docs/documentation_portal.md) にオンボーディング〜運用までの導線を集約しました。
-- **セッション手順**: [docs/codex_quickstart.md](docs/codex_quickstart.md) は 1 ページのチェックリスト、詳細フローは [docs/codex_workflow.md](docs/codex_workflow.md) を参照。
-- **進捗と優先度**: `state.md` / [docs/todo_next.md](docs/todo_next.md) / [docs/task_backlog.md](docs/task_backlog.md) のアンカーを揃えて作業します。
-- **アーキテクチャ**: [docs/logic_overview.md](docs/logic_overview.md)、[docs/simulation_plan.md](docs/simulation_plan.md)、[docs/development_roadmap.md](docs/development_roadmap.md) を順に確認して背景を把握してください。
+- [docs/documentation_portal.md](docs/documentation_portal.md) — すべてのランブック/テンプレートへの入り口。役割と参照タイミングを一覧できます。
+- [docs/codex_quickstart.md](docs/codex_quickstart.md) — 1 セッション分のチェックリスト。Portal で位置関係を把握したあとに手順通り進めてください。
+- [docs/codex_workflow.md](docs/codex_workflow.md) — クイックスタートの背景説明とテンプレ/スクリプトの詳細。疑問点が出た際のリファレンスです。
+- `state.md` / [docs/todo_next.md](docs/todo_next.md) / [docs/task_backlog.md](docs/task_backlog.md) — 進捗と優先度の同期ポイント。Portal とクイックスタートの指示に従い常にアンカーを揃えます。
+- [docs/logic_overview.md](docs/logic_overview.md) / [docs/simulation_plan.md](docs/simulation_plan.md) / [docs/development_roadmap.md](docs/development_roadmap.md) — アーキテクチャと評価方針の背景資料。
 
 ### Orientation Flow
-1. [docs/documentation_portal.md](docs/documentation_portal.md) を開き、クイックスタート / ワークフロー / state ランブックの役割と関連資料を俯瞰する。
-2. `state.md` → `## Next Task` を確認し、担当タスクのアンカーと Pending Questions を把握。
-3. [docs/task_backlog.md](docs/task_backlog.md) で DoD / 進捗ノートを読み、関連チェックリストを開く。
-4. [docs/todo_next.md](docs/todo_next.md) の該当セクションが最新かを確認し、必要に応じて `python3 scripts/manage_task_cycle.py --dry-run start-task --anchor <...>` で昇格フローをプレビュー。
+**初回参加時**
+1. [docs/documentation_portal.md](docs/documentation_portal.md) の Orientation Cheat Sheet で各ドキュメントの役割と入口を把握する。
+2. [docs/dependencies.md](docs/dependencies.md) を確認し、必要な Python 環境と追加依存をインストールする。
+3. [docs/codex_quickstart.md](docs/codex_quickstart.md) を一読し、`state.md` / `docs/task_backlog.md` / `docs/todo_next.md` の同期ルールを理解する。
+
+**各セッション冒頭**
+1. クイックスタート `1. セッション前チェック` に沿って `state.md` → [docs/task_backlog.md](docs/task_backlog.md) → [docs/todo_next.md](docs/todo_next.md) の順でアンカー整合を確認する。
+2. 追加の手順や判断理由が必要になったら [docs/codex_workflow.md](docs/codex_workflow.md) の該当セクションで詳細を参照する。
+3. 影響範囲が広い変更では [docs/documentation_portal.md](docs/documentation_portal.md) の各カテゴリから該当ランブック / テンプレートを開き、DoD と再現手順を揃えてから作業に入る。
 
 ## Developer Quickstart
 1. Python 3.10+ 環境を準備し、`pip install -r requirements.txt`（必要に応じて追加依存を [docs/dependencies.md](docs/dependencies.md) で確認）。

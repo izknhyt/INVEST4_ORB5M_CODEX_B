@@ -1,6 +1,6 @@
 # state.json 運用ガイド
 
-EV ゲートや滑り学習などの内部状態を `state.json` として保存し、再実行時に復元するためのランブックです。セッション全体の流れは [docs/codex_quickstart.md](codex_quickstart.md) を参照し、本書では state 周辺のアクションをチェックリスト形式で整理します。各ドキュメントの役割は [docs/documentation_portal.md](documentation_portal.md) の Orientation Cheat Sheet で再確認できます。
+EV ゲートや滑り学習などの内部状態を `state.json` として保存し、再実行時に復元するためのランブックです。セッション全体の流れは [docs/codex_quickstart.md](codex_quickstart.md) を参照し、本書では state 周辺のアクションをチェックリスト形式で整理します。各ドキュメントの役割は [docs/documentation_portal.md](documentation_portal.md) の Orientation Cheat Sheet で再確認し、Portal の "Documentation Hygiene Checklist" に沿って更新履歴を残してください。
 
 ## 保存チェックリスト
 - [ ] `BacktestRunner` / `RunnerExecutionManager` の処理完了後に `runner.export_state()` を呼び出した。
@@ -9,6 +9,7 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
 - [ ] 自動アーカイブが不要な検証では manifest `runner.cli_args.auto_state: false` を設定した。
 - [ ] EV プロファイル更新が不要な実験では `runner.cli_args.aggregate_ev: false` を併用し、不要な再集計を避けた。
 - [ ] 保存後に `scripts/aggregate_ev.py` が走行したかログを確認し、必要に応じて `configs/ev_profiles/` を更新した。
+- [ ] README / [docs/documentation_portal.md](documentation_portal.md) の該当テーブルに state アーカイブ関連の手順が反映されているか確認した。
 
 ## ロードチェックリスト
 - [ ] 自動ロードを有効化する manifest では、`ops/state_archive/...` の最新ファイルが参照されることを CLI ログで確認した。
@@ -16,6 +17,7 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
 - [ ] コードからロードする場合は `runner.load_state_file(path)` または `runner.load_state(state_dict)` を利用し、`RunnerConfig` とシンボルが一致しているか検証した。
 - [ ] `RunnerLifecycleManager._apply_state_dict` がフォーマット変更に追随できているか確認し、差分があればテストを追加した。
 - [ ] `config_fingerprint` 変更時に古い state を再利用しない（`tests/test_runner.py::test_load_state_skips_on_config_fingerprint_mismatch` 参照）。
+- [ ] Portal の Orientation Cheat Sheet に最新のロード手順が載っているか確認し、必要な差分を同じコミットで反映した。
 
 ## オンデマンド起動（ノート PC 向け）
 - 基本コマンド:
@@ -57,6 +59,7 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
   - `artifacts/`（画像・追加ログ）
 - Notebook 実行: `analysis/incident_review.ipynb` で `scripts/run_sim.py --manifest ...` を呼び出し、成果物を `runs/incidents/<incident_id>/` へ整理する。
 - 共有フロー: `replay_notes.md` の要約を `docs/task_backlog.md` 該当項目と `state.md` の `## Log` に転記し、必要に応じてステークホルダーへ共有する。
+- Portal の "First Session Playbook" / "Documentation Hygiene Checklist" を用いて、インシデント関連ランブックのリンクが網羅されているか確認する。
 
 ## 推奨運用メモ
 - `ops/state_archive/` の世代管理は `python3 scripts/prune_state_archive.py --dry-run --keep 5` で確認してから実行する。

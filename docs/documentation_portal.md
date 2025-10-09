@@ -2,6 +2,17 @@
 
 This portal groups every maintained document into a small set of entry points so new contributors can understand "what to build" and "how we work" without hunting through the repository. Follow the categories below in order.
 
+## First Session Playbook
+1. Skim [../README.md](../README.md) to understand the trading product, then return here.
+2. Open [codex_quickstart.md](codex_quickstart.md) and [codex_workflow.md](codex_workflow.md) side-by-side. The quickstart gives the checklist; the workflow guide explains why each checkpoint exists.
+3. Confirm you can run the baseline tooling (`python3 -m pytest`, `python3 scripts/manage_task_cycle.py --help`) after installing the dependencies listed in [dependencies.md](dependencies.md).
+4. Align `state.md`, [task_backlog.md](task_backlog.md), and [todo_next.md](todo_next.md) anchors before editing anything. The quickstart shows the order; the backlog contains the Definition of Done.
+
+## Recurring Session Checklist
+1. Start with the quickstart "Session前チェック" list. Keep this portal open to jump into the relevant runbooks.
+2. Use [codex_workflow.md](codex_workflow.md) when you need deeper reasoning, template links, or command walkthroughs.
+3. Update documentation in the same branch as your code changes and log outcomes in `state.md` — the backlog DoD requires traceability.
+
 ## Start Here
 1. Read the project overview in [../README.md](../README.md) to understand the product goal, strategy assumptions, and how Codex sessions are structured.
 2. Open [codex_quickstart.md](codex_quickstart.md) for the session checklist, then use [codex_workflow.md](codex_workflow.md) when you need the detailed reasoning behind each step.
@@ -12,12 +23,12 @@ This portal groups every maintained document into a small set of entry points so
 
 ### Orientation Cheat Sheet
 
-| If you need to... | Go to | Why |
-| --- | --- | --- |
-| See the one-page session flow | [codex_quickstart.md](codex_quickstart.md) | Checklist that links every pre-session, implementation, and wrap-up action. |
-| Understand the nuance behind each checkpoint | [codex_workflow.md](codex_workflow.md) | Explains the rationale, templates, and scripts that back the quickstart steps. |
-| Execute or replay state workflows | [state_runbook.md](state_runbook.md) | Task-focused checklists for exporting, pruning, and restoring state artifacts. |
-| Align task status with the backlog | `state.md`, [todo_next.md](todo_next.md), [task_backlog.md](task_backlog.md) | These three documents must reference the same anchors so every session sees the same context. |
+| If you need to... | Go to | Why | Primary outputs |
+| --- | --- | --- | --- |
+| See the one-page session flow | [codex_quickstart.md](codex_quickstart.md) | Checklist that links every pre-session, implementation, and wrap-up action. | Updated `state.md` / `docs/todo_next.md` notes |
+| Understand the nuance behind each checkpoint | [codex_workflow.md](codex_workflow.md) | Explains the rationale, templates, and scripts that back the quickstart steps. | Linked templates / command history |
+| Execute or replay state workflows | [state_runbook.md](state_runbook.md) | Task-focused checklists for exporting, pruning, and restoring state artifacts. | Fresh `ops/state_archive/*` snapshots |
+| Align task status with the backlog | `state.md`, [todo_next.md](todo_next.md), [task_backlog.md](task_backlog.md) | These three documents must reference the same anchors so every session sees the same context. | Backlog DoD notes & anchors |
 
 ## Workflow & Coordination
 | Document | Purpose | When to use |
@@ -62,5 +73,11 @@ This portal groups every maintained document into a small set of entry points so
 - Update documentation within the same commit as the code change and mention affected runbooks in the PR description.
 - Use `python3 scripts/manage_task_cycle.py --dry-run ...` to preview updates before touching `state.md` or `docs/todo_next.md`.
 - When new documents are created, add them to the appropriate table above so the portal stays comprehensive.
+
+## Documentation Hygiene Checklist
+- [ ] Quickstart / workflow / state runbook all reference the same anchor ordering and recent command examples.
+- [ ] README "ドキュメントハブ" mirrors the roles described here so newcomers get identical instructions regardless of entry point.
+- [ ] New or renamed runbooks are added to the relevant table in this portal with a one-line description and usage timing.
+- [ ] `state.md` log entries cite the documents touched so future sessions can trace why a guideline changed.
 
 By following this portal first, newcomers can immediately locate the correct checklist or runbook, and long-term contributors can keep the knowledge base tidy and traceable.
