@@ -136,6 +136,7 @@ python3 scripts/check_data_quality.py \
 - `--min-gap-minutes` を指定すると、指定値より短いギャップは集計・エクスポートの対象から除外され、代わりに `ignored_gap_count` / `ignored_gap_minutes` / `ignored_missing_rows_estimate` がサマリーに記録されます。
 - `--expected-interval-minutes` で期待タイムフレームを明示すると、5m 以外のバーやカスタム期待値に合わせて欠損推定を再計算できます（未指定時は `tf` カラムまたは観測間隔から自動判定）。
 - `--start-timestamp` / `--end-timestamp` で ISO-8601 形式の監査ウィンドウ（UTC 基準、両端含む）を指定でき、部分期間のギャップ調査に利用できます。サマリーには適用したフィルタ値も `start_timestamp_filter` / `end_timestamp_filter` として残ります。
+- `--calendar-day-summary` を使うと UTC カレンダーベースで 1 日ごとのカバレッジ比率を集計し、`--calendar-day-coverage-threshold` で指定した下限を下回る日を `calendar_day_summary.warnings` に優先表示します（既定 0.98）。`--calendar-day-max-report` でワースト日一覧の件数を制御できます。
 - 既存の stdout / JSON レイアウトは維持されるため、既存オートメーションはフラグを追加しない限り挙動が変わりません。
 
 ### オンデマンドインジェスト CLI
