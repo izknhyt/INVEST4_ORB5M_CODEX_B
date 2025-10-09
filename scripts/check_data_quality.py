@@ -15,6 +15,10 @@ from pathlib import Path
 from statistics import median
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from scripts._time_utils import utcnow_iso
 
 REQUIRED_COLS = ["timestamp", "symbol", "tf", "o", "h", "l", "c", "spread"]

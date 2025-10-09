@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-05-30: Ensured `scripts/check_data_quality.py` matches the README invocation flow by restoring the repo-root import path before `_time_utils` is loaded so `python3 scripts/check_data_quality.py` works without extra env vars. Revalidated CLI help and executed `python3 -m pytest` to confirm regressions stay green.
 - 2026-05-29: Enabled `scripts/check_data_quality.py --webhook` to deliver `data_quality_failure` alerts, propagated webhook/timeout controls through `run_daily_workflow.py --check-data-quality`, refreshed README / docs/state_runbook.md guidance, updated the backlog entry, and ran `python3 -m pytest` to keep the suite green.
 - 2026-05-28: Wired `run_daily_workflow.py --check-data-quality` into the ingest workflow so coverage failures surface as non-zero exits, documented escalation guidance in README/state runbook, refreshed backlog notes, and ran `python3 -m pytest` to confirm the suite remains green.
 - 2026-05-27: Added failure guards to `scripts/check_data_quality.py` so audits can exit non-zero when overall coverage falls below a configurable floor or when calendar-day warnings persist, refreshed README/backlog guidance, and ran `python3 -m pytest` to keep the suite green。
