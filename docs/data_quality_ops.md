@@ -14,7 +14,10 @@ consistent location.
     `python3 scripts/run_daily_workflow.py --check-data-quality`.
   - Failures fire when either `--fail-under-coverage` is breached or
     when `--fail-on-calendar-day-warnings` is combined with
-    `--calendar-day-summary`.
+    `--calendar-day-summary`. Duplicate saturation also raises a
+    failure once the CLI sees at least the configured number of
+    duplicate timestamp groups (`--fail-on-duplicate-groups`). The
+    daily workflow enables this guard by default with a threshold of 5.
 - **Payload fields**
   - `event`: Always `data_quality_failure`.
   - `csv_path`, `symbol`, `timeframe`: Identify the audited data set.
@@ -98,7 +101,9 @@ handoff in `state.md` when any of the following conditions occur:
 - **Severe coverage drop** — `coverage_ratio < 0.98` or more than two
   consecutive `calendar_day_warnings` entries.
 - **Duplicate saturation** — `duplicate_groups >= 5` after applying the
-  production filters.
+  production filters. The daily workflow already fails the audit when
+  this guard triggers, so you should see an alert as soon as the
+  threshold is breached.
 
 When escalating, include links to the summary JSON, gap inventories, and
 the acknowledgement table entry. Create or update the relevant backlog

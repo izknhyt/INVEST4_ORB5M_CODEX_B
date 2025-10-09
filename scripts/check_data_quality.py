@@ -178,6 +178,15 @@ def parse_args(argv=None):
         ),
     )
     p.add_argument(
+        "--fail-on-duplicate-groups",
+        type=int,
+        default=None,
+        help=(
+            "Exit with status 1 when duplicate timestamp groups reach or exceed the "
+            "specified threshold (0 disables the guard)"
+        ),
+    )
+    p.add_argument(
         "--webhook",
         default=None,
         help="Webhook URL(s) for failure alerts (comma separated)",
@@ -834,6 +843,9 @@ def main(argv=None):
         raise SystemExit(
             "--fail-on-calendar-day-warnings requires --calendar-day-summary"
         )
+    duplicate_group_threshold = getattr(args, "fail_on_duplicate_groups", None)
+    if duplicate_group_threshold is not None and duplicate_group_threshold < 0:
+        raise SystemExit("--fail-on-duplicate-groups must be at least 0")
     if getattr(args, "webhook_timeout", None) is not None and args.webhook_timeout <= 0:
         raise SystemExit("--webhook-timeout must be positive")
     start_ts = None
@@ -905,6 +917,20 @@ def main(argv=None):
                     failure_reasons.append(
                         f"{warning_count} calendar day warnings below coverage threshold"
                     )
+
+    if duplicate_group_threshold:
+        duplicate_groups = summary.get("duplicate_groups")
+        if duplicate_groups is None:
+            failure_reasons.append(
+                "duplicate group count unavailable for --fail-on-duplicate-groups enforcement"
+            )
+        elif duplicate_groups >= duplicate_group_threshold:
+            failure_reasons.append(
+                (
+                    "duplicate_groups "
+                    f"{duplicate_groups} reached threshold {duplicate_group_threshold}"
+                )
+            )
 
     webhook_urls = _parse_webhook_urls(getattr(args, "webhook", None))
     webhook_deliveries: List[Dict[str, object]] = []
