@@ -444,9 +444,7 @@
 - [P1-04] 2024-06-19: `docs/todo_next.md` を In Progress / Ready / Pending Review / Archive セクション構成へ刷新し、`state.md` のログ日付とバックログ連携を明示。DoD: ガイドライン/チェックリストの追記と過去成果のアーカイブ保持。
 - [P1-04] 2024-06-20: Ready 昇格チェックリストにビジョンガイド再読を追加し、`Next Task` 登録時の参照先として `docs/logic_overview.md` / `docs/simulation_plan.md` を明記。
 
-- [P2-01] 2026-01-08: 戦略テンプレと manifest を整備し、manifest CLI 回帰と run_sim ドライランを完了. DoD: [docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化).
-
-- [P2-01] 2026-01-08: 戦略テンプレと manifest を整備し、pytest/run_sim で配線確認済み. DoD: [docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化).
+- [P2-01] 2026-01-08: 戦略テンプレと manifest を整備し、manifest CLI 回帰と run_sim ドライランを完了し、pytest/run_sim で配線確認済み。DoD: [docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化](docs/task_backlog.md#p2-マルチ戦略ポートフォリオ化).
 - 2026-03-16: Skipped EV/warmup restoration when `config_fingerprint` mismatches the active `RunnerConfig`, added a
   regression in `tests/test_runner.py::test_load_state_skips_on_config_fingerprint_mismatch` to lock the guard,
   verified `scripts/run_sim.py` produces trades again under mismatched state snapshots, and executed `python3 -m pytest`.
