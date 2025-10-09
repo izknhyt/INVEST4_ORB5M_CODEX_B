@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-05-17: Closed out P0-12 Codex-first documentation cleanup by archiving the Pending Review entry, completing the remaining DoD checklist action, updating backlog/todo archive notes, and re-running `python3 -m pytest` to keep the suite green.
 - 2026-05-16: Finalised P0-14 data quality gap reporting hand-off by archiving the todo entry, capturing reproduction commands/output paths, ticking the DoD checklist, updating backlog notes, and running `python3 -m pytest` to keep regressions green.
 - 2026-05-15: Initiated P0-14 data quality gap reporting to extend `scripts/check_data_quality.py` with exportable gap tables and richer metrics; synced backlog/todo checklists before coding.
 - 2026-05-13: Revalidated documentation alignment for P0-12, synced `docs/todo_next.md` Pending Review entry with `state.md`, updated `docs/state_runbook.md` command examples to mirror the quickstart/workflow, refreshed the backlog memo, and ran `python3 -m pytest` to confirm regressions remain green.
@@ -487,9 +488,6 @@
 
 - [OPS-CODEX-GUIDE] 2025-10-08: Aligned workflow docs with review feedback. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
 ## Next Task
-- Pending Review — [docs/task_backlog.md#p0-12-codex-first-documentation-cleanup](docs/task_backlog.md#p0-12-codex-first-documentation-cleanup)
-  - Deliverables (English): README doc hub alignment, documentation_portal hygiene checklist, quickstart/workflow/state_runbook cross-link refresh.
-  - Notes: Ensure newcomers can follow a single orientation path and that portal tables reflect every updated runbook.
 - Pending Review — [docs/task_backlog.md#p0-13-data-quality-audit](docs/task_backlog.md#p0-13-data-quality-audit)
   - Deliverables (English): Extended CLI summary metrics (row coverage, monotonicity, gaps), JSON export path, regression tests covering audit logic and CLI output.
   - Notes: Validate backward compatibility on stdout while enabling automation-friendly outputs for cron jobs.
