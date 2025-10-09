@@ -6,7 +6,7 @@ import csv
 import json
 import math
 import re
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import median
@@ -37,6 +37,12 @@ def parse_args(argv=None):
                    help="Ignore gaps shorter than this many minutes when aggregating and exporting results (default: 0.0)")
     p.add_argument("--out-gap-json", default=None,
                    help="Optional JSON output path containing the complete gap inventory after filters")
+    p.add_argument("--max-duplicate-report", type=int, default=20,
+                   help="Maximum number of duplicate timestamp groups retained in the summary payload (default: 20)")
+    p.add_argument("--out-duplicates-csv", default=None,
+                   help="Optional CSV output path containing duplicate timestamp details")
+    p.add_argument("--out-duplicates-json", default=None,
+                   help="Optional JSON output path containing duplicate timestamp details")
     return p.parse_args(argv)
 
 
@@ -220,6 +226,7 @@ def _audit_internal(
     symbol: str | None = None,
     *,
     max_gap_report: int = 20,
+    max_duplicate_report: int = 20,
     capture_gap_details: bool = False,
     expected_interval_minutes: float | None = None,
     start_timestamp: datetime | None = None,
@@ -234,9 +241,11 @@ def _audit_internal(
     timestamps: List[datetime] = []
     total_rows = 0
 
+    timestamp_line_numbers: defaultdict[datetime, List[int]] = defaultdict(list)
+
     with csv_path.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        for row in reader:
+        for line_number, row in enumerate(reader, start=2):
             if any(col not in row for col in REQUIRED_COLS):
                 missing_cols += 1
                 continue
@@ -264,6 +273,22 @@ def _audit_internal(
             tf_minutes = _parse_tf_minutes(tf)
             if tf_minutes and tf_minutes > 0:
                 tf_minutes_counter[tf_minutes] += 1
+            timestamp_line_numbers[ts].append(line_number)
+
+    duplicate_details: List[Dict[str, object]] = []
+    duplicate_row_count = 0
+    for ts in sorted(timestamp_line_numbers.keys()):
+        line_numbers = timestamp_line_numbers[ts]
+        if len(line_numbers) <= 1:
+            continue
+        duplicate_row_count += len(line_numbers) - 1
+        duplicate_details.append(
+            {
+                "timestamp": ts.isoformat(),
+                "occurrences": len(line_numbers),
+                "line_numbers": line_numbers,
+            }
+        )
 
     unique_ts: Set[datetime] = set(timestamps)
     earliest_ts = min(timestamps) if timestamps else None
@@ -302,6 +327,13 @@ def _audit_internal(
         min_gap_minutes=effective_min_gap,
     )
 
+    # Prefer aggregate duplicate counts computed across the full timestamp set
+    # so non-consecutive repeats are captured as well.
+    duplicates = duplicate_row_count
+    duplicate_groups = len(duplicate_details)
+    duplicate_samples = duplicate_details[: max(1, max_duplicate_report)]
+    duplicates_truncated = len(duplicate_details) > len(duplicate_samples)
+
     if len(tf_minutes_counter) > 1:
         distinct_intervals = ", ".join(
             f"{value:g}m" for value in sorted(tf_minutes_counter.keys())
@@ -329,6 +361,9 @@ def _audit_internal(
         "missing_cols": missing_cols,
         "bad_rows": bad_rows,
         "duplicates": duplicates,
+        "duplicate_groups": duplicate_groups,
+        "duplicate_details": duplicate_samples,
+        "duplicate_details_truncated": duplicates_truncated,
         "tf_distribution": dict(tf_counter),
         "symbol_distribution": dict(symbol_counter),
         "gaps": [
@@ -357,7 +392,7 @@ def _audit_internal(
         "ignored_gap_minutes": ignored_gap_minutes,
         "ignored_missing_rows_estimate": ignored_missing_rows_estimate,
     }
-    return summary, full_gap_details
+    return summary, full_gap_details, duplicate_details
 
 
 def audit(
@@ -365,15 +400,17 @@ def audit(
     symbol: str | None = None,
     *,
     max_gap_report: int = 20,
+    max_duplicate_report: int = 20,
     expected_interval_minutes: float | None = None,
     start_timestamp: datetime | None = None,
     end_timestamp: datetime | None = None,
     min_gap_minutes: float = 0.0,
 ) -> Dict[str, object]:
-    summary, _ = _audit_internal(
+    summary, _, _ = _audit_internal(
         csv_path,
         symbol,
         max_gap_report=max_gap_report,
+        max_duplicate_report=max_duplicate_report,
         capture_gap_details=False,
         expected_interval_minutes=expected_interval_minutes,
         start_timestamp=start_timestamp,
@@ -407,6 +444,22 @@ def _write_gap_csv(path: Path, gaps: List[Dict[str, object]]):
             })
 
 
+def _write_duplicate_csv(path: Path, duplicates: List[Dict[str, object]]):
+    fieldnames = ["timestamp", "occurrences", "line_numbers"]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for item in duplicates:
+            writer.writerow(
+                {
+                    "timestamp": item["timestamp"],
+                    "occurrences": item["occurrences"],
+                    "line_numbers": ",".join(str(num) for num in item["line_numbers"]),
+                }
+            )
+
+
 def main(argv=None):
     args = parse_args(argv)
     csv_path = Path(args.csv)
@@ -428,10 +481,11 @@ def main(argv=None):
             raise SystemExit(f"invalid --end-timestamp value: {args.end_timestamp}") from exc
     if start_ts and end_ts and start_ts > end_ts:
         raise SystemExit("--start-timestamp must be earlier than or equal to --end-timestamp")
-    summary, gap_records = _audit_internal(
+    summary, gap_records, duplicate_records = _audit_internal(
         csv_path,
         args.symbol,
         max_gap_report=max(1, args.max_gap_report),
+        max_duplicate_report=max(1, args.max_duplicate_report),
         capture_gap_details=bool(args.out_gap_csv or args.out_gap_json),
         expected_interval_minutes=args.expected_interval_minutes,
         start_timestamp=start_ts,
@@ -452,6 +506,14 @@ def main(argv=None):
         out_gap_json_path.parent.mkdir(parents=True, exist_ok=True)
         with out_gap_json_path.open("w", encoding="utf-8") as f:
             json.dump(gap_records, f, indent=2, ensure_ascii=False)
+    if getattr(args, "out_duplicates_csv", None):
+        out_dup_path = Path(args.out_duplicates_csv)
+        _write_duplicate_csv(out_dup_path, duplicate_records)
+    if getattr(args, "out_duplicates_json", None):
+        out_dup_json = Path(args.out_duplicates_json)
+        out_dup_json.parent.mkdir(parents=True, exist_ok=True)
+        with out_dup_json.open("w", encoding="utf-8") as f:
+            json.dump(duplicate_records, f, indent=2, ensure_ascii=False)
     return 0
 
 

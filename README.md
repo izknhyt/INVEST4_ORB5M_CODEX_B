@@ -132,6 +132,7 @@ python3 scripts/check_data_quality.py \
 
 - デフォルトのサマリーには `missing_rows_estimate` / `total_gap_minutes` / `average_gap_minutes` / `gap_details`（上位ギャップの詳細）を含みます。
 - `--max-gap-report` でサマリー内に保持するギャップ件数を制御しつつ、`--out-gap-csv` や `--out-gap-json` を指定すればフィルタ適用後のギャップ表を CSV/JSON へエクスポートできます。
+- 重複タイムスタンプの監査には `--out-duplicates-csv` や `--out-duplicates-json` を用いて重複行一覧を保存し、`--max-duplicate-report` でサマリーに保持する重複グループ数を調整できます（既定 20 件）。CSV には発生行番号も記録されるため、元データの修正ポイントを特定しやすくなります。
 - `--min-gap-minutes` を指定すると、指定値より短いギャップは集計・エクスポートの対象から除外され、代わりに `ignored_gap_count` / `ignored_gap_minutes` / `ignored_missing_rows_estimate` がサマリーに記録されます。
 - `--expected-interval-minutes` で期待タイムフレームを明示すると、5m 以外のバーやカスタム期待値に合わせて欠損推定を再計算できます（未指定時は `tf` カラムまたは観測間隔から自動判定）。
 - `--start-timestamp` / `--end-timestamp` で ISO-8601 形式の監査ウィンドウ（UTC 基準、両端含む）を指定でき、部分期間のギャップ調査に利用できます。サマリーには適用したフィルタ値も `start_timestamp_filter` / `end_timestamp_filter` として残ります。

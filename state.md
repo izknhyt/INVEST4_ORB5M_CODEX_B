@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-05-23: Extended P0-13 data quality audits with duplicate timestamp inventories (`--out-duplicates-csv` / `--out-duplicates-json`) and summary truncation controls, refreshed README/backlog guidance, and reran `python3 -m pytest` to confirm the suite stays green.
 - 2026-05-21: Extended P0-14 gap reporting with ISO-8601 `--start-timestamp` / `--end-timestamp` filters in `scripts/check_data_quality.py`, refreshed README/backlog guidance, and executed `python3 -m pytest` to verify the suite remains green.
 - 2026-05-20: Closed out P0-13 data quality audit enhancements by archiving the Pending Review entry, syncing backlog/todo/state docs, and re-running `python3 -m pytest` to confirm the suite stays green.
 - 2026-05-19: Auto-detected `scripts/check_data_quality.py` bar intervals and added an `--expected-interval-minutes` override,
