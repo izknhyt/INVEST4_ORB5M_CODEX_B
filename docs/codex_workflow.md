@@ -1,12 +1,12 @@
 # Codex Session Operations Guide
 
-1 ページ版の流れは [docs/codex_quickstart.md](codex_quickstart.md) に集約されています。本ガイドではクイックスタートの各ステップを深掘りし、テンプレート・スクリプト・ランブックの使い分けを整理します。
+1 ページ版の流れは [docs/codex_quickstart.md](codex_quickstart.md) に集約されています。本ガイドではクイックスタートの各ステップを深掘りし、テンプレート・スクリプト・ランブックの使い分けを整理します。[docs/documentation_portal.md](documentation_portal.md) を併読し、必要なランブックへ素早く遷移できるようにしてください。
 
 ## ガイド活用法
-- **ドキュメントハブで位置関係を確認** — [docs/documentation_portal.md](documentation_portal.md) の Orientation Cheat Sheet でランブック / チェックリスト / バックログの役割を把握してから作業に入る。
-- **まずクイックスタートを参照** — `state.md` / `docs/task_backlog.md` / `docs/todo_next.md` の同期手順と優先度はクイックスタートで俯瞰できます。
+- **First Session** — Portal の "First Session Playbook" を先に確認し、README → クイックスタート → 本ガイドを同じ順序で読み進める。
+- **Recurring Sessions** — クイックスタートを日常のチェックリストとして使い、本ガイドでは判断理由やテンプレ適用方法を逆引きする。
 - **作業前の再読ポイント** — 影響するランブック（例: `docs/state_runbook.md`, `docs/benchmark_runbook.md`）と該当チェックリストを開いた状態で着手する。
-- **作業後のクロスチェック** — README の Codex 節と本ドキュメントの内容が整合しているか確認し、差異があれば同じコミットで修正する。
+- **作業後のクロスチェック** — README の Codex 節・Portal・本ドキュメントの記述が整合しているか確認し、差異があれば同じコミットで修正する。
 
 ## Quickstart 補足
 クイックスタートの 3 ステップ（準備 → 実装ループ → Wrap-up）を、実務で迷いやすい観点から補足します。
@@ -15,15 +15,18 @@
 - `state.md` と `docs/todo_next.md` のアンカー一致を確認。ズレていたら `python3 scripts/manage_task_cycle.py --dry-run start-task --anchor <...>` で整合をプレビュー。
 - Ready → In Progress 昇格時は [docs/templates/dod_checklist.md](templates/dod_checklist.md) を複製して `docs/checklists/<task>.md` に保存し、アンカーから参照する。
 - Sandbox 条件や承認要否は [docs/codex_cloud_notes.md](codex_cloud_notes.md) を再読し、必要な背景・想定コマンドを `state.md` に残す。
+- Portal の "First Session Playbook" で指定されている README / Quickstart / Workflow の順序が維持されているかを確認し、ズレがあれば同じコミットで修正する。
 
 ### 2. 実装ループ
 - CLI やロジックを触った直後に `python3 -m pytest -k <selector>` 等のスモークを即実行し、差分の粒度を小さく保つ。
 - 仕様変更と同じコミットで README / ランブックを更新し、DoD の根拠がバックログやチェックリストに残るようリンクを追加する。
 - 進捗メモは `state.md` → `docs/todo_next.md` の順で記録。`manage_task_cycle` からの自動更新と競合しないよう順序を固定する。
+- Portal の Orientation Cheat Sheet に未掲載の新規ランブックが出てこないか常に意識し、必要であれば同じコミットで追加する。
 
 ### 3. Wrap-up
 - `python3 scripts/manage_task_cycle.py --dry-run finish-task --anchor <...>` で close-out をプレビューし、`sync_task_docs.py complete` が呼ばれることを確認する。
 - `docs/task_backlog.md` の該当項目に進捗リンクを追加し、完了なら打ち消し線でアーカイブ化。未達成の DoD があれば進行中のまま残す。
+- Portal のテーブルを再確認し、本セッションで追加・更新したランブックやチェックリストが反映されているかをチェックする。
 
 ## <a id="pre-session-routine"></a>Session Loop（詳細）
 
@@ -52,6 +55,7 @@
 - `docs/todo_next.md` / `state.md` は `manage_task_cycle` かテンプレートを利用して編集し、手動編集時はアンカーコメントを削除しない。
 - README・ランブック・テンプレートで同じ内容を扱う場合、差分が出たセクションに「更新日」「再確認ポイント」を併記し、次回の再レビューを容易にする。
 - 新しいチェックリストやテンプレを追加した場合は、`docs/checklists/` 配下のガイドとバックログ DoD を同じコミットで更新する。
+- Portal の "Documentation Hygiene Checklist" を活用し、クイックスタート / 本ガイド / state ランブックで参照順序とコマンド例が揃っているか点検する。
 
 ## Sandbox & Approval Guardrails
 - 既定ハーネス: `workspace-write` / `restricted` / approvals `on-request`。

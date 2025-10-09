@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-05-08: Realigned README doc hub, documentation portal, quickstart/workflow/state runbook cross-references, and added a documentation hygiene checklist so newcomers can follow a single orientation path without duplication。
 - 2026-05-07: Expanded `docs/documentation_portal.md` with an orientation cheat sheet and aligned README / quickstart / workflow / state runbook guidance so newcomers can map responsibilities quickly。
 - 2026-05-06: Authored `docs/documentation_portal.md` to map all runbooks, reorganised README onboarding flow, and synced quickstart/workflow references plus todo/backlog anchors。
 - 2026-05-04: Long-term roadmap links refreshed—expanded `docs/architecture_migration.md`, `docs/observability_plan.md`, and `docs/audit_playbook.md` placeholders and revalidated `docs/development_roadmap.md` references。
@@ -478,4 +479,6 @@
 
 - [OPS-CODEX-GUIDE] 2025-10-08: Aligned workflow docs with review feedback. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
 ## Next Task
-- 未設定。`docs/task_backlog.md` の P0 / P1 セクションから次のタスクを選定し、テンプレートに沿って登録してください。
+- Pending Review — [docs/task_backlog.md#p0-12-codex-first-documentation-cleanup](docs/task_backlog.md#p0-12-codex-first-documentation-cleanup)
+  - Deliverables (English): README doc hub alignment, documentation_portal hygiene checklist, quickstart/workflow/state_runbook cross-link refresh.
+  - Notes: Ensure newcomers can follow a single orientation path and that portal tables reflect every updated runbook.
