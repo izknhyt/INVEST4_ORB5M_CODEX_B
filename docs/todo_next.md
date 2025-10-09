@@ -24,6 +24,10 @@
 
 ### Pending Review
 
+- [docs/task_backlog.md#p0-12-codex-first-documentation-cleanup](./task_backlog.md#p0-12-codex-first-documentation-cleanup) <!-- anchor: docs/task_backlog.md#p0-12-codex-first-documentation-cleanup -->
+  - Deliverables (English): README doc hub alignment, documentation_portal hygiene checklist, quickstart/workflow/state_runbook cross-link refresh.
+  - Notes: Ensure newcomers can follow a single orientation path and that portal tables reflect every updated runbook.
+
 - レビュー中のタスクを再開する際は `scripts/manage_task_cycle.py --doc-section Pending Review` を用いると、`docs/todo_next.md` の配置を維持したまま `state.md` のテンプレートを再適用できる。
 
 ## Archive（達成済み）
