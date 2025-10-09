@@ -33,6 +33,10 @@ def parse_args(argv=None):
                    help="Optional ISO-8601 timestamp (UTC) marking the inclusive start of the audit window")
     p.add_argument("--end-timestamp", default=None,
                    help="Optional ISO-8601 timestamp (UTC) marking the inclusive end of the audit window")
+    p.add_argument("--min-gap-minutes", type=float, default=0.0,
+                   help="Ignore gaps shorter than this many minutes when aggregating and exporting results (default: 0.0)")
+    p.add_argument("--out-gap-json", default=None,
+                   help="Optional JSON output path containing the complete gap inventory after filters")
     return p.parse_args(argv)
 
 
@@ -112,6 +116,7 @@ def _analyse_timestamps(
     interval_minutes: float,
     max_gap_report: int,
     capture_gap_details: bool,
+    min_gap_minutes: float = 0.0,
 ) -> Tuple[
     int,
     int,
@@ -122,6 +127,9 @@ def _analyse_timestamps(
     float,
     int,
     float,
+    int,
+    float,
+    int,
 ]:
     duplicates = 0
     monotonic_errors = 0
@@ -132,6 +140,9 @@ def _analyse_timestamps(
     total_gap_minutes = 0.0
     missing_rows_estimate = 0
     irregular_gap_count = 0
+    ignored_gap_count = 0
+    ignored_gap_minutes = 0.0
+    ignored_missing_rows_estimate = 0
     last_ts: datetime | None = None
 
     for ts in timestamps:
@@ -158,6 +169,12 @@ def _analyse_timestamps(
         irregular = not math.isclose(expected_steps, rounded_steps, rel_tol=1e-9, abs_tol=1e-9)
 
         if not math.isclose(expected_steps, 1.0, rel_tol=1e-9, abs_tol=1e-9):
+            if diff_minutes < min_gap_minutes:
+                ignored_gap_count += 1
+                ignored_gap_minutes += diff_minutes
+                ignored_missing_rows_estimate += missing_rows
+                last_ts = ts
+                continue
             gap_record = {
                 "start_timestamp": last_ts.isoformat(),
                 "end_timestamp": ts.isoformat(),
@@ -192,6 +209,9 @@ def _analyse_timestamps(
         total_gap_minutes,
         missing_rows_estimate,
         irregular_gap_count,
+        ignored_gap_count,
+        ignored_gap_minutes,
+        ignored_missing_rows_estimate,
     )
 
 
@@ -204,6 +224,7 @@ def _audit_internal(
     expected_interval_minutes: float | None = None,
     start_timestamp: datetime | None = None,
     end_timestamp: datetime | None = None,
+    min_gap_minutes: float = 0.0,
 ):
     missing_cols = 0
     bad_rows = 0
@@ -258,11 +279,27 @@ def _audit_internal(
         interval_minutes = DEFAULT_INTERVAL_MINUTES
         interval_source = "default"
 
-    duplicates, monotonic_errors, issues, gap_samples, full_gap_details, gap_minutes, total_gap_minutes, missing_rows_estimate, irregular_gap_count = _analyse_timestamps(
+    effective_min_gap = max(0.0, min_gap_minutes)
+
+    (
+        duplicates,
+        monotonic_errors,
+        issues,
+        gap_samples,
+        full_gap_details,
+        gap_minutes,
+        total_gap_minutes,
+        missing_rows_estimate,
+        irregular_gap_count,
+        ignored_gap_count,
+        ignored_gap_minutes,
+        ignored_missing_rows_estimate,
+    ) = _analyse_timestamps(
         timestamps,
         interval_minutes=interval_minutes,
         max_gap_report=max_gap_report,
         capture_gap_details=capture_gap_details,
+        min_gap_minutes=effective_min_gap,
     )
 
     if len(tf_minutes_counter) > 1:
@@ -315,6 +352,10 @@ def _audit_internal(
         "irregular_gap_count": irregular_gap_count,
         "expected_interval_minutes": interval_minutes,
         "expected_interval_source": interval_source,
+        "min_gap_minutes": effective_min_gap,
+        "ignored_gap_count": ignored_gap_count,
+        "ignored_gap_minutes": ignored_gap_minutes,
+        "ignored_missing_rows_estimate": ignored_missing_rows_estimate,
     }
     return summary, full_gap_details
 
@@ -327,6 +368,7 @@ def audit(
     expected_interval_minutes: float | None = None,
     start_timestamp: datetime | None = None,
     end_timestamp: datetime | None = None,
+    min_gap_minutes: float = 0.0,
 ) -> Dict[str, object]:
     summary, _ = _audit_internal(
         csv_path,
@@ -336,6 +378,7 @@ def audit(
         expected_interval_minutes=expected_interval_minutes,
         start_timestamp=start_timestamp,
         end_timestamp=end_timestamp,
+        min_gap_minutes=min_gap_minutes,
     )
     return summary
 
@@ -369,6 +412,8 @@ def main(argv=None):
     csv_path = Path(args.csv)
     if not csv_path.exists():
         raise SystemExit(f"CSV not found: {csv_path}")
+    if getattr(args, "min_gap_minutes", 0.0) is not None and args.min_gap_minutes < 0:
+        raise SystemExit("--min-gap-minutes must be non-negative")
     start_ts = None
     if getattr(args, "start_timestamp", None):
         try:
@@ -387,10 +432,11 @@ def main(argv=None):
         csv_path,
         args.symbol,
         max_gap_report=max(1, args.max_gap_report),
-        capture_gap_details=bool(args.out_gap_csv),
+        capture_gap_details=bool(args.out_gap_csv or args.out_gap_json),
         expected_interval_minutes=args.expected_interval_minutes,
         start_timestamp=start_ts,
         end_timestamp=end_ts,
+        min_gap_minutes=args.min_gap_minutes,
     )
     print(summary)
     if getattr(args, "out_json", None):
@@ -401,6 +447,11 @@ def main(argv=None):
     if getattr(args, "out_gap_csv", None):
         out_gap_path = Path(args.out_gap_csv)
         _write_gap_csv(out_gap_path, gap_records)
+    if getattr(args, "out_gap_json", None):
+        out_gap_json_path = Path(args.out_gap_json)
+        out_gap_json_path.parent.mkdir(parents=True, exist_ok=True)
+        with out_gap_json_path.open("w", encoding="utf-8") as f:
+            json.dump(gap_records, f, indent=2, ensure_ascii=False)
     return 0
 
 
