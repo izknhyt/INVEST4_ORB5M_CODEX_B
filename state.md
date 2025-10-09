@@ -3,6 +3,7 @@
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
 - 2026-05-13: Revalidated documentation alignment for P0-12, synced `docs/todo_next.md` Pending Review entry with `state.md`, updated `docs/state_runbook.md` command examples to mirror the quickstart/workflow, refreshed the backlog memo, and ran `python3 -m pytest` to confirm regressions remain green.
+- 2026-05-14: Enhanced `scripts/check_data_quality.py` with coverage/monotonic metrics and JSON export support, added pytest coverage via `tests/test_check_data_quality.py`, updated the backlog (`P0-13`) and todo-next Pending Review entries, and executed `python3 -m pytest` to keep the suite green.
 - 2026-05-12: Drafted docs/checklists/p0-12_doc_cleanup.md and linked it from docs/task_backlog.md plus docs/documentation_portal.md to standardise P0-12 documentation hygiene checks; ran `python3 -m pytest` to keep the regression suite green.
 - 2026-05-11: Reviewed README / documentation portal / quickstart / workflow text alignment for P0-12, found no blocking issues
   as of 2025-10-09, confirmed anchors remain in sync for Codex operators, and noted that documentation updates after
@@ -486,3 +487,6 @@
 - Pending Review — [docs/task_backlog.md#p0-12-codex-first-documentation-cleanup](docs/task_backlog.md#p0-12-codex-first-documentation-cleanup)
   - Deliverables (English): README doc hub alignment, documentation_portal hygiene checklist, quickstart/workflow/state_runbook cross-link refresh.
   - Notes: Ensure newcomers can follow a single orientation path and that portal tables reflect every updated runbook.
+- Pending Review — [docs/task_backlog.md#p0-13-data-quality-audit](docs/task_backlog.md#p0-13-data-quality-audit)
+  - Deliverables (English): Extended CLI summary metrics (row coverage, monotonicity, gaps), JSON export path, regression tests covering audit logic and CLI output.
+  - Notes: Validate backward compatibility on stdout while enabling automation-friendly outputs for cron jobs.

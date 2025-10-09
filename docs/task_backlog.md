@@ -61,6 +61,14 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   `aggregate_ev.py` が `--out-yaml` を受け取らないことを回帰テストで確認。`python3 -m pytest tests/test_run_sim_cli.py`
   を実行。
 - ~~**state 更新ワーカー**~~ (完了): `scripts/update_state.py` に部分実行ワークフローを実装し、`BacktestRunner.run_partial` と状態スナップショット/EVアーカイブ連携を整備。`ops/state_archive/<strategy>/<symbol>/<mode>/` へ最新5件を保持し、更新後は `scripts/aggregate_ev.py` を自動起動するようにした。
+
+<a id="p0-13-data-quality-audit"></a>
+### P0-13 Data quality audit enhancements
+
+- **DoD**: `scripts/check_data_quality.py` reports coverage metrics (row counts, start/end timestamps, gap totals), supports JSON exports for automation, and adds regression tests that validate the computed statistics and CLI behaviour.
+- **Notes**: Keep compatibility with existing CLI usage while expanding summary fidelity so cron jobs can persist machine-readable outputs. Document new expectations in backlog notes and ensure pytest coverage stays green.
+- **DoD チェックリスト**: [docs/checklists/p0-13_data_quality_audit.md](checklists/p0-13_data_quality_audit.md)
+- 2026-05-14: Added coverage/monotonic metrics and JSON export support to the audit CLI, introduced pytest coverage for summary stats and CLI output, and verified `python3 -m pytest tests/test_check_data_quality.py` passes alongside the full suite.
 <a id="p0-07"></a>
 ### P0-07 runs/index 再構築スクリプト整備 (完了)
 
