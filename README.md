@@ -12,6 +12,7 @@
 - [docs/documentation_portal.md](docs/documentation_portal.md) — すべてのランブック/テンプレートへの入り口。役割と参照タイミングを一覧できます。
 - [docs/codex_quickstart.md](docs/codex_quickstart.md) — 1 セッション分のチェックリスト。Portal で位置関係を把握したあとに手順通り進めてください。
 - [docs/codex_workflow.md](docs/codex_workflow.md) — クイックスタートの背景説明とテンプレ/スクリプトの詳細。疑問点が出た際のリファレンスです。
+- [docs/data_quality_ops.md](docs/data_quality_ops.md) — `data_quality_failure` Webhook のレビュー/エスカレーション手順。対応ログの付け方と再検証コマンドをまとめています。
 - `state.md` / [docs/todo_next.md](docs/todo_next.md) / [docs/task_backlog.md](docs/task_backlog.md) — 進捗と優先度の同期ポイント。Portal とクイックスタートの指示に従い常にアンカーを揃えます。
 - [docs/logic_overview.md](docs/logic_overview.md) / [docs/simulation_plan.md](docs/simulation_plan.md) / [docs/development_roadmap.md](docs/development_roadmap.md) — アーキテクチャと評価方針の背景資料。
 

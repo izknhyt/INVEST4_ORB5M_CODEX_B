@@ -54,6 +54,7 @@ This portal groups every maintained document into a small set of entry points so
 | --- | --- | --- |
 | [benchmark_runbook.md](benchmark_runbook.md) | Daily/weekly benchmark pipeline execution and troubleshooting. | Running or reviewing benchmark jobs and alerts. |
 | [signal_ops.md](signal_ops.md) | Signal latency monitoring and SLO enforcement procedures. | Responding to latency issues or maintaining signal health. |
+| [data_quality_ops.md](data_quality_ops.md) | Webhook response loop for `data_quality_failure` alerts, including acknowledgement logging. | Reviewing data-quality failures and coordinating remediation. |
 | [api_ingest_plan.md](api_ingest_plan.md) | Data ingestion workflow, fallbacks, and monitoring metadata. | When maintaining ingestion pipelines or onboarding new data sources. |
 | [observability_dashboard.md](observability_dashboard.md) | Dashboard refresh procedures and expected telemetry exports. | To refresh observability dashboards or audit metrics. |
 | [observability_plan.md](observability_plan.md) | Long-term observability roadmap and instrumentation priorities. | Planning monitoring improvements or aligning roadmap items. |
