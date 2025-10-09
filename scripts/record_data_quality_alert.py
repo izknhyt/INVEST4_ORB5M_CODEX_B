@@ -23,6 +23,51 @@ def _utcnow_iso() -> str:
     )
 
 
+def _parse_iso8601(value: str) -> str:
+    """Parse ``value`` into an ISO8601 string normalised to UTC."""
+
+    text = (value or "").strip()
+    if not text:
+        raise argparse.ArgumentTypeError("Timestamp value cannot be empty")
+
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            f"Invalid ISO8601 timestamp: {value!r}"
+        ) from exc
+
+    if parsed.tzinfo is None:
+        raise argparse.ArgumentTypeError(
+            "Timestamp must include a timezone offset or 'Z' suffix"
+        )
+
+    normalised = parsed.astimezone(timezone.utc).replace(microsecond=0)
+    return normalised.isoformat().replace("+00:00", "Z")
+
+
+def _parse_coverage_ratio(value: str) -> float:
+    """Parse and validate a coverage ratio within the inclusive [0, 1] range."""
+
+    text = (value or "").strip()
+    if not text:
+        raise argparse.ArgumentTypeError("Coverage ratio cannot be empty")
+
+    try:
+        ratio = float(text)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            f"Coverage ratio must be numeric: {value!r}"
+        ) from exc
+
+    if not 0.0 <= ratio <= 1.0:
+        raise argparse.ArgumentTypeError(
+            "Coverage ratio must be between 0 and 1 inclusive"
+        )
+
+    return ratio
+
+
 def _sanitize_cell(value: str) -> str:
     """Normalise table cell contents for Markdown rendering.
 
@@ -125,19 +170,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Append a data-quality acknowledgement row to the shared log"
     )
-    parser.add_argument("--alert-timestamp", required=True, help="Alert generated_at timestamp (UTC)")
+    parser.add_argument(
+        "--alert-timestamp",
+        required=True,
+        type=_parse_iso8601,
+        help="Alert generated_at timestamp (UTC, ISO8601 with timezone)",
+    )
     parser.add_argument("--symbol", required=True, help="Symbol reported by the alert")
     parser.add_argument("--timeframe", "--tf", default="5m", help="Timeframe token (default: 5m)")
     parser.add_argument(
         "--coverage-ratio",
         required=True,
-        type=float,
-        help="Coverage ratio conveyed by the alert payload",
+        type=_parse_coverage_ratio,
+        help="Coverage ratio conveyed by the alert payload (0-1)",
     )
     parser.add_argument("--ack-by", required=True, help="Responder acknowledging the alert")
     parser.add_argument(
         "--ack-timestamp",
         default=None,
+        type=_parse_iso8601,
         help="UTC timestamp of the acknowledgement (defaults to current UTC time)",
     )
     parser.add_argument(

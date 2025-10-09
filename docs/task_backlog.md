@@ -112,6 +112,13 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2026-06-02: Added `scripts/record_data_quality_alert.py` to capture acknowledgement rows programmatically, documented usage in `docs/data_quality_ops.md`, and created pytest coverage so operators can log alerts without hand-editing Markdown.
 - 2026-06-12: Simulated a coverage failure via `--expected-interval-minutes 1`, verified the CLI exports and acknowledged the alert with `scripts/record_data_quality_alert.py`, then re-ran the audit with production flags to confirm a clean pass. Logged the workflow update in `docs/data_quality_ops.md` and refreshed the acknowledgement table.
 
+<a id="p0-16-data-quality-ack-validation"></a>
+### ~~P0-16 Data quality acknowledgement input validation~~ ✅ (2026-06-13 クローズ)
+
+- **DoD**: `scripts/record_data_quality_alert.py` rejects invalid coverage ratios, normalises alert/ack timestamps to UTC, and the regression suite asserts both behaviours.
+- **Notes**: Guard against malformed webhook payloads or manual data entry errors so the shared acknowledgement log stays machine-parseable for audits.
+- 2026-06-13: Added argparse validators for coverage ratios and ISO8601 timestamps, ensured offset inputs convert to `Z`-suffix form, documented the workflow in `docs/data_quality_ops.md`, and extended `tests/test_record_data_quality_alert.py` with conversion/error-path coverage.
+
 <a id="p0-07"></a>
 ### P0-07 runs/index 再構築スクリプト整備 (完了)
 
