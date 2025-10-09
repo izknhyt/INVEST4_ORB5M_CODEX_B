@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-05-12: Drafted docs/checklists/p0-12_doc_cleanup.md and linked it from docs/task_backlog.md plus docs/documentation_portal.md to standardise P0-12 documentation hygiene checks; ran `python3 -m pytest` to keep the regression suite green.
 - 2026-05-11: Reviewed README / documentation portal / quickstart / workflow text alignment for P0-12, found no blocking issues
   as of 2025-10-09, confirmed anchors remain in sync for Codex operators, and noted that documentation updates after
   2025-10-09 require a fresh audit (documentation-only review; tests not required).

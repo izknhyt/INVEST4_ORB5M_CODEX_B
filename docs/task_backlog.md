@@ -28,6 +28,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 
 - **DoD**: Codex operator workflow has a one-page quickstart (`docs/codex_quickstart.md`), the detailed checklist (`docs/state_runbook.md`) is trimmed to actionable bullet lists, README points to both, and `docs/development_roadmap.md` captures immediate→mid-term improvements with backlog links. Backlogとテンプレートは新フローに沿って更新済みであること。
 - **Notes**: Focus on reducing duplication between `docs/codex_quickstart.md`, `docs/codex_workflow.md`, README, and `docs/state_runbook.md`; ensure sandbox/approval rules stay explicit.
+- **DoD チェックリスト**: [docs/checklists/p0-12_doc_cleanup.md](checklists/p0-12_doc_cleanup.md)
 - 2026-04-24: Normalised internal documentation links to use relative paths so Markdown previews and GitHub navigation stay consistent. Synced quickstart/workflow docs with the updated guideline and logged the change in `state.md`.
 - 2026-04-25: Re-audited `docs/` Markdown to ensure no `] (docs/...)` style links slipped back in, expanded the workflow guideline with the failure mode, and recorded the hygiene check in `state.md`.
 - 2026-05-05: Restructured Codex quickstart/workflow/state runbook into aligned 3-step guides, refreshed README / `docs/todo_next.md` / roadmap anchors, and added deliverable tracking to `state.md`.
@@ -35,6 +36,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2026-05-07: Introduced the documentation portal orientation cheat sheet and aligned README / quickstart / workflow / state runbook messaging so first-time contributors can map next steps without re-reading every doc.
 - 2026-05-08: Synced README doc hub language with the portal, added a documentation hygiene checklist, and refreshed quickstart / workflow / state runbook cross-references so newcomers have a single orientation path.
 - 2026-05-11: Re-reviewed README / documentation portal / quickstart / workflow text for P0-12, confirmed anchors stay aligned as of 2025-10-09, and noted no blocking documentation gaps for Codex operators while flagging that any documentation updates after 2025-10-09 require a fresh audit.
+- 2026-05-12: Added a dedicated DoD checklist ([docs/checklists/p0-12_doc_cleanup.md](checklists/p0-12_doc_cleanup.md)) to keep documentation alignment checks reusable across sessions.
 - ~~**P0-13 run_daily_workflow local CSV override fix**~~ (2026-04-07 完了): `scripts/run_daily_workflow.py` がデフォルト ingest で `pull_prices.py` を呼び出す際に `--local-backup-csv` のパスを尊重する。
   - 2026-04-07: CLI オプションを `pull_prices` コマンドへ伝播し、回帰テスト `tests/test_run_daily_workflow.py::test_ingest_pull_prices_respects_local_backup_override` を追加。`python3 -m pytest` を実行して確認。
 - 2026-04-05: `scripts/run_sim.py` を manifest-first CLI へ再設計し、OutDir 実行時にランフォルダ (`params.json` / `metrics.json` / `records.csv` / `daily.csv`) が生成されるよう統合。`tests/test_run_sim_cli.py` / README / `docs/checklists/multi_strategy_validation.md` を更新。
