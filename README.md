@@ -113,6 +113,25 @@ python3 scripts/analyze_signal_latency.py \
 - `--failure-threshold`: 失敗率の上限（0〜1 の小数）。超過すると `thresholds.failure_rate.breach` が `true`。
 - `--out-json` / `--out-csv`: メトリクスと閾値判定を保存。どちらの閾値も超えない場合のみ終了コード 0。
 
+### `scripts/check_data_quality.py`
+5m CSV のギャップや重複を集計し、JSON/CSV でサマリーを取得できます。
+
+```bash
+python3 scripts/check_data_quality.py \
+  --csv validated/USDJPY/5m.csv \
+  --out-json reports/data_quality/usdjpy_5m_summary.json \
+  --max-gap-report 10
+
+python3 scripts/check_data_quality.py \
+  --csv validated/USDJPY/5m.csv \
+  --symbol USDJPY \
+  --out-gap-csv reports/data_quality/usdjpy_5m_gaps.csv
+```
+
+- デフォルトのサマリーには `missing_rows_estimate` / `total_gap_minutes` / `average_gap_minutes` / `gap_details`（上位ギャップの詳細）を含みます。
+- `--max-gap-report` でサマリー内に保持するギャップ件数を制御しつつ、`--out-gap-csv` を指定すれば全ギャップ表を CSV にエクスポートできます。
+- 既存の stdout / JSON レイアウトは維持されるため、既存オートメーションはフラグを追加しない限り挙動が変わりません。
+
 ### オンデマンドインジェスト CLI
 - `scripts/pull_prices.py` はヒストリカル CSV（または API エクスポート）から未処理バーを検出し、`raw/`→`validated/`→`features/` に冪等に追記する。
 - 標準経路は `python3 scripts/run_daily_workflow.py --ingest --use-dukascopy`。Dukascopy から最新 5m バーを取得し、そのまま `pull_prices.ingest_records` に渡して CSV/特徴量を同期する。

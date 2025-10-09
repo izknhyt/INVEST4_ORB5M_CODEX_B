@@ -24,6 +24,9 @@
 
 ### Pending Review
 
+- [docs/task_backlog.md#p0-14-data-quality-gap-report](./task_backlog.md#p0-14-data-quality-gap-report) <!-- anchor: docs/task_backlog.md#p0-14-data-quality-gap-report -->
+  - Deliverables (English): Enriched `check_data_quality.py` summary fields, optional gap CSV export, pytest coverage, and README usage updates.
+  - Notes: Confirm reviewers capture new metrics/CLI flags while verifying backward compatibility with existing automation.
 - [docs/task_backlog.md#p0-12-codex-first-documentation-cleanup](./task_backlog.md#p0-12-codex-first-documentation-cleanup) <!-- anchor: docs/task_backlog.md#p0-12-codex-first-documentation-cleanup -->
   - Deliverables (English): README doc hub alignment, documentation_portal hygiene checklist, quickstart/workflow/state_runbook cross-link refresh.
   - Notes: Ensure newcomers can follow a single orientation path and that portal tables reflect every updated runbook.

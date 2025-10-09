@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import csv
 from pathlib import Path
 
 import pytest
@@ -31,10 +32,16 @@ def test_audit_summarises_gaps_and_coverage(tmp_path):
     assert summary["duplicates"] == 1
     assert summary["gap_count"] == 1
     assert summary["max_gap_minutes"] == pytest.approx(10.0)
+    assert summary["total_gap_minutes"] == pytest.approx(10.0)
+    assert summary["average_gap_minutes"] == pytest.approx(10.0)
+    assert summary["missing_rows_estimate"] == 1
+    assert summary["irregular_gap_count"] == 0
     assert summary["start_timestamp"] == "2024-01-01T00:00:00"
     assert summary["end_timestamp"] == "2024-01-01T00:20:00"
     assert summary["expected_rows"] == 5
     assert summary["coverage_ratio"] == pytest.approx(0.8)
+    assert summary["gaps"][0][2] == pytest.approx(10.0)
+    assert summary["gap_details"][0]["missing_rows_estimate"] == 1
 
 
 def test_main_writes_json_summary(tmp_path, capsys):
@@ -47,6 +54,8 @@ def test_main_writes_json_summary(tmp_path, capsys):
         str(csv_path),
         "--out-json",
         str(out_path),
+        "--max-gap-report",
+        "5",
     ])
 
     assert rc == 0
@@ -56,3 +65,28 @@ def test_main_writes_json_summary(tmp_path, capsys):
     payload = json.loads(out_path.read_text(encoding="utf-8"))
     assert payload["row_count"] == 5
     assert payload["max_gap_minutes"] == pytest.approx(10.0)
+    assert payload["gap_details"][0]["gap_minutes"] == pytest.approx(10.0)
+    assert payload["missing_rows_estimate"] == 1
+
+
+def test_main_writes_gap_csv(tmp_path, capsys):
+    csv_path = tmp_path / "sample.csv"
+    _write_sample_csv(csv_path)
+
+    gap_out = tmp_path / "gaps.csv"
+    rc = check_data_quality.main([
+        "--csv",
+        str(csv_path),
+        "--out-gap-csv",
+        str(gap_out),
+        "--max-gap-report",
+        "3",
+    ])
+
+    assert rc == 0
+    capsys.readouterr()
+    rows = list(csv.DictReader(gap_out.open(encoding="utf-8")))
+    assert len(rows) == 1
+    assert rows[0]["start_timestamp"] == "2024-01-01T00:05:00"
+    assert rows[0]["end_timestamp"] == "2024-01-01T00:15:00"
+    assert rows[0]["missing_rows_estimate"] == "1"
