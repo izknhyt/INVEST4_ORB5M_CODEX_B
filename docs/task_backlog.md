@@ -92,6 +92,17 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2026-05-16: Documented artefact destinations and review hand-off details, archived the todo entry, and marked the DoD checklist complete for reviewer pickup.
 - 2026-05-21: Added ISO-8601 `--start-timestamp` / `--end-timestamp` filters to `scripts/check_data_quality.py` so partial range audits surface precise gap counts. Updated README guidance, extended pytest coverage, and ensured the summary payload records applied window bounds.
 - 2026-05-22: Added `--min-gap-minutes` filtering and `--out-gap-json` export to `scripts/check_data_quality.py` so reviewers can ignore sub-threshold gaps while still tracking the skipped totals. Synced README usage notes and expanded pytest coverage for the new CLI paths.
+<a id="p0-15-data-quality-alert-ops"></a>
+### P0-15 Data quality alert operations loop
+
+- **DoD**: Operators can acknowledge and escalate `data_quality_failure` webhook alerts using a documented runbook and shared log, and cross-document references point to the workflow from the README and portal.
+- **Notes**: Ensure remediation commands are captured so reviewers can replay the fix. Keep escalation criteria aligned with the production thresholds defined in `scripts/check_data_quality.py`.
+- **DoD チェックリスト**:
+  - `docs/data_quality_ops.md` explains triage, acknowledgement logging, escalation triggers, and wrap-up verification.
+  - `ops/health/data_quality_alerts.md` hosts the acknowledgement table template kept in reverse chronological order.
+  - README / documentation portal reference the new runbook so operators can discover it without digging through history.
+- 2026-05-30: Documented the review loop, created the acknowledgement log template, and linked the runbook from the README and documentation portal.
+
 <a id="p0-07"></a>
 ### P0-07 runs/index 再構築スクリプト整備 (完了)
 
