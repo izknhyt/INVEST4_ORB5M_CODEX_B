@@ -17,7 +17,7 @@
 
 ### In Progress
 
-- [P0-15 Data quality alert operations loop](./task_backlog.md#p0-15-data-quality-alert-ops) — Pilot the new acknowledgement workflow by recording a dry-run entry in ops/health/data_quality_alerts.md and validating escalation notes across docs/state.md.
+- [P0-15 Data quality alert operations loop](./task_backlog.md#p0-15-data-quality-alert-ops) — Dry-run acknowledgement recorded in ops/health/data_quality_alerts.md; monitor for the first live alert to validate escalation logging with production payloads.
 ### Ready
 
 
