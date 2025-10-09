@@ -181,6 +181,117 @@ def test_check_benchmark_freshness_defaults_pipeline_threshold(monkeypatch):
     assert float(cmd[cmd.index("--max-age-hours") + 1]) == pytest.approx(6.0)
 
 
+def test_check_data_quality_command_defaults(monkeypatch):
+    captured = _capture_run_cmd(monkeypatch)
+
+    exit_code = run_daily_workflow.main(["--check-data-quality"])
+
+    assert exit_code == 0
+    assert captured, "run_cmd should be invoked"
+    cmd = captured[0]
+    assert "check_data_quality.py" in cmd[1]
+    _assert_path_arg(
+        cmd,
+        "--csv",
+        run_daily_workflow.ROOT / "validated/USDJPY/5m.csv",
+    )
+    _assert_path_arg(
+        cmd,
+        "--out-json",
+        run_daily_workflow.ROOT / "reports/data_quality/usdjpy_5m_summary.json",
+    )
+    _assert_path_arg(
+        cmd,
+        "--out-gap-csv",
+        run_daily_workflow.ROOT / "reports/data_quality/usdjpy_5m_gap_inventory.csv",
+    )
+    _assert_path_arg(
+        cmd,
+        "--out-gap-json",
+        run_daily_workflow.ROOT / "reports/data_quality/usdjpy_5m_gap_inventory.json",
+    )
+    assert "--calendar-day-summary" in cmd
+    assert "--fail-on-calendar-day-warnings" in cmd
+    coverage_value = float(cmd[cmd.index("--fail-under-coverage") + 1])
+    assert coverage_value == pytest.approx(0.995)
+    calendar_threshold = float(
+        cmd[cmd.index("--calendar-day-coverage-threshold") + 1]
+    )
+    assert calendar_threshold == pytest.approx(0.98)
+    assert int(cmd[cmd.index("--calendar-day-max-report") + 1]) == 10
+
+
+def test_check_data_quality_supports_overrides(monkeypatch, tmp_path):
+    captured = _capture_run_cmd(monkeypatch)
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    monkeypatch.setattr(run_daily_workflow, "ROOT", repo_root)
+
+    exit_code = run_daily_workflow.main(
+        [
+            "--check-data-quality",
+            "--symbol",
+            "eurusd",
+            "--bars",
+            "validated/custom.csv",
+            "--data-quality-output-dir",
+            "reports/custom",
+            "--data-quality-summary-json",
+            "reports/overrides/summary.json",
+            "--data-quality-gap-csv",
+            "reports/overrides/gaps.csv",
+            "--data-quality-gap-json",
+            "reports/overrides/gaps.json",
+            "--data-quality-coverage-threshold",
+            "0.97",
+            "--data-quality-calendar-threshold",
+            "0.93",
+            "--data-quality-calendar-max-report",
+            "5",
+        ]
+    )
+
+    assert exit_code == 0
+    cmd = captured[0]
+    assert cmd[cmd.index("--symbol") + 1] == "EURUSD"
+    _assert_path_arg(cmd, "--csv", repo_root / "validated/custom.csv")
+    _assert_path_arg(
+        cmd,
+        "--out-json",
+        repo_root / "reports/overrides/summary.json",
+    )
+    _assert_path_arg(
+        cmd,
+        "--out-gap-csv",
+        repo_root / "reports/overrides/gaps.csv",
+    )
+    _assert_path_arg(
+        cmd,
+        "--out-gap-json",
+        repo_root / "reports/overrides/gaps.json",
+    )
+    assert int(cmd[cmd.index("--calendar-day-max-report") + 1]) == 5
+    assert float(cmd[cmd.index("--fail-under-coverage") + 1]) == pytest.approx(0.97)
+    assert float(cmd[cmd.index("--calendar-day-coverage-threshold") + 1]) == pytest.approx(
+        0.93
+    )
+
+
+def test_check_data_quality_validates_thresholds():
+    with pytest.raises(SystemExit):
+        run_daily_workflow.main(
+            ["--check-data-quality", "--data-quality-coverage-threshold", "1.5"]
+        )
+    with pytest.raises(SystemExit):
+        run_daily_workflow.main(
+            ["--check-data-quality", "--data-quality-calendar-threshold", "-0.1"]
+        )
+    with pytest.raises(SystemExit):
+        run_daily_workflow.main(
+            ["--check-data-quality", "--data-quality-calendar-max-report", "0"]
+        )
+
+
 def test_benchmarks_pipeline_arguments(monkeypatch):
     captured = _capture_run_cmd(monkeypatch)
 

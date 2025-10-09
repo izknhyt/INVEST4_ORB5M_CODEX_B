@@ -32,7 +32,7 @@
 ### 回帰テストと CLI ドライラン
 
 - 単体テスト: `python3 -m pytest tests/test_run_daily_workflow.py tests/test_runner.py tests/test_check_benchmark_freshness.py`
-- 日次ワークフロー全体確認（ドライラン）: `python3 scripts/run_daily_workflow.py --ingest --update-state --benchmarks --state-health --benchmark-summary --symbol USDJPY --mode conservative --dry-run`
+- 日次ワークフロー全体確認（ドライラン）: `python3 scripts/run_daily_workflow.py --ingest --check-data-quality --update-state --benchmarks --state-health --benchmark-summary --symbol USDJPY --mode conservative --dry-run`
 - ベンチマーク鮮度チェック: `python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6 --ingest-timeframe USDJPY_5m`
 - リファクタリング後の最小再現: 対象モジュールの pytest セレクタを `-k` で限定し、ログを `analysis/` または `ops/` の調査ノートへ記録する。
 
