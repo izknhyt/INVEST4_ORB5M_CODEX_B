@@ -108,6 +108,11 @@ definitions handy while confirming the payload:
 - Offset timestamps are normalised to UTC with a `Z` suffix so later
   automation can diff acknowledgement rows without handling per-entry
   timezone math.
+- Duplicate acknowledgements are blocked when the log already contains the
+  same `alert_timestamp` + `symbol` + `tf` combination. Use the
+  `--allow-duplicate` flag only for historical imports or intentional
+  multi-row bookkeeping, and capture the reasoning in the `follow_up`
+  column.
 
 | Column | Description |
 | --- | --- |
@@ -130,7 +135,11 @@ To sanity-check the payload before writing, run the helper with
 Once the contents look correct, rerun the command without `--dry-run` to
 append the entry. The tool automatically inserts the row beneath the table
 header and normalises multi-line remediation notes by replacing newlines
-with `<br>` tags.
+with `<br>` tags. If the CLI rejects the row due to an existing
+acknowledgement, review whether the original entry should be updated
+instead. When double-logging is intentional (for example, capturing a
+post-mortem note weeks later), rerun the command with `--allow-duplicate`
+and include the rationale in `follow_up`.
 
 ## Escalation Triggers
 

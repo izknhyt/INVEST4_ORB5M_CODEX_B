@@ -140,6 +140,27 @@ def _load_lines(path: Path) -> List[str]:
     return path.read_text(encoding="utf-8").splitlines()
 
 
+def _extract_acknowledgement_keys(lines: Iterable[str]) -> set[tuple[str, str, str]]:
+    """Return the set of existing acknowledgement identity tuples."""
+
+    keys: set[tuple[str, str, str]] = set()
+    for raw_line in lines:
+        stripped = raw_line.strip()
+        if not stripped.startswith("|"):
+            continue
+        if stripped.startswith("| ---"):
+            continue
+        cells = [cell.strip() for cell in stripped.split("|")[1:-1]]
+        if len(cells) < 3:
+            continue
+        header = cells[0].lower()
+        if header.startswith("alert_timestamp"):
+            continue
+        alert_ts, symbol, timeframe = cells[0], cells[1], cells[2]
+        keys.add((alert_ts, symbol.upper(), timeframe))
+    return keys
+
+
 def _insert_row(lines: Iterable[str], row: str) -> List[str]:
     """Insert *row* immediately after the table header separator."""
 
@@ -212,6 +233,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=str(DEFAULT_LOG),
         help="Path to ops/health/data_quality_alerts.md",
     )
+    parser.add_argument(
+        "--allow-duplicate",
+        action="store_true",
+        help="Permit appending a row even when an acknowledgement for the same alert already exists",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Print the row without writing the log")
     return parser.parse_args(argv)
 
@@ -241,6 +267,17 @@ def main(argv: list[str] | None = None) -> int:
     log_path = Path(args.log_path)
     _ensure_log_exists(log_path)
     lines = _load_lines(log_path)
+    existing_keys = _extract_acknowledgement_keys(lines)
+    ack_key = (row.alert_timestamp, row.symbol.upper(), row.timeframe)
+    if ack_key in existing_keys and not args.allow_duplicate:
+        key_text = "alert_timestamp={0} symbol={1} timeframe={2}".format(*ack_key)
+        print(
+            "Duplicate acknowledgement detected for {key}; pass --allow-duplicate to append anyway.".format(
+                key=key_text
+            ),
+            file=sys.stderr,
+        )
+        return 1
     updated = _insert_row(lines, markdown_row)
     log_path.write_text("\n".join(updated) + "\n", encoding="utf-8")
     print(f"Appended acknowledgement row to {log_path}")

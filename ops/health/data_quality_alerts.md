@@ -7,7 +7,9 @@ find.
 
 > Tip: use `python3 scripts/record_data_quality_alert.py` to append a row
 > without editing this table manually. The script normalises coverage
-> ratios and converts multi-line remediation notes to `<br>` tags.
+> ratios and converts multi-line remediation notes to `<br>` tags. It also
+> refuses to append duplicate rows for the same alert timestamp, symbol,
+> and timeframe unless you pass `--allow-duplicate`.
 
 | alert_timestamp (UTC) | symbol | tf | coverage_ratio | ack_by | ack_timestamp (UTC) | status | remediation | follow_up |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

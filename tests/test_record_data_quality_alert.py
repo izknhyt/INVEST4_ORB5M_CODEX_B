@@ -159,3 +159,60 @@ def test_rejects_timestamp_without_timezone(tmp_path: Path):
     stderr = excinfo.value.stderr
     assert "--alert-timestamp" in stderr
     assert "timezone" in stderr
+
+
+def test_rejects_duplicate_acknowledgements_without_override(tmp_path: Path):
+    log_path = tmp_path / "ops/health/data_quality_alerts.md"
+    args = [
+        "--alert-timestamp",
+        "2025-10-10T12:00:00Z",
+        "--symbol",
+        "USDJPY",
+        "--coverage-ratio",
+        "0.95",
+        "--ack-by",
+        "codex",
+        "--status",
+        "investigating",
+        "--ack-timestamp",
+        "2025-10-10T12:05:00Z",
+        "--log-path",
+        str(log_path),
+    ]
+
+    run_cli(tmp_path, args)
+
+    with pytest.raises(subprocess.CalledProcessError) as excinfo:
+        run_cli(tmp_path, args)
+
+    stderr = excinfo.value.stderr
+    assert "Duplicate acknowledgement" in stderr
+    assert "alert_timestamp=2025-10-10T12:00:00Z" in stderr
+
+
+def test_allows_duplicate_when_override_flag_provided(tmp_path: Path):
+    log_path = tmp_path / "ops/health/data_quality_alerts.md"
+    base_args = [
+        "--alert-timestamp",
+        "2025-11-01T08:00:00Z",
+        "--symbol",
+        "EURUSD",
+        "--coverage-ratio",
+        "0.91",
+        "--ack-by",
+        "ops",
+        "--status",
+        "investigating",
+        "--ack-timestamp",
+        "2025-11-01T08:05:00Z",
+        "--log-path",
+        str(log_path),
+    ]
+
+    run_cli(tmp_path, base_args)
+
+    override_args = [*base_args, "--allow-duplicate"]
+    run_cli(tmp_path, override_args)
+
+    lines = [line for line in log_path.read_text(encoding="utf-8").splitlines() if line.startswith("| 2025-11-01T08:00:00Z")]
+    assert len(lines) == 2
