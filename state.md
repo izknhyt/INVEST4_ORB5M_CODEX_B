@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-05-20: Closed out P0-13 data quality audit enhancements by archiving the Pending Review entry, syncing backlog/todo/state docs, and re-running `python3 -m pytest` to confirm the suite stays green.
 - 2026-05-19: Auto-detected `scripts/check_data_quality.py` bar intervals and added an `--expected-interval-minutes` override,
   refreshed README/backlog/todo notes, and re-ran `python3 -m pytest` to keep the suite green.
 - 2026-05-18: Normalised `scripts/check_data_quality.py` timestamp parsing to accept trailing `Z`/offset markers, updated the
@@ -492,8 +493,4 @@
 
 - [OPS-CODEX-GUIDE] 2025-10-08: Aligned workflow docs with review feedback. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
 ## Next Task
-- Pending Review — [docs/task_backlog.md#p0-13-data-quality-audit](docs/task_backlog.md#p0-13-data-quality-audit)
-  - Deliverables (English): Extended CLI summary metrics (row coverage, monotonicity, gaps), JSON export path, regression tests covering audit logic and CLI output.
-  - Notes: Validate backward compatibility on stdout while enabling automation-friendly outputs for cron jobs.
-  - 2026-05-18: Added UTC/offset timestamp handling to the audit CLI and refreshed the pytest fixture to confirm coverage.
-  - 2026-05-19: Enabled interval auto-detection plus manual overrides in the audit CLI, updated docs/task_backlog.md, and extended pytest coverage for the new behaviour.
+- Pending selection — Review P0/P1 backlog items to identify the next high-priority deliverable.

@@ -72,6 +72,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2026-05-14: Added coverage/monotonic metrics and JSON export support to the audit CLI, introduced pytest coverage for summary stats and CLI output, and verified `python3 -m pytest tests/test_check_data_quality.py` passes alongside the full suite.
 - 2026-05-18: Normalised timestamp parsing in `scripts/check_data_quality.py` to accept `Z` suffixes and timezone offsets, updating the pytest fixture to cover UTC/offset inputs so audits don't drop valid rows.
 - 2026-05-19: Auto-detected bar intervals and added an `--expected-interval-minutes` override to `scripts/check_data_quality.py`, refreshed pytest coverage, and documented the new CLI flag in the README.
+- 2026-05-20: Closed out the reviewer hold by archiving the Pending Review entry, syncing `state.md` / `docs/todo_next*.md`, and confirming the audit CLI documentation and tests remain current.
 
 <a id="p0-14-data-quality-gap-report"></a>
 ### P0-14 Data quality gap reporting
