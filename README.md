@@ -15,10 +15,10 @@
 - **アーキテクチャ**: [docs/logic_overview.md](docs/logic_overview.md)、[docs/simulation_plan.md](docs/simulation_plan.md)、[docs/development_roadmap.md](docs/development_roadmap.md) を順に確認して背景を把握してください。
 
 ### Orientation Flow
-1. `state.md` → `## Next Task` を確認し、担当タスクのアンカーと Pending Questions を把握。
-2. [docs/task_backlog.md](docs/task_backlog.md) で DoD / 進捗ノートを読み、関連チェックリストを開く。
-3. [docs/todo_next.md](docs/todo_next.md) の該当セクションが最新かを確認し、必要に応じて `python3 scripts/manage_task_cycle.py --dry-run start-task --anchor <...>` で昇格フローをプレビュー。
-4. 実装前に [docs/documentation_portal.md](docs/documentation_portal.md) から関連ランブック/設計資料へ移動して影響範囲を洗い出す。
+1. [docs/documentation_portal.md](docs/documentation_portal.md) を開き、クイックスタート / ワークフロー / state ランブックの役割と関連資料を俯瞰する。
+2. `state.md` → `## Next Task` を確認し、担当タスクのアンカーと Pending Questions を把握。
+3. [docs/task_backlog.md](docs/task_backlog.md) で DoD / 進捗ノートを読み、関連チェックリストを開く。
+4. [docs/todo_next.md](docs/todo_next.md) の該当セクションが最新かを確認し、必要に応じて `python3 scripts/manage_task_cycle.py --dry-run start-task --anchor <...>` で昇格フローをプレビュー。
 
 ## Developer Quickstart
 1. Python 3.10+ 環境を準備し、`pip install -r requirements.txt`（必要に応じて追加依存を [docs/dependencies.md](docs/dependencies.md) で確認）。
