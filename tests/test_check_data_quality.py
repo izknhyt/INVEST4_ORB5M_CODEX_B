@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import csv
+import json
 from pathlib import Path
 
 import pytest
@@ -42,6 +42,8 @@ def test_audit_summarises_gaps_and_coverage(tmp_path):
     assert summary["coverage_ratio"] == pytest.approx(0.8)
     assert summary["gaps"][0][2] == pytest.approx(10.0)
     assert summary["gap_details"][0]["missing_rows_estimate"] == 1
+    assert summary["expected_interval_minutes"] == pytest.approx(5.0)
+    assert summary["expected_interval_source"] in {"tf_column", "observed_diff"}
 
 
 def test_main_writes_json_summary(tmp_path, capsys):
@@ -67,6 +69,8 @@ def test_main_writes_json_summary(tmp_path, capsys):
     assert payload["max_gap_minutes"] == pytest.approx(10.0)
     assert payload["gap_details"][0]["gap_minutes"] == pytest.approx(10.0)
     assert payload["missing_rows_estimate"] == 1
+    assert payload["expected_interval_minutes"] == pytest.approx(5.0)
+    assert payload["expected_interval_source"] in {"tf_column", "observed_diff"}
 
 
 def test_main_writes_gap_csv(tmp_path, capsys):
@@ -90,3 +94,33 @@ def test_main_writes_gap_csv(tmp_path, capsys):
     assert rows[0]["start_timestamp"] == "2024-01-01T00:05:00"
     assert rows[0]["end_timestamp"] == "2024-01-01T00:15:00"
     assert rows[0]["missing_rows_estimate"] == "1"
+
+
+def test_expected_interval_detection_and_override(tmp_path):
+    csv_path = tmp_path / "sample_15m.csv"
+    csv_path.write_text(
+        "\n".join(
+            [
+                "timestamp,symbol,tf,o,h,l,c,v,spread",
+                "2024-01-01T00:00:00Z,USDJPY,15m,144.0,144.5,143.8,144.2,100,0.5",
+                "2024-01-01T00:15:00Z,USDJPY,15m,144.2,144.7,144.1,144.4,120,0.5",
+                "2024-01-01T00:45:00Z,USDJPY,15m,144.4,144.8,144.3,144.6,90,0.6",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    summary = check_data_quality.audit(csv_path)
+    assert summary["expected_interval_minutes"] == pytest.approx(15.0)
+    assert summary["expected_interval_source"] in {"tf_column", "observed_diff"}
+    assert summary["missing_rows_estimate"] == 1
+    assert summary["gap_count"] == 1
+
+    overridden = check_data_quality.audit(
+        csv_path, expected_interval_minutes=10.0
+    )
+    assert overridden["expected_interval_minutes"] == pytest.approx(10.0)
+    # 15 minute and 30 minute gaps against a 10 minute baseline imply three missing rows in total.
+    assert overridden["missing_rows_estimate"] == 3
+    assert overridden["gap_count"] == 2
+    assert overridden["expected_interval_source"] == "override"

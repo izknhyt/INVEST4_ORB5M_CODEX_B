@@ -4,13 +4,16 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-from collections import Counter
 import math
+import re
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, List, Set
+from statistics import median
+from typing import Dict, List, Sequence, Set, Tuple
 
 REQUIRED_COLS = ["timestamp", "symbol", "tf", "o", "h", "l", "c", "spread"]
+DEFAULT_INTERVAL_MINUTES = 5.0
 
 
 def parse_args(argv=None):
@@ -24,6 +27,8 @@ def parse_args(argv=None):
                    help="Optional CSV output path containing the complete gap inventory")
     p.add_argument("--max-gap-report", type=int, default=20,
                    help="Maximum number of gaps retained in the summary payload (default: 20)")
+    p.add_argument("--expected-interval-minutes", type=float, default=None,
+                   help="Override the expected bar interval in minutes (default: auto-detect from tf column or timestamps)")
     return p.parse_args(argv)
 
 
@@ -39,31 +44,163 @@ def parse_row(row: Dict[str, str]):
     return ts, tf, symbol
 
 
+def _parse_tf_minutes(tf_value: str) -> float | None:
+    if not tf_value:
+        return None
+    match = re.search(r"(?i)(\d+(?:\.\d+)?)([smhd]?)", tf_value.strip())
+    if not match:
+        return None
+    value = float(match.group(1))
+    unit = match.group(2).lower()
+    if unit in ("", "m"):
+        return value
+    if unit == "s":
+        return value / 60.0
+    if unit == "h":
+        return value * 60.0
+    if unit == "d":
+        return value * 1440.0
+    return None
+
+
+def _detect_interval_from_diffs(timestamps: Sequence[datetime]) -> float | None:
+    if not timestamps:
+        return None
+    sorted_unique = sorted(set(timestamps))
+    if len(sorted_unique) < 2:
+        return None
+    diffs: List[float] = []
+    last = sorted_unique[0]
+    for ts in sorted_unique[1:]:
+        diff = (ts - last).total_seconds() / 60.0
+        if diff > 0:
+            diffs.append(diff)
+        last = ts
+    if not diffs:
+        return None
+    return median(diffs)
+
+
+def _resolve_expected_interval(
+    override_minutes: float | None,
+    tf_minutes_counter: Counter,
+    timestamps: Sequence[datetime],
+) -> Tuple[float, str]:
+    if override_minutes and override_minutes > 0:
+        return override_minutes, "override"
+    if tf_minutes_counter:
+        value, _ = max(tf_minutes_counter.items(), key=lambda item: (item[1], -item[0]))
+        return value, "tf_column"
+    detected = _detect_interval_from_diffs(timestamps)
+    if detected and detected > 0:
+        return detected, "observed_diff"
+    return DEFAULT_INTERVAL_MINUTES, "default"
+
+
+def _analyse_timestamps(
+    timestamps: Sequence[datetime],
+    *,
+    interval_minutes: float,
+    max_gap_report: int,
+    capture_gap_details: bool,
+) -> Tuple[
+    int,
+    int,
+    List[str],
+    List[Dict[str, object]],
+    List[Dict[str, object]],
+    List[float],
+    float,
+    int,
+    float,
+]:
+    duplicates = 0
+    monotonic_errors = 0
+    issues: List[str] = []
+    gap_samples: List[Dict[str, object]] = []
+    full_gap_details: List[Dict[str, object]] | None = [] if capture_gap_details else None
+    gap_minutes: List[float] = []
+    total_gap_minutes = 0.0
+    missing_rows_estimate = 0
+    irregular_gap_count = 0
+    last_ts: datetime | None = None
+
+    for ts in timestamps:
+        if last_ts is None:
+            last_ts = ts
+            continue
+        if ts == last_ts:
+            duplicates += 1
+            last_ts = ts
+            continue
+        if ts < last_ts:
+            monotonic_errors += 1
+            issues.append(
+                f"non-monotonic timestamp: {last_ts.isoformat()} -> {ts.isoformat()}"
+            )
+            last_ts = ts
+            continue
+
+        diff = ts - last_ts
+        diff_minutes = diff.total_seconds() / 60.0
+        expected_steps = diff_minutes / interval_minutes if interval_minutes > 0 else float("inf")
+        rounded_steps = round(expected_steps) if math.isfinite(expected_steps) else 0
+        missing_rows = max(int(rounded_steps) - 1, 0) if math.isfinite(expected_steps) else 0
+        irregular = not math.isclose(expected_steps, rounded_steps, rel_tol=1e-9, abs_tol=1e-9)
+
+        if not math.isclose(expected_steps, 1.0, rel_tol=1e-9, abs_tol=1e-9):
+            gap_record = {
+                "start_timestamp": last_ts.isoformat(),
+                "end_timestamp": ts.isoformat(),
+                "gap_minutes": diff_minutes,
+                "expected_intervals": expected_steps,
+                "missing_rows_estimate": missing_rows,
+                "irregular": irregular,
+            }
+            if len(gap_samples) < max_gap_report:
+                gap_samples.append(gap_record)
+            if full_gap_details is not None:
+                full_gap_details.append(gap_record)
+            gap_minutes.append(diff_minutes)
+            total_gap_minutes += diff_minutes
+            missing_rows_estimate += missing_rows
+            if irregular:
+                irregular_gap_count += 1
+                issues.append(
+                    "irregular gap length: "
+                    f"{last_ts.isoformat()} -> {ts.isoformat()} ({diff_minutes:.2f} minutes)"
+                )
+
+        last_ts = ts
+
+    return (
+        duplicates,
+        monotonic_errors,
+        issues,
+        gap_samples,
+        full_gap_details if full_gap_details is not None else gap_samples,
+        gap_minutes,
+        total_gap_minutes,
+        missing_rows_estimate,
+        irregular_gap_count,
+    )
+
+
 def _audit_internal(
     csv_path: Path,
     symbol: str | None = None,
     *,
     max_gap_report: int = 20,
     capture_gap_details: bool = False,
+    expected_interval_minutes: float | None = None,
 ):
-    issues: List[str] = []
     missing_cols = 0
     bad_rows = 0
-    duplicates = 0
-    monotonic_errors = 0
     tf_counter = Counter()
+    tf_minutes_counter = Counter()
     symbol_counter = Counter()
-    last_ts: datetime | None = None
-    gap_samples: List[Dict[str, object]] = []
-    gap_minutes: List[float] = []
-    total_gap_minutes = 0.0
-    missing_rows_estimate = 0
-    irregular_gap_count = 0
-    earliest_ts: datetime | None = None
-    latest_ts: datetime | None = None
+    timestamps: List[datetime] = []
     total_rows = 0
-    unique_ts: Set[datetime] = set()
-    full_gap_details: List[Dict[str, object]] | None = [] if capture_gap_details else None
 
     with csv_path.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -75,60 +212,59 @@ def _audit_internal(
                 continue
             try:
                 ts, tf, sym = parse_row(row)
-                float(row["o"]); float(row["h"]); float(row["l"]); float(row["c"])
+                float(row["o"])
+                float(row["h"])
+                float(row["l"])
+                float(row["c"])
             except Exception:
                 bad_rows += 1
                 continue
+
             total_rows += 1
             tf_counter[tf] += 1
             symbol_counter[sym] += 1
-            unique_ts.add(ts)
-            if earliest_ts is None or ts < earliest_ts:
-                earliest_ts = ts
-            if latest_ts is None or ts > latest_ts:
-                latest_ts = ts
-            if last_ts and ts <= last_ts:
-                if ts == last_ts:
-                    duplicates += 1
-                else:
-                    issues.append(f"non-monotonic timestamp: {last_ts.isoformat()} -> {ts.isoformat()}")
-                    monotonic_errors += 1
-            if last_ts:
-                diff = ts - last_ts
-                if diff > timedelta(0) and diff != timedelta(minutes=5):
-                    gap_min = diff.total_seconds() / 60.0
-                    expected_steps = diff.total_seconds() / 300.0
-                    rounded_steps = round(expected_steps)
-                    missing_rows = max(int(rounded_steps) - 1, 0)
-                    irregular = not math.isclose(expected_steps, rounded_steps, rel_tol=1e-9, abs_tol=1e-9)
-                    if irregular:
-                        irregular_gap_count += 1
-                        issues.append(
-                            "irregular gap length: "
-                            f"{last_ts.isoformat()} -> {ts.isoformat()} ({gap_min:.2f} minutes)"
-                        )
-                    gap_record = {
-                        "start_timestamp": last_ts.isoformat(),
-                        "end_timestamp": ts.isoformat(),
-                        "gap_minutes": gap_min,
-                        "expected_intervals": expected_steps,
-                        "missing_rows_estimate": missing_rows,
-                        "irregular": irregular,
-                    }
-                    if len(gap_samples) < max_gap_report:
-                        gap_samples.append(gap_record)
-                    if full_gap_details is not None:
-                        full_gap_details.append(gap_record)
-                    gap_minutes.append(gap_min)
-                    total_gap_minutes += gap_min
-                    missing_rows_estimate += missing_rows
-            last_ts = ts
+            timestamps.append(ts)
+            tf_minutes = _parse_tf_minutes(tf)
+            if tf_minutes and tf_minutes > 0:
+                tf_minutes_counter[tf_minutes] += 1
+
+    unique_ts: Set[datetime] = set(timestamps)
+    earliest_ts = min(timestamps) if timestamps else None
+    latest_ts = max(timestamps) if timestamps else None
+
+    interval_minutes, interval_source = _resolve_expected_interval(
+        expected_interval_minutes,
+        tf_minutes_counter,
+        timestamps,
+    )
+    # Ensure a sane positive interval for downstream calculations.
+    if interval_minutes <= 0:
+        interval_minutes = DEFAULT_INTERVAL_MINUTES
+        interval_source = "default"
+
+    duplicates, monotonic_errors, issues, gap_samples, full_gap_details, gap_minutes, total_gap_minutes, missing_rows_estimate, irregular_gap_count = _analyse_timestamps(
+        timestamps,
+        interval_minutes=interval_minutes,
+        max_gap_report=max_gap_report,
+        capture_gap_details=capture_gap_details,
+    )
+
+    if len(tf_minutes_counter) > 1:
+        distinct_intervals = ", ".join(
+            f"{value:g}m" for value in sorted(tf_minutes_counter.keys())
+        )
+        issues.append(f"multiple timeframe values detected: {distinct_intervals}")
 
     expected_rows = None
     coverage_ratio = None
-    if earliest_ts is not None and latest_ts is not None and latest_ts >= earliest_ts:
+    if (
+        earliest_ts is not None
+        and latest_ts is not None
+        and latest_ts >= earliest_ts
+        and interval_minutes > 0
+    ):
         span_minutes = (latest_ts - earliest_ts).total_seconds() / 60.0
-        expected_rows = int(span_minutes / 5) + 1
+        expected_rows = int(round(span_minutes / interval_minutes)) + 1
         if expected_rows > 0:
             coverage_ratio = len(unique_ts) / expected_rows
 
@@ -159,8 +295,10 @@ def _audit_internal(
         "total_gap_minutes": total_gap_minutes,
         "average_gap_minutes": (total_gap_minutes / len(gap_minutes)) if gap_minutes else 0.0,
         "irregular_gap_count": irregular_gap_count,
+        "expected_interval_minutes": interval_minutes,
+        "expected_interval_source": interval_source,
     }
-    return summary, full_gap_details if full_gap_details is not None else gap_samples
+    return summary, full_gap_details
 
 
 def audit(
@@ -168,12 +306,14 @@ def audit(
     symbol: str | None = None,
     *,
     max_gap_report: int = 20,
+    expected_interval_minutes: float | None = None,
 ) -> Dict[str, object]:
     summary, _ = _audit_internal(
         csv_path,
         symbol,
         max_gap_report=max_gap_report,
         capture_gap_details=False,
+        expected_interval_minutes=expected_interval_minutes,
     )
     return summary
 
@@ -212,6 +352,7 @@ def main(argv=None):
         args.symbol,
         max_gap_report=max(1, args.max_gap_report),
         capture_gap_details=bool(args.out_gap_csv),
+        expected_interval_minutes=args.expected_interval_minutes,
     )
     print(summary)
     if getattr(args, "out_json", None):

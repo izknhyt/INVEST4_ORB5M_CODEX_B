@@ -2,6 +2,8 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-05-19: Auto-detected `scripts/check_data_quality.py` bar intervals and added an `--expected-interval-minutes` override,
+  refreshed README/backlog/todo notes, and re-ran `python3 -m pytest` to keep the suite green.
 - 2026-05-18: Normalised `scripts/check_data_quality.py` timestamp parsing to accept trailing `Z`/offset markers, updated the
   pytest fixture plus backlog/todo notes, and re-ran `python3 -m pytest` to confirm coverage remains green.
 - 2026-05-17: Closed out P0-12 Codex-first documentation cleanup by archiving the Pending Review entry, completing the remaining DoD checklist action, updating backlog/todo archive notes, and re-running `python3 -m pytest` to keep the suite green.
@@ -494,3 +496,4 @@
   - Deliverables (English): Extended CLI summary metrics (row coverage, monotonicity, gaps), JSON export path, regression tests covering audit logic and CLI output.
   - Notes: Validate backward compatibility on stdout while enabling automation-friendly outputs for cron jobs.
   - 2026-05-18: Added UTC/offset timestamp handling to the audit CLI and refreshed the pytest fixture to confirm coverage.
+  - 2026-05-19: Enabled interval auto-detection plus manual overrides in the audit CLI, updated docs/task_backlog.md, and extended pytest coverage for the new behaviour.
