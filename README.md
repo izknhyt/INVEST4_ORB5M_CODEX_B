@@ -139,8 +139,9 @@ python3 scripts/check_data_quality.py \
 - `--calendar-day-summary` を使うと UTC カレンダーベースで 1 日ごとのカバレッジ比率を集計し、`--calendar-day-coverage-threshold` で指定した下限を下回る日を `calendar_day_summary.warnings` に優先表示します（既定 0.98）。`--calendar-day-max-report` でワースト日一覧の件数を制御できます。
 - `--fail-under-coverage` を指定すると、総合カバレッジ比率が下限（0〜1 の小数）を下回った場合に終了コード 1 で失敗扱いになり、サマリー出力後に理由が stderr へ表示されます。
 - `--fail-on-calendar-day-warnings` は `--calendar-day-summary` と併用し、`warnings` に 1 件以上の日が出現した場合に終了コード 1 を返します。しきい値を `--calendar-day-coverage-threshold` で調整し、複数日がトリガーした場合は件数とトランケーション状況が stderr へ通知されます。
+- `--webhook`（カンマ区切り）を指定すると、上記の失敗条件に引っかかった際に `data_quality_failure` ペイロードを JSON で POST します。既定のタイムアウトは 5 秒ですが、必要に応じて `--webhook-timeout` で調整できます。ペイロードには `coverage_ratio` / `missing_rows_estimate` / `calendar_day_warnings` と失敗理由が含まれるため、Ops チャネルで即時にエスカレーション可能です。
 - 既存の stdout / JSON レイアウトは維持されるため、既存オートメーションはフラグを追加しない限り挙動が変わりません。
-- 日次ワークフロー (`scripts/run_daily_workflow.py`) からは `--check-data-quality` を指定することで監査 CLI を呼び出せます。既定では `reports/data_quality/<symbol>_<tf>_summary.json` と `reports/data_quality/<symbol>_<tf>_gap_inventory.{csv,json}` にレポートを保存し、総合カバレッジ 0.995 未満や UTC カレンダーベースの 0.98 未満日が存在すると終了コード 1 で失敗します。閾値は `--data-quality-coverage-threshold` / `--data-quality-calendar-threshold` で調整してください。
+- 日次ワークフロー (`scripts/run_daily_workflow.py`) からは `--check-data-quality` を指定することで監査 CLI を呼び出せます。既定では `reports/data_quality/<symbol>_<tf>_summary.json` と `reports/data_quality/<symbol>_<tf>_gap_inventory.{csv,json}` にレポートを保存し、総合カバレッジ 0.995 未満や UTC カレンダーベースの 0.98 未満日が存在すると終了コード 1 で失敗します。閾値は `--data-quality-coverage-threshold` / `--data-quality-calendar-threshold` で調整してください。`--webhook` を併用すると失敗時に Ops 通知が送信され、必要に応じて `--data-quality-webhook-timeout` で POST タイムアウトを上書きできます。
 
 ### オンデマンドインジェスト CLI
 - `scripts/pull_prices.py` はヒストリカル CSV（または API エクスポート）から未処理バーを検出し、`raw/`→`validated/`→`features/` に冪等に追記する。

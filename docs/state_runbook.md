@@ -34,7 +34,9 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
 - 実行後の確認ポイント:
   - `reports/data_quality/<symbol>_<tf>_summary.json` / `_gap_inventory.{csv,json}` を開き、`coverage_ratio` や
     `calendar_day_summary.warnings` がしきい値内であることを確認。必要に応じて
-    `--data-quality-coverage-threshold` / `--data-quality-calendar-threshold` を調整する。
+    `--data-quality-coverage-threshold` / `--data-quality-calendar-threshold` を調整する。Ops 通知が必要な場合は
+    `--webhook` を指定し、`data_quality_failure` アラートが配信されたか（必要なら `--data-quality-webhook-timeout`
+    を調整）と対応内容を `state.md` に記録する。
   - `ops/runtime_snapshot.json.ingest_meta.<symbol>_<tf>` の `source_chain` / `freshness_minutes`。
   - `ops/logs/ingest_anomalies.jsonl` の異常記録。
   - ローカル CSV 利用時に `local_backup_path` が期待通りか。

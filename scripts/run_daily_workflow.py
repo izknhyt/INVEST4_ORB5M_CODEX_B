@@ -1197,6 +1197,15 @@ def _build_data_quality_cmd(args, bars_csv: str):
         cmd.extend(
             ["--fail-under-coverage", str(args.data_quality_coverage_threshold)]
         )
+    if args.webhook:
+        cmd.extend(["--webhook", args.webhook])
+        if args.data_quality_webhook_timeout is not None:
+            cmd.extend(
+                [
+                    "--webhook-timeout",
+                    str(args.data_quality_webhook_timeout),
+                ]
+            )
     cmd.append("--fail-on-calendar-day-warnings")
     return cmd
 
@@ -1562,6 +1571,12 @@ def main(argv=None) -> int:
         default=10,
         help="Maximum number of calendar-day entries retained in the summary",
     )
+    parser.add_argument(
+        "--data-quality-webhook-timeout",
+        type=float,
+        default=None,
+        help="Override webhook delivery timeout (seconds) for data quality alerts",
+    )
     parser.add_argument("--benchmark-windows", default="365,180,90", help="Rolling windows in days for benchmarks")
     parser.add_argument(
         "--min-sharpe",
@@ -1659,6 +1674,11 @@ def main(argv=None) -> int:
             raise SystemExit("--data-quality-calendar-threshold must be between 0 and 1")
     if args.data_quality_calendar_max_report < 1:
         raise SystemExit("--data-quality-calendar-max-report must be at least 1")
+    if (
+        args.data_quality_webhook_timeout is not None
+        and args.data_quality_webhook_timeout <= 0
+    ):
+        raise SystemExit("--data-quality-webhook-timeout must be positive")
 
 
     if args.ingest:
