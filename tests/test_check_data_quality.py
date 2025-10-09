@@ -549,3 +549,76 @@ def test_main_passes_when_calendar_day_warnings_absent(tmp_path, capsys):
     assert rc == 0
     captured = capsys.readouterr()
     assert captured.err == ""
+
+
+def test_main_posts_webhook_on_failure(monkeypatch, tmp_path, capsys):
+    csv_path = tmp_path / "sample.csv"
+    _write_sample_csv(csv_path)
+
+    deliveries = []
+
+    def fake_post(url, payload, timeout):
+        deliveries.append({"url": url, "payload": payload, "timeout": timeout})
+        return True, "status=204"
+
+    monkeypatch.setattr(check_data_quality, "_post_webhook", fake_post)
+
+    out_path = tmp_path / "summary.json"
+    rc = check_data_quality.main(
+        [
+            "--csv",
+            str(csv_path),
+            "--out-json",
+            str(out_path),
+            "--fail-under-coverage",
+            "0.9",
+            "--webhook",
+            "https://example.com/hook",
+            "--webhook-timeout",
+            "7.5",
+        ]
+    )
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "FAILURE" in captured.err
+    assert deliveries
+    record = deliveries[0]
+    assert record["url"] == "https://example.com/hook"
+    assert record["timeout"] == pytest.approx(7.5)
+    payload = record["payload"]
+    assert payload["event"] == "data_quality_failure"
+    assert payload["failures"]
+
+    saved = json.loads(out_path.read_text(encoding="utf-8"))
+    assert saved["webhook"]["targets"] == ["https://example.com/hook"]
+    assert saved["webhook"]["deliveries"] == [
+        {"url": "https://example.com/hook", "ok": True, "detail": "status=204"}
+    ]
+
+
+def test_main_skips_webhook_without_failures(monkeypatch, tmp_path):
+    csv_path = tmp_path / "sample.csv"
+    _write_sample_csv(csv_path)
+
+    called = []
+
+    def fake_post(url, payload, timeout):
+        called.append((url, payload, timeout))
+        return True, "status=200"
+
+    monkeypatch.setattr(check_data_quality, "_post_webhook", fake_post)
+
+    rc = check_data_quality.main(
+        [
+            "--csv",
+            str(csv_path),
+            "--fail-under-coverage",
+            "0.5",
+            "--webhook",
+            "https://example.com/hook",
+        ]
+    )
+
+    assert rc == 0
+    assert called == []

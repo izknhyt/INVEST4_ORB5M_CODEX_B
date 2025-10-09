@@ -7,14 +7,100 @@ import json
 import math
 import re
 import sys
+import urllib.error
+import urllib.request
 from collections import Counter, defaultdict
 from datetime import date, datetime, timezone
 from pathlib import Path
 from statistics import median
-from typing import Dict, List, Sequence, Set, Tuple
+from typing import Dict, List, Optional, Sequence, Set, Tuple
+
+from scripts._time_utils import utcnow_iso
 
 REQUIRED_COLS = ["timestamp", "symbol", "tf", "o", "h", "l", "c", "spread"]
 DEFAULT_INTERVAL_MINUTES = 5.0
+
+
+def _parse_webhook_urls(value: Optional[str]) -> List[str]:
+    if not value:
+        return []
+    urls: List[str] = []
+    for part in value.split(","):
+        part = part.strip()
+        if part:
+            urls.append(part)
+    return urls
+
+
+def _post_webhook(
+    url: str,
+    payload: Dict[str, object],
+    *,
+    timeout: float = 5.0,
+) -> Tuple[bool, str]:
+    data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=data,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as resp:
+            return True, f"status={resp.status}"
+    except urllib.error.HTTPError as exc:
+        return False, f"http_error={exc.code}"
+    except urllib.error.URLError as exc:
+        return False, f"url_error={exc.reason}"
+    except Exception as exc:  # pragma: no cover - defensive guard
+        return False, f"unexpected_error={type(exc).__name__}:{exc}"
+
+
+def _select_primary_tf(tf_distribution: object) -> Optional[str]:
+    if not isinstance(tf_distribution, dict) or not tf_distribution:
+        return None
+    try:
+        sorted_items = sorted(
+            tf_distribution.items(),
+            key=lambda item: (item[1], str(item[0])),
+            reverse=True,
+        )
+    except Exception:  # pragma: no cover - defensive guard
+        return None
+    return str(sorted_items[0][0])
+
+
+def _build_failure_payload(
+    summary: Dict[str, object],
+    failure_reasons: Sequence[str],
+    *,
+    csv_path: Path,
+    symbol: Optional[str],
+) -> Dict[str, object]:
+    calendar_summary = summary.get("calendar_day_summary") or {}
+    warnings = []
+    if isinstance(calendar_summary, dict):
+        warnings = calendar_summary.get("warnings") or []
+    tf_value = _select_primary_tf(summary.get("tf_distribution"))
+    payload: Dict[str, object] = {
+        "event": "data_quality_failure",
+        "csv_path": str(csv_path),
+        "symbol": symbol or summary.get("symbol_filter"),
+        "timeframe": tf_value,
+        "coverage_ratio": summary.get("coverage_ratio"),
+        "missing_rows_estimate": summary.get("missing_rows_estimate"),
+        "gap_count": summary.get("gap_count"),
+        "duplicate_groups": summary.get("duplicate_groups"),
+        "failures": list(failure_reasons),
+        "calendar_day_warnings": warnings,
+        "generated_at": utcnow_iso(),
+    }
+    row_count = summary.get("row_count")
+    if row_count is not None:
+        payload["row_count"] = row_count
+    expected_rows = summary.get("expected_rows")
+    if expected_rows is not None:
+        payload["expected_rows"] = expected_rows
+    return payload
 
 
 def parse_args(argv=None):
@@ -86,6 +172,17 @@ def parse_args(argv=None):
             "Exit with status 1 when calendar-day coverage warnings are present in the summary "
             "(requires --calendar-day-summary)"
         ),
+    )
+    p.add_argument(
+        "--webhook",
+        default=None,
+        help="Webhook URL(s) for failure alerts (comma separated)",
+    )
+    p.add_argument(
+        "--webhook-timeout",
+        type=float,
+        default=5.0,
+        help="Timeout in seconds for webhook deliveries (default: 5.0)",
     )
     return p.parse_args(argv)
 
@@ -733,6 +830,8 @@ def main(argv=None):
         raise SystemExit(
             "--fail-on-calendar-day-warnings requires --calendar-day-summary"
         )
+    if getattr(args, "webhook_timeout", None) is not None and args.webhook_timeout <= 0:
+        raise SystemExit("--webhook-timeout must be positive")
     start_ts = None
     if getattr(args, "start_timestamp", None):
         try:
@@ -803,6 +902,24 @@ def main(argv=None):
                         f"{warning_count} calendar day warnings below coverage threshold"
                     )
 
+    webhook_urls = _parse_webhook_urls(getattr(args, "webhook", None))
+    webhook_deliveries: List[Dict[str, object]] = []
+    if failure_reasons and webhook_urls:
+        timeout = getattr(args, "webhook_timeout", 5.0) or 5.0
+        payload = _build_failure_payload(
+            summary,
+            failure_reasons,
+            csv_path=csv_path,
+            symbol=getattr(args, "symbol", None),
+        )
+        for url in webhook_urls:
+            ok, detail = _post_webhook(url, payload, timeout=timeout)
+            webhook_deliveries.append({"url": url, "ok": ok, "detail": detail})
+        summary["webhook"] = {
+            "event": payload["event"],
+            "targets": webhook_urls,
+            "deliveries": webhook_deliveries,
+        }
     print(summary)
     if getattr(args, "out_json", None):
         out_path = Path(args.out_json)

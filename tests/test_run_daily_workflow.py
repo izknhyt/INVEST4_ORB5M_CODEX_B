@@ -221,6 +221,27 @@ def test_check_data_quality_command_defaults(monkeypatch):
     assert int(cmd[cmd.index("--calendar-day-max-report") + 1]) == 10
 
 
+def test_check_data_quality_propagates_webhook(monkeypatch):
+    captured = _capture_run_cmd(monkeypatch)
+
+    exit_code = run_daily_workflow.main(
+        [
+            "--check-data-quality",
+            "--webhook",
+            "https://example.com/hook",
+            "--data-quality-webhook-timeout",
+            "9.5",
+        ]
+    )
+
+    assert exit_code == 0
+    cmd = captured[0]
+    assert "--webhook" in cmd
+    assert cmd[cmd.index("--webhook") + 1] == "https://example.com/hook"
+    assert "--webhook-timeout" in cmd
+    assert cmd[cmd.index("--webhook-timeout") + 1] == "9.5"
+
+
 def test_check_data_quality_supports_overrides(monkeypatch, tmp_path):
     captured = _capture_run_cmd(monkeypatch)
     repo_root = tmp_path / "repo"
@@ -289,6 +310,10 @@ def test_check_data_quality_validates_thresholds():
     with pytest.raises(SystemExit):
         run_daily_workflow.main(
             ["--check-data-quality", "--data-quality-calendar-max-report", "0"]
+        )
+    with pytest.raises(SystemExit):
+        run_daily_workflow.main(
+            ["--check-data-quality", "--data-quality-webhook-timeout", "0"]
         )
 
 
