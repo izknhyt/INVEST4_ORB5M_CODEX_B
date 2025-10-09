@@ -2,6 +2,9 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-05-11: Reviewed README / documentation portal / quickstart / workflow text alignment for P0-12, found no blocking issues
+  as of 2025-10-09, confirmed anchors remain in sync for Codex operators, and noted that documentation updates after
+  2025-10-09 require a fresh audit (documentation-only review; tests not required).
 - 2026-05-10: README の Developer Quickstart から `requirements.txt` 参照を除外し、[docs/dependencies.md](docs/dependencies.md) と推奨 `pip install` コマンド（`pytest` / `pandas matplotlib` / `dukascopy-python` 例）を明示して初回セットアップ手順を整理。
 - 2026-05-09: Corrected `docs/dependencies.md` の matplotlib フラグ説明を `--plot-out` / パイプライン伝播に合わせて更新し、CLI 手順との齟齬を解消。
 - 2026-05-08: Realigned README doc hub, documentation portal, quickstart/workflow/state runbook cross-references, and added a documentation hygiene checklist so newcomers can follow a single orientation path without duplication。
