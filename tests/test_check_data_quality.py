@@ -38,6 +38,7 @@ def test_audit_summarises_gaps_and_coverage(tmp_path):
             "timestamp": "2024-01-01T00:15:00",
             "occurrences": 2,
             "line_numbers": [4, 5],
+            "value_mismatch_fields": ["h", "v"],
         }
     ]
     assert summary["duplicate_max_occurrences"] == 2
@@ -47,6 +48,12 @@ def test_audit_summarises_gaps_and_coverage(tmp_path):
     assert summary["duplicate_min_occurrences"] == 2
     assert summary["ignored_duplicate_groups"] == 0
     assert summary["ignored_duplicate_rows"] == 0
+    assert summary["duplicate_conflict_groups"] == 1
+    assert summary["duplicate_conflict_rows"] == 1
+    assert summary["duplicate_conflict_fields"] == ["h", "v"]
+    assert summary["duplicate_conflict_field_counts"] == {"h": 1, "v": 1}
+    assert summary["ignored_duplicate_conflict_groups"] == 0
+    assert summary["ignored_duplicate_conflict_rows"] == 0
     assert summary["gap_count"] == 1
     assert summary["max_gap_minutes"] == pytest.approx(10.0)
     assert summary["total_gap_minutes"] == pytest.approx(10.0)
@@ -98,6 +105,12 @@ def test_main_writes_json_summary(tmp_path, capsys):
     assert payload["duplicate_min_occurrences"] == 2
     assert payload["ignored_duplicate_groups"] == 0
     assert payload["ignored_duplicate_rows"] == 0
+    assert payload["duplicate_conflict_groups"] == 1
+    assert payload["duplicate_conflict_rows"] == 1
+    assert payload["duplicate_conflict_fields"] == ["h", "v"]
+    assert payload["duplicate_conflict_field_counts"] == {"h": 1, "v": 1}
+    assert payload["ignored_duplicate_conflict_groups"] == 0
+    assert payload["ignored_duplicate_conflict_rows"] == 0
 
 
 def test_main_writes_gap_csv(tmp_path, capsys):
@@ -167,6 +180,7 @@ def test_main_writes_duplicate_exports(tmp_path, capsys):
             "timestamp": "2024-01-01T00:15:00",
             "occurrences": "2",
             "line_numbers": "4,5",
+            "value_mismatch_fields": "h|v",
         }
     ]
     dup_payload = json.loads(dup_json.read_text(encoding="utf-8"))
@@ -175,6 +189,7 @@ def test_main_writes_duplicate_exports(tmp_path, capsys):
             "timestamp": "2024-01-01T00:15:00",
             "occurrences": 2,
             "line_numbers": [4, 5],
+            "value_mismatch_fields": ["h", "v"],
         }
     ]
 
@@ -399,6 +414,7 @@ def test_min_duplicate_occurrences_filters_summary_and_exports(tmp_path, capsys)
             "timestamp": "2024-01-01T00:05:00",
             "occurrences": "3",
             "line_numbers": "4,5,6",
+            "value_mismatch_fields": "",
         }
     ]
     dup_payload = json.loads(dup_json.read_text(encoding="utf-8"))
@@ -407,5 +423,6 @@ def test_min_duplicate_occurrences_filters_summary_and_exports(tmp_path, capsys)
             "timestamp": "2024-01-01T00:05:00",
             "occurrences": 3,
             "line_numbers": [4, 5, 6],
+            "value_mismatch_fields": [],
         }
     ]
