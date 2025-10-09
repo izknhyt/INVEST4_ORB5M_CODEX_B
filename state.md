@@ -379,6 +379,7 @@
   - 2025-10-16: 最新バーの供給が途絶しているため、P1-04 で API インジェスト基盤を設計・整備し、鮮度チェックのブロッカーを解消する計画。
 
 ## Log
+- [P0-12] 2026-05-05: Realigned Codex operator documentation into a three-step quickstart/workflow/state-runbook set, refreshed README / docs/development_roadmap.md / docs/todo_next.md / docs/todo_next_archive.md anchors, updated backlog progress, and executed `python3 -m pytest` to confirm regressions stayed green.
 - [Ops] 2026-05-03: Reconciled run_sim CLI documentation with the manifest-first workflow by updating backlog notes and repo guidance (AGENTS.md / agent.md / scripts/AGENTS.md), and annotated historical state entries so deprecated flags point to the manifest-driven replacements.
 - [P0] 2026-03-23: Fixed the run_sim manifest aggregation regression by plumbing a dedicated
   `--archive-namespace` flag between `scripts/run_sim.py` and `scripts/aggregate_ev.py`, ensuring

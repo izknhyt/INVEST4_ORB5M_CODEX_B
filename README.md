@@ -9,11 +9,13 @@
 - 想定環境: 個人開発者が単一PCで実行する前提。社内アーティファクトサーバや大規模配布は不要で、必要な依存はローカル環境で `pip install` すればよい。
 
 ## Codex セッション TL;DR
-- 1 ページの流れは [docs/codex_quickstart.md](docs/codex_quickstart.md)、詳細手順は [docs/codex_workflow.md](docs/codex_workflow.md) を参照。
-- 着手前に `state.md` と `docs/task_backlog.md` のアンカーを突き合わせ、必要なら `python3 scripts/manage_task_cycle.py --dry-run start-task ...` で昇格を確認。
-- 実装中は小さな差分ごとにテスト（例: `python3 -m pytest tests/test_run_sim_cli.py`）を実行し、ドキュメントを同じコミットで更新。
-- Wrap-up では `python3 scripts/manage_task_cycle.py --dry-run finish-task --anchor <...>` で同期内容を確認し、`docs/todo_next.md` / `state.md` / backlog を揃える。
-- 即応〜中期の改善計画は [docs/development_roadmap.md](docs/development_roadmap.md) に整理されており、DoD の根拠は `docs/checklists/` と backlog で追跡する。
+1 セッションは次の 3 ステップで運用します。
+
+1. **準備** — `state.md` / [docs/todo_next.md](docs/todo_next.md) のアンカーを一致させ、[docs/task_backlog.md](docs/task_backlog.md) で DoD を再確認。必要に応じて `python3 scripts/manage_task_cycle.py --dry-run start-task --anchor <...>` で昇格フローをプレビュー。
+2. **実装ループ** — 差分を小さく保ち、影響範囲ごとにテスト（例: `python3 -m pytest tests/test_run_sim_cli.py`）を実行。仕様変更と同じコミットで [docs/codex_quickstart.md](docs/codex_quickstart.md) / [docs/codex_workflow.md](docs/codex_workflow.md) / ランブックを更新。
+3. **Wrap-up** — `python3 scripts/manage_task_cycle.py --dry-run finish-task --anchor <...>` で close-out を確認し、`docs/todo_next.md` → [docs/todo_next_archive.md](docs/todo_next_archive.md) 移動と `state.md` ログ更新を同じコミットで実施。
+
+詳細なチェックリストは [docs/codex_quickstart.md](docs/codex_quickstart.md)、補足ガイドは [docs/codex_workflow.md](docs/codex_workflow.md) を参照。中期計画は [docs/development_roadmap.md](docs/development_roadmap.md)、DoD と進捗根拠は `docs/checklists/` と backlog に集約しています。
 
 ## 使い方（簡易）
 1) `configs/*.yml` を確認・調整
