@@ -94,6 +94,7 @@ def _build_failure_payload(
         "missing_rows_estimate": summary.get("missing_rows_estimate"),
         "gap_count": summary.get("gap_count"),
         "duplicate_groups": summary.get("duplicate_groups"),
+        "duplicate_max_occurrences": summary.get("duplicate_max_occurrences"),
         "failures": list(failure_reasons),
         "calendar_day_warnings": warnings,
         "generated_at": utcnow_iso(),
@@ -184,6 +185,15 @@ def parse_args(argv=None):
         help=(
             "Exit with status 1 when duplicate timestamp groups reach or exceed the "
             "specified threshold (0 disables the guard)"
+        ),
+    )
+    p.add_argument(
+        "--fail-on-duplicate-occurrences",
+        type=int,
+        default=None,
+        help=(
+            "Exit with status 1 when the maximum duplicate occurrences reach or exceed "
+            "the specified threshold (0 disables the guard)"
         ),
     )
     p.add_argument(
@@ -846,6 +856,14 @@ def main(argv=None):
     duplicate_group_threshold = getattr(args, "fail_on_duplicate_groups", None)
     if duplicate_group_threshold is not None and duplicate_group_threshold < 0:
         raise SystemExit("--fail-on-duplicate-groups must be at least 0")
+    duplicate_occurrence_threshold = getattr(
+        args, "fail_on_duplicate_occurrences", None
+    )
+    if (
+        duplicate_occurrence_threshold is not None
+        and duplicate_occurrence_threshold < 0
+    ):
+        raise SystemExit("--fail-on-duplicate-occurrences must be at least 0")
     if getattr(args, "webhook_timeout", None) is not None and args.webhook_timeout <= 0:
         raise SystemExit("--webhook-timeout must be positive")
     start_ts = None
@@ -929,6 +947,20 @@ def main(argv=None):
                 (
                     "duplicate_groups "
                     f"{duplicate_groups} reached threshold {duplicate_group_threshold}"
+                )
+            )
+
+    if duplicate_occurrence_threshold:
+        duplicate_max = summary.get("duplicate_max_occurrences")
+        if duplicate_max is None:
+            failure_reasons.append(
+                "duplicate max occurrences unavailable for --fail-on-duplicate-occurrences enforcement"
+            )
+        elif duplicate_max >= duplicate_occurrence_threshold:
+            failure_reasons.append(
+                (
+                    "duplicate_max_occurrences "
+                    f"{duplicate_max} reached threshold {duplicate_occurrence_threshold}"
                 )
             )
 

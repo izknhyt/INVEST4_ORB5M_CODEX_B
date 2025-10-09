@@ -224,6 +224,11 @@ def test_check_data_quality_command_defaults(monkeypatch):
         cmd[cmd.index("--fail-on-duplicate-groups") + 1]
     )
     assert duplicate_threshold == 5
+    assert "--fail-on-duplicate-occurrences" in cmd
+    duplicate_occurrence_threshold = int(
+        cmd[cmd.index("--fail-on-duplicate-occurrences") + 1]
+    )
+    assert duplicate_occurrence_threshold == 3
 
 
 def test_check_data_quality_propagates_webhook(monkeypatch):
@@ -276,6 +281,8 @@ def test_check_data_quality_supports_overrides(monkeypatch, tmp_path):
             "5",
             "--data-quality-duplicate-groups-threshold",
             "7",
+            "--data-quality-duplicate-occurrences-threshold",
+            "4",
         ]
     )
 
@@ -304,6 +311,7 @@ def test_check_data_quality_supports_overrides(monkeypatch, tmp_path):
         0.93
     )
     assert int(cmd[cmd.index("--fail-on-duplicate-groups") + 1]) == 7
+    assert int(cmd[cmd.index("--fail-on-duplicate-occurrences") + 1]) == 4
 
 
 def test_check_data_quality_disables_duplicate_guard(monkeypatch):
@@ -320,6 +328,22 @@ def test_check_data_quality_disables_duplicate_guard(monkeypatch):
     assert exit_code == 0
     cmd = captured[0]
     assert "--fail-on-duplicate-groups" not in cmd
+
+
+def test_check_data_quality_disables_duplicate_occurrence_guard(monkeypatch):
+    captured = _capture_run_cmd(monkeypatch)
+
+    exit_code = run_daily_workflow.main(
+        [
+            "--check-data-quality",
+            "--data-quality-duplicate-occurrences-threshold",
+            "0",
+        ]
+    )
+
+    assert exit_code == 0
+    cmd = captured[0]
+    assert "--fail-on-duplicate-occurrences" not in cmd
 
 
 def test_check_data_quality_validates_thresholds():
@@ -342,6 +366,14 @@ def test_check_data_quality_validates_thresholds():
     with pytest.raises(SystemExit):
         run_daily_workflow.main(
             ["--check-data-quality", "--data-quality-duplicate-groups-threshold", "-1"]
+        )
+    with pytest.raises(SystemExit):
+        run_daily_workflow.main(
+            [
+                "--check-data-quality",
+                "--data-quality-duplicate-occurrences-threshold",
+                "-2",
+            ]
         )
 
 
