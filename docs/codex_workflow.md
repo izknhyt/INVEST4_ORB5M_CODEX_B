@@ -3,7 +3,7 @@
 1 ページ版の流れは [docs/codex_quickstart.md](codex_quickstart.md) に集約されています。本ガイドではクイックスタートの各ステップを深掘りし、テンプレート・スクリプト・ランブックの使い分けを整理します。
 
 ## ガイド活用法
-- **ドキュメントハブで位置関係を確認** — [docs/documentation_portal.md](documentation_portal.md) で関連ランブックと設計資料の所在を把握してから作業に入る。
+- **ドキュメントハブで位置関係を確認** — [docs/documentation_portal.md](documentation_portal.md) の Orientation Cheat Sheet でランブック / チェックリスト / バックログの役割を把握してから作業に入る。
 - **まずクイックスタートを参照** — `state.md` / `docs/task_backlog.md` / `docs/todo_next.md` の同期手順と優先度はクイックスタートで俯瞰できます。
 - **作業前の再読ポイント** — 影響するランブック（例: `docs/state_runbook.md`, `docs/benchmark_runbook.md`）と該当チェックリストを開いた状態で着手する。
 - **作業後のクロスチェック** — README の Codex 節と本ドキュメントの内容が整合しているか確認し、差異があれば同じコミットで修正する。

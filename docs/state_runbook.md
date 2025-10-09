@@ -1,6 +1,6 @@
 # state.json 運用ガイド
 
-EV ゲートや滑り学習などの内部状態を `state.json` として保存し、再実行時に復元するためのランブックです。セッション全体の流れは [docs/codex_quickstart.md](codex_quickstart.md) を参照し、本書では state 周辺のアクションをチェックリスト形式で整理します。
+EV ゲートや滑り学習などの内部状態を `state.json` として保存し、再実行時に復元するためのランブックです。セッション全体の流れは [docs/codex_quickstart.md](codex_quickstart.md) を参照し、本書では state 周辺のアクションをチェックリスト形式で整理します。各ドキュメントの役割は [docs/documentation_portal.md](documentation_portal.md) の Orientation Cheat Sheet で再確認できます。
 
 ## 保存チェックリスト
 - [ ] `BacktestRunner` / `RunnerExecutionManager` の処理完了後に `runner.export_state()` を呼び出した。

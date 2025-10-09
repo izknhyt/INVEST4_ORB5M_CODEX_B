@@ -4,11 +4,20 @@ This portal groups every maintained document into a small set of entry points so
 
 ## Start Here
 1. Read the project overview in [../README.md](../README.md) to understand the product goal, strategy assumptions, and how Codex sessions are structured.
-2. Walk through the checklist in [codex_quickstart.md](codex_quickstart.md) to align on the session routine.
-3. Review the active priorities inside [task_backlog.md](task_backlog.md#p0-12-codex-first-documentation-cleanup) and confirm `state.md` / [todo_next.md](todo_next.md) share the same anchors before making changes.
+2. Open [codex_quickstart.md](codex_quickstart.md) for the session checklist, then use [codex_workflow.md](codex_workflow.md) when you need the detailed reasoning behind each step.
+3. Review the active priorities inside [task_backlog.md](task_backlog.md) (focus on P0 → P1) and confirm `state.md` / [todo_next.md](todo_next.md) reference the same anchors before making changes.
 4. Skim [logic_overview.md](logic_overview.md) and [simulation_plan.md](simulation_plan.md) to understand the execution model and analytical expectations.
 
 > **Tip:** Keep this page open while working. Every relevant runbook, roadmap, or checklist is referenced below with a short description and when to use it.
+
+### Orientation Cheat Sheet
+
+| If you need to... | Go to | Why |
+| --- | --- | --- |
+| See the one-page session flow | [codex_quickstart.md](codex_quickstart.md) | Checklist that links every pre-session, implementation, and wrap-up action. |
+| Understand the nuance behind each checkpoint | [codex_workflow.md](codex_workflow.md) | Explains the rationale, templates, and scripts that back the quickstart steps. |
+| Execute or replay state workflows | [state_runbook.md](state_runbook.md) | Task-focused checklists for exporting, pruning, and restoring state artifacts. |
+| Align task status with the backlog | `state.md`, [todo_next.md](todo_next.md), [task_backlog.md](task_backlog.md) | These three documents must reference the same anchors so every session sees the same context. |
 
 ## Workflow & Coordination
 | Document | Purpose | When to use |
