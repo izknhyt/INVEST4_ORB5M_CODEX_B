@@ -17,10 +17,14 @@
 
 ### In Progress
 
-- （なし）
+- [P2 Portfolio evaluation report](./task_backlog.md#p2-portfolio-evaluation) — Draft refreshed CLI walkthrough (sample `scripts/report_portfolio_summary.py` invocation, artefact links) and enumerate pytest/CLI regression coverage to keep green while iterating on the report template.
+
+### On Hold
+
+- Monitor for the first production `data_quality_failure` alert to validate the acknowledgement workflow once live signals begin flowing. (P0 ops loop paused until production data triggers an alert.)
 ### Ready
 
-- [P2 Portfolio evaluation report](./task_backlog.md#p2-portfolio-evaluation) — Deliverables (EN): refresh `analysis/portfolio_monitor.py` CLI docs, add sample `scripts/report_portfolio_summary.py` run + artefact links, ensure pytest/CLI regression coverage remains green.
+- [P3 Observability automation kickoff](./task_backlog.md#p3-観測性・レポート自動化) — Define scope for initial automation (signal latency sampling cadence, weekly report webhook payload sketch, dashboard data export checklist) so implementation can start once P2 deliverables stabilise.
 
 
 
