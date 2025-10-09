@@ -2,6 +2,10 @@
 
 過去の `docs/todo_next.md` Archive セクションに掲載していた完了済みタスクのログをこのファイルへ集約しました。各エントリのアンカーコメントは従来通り維持しています。README / codex 系ワークフロードキュメント / DoD テンプレートからの参照先も本アーカイブへ統一しました。
 
+- **Data quality audit enhancements** (Backlog: `docs/task_backlog.md` → [P0-13](./task_backlog.md#p0-13-data-quality-audit)) — 2026-05-20 完了 <!-- anchor: docs/task_backlog.md#p0-13-data-quality-audit -->
+  - Archived the Pending Review entry, synced `state.md` / `docs/todo_next*.md`, and confirmed documentation for the audit CLI remains aligned with the implemented features.
+  - `python3 -m pytest`
+
 - **Data quality gap reporting** (Backlog: `docs/task_backlog.md` → [P0-14](./task_backlog.md#p0-14-data-quality-gap-report)) — 2026-05-16 完了 <!-- anchor: docs/task_backlog.md#p0-14-data-quality-gap-report -->
   - Finalised the reviewer hand-off by documenting gap CSV/JSON destinations (`reports/data_quality/`) and reproduction commands.
     - `python3 scripts/check_data_quality.py --csv validated/USDJPY/5m.csv --symbol USDJPY --out-json reports/data_quality/usdjpy_5m_summary.json --out-gap-csv reports/data_quality/usdjpy_5m_gap_inventory.csv --max-gap-report 50`
