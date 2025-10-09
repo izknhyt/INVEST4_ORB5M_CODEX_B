@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -96,6 +97,23 @@ def test_main_writes_gap_csv(tmp_path, capsys):
     assert rows[0]["missing_rows_estimate"] == "1"
 
 
+def test_main_rejects_inverted_time_window(tmp_path):
+    csv_path = tmp_path / "sample.csv"
+    _write_sample_csv(csv_path)
+
+    with pytest.raises(SystemExit) as excinfo:
+        check_data_quality.main([
+            "--csv",
+            str(csv_path),
+            "--start-timestamp",
+            "2024-01-02T00:00:00Z",
+            "--end-timestamp",
+            "2024-01-01T00:00:00Z",
+        ])
+
+    assert "must be earlier" in str(excinfo.value)
+
+
 def test_expected_interval_detection_and_override(tmp_path):
     csv_path = tmp_path / "sample_15m.csv"
     csv_path.write_text(
@@ -124,3 +142,24 @@ def test_expected_interval_detection_and_override(tmp_path):
     assert overridden["missing_rows_estimate"] == 3
     assert overridden["gap_count"] == 2
     assert overridden["expected_interval_source"] == "override"
+
+
+def test_time_window_filters_limit_analysis(tmp_path):
+    csv_path = tmp_path / "sample.csv"
+    _write_sample_csv(csv_path)
+
+    summary = check_data_quality.audit(
+        csv_path,
+        start_timestamp=datetime.fromisoformat("2024-01-01T00:05:00"),
+        end_timestamp=datetime.fromisoformat("2024-01-01T00:15:00"),
+    )
+
+    assert summary["start_timestamp"] == "2024-01-01T00:05:00"
+    assert summary["end_timestamp"] == "2024-01-01T00:15:00"
+    assert summary["row_count"] == 3
+    assert summary["unique_timestamps"] == 2
+    assert summary["duplicates"] == 1
+    assert summary["gap_count"] == 1
+    assert summary["missing_rows_estimate"] == 1
+    assert summary["start_timestamp_filter"] == "2024-01-01T00:05:00"
+    assert summary["end_timestamp_filter"] == "2024-01-01T00:15:00"
