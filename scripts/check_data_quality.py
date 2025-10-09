@@ -14,6 +14,7 @@ from typing import Dict, List, Sequence, Set, Tuple
 
 REQUIRED_COLS = ["timestamp", "symbol", "tf", "o", "h", "l", "c", "spread"]
 DEFAULT_INTERVAL_MINUTES = 5.0
+DUPLICATE_NUMERIC_FIELDS = ["o", "h", "l", "c", "v", "spread"]
 
 
 def parse_args(argv=None):
@@ -67,6 +68,50 @@ def parse_row(row: Dict[str, str]):
     tf = row.get("tf", "").strip()
     symbol = row.get("symbol")
     return ts, tf, symbol
+
+
+def _parse_optional_float(value: str | None) -> float | None:
+    if value is None:
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _detect_duplicate_value_mismatches(
+    rows: Sequence[Dict[str, object]]
+) -> List[str]:
+    if not rows:
+        return []
+    reference = rows[0]
+    mismatch_fields: Set[str] = set()
+    ref_symbol = reference.get("symbol")
+    ref_tf = reference.get("tf")
+    for row in rows[1:]:
+        if row.get("symbol") != ref_symbol:
+            mismatch_fields.add("symbol")
+        if row.get("tf") != ref_tf:
+            mismatch_fields.add("tf")
+        for field in DUPLICATE_NUMERIC_FIELDS:
+            ref_value = reference.get(field)
+            value = row.get(field)
+            if ref_value is None and value is None:
+                continue
+            if ref_value is None or value is None:
+                mismatch_fields.add(field)
+                continue
+            if not math.isclose(
+                float(ref_value),
+                float(value),
+                rel_tol=1e-9,
+                abs_tol=1e-9,
+            ):
+                mismatch_fields.add(field)
+    return sorted(mismatch_fields)
 
 
 def _parse_tf_minutes(tf_value: str) -> float | None:
@@ -249,6 +294,7 @@ def _audit_internal(
     total_rows = 0
 
     timestamp_line_numbers: defaultdict[datetime, List[int]] = defaultdict(list)
+    timestamp_row_values: defaultdict[datetime, List[Dict[str, object]]] = defaultdict(list)
 
     with csv_path.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -260,10 +306,10 @@ def _audit_internal(
                 continue
             try:
                 ts, tf, sym = parse_row(row)
-                float(row["o"])
-                float(row["h"])
-                float(row["l"])
-                float(row["c"])
+                open_px = float(row["o"])
+                high_px = float(row["h"])
+                low_px = float(row["l"])
+                close_px = float(row["c"])
             except Exception:
                 bad_rows += 1
                 continue
@@ -281,17 +327,33 @@ def _audit_internal(
             if tf_minutes and tf_minutes > 0:
                 tf_minutes_counter[tf_minutes] += 1
             timestamp_line_numbers[ts].append(line_number)
+            timestamp_row_values[ts].append(
+                {
+                    "symbol": sym,
+                    "tf": tf,
+                    "o": open_px,
+                    "h": high_px,
+                    "l": low_px,
+                    "c": close_px,
+                    "v": _parse_optional_float(row.get("v")),
+                    "spread": _parse_optional_float(row.get("spread")),
+                }
+            )
 
     duplicate_details: List[Dict[str, object]] = []
     for ts in sorted(timestamp_line_numbers.keys()):
         line_numbers = timestamp_line_numbers[ts]
         if len(line_numbers) <= 1:
             continue
+        mismatch_fields = _detect_duplicate_value_mismatches(
+            timestamp_row_values.get(ts, [])
+        )
         duplicate_details.append(
             {
                 "timestamp": ts.isoformat(),
                 "occurrences": len(line_numbers),
                 "line_numbers": line_numbers,
+                "value_mismatch_fields": mismatch_fields,
             }
         )
 
@@ -378,6 +440,35 @@ def _audit_internal(
         else:
             duplicate_timestamp_span_minutes = 0.0
 
+    duplicate_conflict_groups = 0
+    duplicate_conflict_rows = 0
+    duplicate_conflict_field_counter: Counter[str] = Counter()
+    for item in filtered_duplicate_details:
+        mismatch_fields = [
+            field
+            for field in item.get("value_mismatch_fields", [])
+            if field
+        ]
+        if mismatch_fields:
+            duplicate_conflict_groups += 1
+            duplicate_conflict_rows += item["occurrences"] - 1
+            for field in mismatch_fields:
+                duplicate_conflict_field_counter[field] += 1
+
+    ignored_duplicate_conflict_groups = 0
+    ignored_duplicate_conflict_rows = 0
+    for item in duplicate_details_sorted:
+        if item["occurrences"] >= min_duplicate_occurrences:
+            continue
+        mismatch_fields = [
+            field
+            for field in item.get("value_mismatch_fields", [])
+            if field
+        ]
+        if mismatch_fields:
+            ignored_duplicate_conflict_groups += 1
+            ignored_duplicate_conflict_rows += item["occurrences"] - 1
+
     if len(tf_minutes_counter) > 1:
         distinct_intervals = ", ".join(
             f"{value:g}m" for value in sorted(tf_minutes_counter.keys())
@@ -415,6 +506,14 @@ def _audit_internal(
         "duplicate_min_occurrences": min_duplicate_occurrences,
         "ignored_duplicate_groups": ignored_duplicate_groups,
         "ignored_duplicate_rows": ignored_duplicate_rows,
+        "duplicate_conflict_groups": duplicate_conflict_groups,
+        "duplicate_conflict_rows": duplicate_conflict_rows,
+        "duplicate_conflict_fields": sorted(duplicate_conflict_field_counter.keys()),
+        "duplicate_conflict_field_counts": dict(
+            sorted(duplicate_conflict_field_counter.items())
+        ),
+        "ignored_duplicate_conflict_groups": ignored_duplicate_conflict_groups,
+        "ignored_duplicate_conflict_rows": ignored_duplicate_conflict_rows,
         "tf_distribution": dict(tf_counter),
         "symbol_distribution": dict(symbol_counter),
         "gaps": [
@@ -498,7 +597,12 @@ def _write_gap_csv(path: Path, gaps: List[Dict[str, object]]):
 
 
 def _write_duplicate_csv(path: Path, duplicates: List[Dict[str, object]]):
-    fieldnames = ["timestamp", "occurrences", "line_numbers"]
+    fieldnames = [
+        "timestamp",
+        "occurrences",
+        "line_numbers",
+        "value_mismatch_fields",
+    ]
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -509,6 +613,9 @@ def _write_duplicate_csv(path: Path, duplicates: List[Dict[str, object]]):
                     "timestamp": item["timestamp"],
                     "occurrences": item["occurrences"],
                     "line_numbers": ",".join(str(num) for num in item["line_numbers"]),
+                    "value_mismatch_fields": "|".join(
+                        item.get("value_mismatch_fields", [])
+                    ),
                 }
             )
 
