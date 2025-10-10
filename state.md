@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-06-29: Began Phase 3 observability automation implementation by adding `scripts/_automation_logging.py`, `scripts/_automation_context.py`, and `schemas/automation_run.schema.json`, introducing pytest coverage (`tests/test_automation_logging.py`) and logging the kickoff in `docs/task_backlog.md`. Executed `python3 -m pytest` to keep the suite green.
 - 2026-06-29: Finalised the Phase 3 detailed design review by specifying latency archive manifest schema, automation sequence persistence, and dashboard export locking semantics in `docs/phase3_detailed_design.md`, and logged the readiness in `docs/task_backlog.md`. Docs-only updates; no tests were run.
 - 2026-06-28: Produced the Phase 3 observability automation DoD checklist (`docs/checklists/p3_observability_automation.md`) capturing CLI feature gates, automation logging/retention contracts, validation commands, and documentation touchpoints, and synced `docs/task_backlog.md` with the new checklist anchor. Docs-only change; tests not run.
 - 2026-06-28: Conducted a senior-level review of `docs/phase3_detailed_design.md`, clarifying scheduler/CLI boundaries, logging schema, heartbeat safeguards, and expanded test/release requirements. Docs-only update; no tests were run.
