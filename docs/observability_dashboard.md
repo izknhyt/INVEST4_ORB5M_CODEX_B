@@ -22,8 +22,12 @@
        --output reports/portfolio_summary.json \
        --indent 2
    ```
-   - `runs/router_pipeline/latest/telemetry.json` ではカテゴリヘッドルームと `strategy_correlations` を確認し、ヘッドルームが負値の場合は `budget_over_pct` の閾値逸脱量を記録する。
-   - `reports/portfolio_summary.json` の `correlation_heatmap[*].bucket_budget_pct`、`category_utilisation[*].budget_status`、`drawdowns.per_strategy` をレビューし、ダッシュボードで強調すべきアラート項目を整理する。
+   - 最新スナップショットは [`runs/router_pipeline/latest/`](../runs/router_pipeline/latest/) 配下に保存される。特に [`telemetry.json`](../runs/router_pipeline/latest/telemetry.json) の `category_budget_headroom_pct` / `category_budget_pct` と `strategy_correlations` をレビューし、ヘッドルームが負値の場合は `budget_status` と `budget_over_pct` を記録する。
+   - ポートフォリオサマリーは [`reports/portfolio_summary.json`](../reports/portfolio_summary.json) に上書きされるため、`category_utilisation[*].budget_status`・`correlation_heatmap[*].bucket_budget_pct`・`correlation_window_minutes`・`drawdowns.*` を確認し、ダッシュボードで強調すべきアラート項目を整理する。
+   - Review checklist (portfolio monitoring):
+     - **Budget headroom** — confirm positive `category_budget_headroom_pct` と `category_utilisation[*].budget_headroom_pct`; マイナス値があれば警告/逸脱量をコメントする。
+     - **Correlation window width** — `correlation_window_minutes` が想定窓幅（例: 240 分）と一致し、異なる場合は調査ノートを残す。
+     - **Drawdowns** — `drawdowns.aggregate.max_drawdown_pct` と `drawdowns.per_strategy[*].max_drawdown_pct` を読み、閾値超過時は対象戦略の期間 (`peak_ts` / `trough_ts`) をレビューする。
    - 回帰テストで CLI フローを確認するには、以下を実行して router snapshot／サマリー双方の warning/breach 分岐を再現する。
      ```bash
      python3 -m pytest \
