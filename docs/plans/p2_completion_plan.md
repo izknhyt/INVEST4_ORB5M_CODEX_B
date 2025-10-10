@@ -33,6 +33,11 @@ and document the final review workflow so the phase can be signed off confidentl
 - **Dependencies**: Completion of P2-03 so regression guards exist; access to baseline runs listed in `runs/index.csv`.
 - **Deliverables**: Maintenance procedure notes (docs + backlog) and a helper script or documented command that
   validates sample metrics.
+- **Status 2026-06-20**: Router demo rotation log, retention guidance, and refresh steps captured in
+  `docs/checklists/p2_portfolio_evaluation.md`. Introduced `scripts/validate_portfolio_samples.py` plus
+  `tests/test_validate_portfolio_samples.py` so `python3 scripts/validate_portfolio_samples.py --samples-dir
+  reports/portfolio_samples/router_demo --manifest configs/strategies/day_orb_5m.yaml --manifest
+  configs/strategies/tokyo_micro_mean_reversion.yaml` can gate sample refreshes before publishing updates.
 
 ### P2-05 Portfolio review hand-off package
 - **Goal**: Compile the final artefact bundle and reviewer guide needed to close P2 and transition toward P3 automation.

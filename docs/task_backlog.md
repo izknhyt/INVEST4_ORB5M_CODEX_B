@@ -182,6 +182,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - サンプルメトリクスと manifest の整合性を検証するスクリプトまたは CLI オプションを用意する。
   - バックログへ更新記録と検証手順を残し、`docs/checklists/p2_portfolio_evaluation.md` から参照できるようにする。
 - **Notes**: router snapshot CLI の `--manifest-run` を最新サンプルへ揃え、旧世代 artefact を適切にアーカイブする。
+- 2026-06-20: `docs/checklists/p2_portfolio_evaluation.md` に Router demo ローテーション手順と保持ポリシーを追加し、`scripts/validate_portfolio_samples.py` を実装。`python3 scripts/validate_portfolio_samples.py --samples-dir reports/portfolio_samples/router_demo --manifest configs/strategies/day_orb_5m.yaml --manifest configs/strategies/tokyo_micro_mean_reversion.yaml` で manifest 一致・テレメトリ整合性・エクイティカーブ形式を検証できることを確認。`tests/test_validate_portfolio_samples.py` を追加し、pytest から CLI ガードがカバーされるようにした。
 
 ### P2-05 Portfolio review hand-off package
 - **DoD**:
