@@ -23,7 +23,6 @@
 - Monitor for the first production `data_quality_failure` alert to validate the acknowledgement workflow once live signals begin flowing. (P0 ops loop paused until production data triggers an alert.)
 ### Ready
 
-- [P2-03 Portfolio evaluation regression automation](./task_backlog.md#p2-03-portfolio-evaluation-regression-automation) — Add pytest coverage for router snapshot & portfolio summary CLIs, document refresh commands, and update the checklist before final sign-off.
 - [P2-04 Portfolio dataset maintenance & rotation](./task_backlog.md#p2-04-portfolio-dataset-maintenance--rotation) — Define sample metric rotation rules and validation tooling so curated artefacts stay review-ready.
 - [P2-05 Portfolio review hand-off package](./task_backlog.md#p2-05-portfolio-review-hand-off-package) — Compile the reviewer bundle, sync docs/todo/state, and prepare the closing summary for P2.
 - [P3 Observability automation kickoff](./task_backlog.md#p3-観測性・レポート自動化) — Define scope for initial automation (signal latency sampling cadence, weekly report webhook payload sketch, dashboard data export checklist) so implementation can start once P2 deliverables stabilise.
@@ -32,6 +31,7 @@
 
 ### Pending Review
 
+- [P2-03 Portfolio evaluation regression automation](./task_backlog.md#p2-03-portfolio-evaluation-regression-automation) — Router snapshot / portfolio summary pytest coverage landed (`tests/test_report_portfolio_summary.py::test_build_router_snapshot_cli_uses_router_demo_metrics` 等)。ドキュメントとチェックリスト更新を確認してレビューする。
 - レビュー中のタスクを再開する際は `scripts/manage_task_cycle.py --doc-section Pending Review` を用いると、`docs/todo_next.md` の配置を維持したまま `state.md` のテンプレートを再適用できる。
 
 ## Archive（達成済み）

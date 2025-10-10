@@ -1,5 +1,4 @@
 import json
-import shutil
 import statistics
 import subprocess
 import sys
@@ -7,10 +6,12 @@ from pathlib import Path
 
 import pytest
 
+from scripts import build_router_snapshot as build_router_snapshot_module
+
 
 DAY_MANIFEST = Path("configs/strategies/day_orb_5m.yaml")
 SCALPING_MANIFEST = Path("configs/strategies/tokyo_micro_mean_reversion.yaml")
-ROUTER_SAMPLE_DIR = Path("reports/portfolio_samples/router_demo")
+ROUTER_SAMPLE_METRICS = Path("reports/portfolio_samples/router_demo/metrics")
 
 
 def _write_metrics(path: Path, payload: dict) -> None:
@@ -26,28 +27,41 @@ def _compute_expected_correlation(values_a, values_b) -> float:
     return statistics.correlation(returns_a, returns_b)
 
 
-def _prepare_router_sample(tmp_path: Path) -> Path:
-    repo_root = Path(__file__).resolve().parents[1]
-    sample_dir = repo_root / ROUTER_SAMPLE_DIR
-    snapshot_dir = tmp_path / "snapshot"
-    shutil.copytree(sample_dir, snapshot_dir)
-
-    metrics_dir = snapshot_dir / "metrics"
-    for metrics_file in metrics_dir.glob("*.json"):
-        payload = json.loads(metrics_file.read_text(encoding="utf-8"))
-        manifest_relative = Path(payload["manifest_path"])
-        manifest_src = repo_root / manifest_relative
-        manifest_dest = metrics_file.parent / manifest_relative
-        manifest_dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(manifest_src, manifest_dest)
+def _build_router_snapshot_from_samples(tmp_path: Path) -> Path:
+    snapshot_dir = tmp_path / "router_demo_snapshot"
+    cmd = [
+        sys.executable,
+        "scripts/build_router_snapshot.py",
+        "--output",
+        str(snapshot_dir),
+        "--manifest",
+        str(DAY_MANIFEST),
+        "--manifest",
+        str(SCALPING_MANIFEST),
+        "--manifest-run",
+        f"day_orb_5m_v1={ROUTER_SAMPLE_METRICS / 'day_orb_5m_v1.json'}",
+        "--manifest-run",
+        f"tokyo_micro_mean_reversion_v0={ROUTER_SAMPLE_METRICS / 'tokyo_micro_mean_reversion_v0.json'}",
+        "--positions",
+        "day_orb_5m_v1=1",
+        "--positions",
+        "tokyo_micro_mean_reversion_v0=2",
+        "--correlation-window-minutes",
+        "240",
+        "--indent",
+        "2",
+    ]
+    subprocess.run(cmd, check=True, capture_output=True, text=True)
     return snapshot_dir
 
 
 def _mutate_budget_headroom(snapshot_dir: Path) -> None:
     telemetry_path = snapshot_dir / "telemetry.json"
     payload = json.loads(telemetry_path.read_text(encoding="utf-8"))
-    payload["category_utilisation_pct"]["day"] = 31.0
-    payload["category_utilisation_pct"]["scalping"] = 16.0
+    payload["category_utilisation_pct"]["day"] = 0.0
+    payload["category_utilisation_pct"]["scalping"] = 0.0
+    payload["active_positions"]["day_orb_5m_v1"] = 144
+    payload["active_positions"]["tokyo_micro_mean_reversion_v0"] = 400
     payload["category_budget_headroom_pct"]["day"] = 4.0
     payload["category_budget_headroom_pct"]["scalping"] = -1.0
     telemetry_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -210,6 +224,78 @@ def test_build_router_snapshot_cli_generates_portfolio_summary(tmp_path: Path) -
     assert summary["correlation_window_minutes"] == pytest.approx(240.0)
 
 
+def test_build_router_snapshot_cli_uses_router_demo_metrics(tmp_path: Path) -> None:
+    snapshot_dir = _build_router_snapshot_from_samples(tmp_path)
+
+    telemetry_path = snapshot_dir / "telemetry.json"
+    telemetry = json.loads(telemetry_path.read_text(encoding="utf-8"))
+
+    assert telemetry["active_positions"] == {
+        "day_orb_5m_v1": 1,
+        "tokyo_micro_mean_reversion_v0": 2,
+    }
+    assert telemetry["category_utilisation_pct"]["day"] == pytest.approx(0.25, rel=1e-6)
+    assert telemetry["category_utilisation_pct"]["scalping"] == pytest.approx(0.08, rel=1e-6)
+    assert telemetry["category_budget_headroom_pct"]["day"] == pytest.approx(39.75, rel=1e-6)
+    assert telemetry["category_budget_headroom_pct"]["scalping"] == pytest.approx(14.92, rel=1e-6)
+    assert telemetry["gross_exposure_pct"] == pytest.approx(0.33, rel=1e-6)
+    assert telemetry["gross_exposure_cap_pct"] == pytest.approx(20.0, rel=1e-6)
+    assert telemetry["correlation_window_minutes"] == pytest.approx(240.0)
+    assert telemetry["execution_health"] == {}
+
+    day_metrics = json.loads(
+        (ROUTER_SAMPLE_METRICS / "day_orb_5m_v1.json").read_text(encoding="utf-8")
+    )
+    scalping_metrics = json.loads(
+        (ROUTER_SAMPLE_METRICS / "tokyo_micro_mean_reversion_v0.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    curves = {
+        "day_orb_5m_v1": build_router_snapshot_module._normalise_curve(
+            day_metrics["equity_curve"],
+            manifest_id="day_orb_5m_v1",
+            source=ROUTER_SAMPLE_METRICS / "day_orb_5m_v1.json",
+        ),
+        "tokyo_micro_mean_reversion_v0": build_router_snapshot_module._normalise_curve(
+            scalping_metrics["equity_curve"],
+            manifest_id="tokyo_micro_mean_reversion_v0",
+            source=ROUTER_SAMPLE_METRICS / "tokyo_micro_mean_reversion_v0.json",
+        ),
+    }
+    expected_matrix = build_router_snapshot_module._compute_pairwise_correlations(
+        curves,
+        sources={
+            key: ROUTER_SAMPLE_METRICS / f"{key}.json" for key in curves
+        },
+    )
+    expected_corr = expected_matrix["day_orb_5m_v1"]["tokyo_micro_mean_reversion_v0"]
+    corr_value = telemetry["strategy_correlations"]["day_orb_5m_v1"][
+        "tokyo_micro_mean_reversion_v0"
+    ]
+    assert corr_value == pytest.approx(expected_corr, rel=1e-6)
+
+    output_day_metrics = json.loads(
+        (snapshot_dir / "metrics" / "day_orb_5m_v1.json").read_text(encoding="utf-8")
+    )
+    output_scalping_metrics = json.loads(
+        (snapshot_dir / "metrics" / "tokyo_micro_mean_reversion_v0.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert output_day_metrics["equity_curve"] == day_metrics["equity_curve"]
+    assert output_scalping_metrics["equity_curve"] == scalping_metrics["equity_curve"]
+    assert (snapshot_dir / "metrics" / "configs" / "strategies" / "day_orb_5m.yaml").exists()
+    assert (
+        snapshot_dir
+        / "metrics"
+        / "configs"
+        / "strategies"
+        / "tokyo_micro_mean_reversion.yaml"
+    ).exists()
+
+
 def test_build_router_snapshot_help_lists_correlation_window_flag() -> None:
     result = subprocess.run(
         [sys.executable, "scripts/build_router_snapshot.py", "--help"],
@@ -219,9 +305,8 @@ def test_build_router_snapshot_help_lists_correlation_window_flag() -> None:
     )
     assert "--correlation-window-minutes" in result.stdout
 
-
 def test_report_portfolio_summary_cli_budget_status(tmp_path: Path) -> None:
-    snapshot_dir = _prepare_router_sample(tmp_path)
+    snapshot_dir = _build_router_snapshot_from_samples(tmp_path)
     _mutate_budget_headroom(snapshot_dir)
 
     output_path = tmp_path / "summary.json"
