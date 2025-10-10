@@ -2,6 +2,8 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-06-18: Broke down remaining P2 deliverables into P2-03〜P2-05, documented the scope in `docs/plans/p2_completion_plan.md`,
+  refreshed backlog/todo anchors, and updated `Next Task` to launch the regression automation workstream.
 - 2026-06-17: Added regression coverage for router demo budget warnings/breaches by cloning the sample snapshot under `tmp_path`,
   mutating category utilisation/headroom to trigger `budget_status` = warning/breach, and validating both
   `build_portfolio_summary` and the CLI JSON output (`tests/test_portfolio_monitor.py` / `tests/test_report_portfolio_summary.py`).
@@ -518,4 +520,4 @@
 
 - [OPS-CODEX-GUIDE] 2025-10-08: Aligned workflow docs with review feedback. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
 ## Next Task
-- Prepare the P2 portfolio evaluation report refresh (sample CLI run, artefact links, pytest/CLI regression check) while planning the first P3 observability automation milestone.
+- Launch [P2-03 Portfolio evaluation regression automation](docs/task_backlog.md#p2-03-portfolio-evaluation-regression-automation) to add deterministic pytest coverage for router snapshot & portfolio summary refresh flows, then sequence P2-04/P2-05 as outlined in [docs/plans/p2_completion_plan.md](docs/plans/p2_completion_plan.md).
