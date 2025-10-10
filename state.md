@@ -3,6 +3,7 @@
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
 - 2026-06-29: Finalised the Phase 3 detailed design review by specifying latency archive manifest schema, automation sequence persistence, and dashboard export locking semantics in `docs/phase3_detailed_design.md`, and logged the readiness in `docs/task_backlog.md`. Docs-only updates; no tests were run.
+- 2026-06-28: Produced the Phase 3 observability automation DoD checklist (`docs/checklists/p3_observability_automation.md`) capturing CLI feature gates, automation logging/retention contracts, validation commands, and documentation touchpoints, and synced `docs/task_backlog.md` with the new checklist anchor. Docs-only change; tests not run.
 - 2026-06-28: Conducted a senior-level review of `docs/phase3_detailed_design.md`, clarifying scheduler/CLI boundaries, logging schema, heartbeat safeguards, and expanded test/release requirements. Docs-only update; no tests were run.
 - 2026-06-28: Authored the Phase 3 detailed design specification (`docs/phase3_detailed_design.md`) capturing CLI flag expansions, dataset contracts, logging/heartbeat conventions, and test strategy. Synced `docs/task_backlog.md` / `docs/todo_next.md` with the new artefact. Docs-only change; no tests required.
 - 2026-06-27: Reviewed the Day ORB basic design doc to align it with current manifests—documented EV warmup/calibration paths, dynamic threshold adjustments, and refreshed risk guard notes (daily DD 5%, warmup 50). Docs-only change; no tests were required.
@@ -538,4 +539,4 @@
 
 - [OPS-CODEX-GUIDE] 2025-10-08: Aligned workflow docs with review feedback. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
 ## Next Task
-- Produce the P3 observability automation DoD checklist (`docs/checklists/p3_observability_automation.md`), capturing CLI implementation gates, pytest coverage, and runbook updates so development can begin with acceptance criteria in place.
+- Kick off P3 observability automation implementation by delivering the shared automation scaffolding (`scripts/_automation_logging.py`, `scripts/_automation_context.py`, and `run_daily_workflow.py --observability` chaining), including initial pytest coverage and documentation updates referenced in the new DoD checklist.
