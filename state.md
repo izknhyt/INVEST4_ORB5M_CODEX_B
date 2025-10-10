@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-06-25: Revalidated the P2-04 dataset maintenance DoD by ensuring router demo sample rotation docs link back to validation logs (`docs/checklists/p2_portfolio_evaluation.md`, `docs/task_backlog.md`), confirming the evidence anchors in `docs/todo_next_archive.md` and updating this state log.
 - 2026-06-24: Extended `docs/checklists/p2_portfolio_evaluation.md` with the router snapshot CLI regression pytest command, troubleshooting guidance for budget warning/breach reproduction issues, and a post-regression artefact sharing checkpoint.
 - 2026-06-24: Reviewed P2-03 portfolio evaluation regression automation deliverables, revalidated documentation pointers (`docs/logic_overview.md`, `docs/observability_dashboard.md`, checklist troubleshooting notes), and reran `python3 -m pytest` to confirm router snapshot / summary warning・breach regressions stay green. Archived the todo entry and synced backlog/state anchors.
 - 2026-06-23: Refined portfolio monitoring docs by adding explicit reproduction commands (`python3 scripts/build_router_snapshot.py` / `python3 scripts/report_portfolio_summary.py`), expected artefact locations, and review checkpoints that link to `runs/router_pipeline/latest/` と `reports/portfolio_summary.json`。
