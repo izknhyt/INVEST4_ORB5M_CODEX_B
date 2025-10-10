@@ -17,7 +17,7 @@
 
 ### In Progress
 
-- [P3 Observability automation kickoff](./task_backlog.md#p3-観測性・レポート自動化) — `docs/plans/p2_completion_plan.md` のクローズ状況を反映しつつ、シグナルレイテンシ監視・週次レポート・ダッシュボード輸出のマイルストーン/テレメトリ要件を洗い出す。初回アウトプットはレイテンシサンプリング頻度と Webhook ペイロード項目の整理メモ。
+- [P3 Observability automation kickoff](./task_backlog.md#p3-観測性・レポート自動化) — `docs/plans/p3_observability_automation.md` にフェーズ3オートメーションのスコープ/前提/インターフェース要件を集約済み。次ステップ: CLI 拡張仕様の詳細化、チェックリスト整備、state runbook 更新、ストレージ運用合意を準備。
 
 ### On Hold
 
