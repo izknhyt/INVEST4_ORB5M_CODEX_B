@@ -50,6 +50,19 @@ def _prepare_snapshot(tmp_path: Path) -> Tuple[Path, Dict[str, str]]:
     return snapshot_dir, sentinel_names
 
 
+def _update_snapshot_telemetry(
+    snapshot_dir: Path,
+    *,
+    utilisation_updates: Dict[str, float],
+    headroom_updates: Dict[str, float],
+) -> None:
+    telemetry_path = snapshot_dir / "telemetry.json"
+    payload = json.loads(telemetry_path.read_text(encoding="utf-8"))
+    payload.setdefault("category_utilisation_pct", {}).update(utilisation_updates)
+    payload.setdefault("category_budget_headroom_pct", {}).update(headroom_updates)
+    telemetry_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
 @pytest.mark.parametrize("base_dir", [FIXTURE_DIR])
 def test_build_portfolio_summary_returns_expected_sections(base_dir: Path) -> None:
     summary = build_portfolio_summary(base_dir)
@@ -123,3 +136,27 @@ def test_portfolio_summary_resolves_relative_manifest(
     script_summary = json.loads(output_path.read_text(encoding="utf-8"))
     script_resolved = {item["manifest_id"]: item["name"] for item in script_summary["strategies"]}
     assert script_resolved == sentinel_names
+
+
+def test_build_portfolio_summary_reports_budget_status(tmp_path: Path) -> None:
+    snapshot_dir, _ = _prepare_snapshot(tmp_path)
+    _update_snapshot_telemetry(
+        snapshot_dir,
+        utilisation_updates={"day": 31.0, "scalping": 16.0},
+        headroom_updates={"day": 4.0, "scalping": -1.0},
+    )
+
+    summary = build_portfolio_summary(snapshot_dir)
+    categories = {row["category"]: row for row in summary["category_utilisation"]}
+
+    day_entry = categories["day"]
+    assert day_entry["budget_status"] == "warning"
+    assert 0 < day_entry["budget_headroom_pct"] <= 5.0 + 1e-6
+    assert "budget_over_pct" not in day_entry
+
+    scalping_entry = categories["scalping"]
+    assert scalping_entry["budget_status"] == "breach"
+    assert scalping_entry["budget_headroom_pct"] < 0
+    assert scalping_entry["budget_over_pct"] == pytest.approx(
+        abs(scalping_entry["budget_headroom_pct"])
+    )

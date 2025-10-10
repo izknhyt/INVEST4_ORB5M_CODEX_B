@@ -1,4 +1,5 @@
 import json
+import shutil
 import statistics
 import subprocess
 import sys
@@ -9,6 +10,7 @@ import pytest
 
 DAY_MANIFEST = Path("configs/strategies/day_orb_5m.yaml")
 SCALPING_MANIFEST = Path("configs/strategies/tokyo_micro_mean_reversion.yaml")
+ROUTER_SAMPLE_DIR = Path("reports/portfolio_samples/router_demo")
 
 
 def _write_metrics(path: Path, payload: dict) -> None:
@@ -22,6 +24,33 @@ def _compute_expected_correlation(values_a, values_b) -> float:
     returns_a = [values_a[i] - values_a[i - 1] for i in range(1, len(values_a))]
     returns_b = [values_b[i] - values_b[i - 1] for i in range(1, len(values_b))]
     return statistics.correlation(returns_a, returns_b)
+
+
+def _prepare_router_sample(tmp_path: Path) -> Path:
+    repo_root = Path(__file__).resolve().parents[1]
+    sample_dir = repo_root / ROUTER_SAMPLE_DIR
+    snapshot_dir = tmp_path / "snapshot"
+    shutil.copytree(sample_dir, snapshot_dir)
+
+    metrics_dir = snapshot_dir / "metrics"
+    for metrics_file in metrics_dir.glob("*.json"):
+        payload = json.loads(metrics_file.read_text(encoding="utf-8"))
+        manifest_relative = Path(payload["manifest_path"])
+        manifest_src = repo_root / manifest_relative
+        manifest_dest = metrics_file.parent / manifest_relative
+        manifest_dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(manifest_src, manifest_dest)
+    return snapshot_dir
+
+
+def _mutate_budget_headroom(snapshot_dir: Path) -> None:
+    telemetry_path = snapshot_dir / "telemetry.json"
+    payload = json.loads(telemetry_path.read_text(encoding="utf-8"))
+    payload["category_utilisation_pct"]["day"] = 31.0
+    payload["category_utilisation_pct"]["scalping"] = 16.0
+    payload["category_budget_headroom_pct"]["day"] = 4.0
+    payload["category_budget_headroom_pct"]["scalping"] = -1.0
+    telemetry_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
 def test_build_router_snapshot_cli_generates_portfolio_summary(tmp_path: Path) -> None:
@@ -189,3 +218,40 @@ def test_build_router_snapshot_help_lists_correlation_window_flag() -> None:
         text=True,
     )
     assert "--correlation-window-minutes" in result.stdout
+
+
+def test_report_portfolio_summary_cli_budget_status(tmp_path: Path) -> None:
+    snapshot_dir = _prepare_router_sample(tmp_path)
+    _mutate_budget_headroom(snapshot_dir)
+
+    output_path = tmp_path / "summary.json"
+    subprocess.run(
+        [
+            sys.executable,
+            "scripts/report_portfolio_summary.py",
+            "--input",
+            str(snapshot_dir),
+            "--output",
+            str(output_path),
+            "--indent",
+            "2",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    summary = json.loads(output_path.read_text(encoding="utf-8"))
+    categories = {row["category"]: row for row in summary["category_utilisation"]}
+
+    day_entry = categories["day"]
+    assert day_entry["budget_status"] == "warning"
+    assert 0 < day_entry["budget_headroom_pct"] <= 5.0 + 1e-6
+    assert "budget_over_pct" not in day_entry
+
+    scalping_entry = categories["scalping"]
+    assert scalping_entry["budget_status"] == "breach"
+    assert scalping_entry["budget_headroom_pct"] < 0
+    assert scalping_entry["budget_over_pct"] == pytest.approx(
+        abs(scalping_entry["budget_headroom_pct"])
+    )
