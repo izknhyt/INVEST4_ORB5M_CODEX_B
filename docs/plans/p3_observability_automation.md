@@ -2,6 +2,13 @@
 
 > Cross-reference: [docs/task_backlog.md#p3-観測性・レポート自動化](../task_backlog.md#p3-観測性・レポート自動化)
 
+## Executive Summary
+
+- **Objective**: Convert the manually reviewed Phase 2 telemetry flows into repeatable automation that samples signal latency, publishes weekly health payloads, and refreshes dashboard datasets without human intervention.
+- **Definition of Done (DoD)**: Schedulers call into hardened CLIs with schema validation, automated alerting, retention/rotation policies, and documented runbook hooks for every dataset or webhook referenced here. Observability oncall can recover from failures using only the automation logs and referenced checklists.
+- **Key Dependencies**: Stable router demo datasets, access to webhook secrets, storage locations for dataset bundles, and pytest coverage for cadence logic/schema validation.
+- **Primary Deliverables**: CLI extensions (cadence flags, manifest outputs), automation run logs, JSON schemas, updated runbooks/checklists, and coordination artifacts with analytics engineering.
+
 ## Context Inventory
 - **Existing deliverables**
   - `scripts/analyze_signal_latency.py` captures point-in-time latency measurements with cron-ready defaults referenced in `docs/progress_phase3.md`.
@@ -19,6 +26,15 @@
 ## Scope
 - **In scope**: Scheduling, interfaces, and validation checkpoints required to automate Phase 3 telemetry sampling, weekly reporting, and dashboard dataset exports.
 - **Out of scope**: Implementation of new CLI features, UI visualisations, or third-party integrations beyond the documented interfaces; production credential management and infrastructure-as-code provisioning.
+
+### Preconditions & Dependencies
+
+| Area | Requirement | Validation Hook |
+| --- | --- | --- |
+| Data inputs | `runs/index.csv`, router demo telemetry, and state archives are refreshed at least daily and remain backward compatible. | Nightly `scripts/build_router_snapshot.py` / `scripts/report_portfolio_summary.py` dry-run log archived in `runs/router_pipeline/latest/README.md` (to be created). |
+| Secrets | `OBS_WEEKLY_WEBHOOK_URL` and `OBS_WEBHOOK_SECRET` stored in scheduler secrets store with rotation owner documented in `ops/credentials.md`. | Manual smoke test before go-live, recorded in `docs/checklists/p3_observability_automation.md`. |
+| Storage | Shared storage path for dashboard bundle has write permission for automation account and 60-day retention guard. | Storage acceptance note attached to backlog entry with link to infrastructure ticket. |
+| Test coverage | New pytest modules for cadence logic and schema validation land alongside CLI changes. | CI badge remains green; failures block deployment. |
 
 ## Assumptions
 1. Existing scripts (`analyze_signal_latency`, `summarize_runs`, `export_dashboard_data`) remain the primary automation entrypoints and can be extended without major refactors.
@@ -40,6 +56,12 @@
 - **Storage**: Append measurements to `ops/signal_latency.csv` with rotation when file exceeds 10 MB; archive rotated files under `ops/signal_latency_archive/%Y/%m/`.
 - **Alerting**: When `p95_latency_ms` exceeds `LATENCY_SLO_MS` for two consecutive samples, emit a webhook alert using the weekly report schema’s `alerts` block (see below) with `severity=warning`; escalate to `severity=critical` if three consecutive breaches occur or `status` equals `error`.
 - **Observability contract**: Automation must expose a health endpoint/log summary (stdout JSON) including `samples_written`, `rollups_written`, `breach_count`, and `next_rotation_bytes` for ingestion by higher-level orchestrators.
+
+**Implementation notes**
+
+- Extend `scripts/analyze_signal_latency.py` with `--rollup-retention-days` (default `90`) and `--raw-retention-days` (default `14`) flags so schedulers can tune retention without code edits.
+- Add helper `analysis/latency_rollup.py` (follow-up) or equivalent module to consolidate aggregation logic shared by CLI and pytest fixtures.
+- Emit structured logs with `job_id` and `schedule_trigger` to support traceability across overlapping cron runs.
 
 ### Weekly Report Webhook Payload Schema
 - **Endpoint**: Configurable via `OBS_WEEKLY_WEBHOOK_URL` secret; POST JSON with `Content-Type: application/json`.
@@ -77,6 +99,12 @@
 - **Validation**: Payload must conform to JSON Schema draft 2020-12; missing `alerts` or `attachments` arrays should be serialised as empty lists. Retries: exponential backoff starting at 1 minute, max 5 attempts; log failure with `retry_attempt`, `status_code`, `response_body`.
 - **Security**: Support HMAC-SHA256 signature header `X-OBS-Signature` using shared secret `OBS_WEBHOOK_SECRET`.
 
+**Implementation notes**
+
+- Publish JSON Schema at `schemas/observability_weekly_report.schema.json`; treat the schema version as part of the payload (`schema_version` field) and bump when structure changes.
+- Capture webhook delivery attempts in `ops/automation_runs.log` with entries: `job_id`, `attempt`, `status`, `response_ms`, `status_code`, `error`, `payload_checksum_sha256`.
+- Provide a dry-run mode (`--dry-run-webhook`) that prints payload to stdout and writes to `out/weekly_report/<timestamp>.json` for manual inspection.
+
 ### Dashboard Export Datasets
 - **Required exports**:
   1. **EV history** — Source: `ops/state_archive/<strategy>/<symbol>/<mode>/*`. Fields: `generated_at`, `strategy`, `symbol`, `mode`, `ev_alpha`, `ev_beta`, `ev_decay`, `win_rate_lcb`. Refresh daily at 00:30 UTC.
@@ -85,6 +113,12 @@
   4. **Latency rollups** — Source: aggregated samples appended to `ops/signal_latency_rollup.csv`. Fields: `hour_utc`, `source`, `p50_ms`, `p95_ms`, `breach_flag`. Refresh hourly via same cadence job.
 - **Export contract**: `analysis/export_dashboard_data.py` must accept `--dataset <name>` to emit each dataset individually to `out/dashboard/<dataset>.json` and support a `--manifest out/dashboard/manifest.json` listing dataset versions with `checksum_sha256` and `generated_at`.
 - **Distribution**: Weekly automation copies latest dataset bundle to shared storage with retention of 8 weeks; include metadata file `out/dashboard/README.json` describing refresh timestamps and upstream commands.
+
+**Implementation notes**
+
+- Add dataset-specific validation scripts under `tests/test_dashboard_datasets.py` to assert field presence and value ranges (e.g., turnover `avg_trades_per_day` > 0 when run active days > 0).
+- Version manifest entries with monotonically increasing `sequence` numbers to simplify diffing when checksums differ.
+- Include provenance metadata per dataset (source command, commit hash, upstream artefact path) so downstream analysts can reconstruct context without consulting scheduler logs.
 
 ### Ownership & Escalation Flows
 - **Signal latency pipeline** — Primary owner: Observability Oncall (trading ops). Secondary: Data Engineering. Escalation: warning alerts notify oncall Slack channel; critical alerts trigger PagerDuty within 5 minutes. Runbook: `docs/state_runbook.md#signal-latency` (to be added).
@@ -97,6 +131,23 @@
 - **Runtime health**: Nightly job executes `python3 -m pytest tests/test_observability_automation.py` (to be created) covering payload schema, latency breach logic, and export manifests.
 - **Manual verification**: Weekly checklist ensures webhook payload matches schema (validate via `jsonschema`), dataset checksums align with manifest, and latency rollups show no missing hours. Document results in `docs/checklists/p3_observability_automation.md` (follow-up).
 - **Audit trail**: Automation must log execution metadata (`job_id`, `started_at`, `completed_at`, `status`, `artefacts`) to `ops/automation_runs.log`; a monthly review verifies log retention and SLO compliance.
+
+### Implementation Milestones
+
+| Milestone | Description | Exit Criteria | Owner |
+| --- | --- | --- | --- |
+| M1 – CLI Hardening | Land retention flags, schema emission, and structured logging changes. | PR merged with passing pytest + schema artefacts committed. | Research Ops |
+| M2 – Scheduler Dry Runs | Configure cron/CI jobs in dry-run mode, verifying secrets, storage permissions, and artefact generation. | Dry-run payload + dataset bundle stored under `out/` with checklist sign-off. | Observability Oncall |
+| M3 – Production Cutover | Enable live webhook + storage replication, rotate initial logs into `ops/automation_runs.log`. | First week of automation completes without manual intervention; weekly checklist archived. | Observability Oncall & Analytics Eng. |
+| M4 – Post-launch Review | Assess SLO adherence, update dashboard/runbook anchors, file follow-up issues. | Retrospective doc added to `docs/progress_phase3.md`, backlog updated with residual tasks. | Cross-functional (Ops + Analytics) |
+
+### Risk Register
+
+| Risk | Impact | Mitigation | Contingency |
+| --- | --- | --- | --- |
+| Latency job overlap causing duplicate writes | Elevated false breach counts, CSV corruption | Use file lock + `job_id` guard; cron spacing with 1-minute buffer | Auto-prune duplicate rows in nightly maintenance script, alert via checklist |
+| Webhook secret rotation unsynchronised | Failed weekly payload delivery | Document rotation window + oncall notification in `docs/state_runbook.md` | Fallback to email summary using dry-run payload until secret restored |
+| Dashboard dataset schema drift | Downstream notebooks fail | Versioned manifest + pytest contract tests | Rollback to last successful bundle stored under retention policy |
 
 ## Follow-up Actions
 1. Draft detailed CLI design updates for cadence controls (`--rollup-retention-days`, webhook retries, dataset manifests).
