@@ -184,13 +184,14 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - **Notes**: router snapshot CLI の `--manifest-run` を最新サンプルへ揃え、旧世代 artefact を適切にアーカイブする。
 - 2026-06-20: `docs/checklists/p2_portfolio_evaluation.md` に Router demo ローテーション手順と保持ポリシーを追加し、`scripts/validate_portfolio_samples.py` を実装。`python3 scripts/validate_portfolio_samples.py --samples-dir reports/portfolio_samples/router_demo --manifest configs/strategies/day_orb_5m.yaml --manifest configs/strategies/tokyo_micro_mean_reversion.yaml` で manifest 一致・テレメトリ整合性・エクイティカーブ形式を検証できることを確認。`tests/test_validate_portfolio_samples.py` を追加し、pytest から CLI ガードがカバーされるようにした。
 
-### P2-05 Portfolio review hand-off package
+### ~~P2-05 Portfolio review hand-off package~~ ✅ (2026-06-22 クローズ)
 - **DoD**:
   - `docs/progress_phase2.md` などで回帰テスト・サンプル artefact・運用チェックリストをまとめたレビューパッケージを提供する。
   - `docs/todo_next.md` / `docs/todo_next_archive.md` / `state.md` を同期し、P2 完了時の再現コマンドと結果を記録する。
   - PR サマリで主要指標（予算ステータス、相関窓幅、ドローダウン）を日本語で要約できるようにする。
 - **Notes**: P2-03 / P2-04 完了後に着手し、追加課題が見つかった場合は P3 へエスカレーションする。
 - 2026-06-21: Authored the reviewer hand-off bundle in `docs/progress_phase2.md#p2-レビューハンドオフパッケージ`, linked the DoD checklist reference, and initiated documentation/state alignment ahead of the closing summary。
+- 2026-06-22: Locked the reviewer bundle by recording fixed-budget/correlation/drawdown targets and a Japanese PR summary template in `docs/progress_phase2.md`, synced `docs/todo_next*.md` / `state.md`, and archived the backlog entry for hand-off.
 ### ~~P2-MS マルチ戦略比較バリデーション~~ ✅ (2026-02-13 クローズ)
 - Day ORB と Mean Reversion (`strategies/mean_reversion.py`) を同一 CSV で走らせ、`docs/checklists/multi_strategy_validation.md` に沿ってゲート通過数・EV リジェクト数・期待値差をレビュー。DoD: チェックリストの全項目を完了し、比較サマリをレビュー用ドキュメントへ共有する。
   - 2025-12-02: Mean Reversion 戦略の本実装を `strategies/mean_reversion.py` へ移行し、`configs/strategies/mean_reversion.yaml` / `configs/ev_profiles/mean_reversion.yaml` を整備。`analysis/broker_fills.ipynb` を公開してブローカー別比較を Notebook でも検証可能にし、`tests/test_mean_reversion_strategy.py` を追加してゲート・EV 調整ロジックの回帰を確保。

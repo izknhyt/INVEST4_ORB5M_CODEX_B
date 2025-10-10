@@ -18,7 +18,6 @@
 ### In Progress
 
 
-- [P2-05 Portfolio review hand-off package](./task_backlog.md#p2-05-portfolio-review-hand-off-package) — Build the reviewer bundle, sync backlog/todo/state docs, and draft the Japanese PR summary narrative.
 
 ### On Hold
 
