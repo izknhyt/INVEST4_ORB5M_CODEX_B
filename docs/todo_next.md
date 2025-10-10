@@ -18,13 +18,13 @@
 ### In Progress
 
 
+- [P2-05 Portfolio review hand-off package](./task_backlog.md#p2-05-portfolio-review-hand-off-package) — Build the reviewer bundle, sync backlog/todo/state docs, and draft the Japanese PR summary narrative.
+
 ### On Hold
 
 - Monitor for the first production `data_quality_failure` alert to validate the acknowledgement workflow once live signals begin flowing. (P0 ops loop paused until production data triggers an alert.)
 ### Ready
 
-- [P2-04 Portfolio dataset maintenance & rotation](./task_backlog.md#p2-04-portfolio-dataset-maintenance--rotation) — Define sample metric rotation rules and validation tooling so curated artefacts stay review-ready.
-- [P2-05 Portfolio review hand-off package](./task_backlog.md#p2-05-portfolio-review-hand-off-package) — Compile the reviewer bundle, sync docs/todo/state, and prepare the closing summary for P2.
 - [P3 Observability automation kickoff](./task_backlog.md#p3-観測性・レポート自動化) — Define scope for initial automation (signal latency sampling cadence, weekly report webhook payload sketch, dashboard data export checklist) so implementation can start once P2 deliverables stabilise.
 
 
