@@ -54,6 +54,25 @@ and document the final review workflow so the phase can be signed off confidentl
 2. Proceed to P2-04 so curated datasets remain trustworthy between reviews.
 3. Close with P2-05 to deliver the hand-off package and formally mark the P2 initiative complete.
 
+## Closure Status (2026-06-26)
+- ✅ **P2-03 regression automation** — Warning/breach fixtures are locked in `tests/test_report_portfolio_summary.py` and
+  `tests/test_portfolio_monitor.py`, with reviewer guidance captured in `docs/checklists/p2_portfolio_evaluation.md` and
+  `docs/observability_dashboard.md`.
+- ✅ **P2-04 dataset maintenance** — Rotation workflow, retention rules, and the
+  `scripts/validate_portfolio_samples.py` guard are live with logs anchored in `docs/todo_next_archive.md` and
+  `state.md`.
+- ✅ **P2-05 reviewer hand-off** — The reviewer bundle in `docs/progress_phase2.md` links fixed artefacts, commands,
+  and Japanese PR summary guidance, keeping backlog/todo/state entries in sync.
+
+### Readiness for P3 Observability automation
+- Preconditions for P3 have been met: curated artefacts, regression coverage, and review documentation all reference the
+  same router demo snapshot and validation commands.
+- Scope refinement now shifts to detailing the automation milestones for signal latency monitoring, weekly report
+  generation, and dashboard data exports. These work items remain tracked under
+  [docs/task_backlog.md#p3-観測性・レポート自動化](../task_backlog.md#p3-観測性・レポート自動化).
+- Next actions: capture latency sampling cadence options, outline webhook payload fields, and identify required
+  telemetry tables so implementation can start without blocking on design clarifications.
+
 ## Testing Expectations
 - Each task must keep `python3 -m pytest` green and include any targeted CLI runs.
 - Artefact refresh commands should be runnable from repo root without additional environment variables.

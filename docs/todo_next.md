@@ -17,14 +17,13 @@
 
 ### In Progress
 
-
+- [P3 Observability automation kickoff](./task_backlog.md#p3-観測性・レポート自動化) — `docs/plans/p2_completion_plan.md` のクローズ状況を反映しつつ、シグナルレイテンシ監視・週次レポート・ダッシュボード輸出のマイルストーン/テレメトリ要件を洗い出す。初回アウトプットはレイテンシサンプリング頻度と Webhook ペイロード項目の整理メモ。
 
 ### On Hold
 
 - Monitor for the first production `data_quality_failure` alert to validate the acknowledgement workflow once live signals begin flowing. (P0 ops loop paused until production data triggers an alert.)
 ### Ready
 
-- [P3 Observability automation kickoff](./task_backlog.md#p3-観測性・レポート自動化) — Define scope for initial automation (signal latency sampling cadence, weekly report webhook payload sketch, dashboard data export checklist) so implementation can start once P2 deliverables stabilise.
 
 
 

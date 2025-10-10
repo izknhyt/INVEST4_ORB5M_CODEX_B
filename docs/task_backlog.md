@@ -177,13 +177,14 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2026-06-19: router demo メトリクスを入力に `tests/test_report_portfolio_summary.py::test_build_router_snapshot_cli_uses_router_demo_metrics` を追加し、`tests/test_portfolio_monitor.py::test_build_portfolio_summary_reports_budget_status` / `tests/test_report_portfolio_summary.py::test_report_portfolio_summary_cli_budget_status` と併せて CLI ワークフローの warning/breach 回帰を固定。`docs/logic_overview.md` / `docs/observability_dashboard.md` に pytest コマンドを追記し、チェックリストへトラブルシュート手順を追加した。
 - 2026-06-24: レビューで CLI 回帰テストを再実行し、`docs/todo_next.md` → `docs/todo_next_archive.md` / `state.md` を同期して P2-03 を正式にクローズした (`python3 -m pytest`).
 
-### P2-04 Portfolio dataset maintenance & rotation
+### ~~P2-04 Portfolio dataset maintenance & rotation~~ ✅ (2026-06-20 クローズ)
 - **DoD**:
   - `reports/portfolio_samples/router_demo/` の更新手順（保持世代・最終更新ログ）を文書化する。
   - サンプルメトリクスと manifest の整合性を検証するスクリプトまたは CLI オプションを用意する。
   - バックログへ更新記録と検証手順を残し、`docs/checklists/p2_portfolio_evaluation.md` から参照できるようにする。
 - **Notes**: router snapshot CLI の `--manifest-run` を最新サンプルへ揃え、旧世代 artefact を適切にアーカイブする。
 - 2026-06-20: `docs/checklists/p2_portfolio_evaluation.md` に Router demo ローテーション手順と保持ポリシーを追加し、`scripts/validate_portfolio_samples.py` を実装。`python3 scripts/validate_portfolio_samples.py --samples-dir reports/portfolio_samples/router_demo --manifest configs/strategies/day_orb_5m.yaml --manifest configs/strategies/tokyo_micro_mean_reversion.yaml` で manifest 一致・テレメトリ整合性・エクイティカーブ形式を検証できることを確認。`tests/test_validate_portfolio_samples.py` を追加し、pytest から CLI ガードがカバーされるようにした。検証ログは [docs/todo_next_archive.md#portfolio-dataset-maintenance--rotation](./todo_next_archive.md#portfolio-dataset-maintenance--rotation) と `state.md` で追跡。
+- 2026-06-26: 再レビューでローテーション手順・検証スクリプト・バックログ参照が最新であることを確認し、P3 観測性オートメーションへ移行できる状態を記録。
 
 ### ~~P2-05 Portfolio review hand-off package~~ ✅ (2026-06-22 クローズ)
 - **DoD**:
@@ -204,6 +205,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - 2026-04-16: `scripts/summarize_runs.py` を通知ペイロード生成フローに刷新し、`--config` での include/宛先制御と Webhook ドライランを追加。`docs/benchmark_runbook.md` に運用手順を記載し、`tests/test_summarize_runs.py` で集計精度と Webhook ペイロードを回帰テスト化。
 - **ダッシュボード整備**: EV 推移、滑り推定、勝率 LCB、ターンオーバーの KPI を 1 つの Notebook or BI に集約し、運用判断を迅速化。
   - 2026-06-15: Kickoff scope drafted—define telemetry refresh cadence, weekly summary payload template, and dashboard data export checklist once P2 reporting refresh is stable.
+  - 2026-06-26: P2-03〜P2-05 の DoD を再確認し、`docs/plans/p2_completion_plan.md` のクローズ条件と `docs/progress_phase2.md` のレビューパッケージ整合性を点検済み。次ステップはシグナルレイテンシ監視と週次レポート自動化の実装計画細分化。
 
 ## 継続タスク / 保守
 - データスキーマ検証 (`scripts/check_data_quality.py`) を cron 化し、異常リストを `analysis/data_quality.md` に追記。
