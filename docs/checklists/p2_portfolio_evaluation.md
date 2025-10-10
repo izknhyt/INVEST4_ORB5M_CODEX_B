@@ -16,12 +16,20 @@
 - [ ] ルーター snapshot を再生成する CLI 例（`python3 scripts/build_router_snapshot.py ... --correlation-window-minutes 240 --indent 2`）と成果物パス（`runs/router_pipeline/latest/telemetry.json`, `runs/router_pipeline/latest/metrics/*.json`）をドキュメントへ追記した。
 - [ ] `python3 scripts/report_portfolio_summary.py --input runs/router_pipeline/latest --output reports/portfolio_summary.json --indent 2` を実行し、`budget_status` / `budget_over_pct` / `correlation_window_minutes` / `drawdowns` をレビューしたログを残した。
 - [ ] `docs/logic_overview.md` と `docs/observability_dashboard.md` に最新の CLI 例・レビューすべきフィールド・成果物リンクを追記した。
-- [ ] `python3 -m pytest tests/test_portfolio_monitor.py::test_build_portfolio_summary_reports_budget_status tests/test_report_portfolio_summary.py::test_build_router_snapshot_cli_uses_router_demo_metrics tests/test_report_portfolio_summary.py::test_report_portfolio_summary_cli_budget_status` を実行し、warning/breach の分岐が再現されることと、失敗時のトラブルシュート手順（サンプルメトリクス欠損・manifest 位置ズレなど）を記録した。
+- [ ] 予算 warning/breach 回帰テストを実行し、分岐の再現ログと検証メモを残した。
+  - `python3 -m pytest tests/test_portfolio_monitor.py::test_build_portfolio_summary_reports_budget_status tests/test_report_portfolio_summary.py::test_build_router_snapshot_cli_uses_router_demo_metrics tests/test_report_portfolio_summary.py::test_report_portfolio_summary_cli_budget_status`
+  - `python3 -m pytest tests/test_report_portfolio_summary.py::test_build_router_snapshot_cli_uses_router_demo_metrics`
+  - 再現できない場合のトラブルシュート:
+    - サンプルメトリクス（`reports/portfolio_samples/router_demo/metrics/*.json`）と `configs/strategies/*.yaml` の manifest 名称が pytest で参照するキーと一致しているかを突き合わせる。
+    - `runs/router_pipeline/latest/telemetry.json` を開き、`budget_status` / `budget_over_pct` / `headroom` の値が Day ORB / Tokyo Micro それぞれ期待する warning/breach 状態になっているか確認する。
+    - CLI で再生成した `runs/router_pipeline/latest/metrics/*.json` とテストフィクスチャが指すパスに差分が無いか `git status` や `python3 scripts/report_portfolio_summary.py --input runs/router_pipeline/latest --indent 2` の出力で検証する。
+    - `python3 scripts/build_router_snapshot.py --output runs/router_pipeline/latest --manifest configs/strategies/day_orb_5m.yaml --manifest configs/strategies/tokyo_micro_mean_reversion.yaml --manifest-run day_orb_5m_v1=<最新 metrics パス> --manifest-run tokyo_micro_mean_reversion_v0=<最新 metrics パス> --positions day_orb_5m_v1=1 --positions tokyo_micro_mean_reversion_v0=2 --correlation-window-minutes 240 --indent 2` を再実行し、`runs/router_pipeline/latest/telemetry.json` の更新時刻と JSON 内容が pytest 実行時刻と揃っているかを確認する。
 - [ ] `docs/task_backlog.md` の P2 セクションへ完了メモと生成日を追記し、`docs/todo_next.md` → `docs/todo_next_archive.md` への同期、および `state.md` ログ更新を完了した。
 - [ ] 成果物 (`runs/router_pipeline/latest/*`, `reports/portfolio_summary.json`) とドキュメント更新を同一コミットで反映した。
 - [ ] `python3 -m pytest` を実行し、テスト結果を PR / ログに記録した。
 - [ ] コマンド出力・パス・検証状況を `state.md` と関連ドキュメントにエビデンスとして残した。
 - [ ] P2 レビュー用のまとめ（`docs/progress_phase2.md#p2-レビューハンドオフパッケージ`）へ再現コマンドと成果物リンクを反映し、レビュワーが単独で検証できることを確認した。
+- [ ] 回帰スイート完了後、`runs/router_pipeline/latest/*` や `reports/portfolio_summary.json`、pytest ログなどの成果物リンクをレビュワーへ共有し、共有先と日時を記録した。
 
 ## Router demo サンプル保守ログ (P2-04)
 
