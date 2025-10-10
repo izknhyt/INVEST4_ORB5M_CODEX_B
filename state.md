@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-06-29: Finalised the Phase 3 detailed design review by specifying latency archive manifest schema, automation sequence persistence, and dashboard export locking semantics in `docs/phase3_detailed_design.md`, and logged the readiness in `docs/task_backlog.md`. Docs-only updates; no tests were run.
 - 2026-06-28: Conducted a senior-level review of `docs/phase3_detailed_design.md`, clarifying scheduler/CLI boundaries, logging schema, heartbeat safeguards, and expanded test/release requirements. Docs-only update; no tests were run.
 - 2026-06-28: Authored the Phase 3 detailed design specification (`docs/phase3_detailed_design.md`) capturing CLI flag expansions, dataset contracts, logging/heartbeat conventions, and test strategy. Synced `docs/task_backlog.md` / `docs/todo_next.md` with the new artefact. Docs-only change; no tests required.
 - 2026-06-27: Reviewed the Day ORB basic design doc to align it with current manifests—documented EV warmup/calibration paths, dynamic threshold adjustments, and refreshed risk guard notes (daily DD 5%, warmup 50). Docs-only change; no tests were required.

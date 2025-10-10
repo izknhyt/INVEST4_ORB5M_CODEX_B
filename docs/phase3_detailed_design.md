@@ -62,8 +62,8 @@
     - `--alert-config configs/observability/latency_alert.yaml` — SLOしきい値、連続違反カウント、Webhook再試行回数を定義。
   - 実行手順
     1. ロック取得 (`fcntl.flock` or portal util)。保持できない場合は `status="skipped"`, `reason="lock_not_acquired"` をログして即終了。
-    2. `ops/signal_latency.csv` へ追記。ファイルサイズ > 10MB で `ops/signal_latency_archive/YYYY/MM/<job_id>.csv` へ回転。回転時は `gzip` 圧縮し、manifest に格納する。
-    3. ロールアップ生成: `analysis.latency_rollup.aggregate(samples, window="1H")`。引数は `Iterable[LatencySample]`、戻り値は `List[LatencyRollup]`。
+    2. `ops/signal_latency.csv` へ追記。書き込み前に `--raw-retention-days` の日数より古い行を drop し、ファイルサイズ > 10MB で `ops/signal_latency_archive/YYYY/MM/<job_id>.csv` へ回転。回転時は `gzip` 圧縮し、`ops/signal_latency_archive/manifest.jsonl` に `{ "job_id": ..., "path": ..., "sha256": ..., "row_count": ... }` を追記する。manifest は 1 行 JSON 形式で、`schemas/signal_latency_archive.schema.json` で検証する。
+    3. ロールアップ生成: `analysis.latency_rollup.aggregate(samples, window="1H")`。引数は `Iterable[LatencySample]`、戻り値は `List[LatencyRollup]`。生成後に `--rollup-retention-days` より古い行を削除し、`ops/signal_latency_rollup.csv` を一時ファイル→`os.replace` で原子的に更新する。
     4. SLO評価: `p95_latency_ms > threshold` が連続 `N` 回なら `alerts.append(...)`。`alerts` には `severity`, `breach_range`, `evidence_path` を含める。
     5. `alerts` が存在する場合は週次Webhookスキーマ互換の alert payload を生成し、`ops/automation_runs.log` に `alerts` ブロックを記録。`alerts` が空でも `breach_streak` を 0 にリセットする。
     6. 終了時にヘルスサマリー JSON を stdout へ出力 (`samples_written`, `rollups_written`, `breach_count`, `breach_streak`, `next_rotation_bytes`, `lock_latency_ms`)。
@@ -120,11 +120,11 @@
     - `--heartbeat-file ops/dashboard_export_heartbeat.json` — 成功後に状態を書き込み。
     - `--upload-command` (オプション) — 共有ストレージへの転送コマンドを subprocess 経由で起動。
   - データセット要件
-    1. **EV history**: `ops/state_archive/**` から最新N件を抽出。`strategy`, `symbol`, `ev_alpha`, `ev_beta`, `win_rate_lcb`。
+    1. **EV history**: `ops/state_archive/**` から最新N件 (`--ev-history-limit` 既定=32) を抽出。`strategy`, `symbol`, `ev_alpha`, `ev_beta`, `win_rate_lcb`。
     2. **Slippage telemetry**: `reports/portfolio_samples/router_demo/telemetry.json` を読み、`slippage_bps`, `fill_count`, `window_days` を保持。
     3. **Turnover summary**: `runs/index.csv` + `runs/<id>/daily.csv` で `avg_trades_per_day`, `drawdown_pct` を算出。
     4. **Latency rollups**: `ops/signal_latency_rollup.csv` を1時間単位で整形。
-  - 出力は `out/dashboard/<dataset>.json` とし、manifest に `sequence`, `generated_at`, `checksum_sha256`, `row_count` を記録。`sequence` は `manifest` 既存値 +1 で連番を保証する。
+  - 出力は `out/dashboard/<dataset>.json` とし、manifest に `sequence`, `generated_at`, `checksum_sha256`, `row_count` を記録。`sequence` は `manifest` 既存値 +1 で連番を保証する。更新は `tmp_manifest` を生成してから `os.replace` で差し替え、`fcntl` ロックを取って排他する。
   - 8週間の履歴を `ops/dashboard_export_history/` に保持し、古いファイルを削除。削除前に `ops/dashboard_export_archive_manifest.json` に記録する。
   - `--upload-command` が指定された場合は `subprocess.run` で実行し、`returncode != 0` なら `status="error"`, `error_code="upload_failed"` を設定。
   - `--provenance` が未指定でも `AutomationContext` から `command`, `commit_sha`, `inputs` を自動補完する。
@@ -150,6 +150,7 @@
 |  | `attempts` | int | 再試行回数。 |
 |  | `artefacts` | array | 出力パス一覧。 |
 |  | `diagnostics` | object | `error_code`, `error_message`, `retry_after` 等。 |
+| `ops/automation_runs.sequence` | `value` | int | 直近で発行した `sequence` 番号。原子的に更新。 |
 | `ops/weekly_report_history/*.json` | `schema_version` | string | JSON Schema バージョン。 |
 |  | `alerts` | array | 違反サマリー (`id`, `severity`, `message`, `evidence_url`)。 |
 |  | `payload_checksum_sha256` | string | Payload のチェックサム。 |
@@ -157,6 +158,10 @@
 |  | `sequence` | int | 連番。 |
 |  | `checksum_sha256` | string | 出力ファイルのハッシュ。 |
 |  | `row_count` | int | 出力レコード数。 |
+| `ops/signal_latency_archive/manifest.jsonl` | `job_id` | string | アーカイブファイルの生成ジョブ ID。 |
+|  | `path` | string | gzip されたアーカイブファイルへの相対パス。 |
+|  | `sha256` | string | アーカイブファイルのハッシュ。 |
+|  | `row_count` | int | アーカイブへ退避したサンプル数。 |
 
 ### 5.2 JSON Schema (ダイジェスト)
 - `schemas/observability_weekly_report.schema.json`
@@ -170,12 +175,16 @@
   - `datasets`: array of objects with `dataset`, `sequence`, `generated_at`, `checksum_sha256`, `row_count`, `source_hash`。
   - `provenance`: object storing `command`, `commit_sha`, `inputs` (array of path strings)。`inputs` は minItems=1。
   - `heartbeat`: object optional, `last_success_at`, `last_failure`。
+- `schemas/signal_latency_archive.schema.json`
+  - `job_id`: string (`^[0-9TZ:-]+-latency$`)
+  - `path`: string (relative path, `.csv.gz` suffix required)。
+  - `sha256`: string (`^[a-f0-9]{64}$`)、`row_count`: integer (minimum 1)。
 
 ## 6. ロギング & モニタリング
 - `scripts/_automation_logging.py`
   - `log_automation_event(job_id, status, **kwargs)` → 1 行 JSON を `ops/automation_runs.log` に追記。`fcntl` ロックで排他し、書き込み前に JSON Schema (`schemas/automation_run.schema.json`) をチェックする。
   - 代表例: `{ "job_id": "20260627T0030Z-latency", "status": "ok", "duration_ms": 3100, "attempts": 1, "artefacts": ["ops/signal_latency.csv"], "alerts": [], "diagnostics": {"config_version": "2026-06-27"} }`
-  - `log_automation_event_with_sequence` を提供し、連番欠損時に `status="warning"`, `error_code="sequence_gap"` を出力してオペレーターへ通知できるようにする。
+  - `log_automation_event_with_sequence` を提供し、`ops/automation_runs.sequence` に保持する最終 sequence 番号を読み出して +1 した値を `sequence` として設定。書き込みと同時にシーケンスファイルを原子的に更新し、連番欠損時には `status="warning"`, `error_code="sequence_gap"` を出力してオペレーターへ通知できるようにする。
 - Heartbeatファイル
   - `ops/dashboard_export_heartbeat.json` — `{"job_id": "...", "generated_at": "...", "datasets": {"ev_history": "ok", ...}}`。更新は `tempfile.NamedTemporaryFile`→`os.replace` で原子的に行う。
   - `ops/latency_job_heartbeat.json` — レイテンシジョブが生成 (`next_run_at`, `last_breach_at`, `pending_alerts`)。`pending_alerts>0` の場合は `status="warning"` をセット。
