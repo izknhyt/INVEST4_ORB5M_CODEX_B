@@ -2,6 +2,8 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-06-20: Documented Router demo sample retention (P2-04) in `docs/checklists/p2_portfolio_evaluation.md`, updated `docs/task_backlog.md` / `docs/plans/p2_completion_plan.md`, and implemented `scripts/validate_portfolio_samples.py` plus `tests/test_validate_portfolio_samples.py` to guard manifest とテレメトリ整合性。
+  Executed `python3 scripts/validate_portfolio_samples.py --samples-dir reports/portfolio_samples/router_demo --manifest configs/strategies/day_orb_5m.yaml --manifest configs/strategies/tokyo_micro_mean_reversion.yaml` and `python3 -m pytest tests/test_report_portfolio_summary.py tests/test_portfolio_monitor.py tests/test_validate_portfolio_samples.py` to capture validation logs.
 - 2026-06-19: Landed router demo regression coverage by adding `tests/test_report_portfolio_summary.py::test_build_router_snapshot_cli_uses_router_demo_metrics`, updating the existing summary warning/breach tests, and documenting the pytest command suite in `docs/logic_overview.md`, `docs/observability_dashboard.md`, and `docs/checklists/p2_portfolio_evaluation.md`. Synced `docs/task_backlog.md` / `docs/todo_next.md` with the Pending Review status and executed `python3 -m pytest tests/test_portfolio_monitor.py tests/test_report_portfolio_summary.py` for validation.
 - 2026-06-18: Broke down remaining P2 deliverables into P2-03〜P2-05, documented the scope in `docs/plans/p2_completion_plan.md`,
   refreshed backlog/todo anchors, and updated `Next Task` to launch the regression automation workstream.
