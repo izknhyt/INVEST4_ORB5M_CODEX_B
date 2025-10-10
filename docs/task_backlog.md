@@ -166,6 +166,28 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - 2026-01-16: `analysis/portfolio_monitor.py` と `scripts/report_portfolio_summary.py` を実装し、`reports/portfolio_samples/router_demo/` のフィクスチャで JSON スキーマを固定。`python3 -m pytest` と CLI ドライランでカテゴリ利用率・相関ヒートマップ・合成ドローダウンの算出を確認し、`docs/logic_overview.md#ポートフォリオ監視` に運用手順と判断基準を追記。
   - 2026-06-15: Re-prioritised for near-term delivery—refresh CLI walkthrough, publish artefact links, and lock regression coverage ahead of P3 automation work。
   - 2026-06-16: `python3 scripts/build_router_snapshot.py --output runs/router_pipeline/latest --manifest configs/strategies/day_orb_5m.yaml --manifest configs/strategies/tokyo_micro_mean_reversion.yaml --manifest-run day_orb_5m_v1=reports/portfolio_samples/router_demo/metrics/day_orb_5m_v1.json --manifest-run tokyo_micro_mean_reversion_v0=reports/portfolio_samples/router_demo/metrics/tokyo_micro_mean_reversion_v0.json --positions day_orb_5m_v1=1 --positions tokyo_micro_mean_reversion_v0=2 --correlation-window-minutes 240 --indent 2` を実行し、続けて `python3 scripts/report_portfolio_summary.py --input runs/router_pipeline/latest --output reports/portfolio_summary.json --indent 2` で最新スキーマを再生成。`budget_status` / `budget_over_pct` / `correlation_window_minutes` / `drawdowns` をレビューしつつ、`docs/logic_overview.md` / `docs/observability_dashboard.md` / `docs/checklists/p2_portfolio_evaluation.md` を更新。`python3 -m pytest` を完走してグリーンを維持し、`docs/todo_next.md` から Archive への移設と `state.md` ログ追記を同期した。
+  - 2026-06-18: Follow-up tasks (P2-03〜P2-05) captured in [docs/plans/p2_completion_plan.md](plans/p2_completion_plan.md) to lock regression automation, dataset maintenance, and reviewer hand-off for final sign-off。
+
+### P2-03 Portfolio evaluation regression automation
+- **DoD**:
+  - `scripts/build_router_snapshot.py` と `scripts/report_portfolio_summary.py` の固定フィクスチャ回帰を `python3 -m pytest` へ統合し、カテゴリ予算の warning/breach を検証できること。
+  - `docs/logic_overview.md` と `docs/observability_dashboard.md` に再現コマンドと成果物パスを追加して最新ワークフローを共有すること。
+  - `docs/checklists/p2_portfolio_evaluation.md` にテスト整備内容とトラブルシュート手順を追記すること。
+- **Notes**: artefact はコミットに含めず、生成コマンドとレビュー観点を記録する。
+
+### P2-04 Portfolio dataset maintenance & rotation
+- **DoD**:
+  - `reports/portfolio_samples/router_demo/` の更新手順（保持世代・最終更新ログ）を文書化する。
+  - サンプルメトリクスと manifest の整合性を検証するスクリプトまたは CLI オプションを用意する。
+  - バックログへ更新記録と検証手順を残し、`docs/checklists/p2_portfolio_evaluation.md` から参照できるようにする。
+- **Notes**: router snapshot CLI の `--manifest-run` を最新サンプルへ揃え、旧世代 artefact を適切にアーカイブする。
+
+### P2-05 Portfolio review hand-off package
+- **DoD**:
+  - `docs/progress_phase2.md` などで回帰テスト・サンプル artefact・運用チェックリストをまとめたレビューパッケージを提供する。
+  - `docs/todo_next.md` / `docs/todo_next_archive.md` / `state.md` を同期し、P2 完了時の再現コマンドと結果を記録する。
+  - PR サマリで主要指標（予算ステータス、相関窓幅、ドローダウン）を日本語で要約できるようにする。
+- **Notes**: P2-03 / P2-04 完了後に着手し、追加課題が見つかった場合は P3 へエスカレーションする。
 ### ~~P2-MS マルチ戦略比較バリデーション~~ ✅ (2026-02-13 クローズ)
 - Day ORB と Mean Reversion (`strategies/mean_reversion.py`) を同一 CSV で走らせ、`docs/checklists/multi_strategy_validation.md` に沿ってゲート通過数・EV リジェクト数・期待値差をレビュー。DoD: チェックリストの全項目を完了し、比較サマリをレビュー用ドキュメントへ共有する。
   - 2025-12-02: Mean Reversion 戦略の本実装を `strategies/mean_reversion.py` へ移行し、`configs/strategies/mean_reversion.yaml` / `configs/ev_profiles/mean_reversion.yaml` を整備。`analysis/broker_fills.ipynb` を公開してブローカー別比較を Notebook でも検証可能にし、`tests/test_mean_reversion_strategy.py` を追加してゲート・EV 調整ロジックの回帰を確保。
