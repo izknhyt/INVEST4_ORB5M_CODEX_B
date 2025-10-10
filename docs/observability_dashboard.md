@@ -24,6 +24,13 @@
    ```
    - `runs/router_pipeline/latest/telemetry.json` ではカテゴリヘッドルームと `strategy_correlations` を確認し、ヘッドルームが負値の場合は `budget_over_pct` の閾値逸脱量を記録する。
    - `reports/portfolio_summary.json` の `correlation_heatmap[*].bucket_budget_pct`、`category_utilisation[*].budget_status`、`drawdowns.per_strategy` をレビューし、ダッシュボードで強調すべきアラート項目を整理する。
+   - 回帰テストで CLI フローを確認するには、以下を実行して router snapshot／サマリー双方の warning/breach 分岐を再現する。
+     ```bash
+     python3 -m pytest \
+       tests/test_portfolio_monitor.py::test_build_portfolio_summary_reports_budget_status \
+       tests/test_report_portfolio_summary.py::test_build_router_snapshot_cli_uses_router_demo_metrics \
+       tests/test_report_portfolio_summary.py::test_report_portfolio_summary_cli_budget_status
+     ```
 2. リポジトリルートで以下を実行し、JSON まとめを生成する。
    ```bash
    python3 analysis/export_dashboard_data.py \

@@ -80,6 +80,13 @@
     --indent 2
   ```
   `reports/portfolio_summary.json` ではカテゴリ別 `budget_status` / `budget_headroom_pct` / `budget_over_pct`、相関ヒートマップ (`correlation_heatmap[*].bucket_category` / `bucket_budget_pct`)、`correlation_window_minutes`、および `drawdowns.aggregate` / `drawdowns.per_strategy` を必ず確認する。`budget_headroom_pct` < 0 のカテゴリでは `budget_over_pct` が追加されるため、予算超過の規模を即時把握できる。【F:reports/portfolio_summary.json†L1-L91】
+  回帰テストで CLI ワークフローを自動検証するには、下記コマンドで router snapshot／サマリー両方の warning/breach 分岐を再現する。
+  ```bash
+  python3 -m pytest \
+    tests/test_portfolio_monitor.py::test_build_portfolio_summary_reports_budget_status \
+    tests/test_report_portfolio_summary.py::test_build_router_snapshot_cli_uses_router_demo_metrics \
+    tests/test_report_portfolio_summary.py::test_report_portfolio_summary_cli_budget_status
+  ```
 - 生成物の保管先:
   - ルーターテレメトリ: [`runs/router_pipeline/latest/telemetry.json`](../runs/router_pipeline/latest/telemetry.json)
   - 戦略メトリクス: [`runs/router_pipeline/latest/metrics/`](../runs/router_pipeline/latest/metrics)

@@ -16,6 +16,7 @@
 - [ ] ルーター snapshot を再生成する CLI 例（`python3 scripts/build_router_snapshot.py ... --correlation-window-minutes 240 --indent 2`）と成果物パス（`runs/router_pipeline/latest/telemetry.json`, `runs/router_pipeline/latest/metrics/*.json`）をドキュメントへ追記した。
 - [ ] `python3 scripts/report_portfolio_summary.py --input runs/router_pipeline/latest --output reports/portfolio_summary.json --indent 2` を実行し、`budget_status` / `budget_over_pct` / `correlation_window_minutes` / `drawdowns` をレビューしたログを残した。
 - [ ] `docs/logic_overview.md` と `docs/observability_dashboard.md` に最新の CLI 例・レビューすべきフィールド・成果物リンクを追記した。
+- [ ] `python3 -m pytest tests/test_portfolio_monitor.py::test_build_portfolio_summary_reports_budget_status tests/test_report_portfolio_summary.py::test_build_router_snapshot_cli_uses_router_demo_metrics tests/test_report_portfolio_summary.py::test_report_portfolio_summary_cli_budget_status` を実行し、warning/breach の分岐が再現されることと、失敗時のトラブルシュート手順（サンプルメトリクス欠損・manifest 位置ズレなど）を記録した。
 - [ ] `docs/task_backlog.md` の P2 セクションへ完了メモと生成日を追記し、`docs/todo_next.md` → `docs/todo_next_archive.md` への同期、および `state.md` ログ更新を完了した。
 - [ ] 成果物 (`runs/router_pipeline/latest/*`, `reports/portfolio_summary.json`) とドキュメント更新を同一コミットで反映した。
 - [ ] `python3 -m pytest` を実行し、テスト結果を PR / ログに記録した。
