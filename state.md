@@ -6,6 +6,7 @@
 - 2026-06-27: Drafted the Phase 3 observability automation blueprint (`docs/plans/p3_observability_automation.md`) detailing sampling cadence, webhook schema, dataset exports, ownership, and validation checkpoints. Synced `docs/task_backlog.md` / `docs/todo_next.md` to direct follow-up implementation planning.
 - 2026-06-27: Re-reviewed the Phase 3 observability blueprint, adding executive summary, dependency/milestone tables, and risk mitigations; updated `docs/task_backlog.md` with the expanded scope. Docs-only change; tests not required.
 - 2026-06-27: Conducted a senior-level review of the Phase 3 observability automation blueprint, enriching success metrics, non-functional requirements, operational readiness gates, and recovery drills to harden the upcoming automation workstream. Docs-only change; no tests required.
+- 2026-06-27: Completed the Phase 3 observability automation detailed design by defining component responsibilities, scheduler controls, dataset schemas, risk mitigations, and unresolved questions; synced `docs/task_backlog.md` / `docs/todo_next.md` with the new deliverables. Documentation update only; tests not run.
 - 2026-06-26: Confirmed P2 closure readiness for P3 by documenting the closure status in `docs/plans/p2_completion_plan.md`, marking P2-04 as closed in `docs/task_backlog.md`, moving the P3 kickoff to In Progress within `docs/todo_next.md`, and running `python3 -m pytest` to keep regressions green.
 - 2026-06-25: Revalidated the P2-04 dataset maintenance DoD by ensuring router demo sample rotation docs link back to validation logs (`docs/checklists/p2_portfolio_evaluation.md`, `docs/task_backlog.md`), confirming the evidence anchors in `docs/todo_next_archive.md` and updating this state log.
 - 2026-06-24: Extended `docs/checklists/p2_portfolio_evaluation.md` with the router snapshot CLI regression pytest command, troubleshooting guidance for budget warning/breach reproduction issues, and a post-regression artefact sharing checkpoint.
@@ -535,4 +536,4 @@
 
 - [OPS-CODEX-GUIDE] 2025-10-08: Aligned workflow docs with review feedback. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
 ## Next Task
-- Draft the P3 observability automation blueprint by detailing signal latency sampling cadence, weekly report webhook payload fields, and dashboard export datasets (document the plan under `docs/plans/` for implementation hand-off).
+- Break down the Phase 3 observability automation implementation by drafting CLI-specific task tickets, creating `docs/checklists/p3_observability_automation.md`, and updating `docs/state_runbook.md` with the new operational flows.
