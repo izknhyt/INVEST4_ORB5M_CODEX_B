@@ -59,6 +59,7 @@
 ### ポートフォリオ監視
 - `runs/index.csv` の `configs/ev_profiles/day_orb_5m.yaml` 行を確認すると、最新の Day ORB ランは `runs/USDJPY_conservative_20251002_214013`（`timestamp=20251002_214013`）であることが分かる。一方で Tokyo Micro Mean Reversion は現状インデックスに `manifest_id` が含まれていないため、ルーター検証用に管理しているサンプルメトリクス `reports/portfolio_samples/router_demo/metrics/tokyo_micro_mean_reversion_v0.json` を明示的に指定する。
 - 上記を踏まえてルーター snapshot を生成する実コマンド例:
+  Reproduction command:
   ```bash
   python3 scripts/build_router_snapshot.py \
     --output runs/router_pipeline/latest \
@@ -71,14 +72,19 @@
     --correlation-window-minutes 240 \
     --indent 2
   ```
-  出力は `runs/router_pipeline/latest/telemetry.json` と `runs/router_pipeline/latest/metrics/*.json` に保存される。`telemetry.json` では `active_positions`・`category_budget_headroom_pct`・`correlation_window_minutes`・`strategy_correlations` を確認し、カテゴリヘッドルームがマイナスのときに `budget_status` が `warning` / `breach` へ変化し `budget_over_pct` が追加されることをレビューする。【F:runs/router_pipeline/latest/telemetry.json†L1-L46】
+  Expected outputs:
+  - `runs/router_pipeline/latest/telemetry.json`
+  - `runs/router_pipeline/latest/metrics/*.json`
+  `telemetry.json` では `active_positions`・`category_budget_headroom_pct`・`correlation_window_minutes`・`strategy_correlations` を確認し、カテゴリヘッドルームがマイナスのときに `budget_status` が `warning` / `breach` へ変化し `budget_over_pct` が追加されることをレビューする。【F:runs/router_pipeline/latest/telemetry.json†L1-L46】
 - snapshot をもとに最新スキーマでポートフォリオサマリーを再生成する:
+  Reproduction command:
   ```bash
   python3 scripts/report_portfolio_summary.py \
     --input runs/router_pipeline/latest \
     --output reports/portfolio_summary.json \
     --indent 2
   ```
+  Expected output: `reports/portfolio_summary.json`
   `reports/portfolio_summary.json` ではカテゴリ別 `budget_status` / `budget_headroom_pct` / `budget_over_pct`、相関ヒートマップ (`correlation_heatmap[*].bucket_category` / `bucket_budget_pct`)、`correlation_window_minutes`、および `drawdowns.aggregate` / `drawdowns.per_strategy` を必ず確認する。`budget_headroom_pct` < 0 のカテゴリでは `budget_over_pct` が追加されるため、予算超過の規模を即時把握できる。【F:reports/portfolio_summary.json†L1-L91】
   回帰テストで CLI ワークフローを自動検証するには、下記コマンドで router snapshot／サマリー両方の warning/breach 分岐を再現する。
   ```bash
