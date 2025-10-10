@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-06-19: Landed router demo regression coverage by adding `tests/test_report_portfolio_summary.py::test_build_router_snapshot_cli_uses_router_demo_metrics`, updating the existing summary warning/breach tests, and documenting the pytest command suite in `docs/logic_overview.md`, `docs/observability_dashboard.md`, and `docs/checklists/p2_portfolio_evaluation.md`. Synced `docs/task_backlog.md` / `docs/todo_next.md` with the Pending Review status and executed `python3 -m pytest tests/test_portfolio_monitor.py tests/test_report_portfolio_summary.py` for validation.
 - 2026-06-18: Broke down remaining P2 deliverables into P2-03〜P2-05, documented the scope in `docs/plans/p2_completion_plan.md`,
   refreshed backlog/todo anchors, and updated `Next Task` to launch the regression automation workstream.
 - 2026-06-17: Added regression coverage for router demo budget warnings/breaches by cloning the sample snapshot under `tmp_path`,
@@ -520,4 +521,4 @@
 
 - [OPS-CODEX-GUIDE] 2025-10-08: Aligned workflow docs with review feedback. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
 ## Next Task
-- Launch [P2-03 Portfolio evaluation regression automation](docs/task_backlog.md#p2-03-portfolio-evaluation-regression-automation) to add deterministic pytest coverage for router snapshot & portfolio summary refresh flows, then sequence P2-04/P2-05 as outlined in [docs/plans/p2_completion_plan.md](docs/plans/p2_completion_plan.md).
+- Advance to [P2-04 Portfolio dataset maintenance & rotation](docs/task_backlog.md#p2-04-portfolio-dataset-maintenance--rotation) to formalise sample metric rotation rules and validation tooling once the regression suite is reviewed, then proceed toward P2-05 per [docs/plans/p2_completion_plan.md](docs/plans/p2_completion_plan.md).
