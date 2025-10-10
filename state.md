@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-06-27: Drafted the Phase 3 observability automation blueprint (`docs/plans/p3_observability_automation.md`) detailing sampling cadence, webhook schema, dataset exports, ownership, and validation checkpoints. Synced `docs/task_backlog.md` / `docs/todo_next.md` to direct follow-up implementation planning.
 - 2026-06-26: Confirmed P2 closure readiness for P3 by documenting the closure status in `docs/plans/p2_completion_plan.md`, marking P2-04 as closed in `docs/task_backlog.md`, moving the P3 kickoff to In Progress within `docs/todo_next.md`, and running `python3 -m pytest` to keep regressions green.
 - 2026-06-25: Revalidated the P2-04 dataset maintenance DoD by ensuring router demo sample rotation docs link back to validation logs (`docs/checklists/p2_portfolio_evaluation.md`, `docs/task_backlog.md`), confirming the evidence anchors in `docs/todo_next_archive.md` and updating this state log.
 - 2026-06-24: Extended `docs/checklists/p2_portfolio_evaluation.md` with the router snapshot CLI regression pytest command, troubleshooting guidance for budget warning/breach reproduction issues, and a post-regression artefact sharing checkpoint.
