@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-06-26: Confirmed P2 closure readiness for P3 by documenting the closure status in `docs/plans/p2_completion_plan.md`, marking P2-04 as closed in `docs/task_backlog.md`, moving the P3 kickoff to In Progress within `docs/todo_next.md`, and running `python3 -m pytest` to keep regressions green.
 - 2026-06-25: Revalidated the P2-04 dataset maintenance DoD by ensuring router demo sample rotation docs link back to validation logs (`docs/checklists/p2_portfolio_evaluation.md`, `docs/task_backlog.md`), confirming the evidence anchors in `docs/todo_next_archive.md` and updating this state log.
 - 2026-06-24: Extended `docs/checklists/p2_portfolio_evaluation.md` with the router snapshot CLI regression pytest command, troubleshooting guidance for budget warning/breach reproduction issues, and a post-regression artefact sharing checkpoint.
 - 2026-06-24: Reviewed P2-03 portfolio evaluation regression automation deliverables, revalidated documentation pointers (`docs/logic_overview.md`, `docs/observability_dashboard.md`, checklist troubleshooting notes), and reran `python3 -m pytest` to confirm router snapshot / summary warning・breach regressions stay green. Archived the todo entry and synced backlog/state anchors.
@@ -530,4 +531,4 @@
 
 - [OPS-CODEX-GUIDE] 2025-10-08: Aligned workflow docs with review feedback. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
 ## Next Task
-- Kick off [P3 Observability automation](docs/task_backlog.md#p3-観測性・レポート自動化) planning by expanding the scope definition in `docs/plans/p2_completion_plan.md` and preparing initial automation checkpoints for signal latency / weekly reports ahead of implementation.
+- Draft the P3 observability automation blueprint by detailing signal latency sampling cadence, weekly report webhook payload fields, and dashboard export datasets (document the plan under `docs/plans/` for implementation hand-off).
