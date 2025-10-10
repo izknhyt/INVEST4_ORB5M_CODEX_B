@@ -33,6 +33,14 @@
 - ルーター demo メトリクス: `reports/portfolio_samples/router_demo/metrics/day_orb_5m_v1.json`, `reports/portfolio_samples/router_demo/metrics/tokyo_micro_mean_reversion_v0.json`
 - 最新集計サマリー: `reports/portfolio_summary.json`
 
+### 指標レビューと PR サマリー
+- `reports/portfolio_summary.json` の主要指標は次の値で固定されています（router demo テレメトリを参照した回帰スナップショット基準）。
+  - 予算ステータス: `category_utilisation[day].budget_status=ok`, `category_utilisation[scalping].budget_status=ok`, `gross_exposure.headroom_pct=19.67`
+  - 相関窓幅: `correlation_window_minutes=240`
+  - ドローダウン: `drawdowns.aggregate.max_drawdown_pct=0.3140`、各戦略は `day_orb_5m_v1=0.2489` / `tokyo_micro_mean_reversion_v0=0.3793`
+- 上記指標を引用した日本語 PR サマリーの例:
+  > ルーター demo スナップショットでカテゴリ予算はいずれも OK（Day 40% 枠に対して 0.5% 利用、Scalping 15% 枠に対して 0.16% 利用）を維持し、相関窓幅 240 分・最大ドローダウン 0.31%（日次換算）で固定値を確認しました。pytest で router demo warning/breach 経路とサンプル検証 CLI を再現し、`reports/portfolio_summary.json` を最新化済みです。
+
 ### 運用チェックリスト
 1. 上記回帰テストコマンドを順番に実行し、router demo 由来の warning/breach 分岐が pytest と CLI 双方で再現されることを確認する。
 2. `reports/portfolio_samples/router_demo/` 配下のメトリクス・テレメトリと `configs/strategies/*.yaml` の manifest を照合し、`scripts/validate_portfolio_samples.py` で整合性チェックを通過させる。

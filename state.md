@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-06-22: P2-05 hand-off をクローズ。`docs/progress_phase2.md` へ固定化された予算ステータス・相関窓幅・ドローダウン指標と日本語 PR サマリー例を追記し、`docs/task_backlog.md` / `docs/todo_next*.md` を同期。`python3 scripts/validate_portfolio_samples.py --samples-dir reports/portfolio_samples/router_demo --manifest configs/strategies/day_orb_5m.yaml --manifest configs/strategies/tokyo_micro_mean_reversion.yaml` と `python3 -m pytest` を実行してサンプル整合性と回帰スイートを確認。次フェーズ移行に向けて backlog を更新。
 - 2026-06-21: P2-05 reviewer hand-off を開始し、`docs/progress_phase2.md#p2-レビューハンドオフパッケージ` に回帰テストコマンド／サンプル artefact／運用チェックリストを集約。`docs/task_backlog.md`・`docs/todo_next.md`・`docs/todo_next_archive.md` を同期し、`docs/checklists/p2_portfolio_evaluation.md` に参照リンクを追加。`python3 scripts/report_portfolio_summary.py --input runs/router_pipeline/latest --output reports/portfolio_summary.json --indent 2` と `python3 -m pytest` を実行して成果物更新とスイートグリーンを確認。PR 共有用サマリー案: 「ポートフォリオ評価レビュー手順を `docs/progress_phase2.md` に一本化し、router demo サンプルの検証パスと最新 `reports/portfolio_summary.json` を再生成。pytest 317 件が warning のみで完走し、予算ステータス/相関窓幅/ドローダウン指標をレビュワーが即確認できる状態に整えました。」
 - 2026-06-20: Documented Router demo sample retention (P2-04) in `docs/checklists/p2_portfolio_evaluation.md`, updated `docs/task_backlog.md` / `docs/plans/p2_completion_plan.md`, and implemented `scripts/validate_portfolio_samples.py` plus `tests/test_validate_portfolio_samples.py` to guard manifest とテレメトリ整合性。
   Executed `python3 scripts/validate_portfolio_samples.py --samples-dir reports/portfolio_samples/router_demo --manifest configs/strategies/day_orb_5m.yaml --manifest configs/strategies/tokyo_micro_mean_reversion.yaml` and `python3 -m pytest tests/test_report_portfolio_summary.py tests/test_portfolio_monitor.py tests/test_validate_portfolio_samples.py` to capture validation logs.
@@ -524,4 +525,4 @@
 
 - [OPS-CODEX-GUIDE] 2025-10-08: Aligned workflow docs with review feedback. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
 ## Next Task
-- Finalise [P2-05 Portfolio review hand-off package](docs/task_backlog.md#p2-05-portfolio-review-hand-off-package) by capturing reviewer feedback loops and promoting the PR with the Japanese summary, then kick off [P3 Observability automation](docs/task_backlog.md#p3-観測性・レポート自動化) planning per [docs/plans/p2_completion_plan.md](docs/plans/p2_completion_plan.md).
+- Kick off [P3 Observability automation](docs/task_backlog.md#p3-観測性・レポート自動化) planning by expanding the scope definition in `docs/plans/p2_completion_plan.md` and preparing initial automation checkpoints for signal latency / weekly reports ahead of implementation.
