@@ -40,5 +40,6 @@
   1. 最新 run を参照しつつ `python3 scripts/build_router_snapshot.py --output runs/router_pipeline/latest --manifest configs/strategies/day_orb_5m.yaml --manifest configs/strategies/tokyo_micro_mean_reversion.yaml --manifest-run day_orb_5m_v1=<latest metrics path> --manifest-run tokyo_micro_mean_reversion_v0=<latest metrics path> --positions day_orb_5m_v1=1 --positions tokyo_micro_mean_reversion_v0=2 --correlation-window-minutes 240 --indent 2` でサンプルを再生成し、成果物を `reports/portfolio_samples/router_demo/` にコピーする。
   2. `python3 scripts/validate_portfolio_samples.py --samples-dir reports/portfolio_samples/router_demo --manifest configs/strategies/day_orb_5m.yaml --manifest configs/strategies/tokyo_micro_mean_reversion.yaml` を実行し、manifest 整合性・テレメトリ参照・エクイティカーブ形式を検証する。
   3. 差分をレビューした上で [docs/task_backlog.md#p2-04-portfolio-dataset-maintenance--rotation](../task_backlog.md#p2-04-portfolio-dataset-maintenance--rotation) と `state.md` へローテーション日時と検証ログを追記する。
+  4. 整合性検証ログと共有メモは [docs/todo_next_archive.md#portfolio-dataset-maintenance--rotation](../todo_next_archive.md#portfolio-dataset-maintenance--rotation) と [`state.md` 2026-06-20 エントリ](../../state.md) から辿れるように維持する。
 
 > チェックが完了したら、このファイルを参照しつつ `docs/todo_next.md` / `docs/todo_next_archive.md` の同期とバックログ更新を忘れずに。レビュー担当者への共有時は、実行した CLI と成果物リンク（JSON / telemetry / metrics）を合わせて提示すること。
