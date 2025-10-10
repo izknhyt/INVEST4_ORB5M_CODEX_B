@@ -175,6 +175,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - `docs/checklists/p2_portfolio_evaluation.md` にテスト整備内容とトラブルシュート手順を追記すること。
 - **Notes**: artefact はコミットに含めず、生成コマンドとレビュー観点を記録する。
 - 2026-06-19: router demo メトリクスを入力に `tests/test_report_portfolio_summary.py::test_build_router_snapshot_cli_uses_router_demo_metrics` を追加し、`tests/test_portfolio_monitor.py::test_build_portfolio_summary_reports_budget_status` / `tests/test_report_portfolio_summary.py::test_report_portfolio_summary_cli_budget_status` と併せて CLI ワークフローの warning/breach 回帰を固定。`docs/logic_overview.md` / `docs/observability_dashboard.md` に pytest コマンドを追記し、チェックリストへトラブルシュート手順を追加した。
+- 2026-06-23: Pending Review のままとしてレビューログ取得を依頼中。`docs/logic_overview.md` / `docs/observability_dashboard.md` / `docs/checklists/p2_portfolio_evaluation.md` の差分確認と、`python3 -m pytest` / `python3 scripts/validate_portfolio_samples.py` の再実行結果を監査記録へ残す手順が未完了のため、DoD の「レビュー完了」をまだクローズしていない。
 
 ### P2-04 Portfolio dataset maintenance & rotation
 - **DoD**:
