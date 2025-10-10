@@ -21,6 +21,7 @@
 - [ ] 成果物 (`runs/router_pipeline/latest/*`, `reports/portfolio_summary.json`) とドキュメント更新を同一コミットで反映した。
 - [ ] `python3 -m pytest` を実行し、テスト結果を PR / ログに記録した。
 - [ ] コマンド出力・パス・検証状況を `state.md` と関連ドキュメントにエビデンスとして残した。
+- [ ] P2 レビュー用のまとめ（`docs/progress_phase2.md#p2-レビューハンドオフパッケージ`）へ再現コマンドと成果物リンクを反映し、レビュワーが単独で検証できることを確認した。
 
 ## Router demo サンプル保守ログ (P2-04)
 
