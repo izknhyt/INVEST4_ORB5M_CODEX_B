@@ -205,11 +205,13 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - **週次レポート生成**: `scripts/summarize_runs.py` を拡張し、ベースライン/ローリング run・カテゴリ別稼働率・ヘルスチェック結果をまとめて Webhook送信。
   - 2026-04-16: `scripts/summarize_runs.py` を通知ペイロード生成フローに刷新し、`--config` での include/宛先制御と Webhook ドライランを追加。`docs/benchmark_runbook.md` に運用手順を記載し、`tests/test_summarize_runs.py` で集計精度と Webhook ペイロードを回帰テスト化。
 - **ダッシュボード整備**: EV 推移、滑り推定、勝率 LCB、ターンオーバーの KPI を 1 つの Notebook or BI に集約し、運用判断を迅速化。
+  - **DoD チェックリスト**: [docs/checklists/p3_observability_automation.md](checklists/p3_observability_automation.md)
   - 2026-06-15: Kickoff scope drafted—define telemetry refresh cadence, weekly summary payload template, and dashboard data export checklist once P2 reporting refresh is stable.
   - 2026-06-26: P2-03〜P2-05 の DoD を再確認し、`docs/plans/p2_completion_plan.md` のクローズ条件と `docs/progress_phase2.md` のレビューパッケージ整合性を点検済み。次ステップはシグナルレイテンシ監視と週次レポート自動化の実装計画細分化。
   - 2026-06-27: Drafted [docs/plans/p3_observability_automation.md](./plans/p3_observability_automation.md) to codify sampling cadence, webhook payload schema, dataset exports, escalation ownership, and validation checkpoints for implementation hand-off.
   - 2026-06-27: Expanded the blueprint with an executive summary, dependency checklist, implementation milestones, and risk register to clarify DoD expectations ahead of automation hand-off.
   - 2026-06-28: Authored [docs/phase3_detailed_design.md](phase3_detailed_design.md) detailing CLI extensions, data contracts, logging strategy, and test coverage required for automation so implementation can begin without additional scoping.
+  - 2026-06-28: Created [docs/checklists/p3_observability_automation.md](checklists/p3_observability_automation.md) covering CLI gates, automation logging, retention policies, validation commands, and documentation updates for the hand-off.
 
 ## 継続タスク / 保守
 - データスキーマ検証 (`scripts/check_data_quality.py`) を cron 化し、異常リストを `analysis/data_quality.md` に追記。
