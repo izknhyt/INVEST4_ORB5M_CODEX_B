@@ -208,6 +208,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - 2026-06-26: P2-03〜P2-05 の DoD を再確認し、`docs/plans/p2_completion_plan.md` のクローズ条件と `docs/progress_phase2.md` のレビューパッケージ整合性を点検済み。次ステップはシグナルレイテンシ監視と週次レポート自動化の実装計画細分化。
   - 2026-06-27: Drafted [docs/plans/p3_observability_automation.md](./plans/p3_observability_automation.md) to codify sampling cadence, webhook payload schema, dataset exports, escalation ownership, and validation checkpoints for implementation hand-off.
   - 2026-06-27: Expanded the blueprint with an executive summary, dependency checklist, implementation milestones, and risk register to clarify DoD expectations ahead of automation hand-off.
+  - 2026-06-27: Added component-level specifications, scheduling controls, dataset schema tables, and open questions to complete the Phase 3 detailed design package for engineering sign-off.
 
 ## 継続タスク / 保守
 - データスキーマ検証 (`scripts/check_data_quality.py`) を cron 化し、異常リストを `analysis/data_quality.md` に追記。

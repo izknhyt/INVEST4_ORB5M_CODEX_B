@@ -17,7 +17,7 @@
 
 ### In Progress
 
-- [P3 Observability automation kickoff](./task_backlog.md#p3-観測性・レポート自動化) — `docs/plans/p3_observability_automation.md` にフェーズ3オートメーションのスコープ/前提/インターフェース要件を集約済み。次ステップ: CLI 拡張仕様の詳細化、チェックリスト整備、state runbook 更新、ストレージ運用合意を準備。
+- [P3 Observability automation kickoff](./task_backlog.md#p3-観測性・レポート自動化) — `docs/plans/p3_observability_automation.md` を詳細設計レベルまで拡充（コンポーネント仕様、スケジュール表、データスキーマ、リスク登録票、オープンクエスチョン）。次ステップ: CLI 実装ブレークダウン、`docs/checklists/p3_observability_automation.md` 作成、`docs/state_runbook.md` への運用手順追記、ストレージ合意チケット起票。
 
 ### On Hold
 
