@@ -30,7 +30,6 @@
 
 ### Pending Review
 
-- [P2-03 Portfolio evaluation regression automation](./task_backlog.md#p2-03-portfolio-evaluation-regression-automation) — Router snapshot / portfolio summary pytest coverage landed (`tests/test_report_portfolio_summary.py::test_build_router_snapshot_cli_uses_router_demo_metrics` 等)。ドキュメントとチェックリスト更新を確認してレビューする。
 - レビュー中のタスクを再開する際は `scripts/manage_task_cycle.py --doc-section Pending Review` を用いると、`docs/todo_next.md` の配置を維持したまま `state.md` のテンプレートを再適用できる。
 
 ## Archive（達成済み）

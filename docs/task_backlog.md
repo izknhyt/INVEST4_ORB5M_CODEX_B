@@ -168,13 +168,14 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - 2026-06-16: `python3 scripts/build_router_snapshot.py --output runs/router_pipeline/latest --manifest configs/strategies/day_orb_5m.yaml --manifest configs/strategies/tokyo_micro_mean_reversion.yaml --manifest-run day_orb_5m_v1=reports/portfolio_samples/router_demo/metrics/day_orb_5m_v1.json --manifest-run tokyo_micro_mean_reversion_v0=reports/portfolio_samples/router_demo/metrics/tokyo_micro_mean_reversion_v0.json --positions day_orb_5m_v1=1 --positions tokyo_micro_mean_reversion_v0=2 --correlation-window-minutes 240 --indent 2` を実行し、続けて `python3 scripts/report_portfolio_summary.py --input runs/router_pipeline/latest --output reports/portfolio_summary.json --indent 2` で最新スキーマを再生成。`budget_status` / `budget_over_pct` / `correlation_window_minutes` / `drawdowns` をレビューしつつ、`docs/logic_overview.md` / `docs/observability_dashboard.md` / `docs/checklists/p2_portfolio_evaluation.md` を更新。`python3 -m pytest` を完走してグリーンを維持し、`docs/todo_next.md` から Archive への移設と `state.md` ログ追記を同期した。
   - 2026-06-18: Follow-up tasks (P2-03〜P2-05) captured in [docs/plans/p2_completion_plan.md](plans/p2_completion_plan.md) to lock regression automation, dataset maintenance, and reviewer hand-off for final sign-off。
 
-### P2-03 Portfolio evaluation regression automation
+### ~~P2-03 Portfolio evaluation regression automation~~ ✅ (2026-06-24 クローズ)
 - **DoD**:
   - `scripts/build_router_snapshot.py` と `scripts/report_portfolio_summary.py` の固定フィクスチャ回帰を `python3 -m pytest` へ統合し、カテゴリ予算の warning/breach を検証できること。
   - `docs/logic_overview.md` と `docs/observability_dashboard.md` に再現コマンドと成果物パスを追加して最新ワークフローを共有すること。
   - `docs/checklists/p2_portfolio_evaluation.md` にテスト整備内容とトラブルシュート手順を追記すること。
 - **Notes**: artefact はコミットに含めず、生成コマンドとレビュー観点を記録する。
 - 2026-06-19: router demo メトリクスを入力に `tests/test_report_portfolio_summary.py::test_build_router_snapshot_cli_uses_router_demo_metrics` を追加し、`tests/test_portfolio_monitor.py::test_build_portfolio_summary_reports_budget_status` / `tests/test_report_portfolio_summary.py::test_report_portfolio_summary_cli_budget_status` と併せて CLI ワークフローの warning/breach 回帰を固定。`docs/logic_overview.md` / `docs/observability_dashboard.md` に pytest コマンドを追記し、チェックリストへトラブルシュート手順を追加した。
+- 2026-06-24: レビューで CLI 回帰テストを再実行し、`docs/todo_next.md` → `docs/todo_next_archive.md` / `state.md` を同期して P2-03 を正式にクローズした (`python3 -m pytest`).
 
 ### P2-04 Portfolio dataset maintenance & rotation
 - **DoD**:

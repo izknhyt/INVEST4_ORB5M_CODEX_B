@@ -2,6 +2,10 @@
 
 過去の `docs/todo_next.md` Archive セクションに掲載していた完了済みタスクのログをこのファイルへ集約しました。各エントリのアンカーコメントは従来通り維持しています。README / codex 系ワークフロードキュメント / DoD テンプレートからの参照先も本アーカイブへ統一しました。
 
+- **Portfolio evaluation regression automation review** (Backlog: `docs/task_backlog.md` → [P2-03](./task_backlog.md#p2-03-portfolio-evaluation-regression-automation)) — 2026-06-24 完了 <!-- anchor: docs/task_backlog.md#p2-03-portfolio-evaluation-regression-automation -->
+  - Reviewed router snapshot / summary regression coverage, cross-checked `docs/logic_overview.md`・`docs/observability_dashboard.md` のコマンド記載とチェックリストのトラブルシュート手順が一致していることを確認。
+  - `python3 -m pytest`
+
 - **Portfolio review hand-off package** (Backlog: `docs/task_backlog.md` → [P2-05](./task_backlog.md#p2-05-portfolio-review-hand-off-package)) — 2026-06-22 完了 <!-- anchor: docs/task_backlog.md#p2-05-portfolio-review-hand-off-package -->
   - 固定化された router demo メトリクスに合わせて `docs/progress_phase2.md#p2-レビューハンドオフパッケージ` に主要指標リストと日本語 PR サマリー例を追記し、レビューバンドル内の再現手順を整理。
   - `python3 scripts/validate_portfolio_samples.py --samples-dir reports/portfolio_samples/router_demo --manifest configs/strategies/day_orb_5m.yaml --manifest configs/strategies/tokyo_micro_mean_reversion.yaml`
