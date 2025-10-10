@@ -7,6 +7,12 @@
   - 続けて `python3 scripts/report_portfolio_summary.py --input runs/router_pipeline/latest --output reports/portfolio_summary.json --indent 2` を完走し、`budget_status` / `budget_over_pct` / `correlation_window_minutes` / `drawdowns` をレビューして `docs/logic_overview.md`・`docs/observability_dashboard.md` へ CLI 例と成果物リンクを追記。`docs/checklists/p2_portfolio_evaluation.md` を新設し、`docs/todo_next.md` から当該エントリを除去して本アーカイブへ移設。
   - `python3 -m pytest`
 
+- **Portfolio dataset maintenance & rotation** (Backlog: `docs/task_backlog.md` → [P2-04](./task_backlog.md#p2-04-portfolio-dataset-maintenance--rotation)) — 2026-06-20 完了 <!-- anchor: docs/task_backlog.md#p2-04-portfolio-dataset-maintenance--rotation -->
+  - Documented router demo rotation policy and validation flow in `docs/checklists/p2_portfolio_evaluation.md`, including archive conventions for previous samples。
+  - `python3 scripts/validate_portfolio_samples.py --samples-dir reports/portfolio_samples/router_demo --manifest configs/strategies/day_orb_5m.yaml --manifest configs/strategies/tokyo_micro_mean_reversion.yaml`
+  - `python3 -m pytest tests/test_validate_portfolio_samples.py`
+  - Synced backlog/todo/state notes so reviewers can trace manifest/sample consistency alongside the regression suite。
+
 - **Data quality audit enhancements** (Backlog: `docs/task_backlog.md` → [P0-13](./task_backlog.md#p0-13-data-quality-audit)) — 2026-05-20 完了 <!-- anchor: docs/task_backlog.md#p0-13-data-quality-audit -->
   - Archived the Pending Review entry, synced `state.md` / `docs/todo_next*.md`, and confirmed documentation for the audit CLI remains aligned with the implemented features.
   - `python3 -m pytest`
