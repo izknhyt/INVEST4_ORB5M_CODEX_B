@@ -57,14 +57,35 @@
 - `scripts/run_daily_workflow.py` と `scripts/cron_schedule_example.json` で最適化・レイテンシ監視・state アーカイブをまとめて実行可能。
 
 ### ポートフォリオ監視
-- 監視対象の最新ランをまとめるには `scripts/build_router_snapshot.py --manifest configs/strategies/day_orb_5m.yaml --manifest configs/strategies/tokyo_micro_mean_reversion.yaml --manifest-run day_orb_5m_v1=runs/day_snapshot --manifest-run tokyo_micro_mean_reversion_v0=runs/tokyo_snapshot --positions day_orb_5m_v1=1 --positions tokyo_micro_mean_reversion_v0=2 --correlation-window-minutes 240` のように実行し、`runs/router_pipeline/latest`（`--output` で上書き可）へ `telemetry.json` と戦略別メトリクスを生成する。`runs/index.csv` に `manifest_id` 列があれば自動で最新 run を選択できる。`--correlation-window-minutes` を指定すると、相関行列がどの窓幅で計算されたかを `telemetry.json` に記録できる。
-- `scripts/report_portfolio_summary.py --input runs/router_pipeline/latest --output reports/portfolio_summary.json` を実行すると、最新のルーター
-  テレメトリと戦略別メトリクスからカテゴリ利用率・グロスエクスポージャー・相関ヒートマップ・ドローダウン指標を JSON 化する。
-- 出力の `category_utilisation.headroom_pct` がマイナスになったカテゴリは上限超過を意味するため、新規エントリー抑制やリスクリバランス
-  を検討する。`correlation_heatmap` の値が上限付近（例: ±0.6 以上）になった戦略ペアはマニフェストの `max_correlation` 設定と照らして
-  監視する。
-- `drawdowns.aggregate.max_drawdown_pct` は戦略合成エクイティカーブの最大 DD を示す。値が目標を超える場合は各戦略の `per_strategy`
-  ブロックでピーク/ボトム時刻を確認し、該当期間のシグナルログをレビューする。
+- `runs/index.csv` の `configs/ev_profiles/day_orb_5m.yaml` 行を確認すると、最新の Day ORB ランは `runs/USDJPY_conservative_20251002_214013`（`timestamp=20251002_214013`）であることが分かる。一方で Tokyo Micro Mean Reversion は現状インデックスに `manifest_id` が含まれていないため、ルーター検証用に管理しているサンプルメトリクス `reports/portfolio_samples/router_demo/metrics/tokyo_micro_mean_reversion_v0.json` を明示的に指定する。
+- 上記を踏まえてルーター snapshot を生成する実コマンド例:
+  ```bash
+  python3 scripts/build_router_snapshot.py \
+    --output runs/router_pipeline/latest \
+    --manifest configs/strategies/day_orb_5m.yaml \
+    --manifest configs/strategies/tokyo_micro_mean_reversion.yaml \
+    --manifest-run day_orb_5m_v1=reports/portfolio_samples/router_demo/metrics/day_orb_5m_v1.json \
+    --manifest-run tokyo_micro_mean_reversion_v0=reports/portfolio_samples/router_demo/metrics/tokyo_micro_mean_reversion_v0.json \
+    --positions day_orb_5m_v1=1 \
+    --positions tokyo_micro_mean_reversion_v0=2 \
+    --correlation-window-minutes 240 \
+    --indent 2
+  ```
+  出力は `runs/router_pipeline/latest/telemetry.json` と `runs/router_pipeline/latest/metrics/*.json` に保存される。`telemetry.json` では `active_positions`・`category_budget_headroom_pct`・`correlation_window_minutes`・`strategy_correlations` を確認し、カテゴリヘッドルームがマイナスのときに `budget_status` が `warning` / `breach` へ変化し `budget_over_pct` が追加されることをレビューする。【F:runs/router_pipeline/latest/telemetry.json†L1-L46】
+- snapshot をもとに最新スキーマでポートフォリオサマリーを再生成する:
+  ```bash
+  python3 scripts/report_portfolio_summary.py \
+    --input runs/router_pipeline/latest \
+    --output reports/portfolio_summary.json \
+    --indent 2
+  ```
+  `reports/portfolio_summary.json` ではカテゴリ別 `budget_status` / `budget_headroom_pct` / `budget_over_pct`、相関ヒートマップ (`correlation_heatmap[*].bucket_category` / `bucket_budget_pct`)、`correlation_window_minutes`、および `drawdowns.aggregate` / `drawdowns.per_strategy` を必ず確認する。`budget_headroom_pct` < 0 のカテゴリでは `budget_over_pct` が追加されるため、予算超過の規模を即時把握できる。【F:reports/portfolio_summary.json†L1-L91】
+- 生成物の保管先:
+  - ルーターテレメトリ: [`runs/router_pipeline/latest/telemetry.json`](../runs/router_pipeline/latest/telemetry.json)
+  - 戦略メトリクス: [`runs/router_pipeline/latest/metrics/`](../runs/router_pipeline/latest/metrics)
+  - ポートフォリオサマリー: [`reports/portfolio_summary.json`](../reports/portfolio_summary.json)
+- `category_utilisation.headroom_pct` がマイナスとなった場合は上限超過を意味するため、新規エントリー抑制やリスクリバランスを検討する。`correlation_heatmap` の値が上限付近（例: ±0.6 以上）になった戦略ペアはマニフェストの `max_correlation` 設定と照らして監視する。
+- `drawdowns.aggregate.max_drawdown_pct` は戦略合成エクイティカーブの最大 DD を示す。値が目標を超える場合は各戦略の `per_strategy` ブロックでピーク/ボトム時刻を確認し、該当期間のシグナルログをレビューする。
 
 ## 運用・オプス
 - 通知: `notifications/emit_signal.py`（フォールバックログ、複数Webhook）、`scripts/analyze_signal_latency.py`（SLOチェック）。

@@ -2,6 +2,11 @@
 
 過去の `docs/todo_next.md` Archive セクションに掲載していた完了済みタスクのログをこのファイルへ集約しました。各エントリのアンカーコメントは従来通り維持しています。README / codex 系ワークフロードキュメント / DoD テンプレートからの参照先も本アーカイブへ統一しました。
 
+- **Portfolio evaluation report refresh** (Backlog: `docs/task_backlog.md` → [P2-ポートフォリオ評価レポート](./task_backlog.md#p2-portfolio-evaluation)) — 2026-06-16 完了 <!-- anchor: docs/task_backlog.md#p2-portfolio-evaluation -->
+  - `python3 scripts/build_router_snapshot.py --output runs/router_pipeline/latest --manifest configs/strategies/day_orb_5m.yaml --manifest configs/strategies/tokyo_micro_mean_reversion.yaml --manifest-run day_orb_5m_v1=reports/portfolio_samples/router_demo/metrics/day_orb_5m_v1.json --manifest-run tokyo_micro_mean_reversion_v0=reports/portfolio_samples/router_demo/metrics/tokyo_micro_mean_reversion_v0.json --positions day_orb_5m_v1=1 --positions tokyo_micro_mean_reversion_v0=2 --correlation-window-minutes 240 --indent 2` を実行し、`runs/router_pipeline/latest/telemetry.json` / `metrics/*.json` を再生成。
+  - 続けて `python3 scripts/report_portfolio_summary.py --input runs/router_pipeline/latest --output reports/portfolio_summary.json --indent 2` を完走し、`budget_status` / `budget_over_pct` / `correlation_window_minutes` / `drawdowns` をレビューして `docs/logic_overview.md`・`docs/observability_dashboard.md` へ CLI 例と成果物リンクを追記。`docs/checklists/p2_portfolio_evaluation.md` を新設し、`docs/todo_next.md` から当該エントリを除去して本アーカイブへ移設。
+  - `python3 -m pytest`
+
 - **Data quality audit enhancements** (Backlog: `docs/task_backlog.md` → [P0-13](./task_backlog.md#p0-13-data-quality-audit)) — 2026-05-20 完了 <!-- anchor: docs/task_backlog.md#p0-13-data-quality-audit -->
   - Archived the Pending Review entry, synced `state.md` / `docs/todo_next*.md`, and confirmed documentation for the audit CLI remains aligned with the implemented features.
   - `python3 -m pytest`

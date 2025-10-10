@@ -5,7 +5,26 @@
 - エンジニアが手動で最新データを確認するときに、CLI と Notebook の双方から同じローダーを呼び出せるようにする。
 
 ## リフレッシュ手順
-1. リポジトリルートで以下を実行し、JSON まとめを生成する。
+1. `runs/index.csv` の `configs/ev_profiles/day_orb_5m.yaml` 行をチェックして Day ORB 最新ラン（例: `runs/USDJPY_conservative_20251002_214013`）を確認し、Tokyo Micro Mean Reversion についてはサンプルメトリクス `reports/portfolio_samples/router_demo/metrics/tokyo_micro_mean_reversion_v0.json` を利用する。以下のコマンドでルーター snapshot とポートフォリオサマリーを更新し、`budget_status` / `budget_over_pct` / `correlation_window_minutes` / `drawdowns` をレビューする。
+   ```bash
+   python3 scripts/build_router_snapshot.py \
+       --output runs/router_pipeline/latest \
+       --manifest configs/strategies/day_orb_5m.yaml \
+       --manifest configs/strategies/tokyo_micro_mean_reversion.yaml \
+       --manifest-run day_orb_5m_v1=reports/portfolio_samples/router_demo/metrics/day_orb_5m_v1.json \
+       --manifest-run tokyo_micro_mean_reversion_v0=reports/portfolio_samples/router_demo/metrics/tokyo_micro_mean_reversion_v0.json \
+       --positions day_orb_5m_v1=1 \
+       --positions tokyo_micro_mean_reversion_v0=2 \
+       --correlation-window-minutes 240 \
+       --indent 2
+   python3 scripts/report_portfolio_summary.py \
+       --input runs/router_pipeline/latest \
+       --output reports/portfolio_summary.json \
+       --indent 2
+   ```
+   - `runs/router_pipeline/latest/telemetry.json` ではカテゴリヘッドルームと `strategy_correlations` を確認し、ヘッドルームが負値の場合は `budget_over_pct` の閾値逸脱量を記録する。
+   - `reports/portfolio_summary.json` の `correlation_heatmap[*].bucket_budget_pct`、`category_utilisation[*].budget_status`、`drawdowns.per_strategy` をレビューし、ダッシュボードで強調すべきアラート項目を整理する。
+2. リポジトリルートで以下を実行し、JSON まとめを生成する。
    ```bash
    python3 analysis/export_dashboard_data.py \
        --runs-root runs \
@@ -18,9 +37,9 @@
    ```
    - `--archive-dir` を指定すると戦略/シンボル/モードの組み合わせを上書きできる。
    - `--ev-limit`・`--slip-limit`・`--turnover-limit` で履歴件数を調整可能。
-2. Notebook で可視化したい場合は `analysis/portfolio_monitor.ipynb` を開き、最初のセルを実行してデータ構造を更新する。
+3. Notebook で可視化したい場合は `analysis/portfolio_monitor.ipynb` を開き、最初のセルを実行してデータ構造を更新する。
    - `pandas` が無い環境ではリスト形式で値が返るため、そのまま JSON 出力をレビューするか、必要に応じて `pip install pandas` で依存を追加する。
-3. 必要に応じて `out/dashboard_snapshot.json` を共有用ストレージへアップロードし、Slack/メールで最新値を通知する。
+4. 必要に応じて `out/dashboard_snapshot.json` を共有用ストレージへアップロードし、Slack/メールで最新値を通知する。
 
 ## データソースの対応付け
 | 指標 | 参照元 | 補足 |
