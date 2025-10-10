@@ -2,6 +2,7 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-06-28: Authored the Phase 3 detailed design specification (`docs/phase3_detailed_design.md`) capturing CLI flag expansions, dataset contracts, logging/heartbeat conventions, and test strategy. Synced `docs/task_backlog.md` / `docs/todo_next.md` with the new artefact. Docs-only change; no tests required.
 - 2026-06-27: Reviewed the Day ORB basic design doc to align it with current manifests—documented EV warmup/calibration paths, dynamic threshold adjustments, and refreshed risk guard notes (daily DD 5%, warmup 50). Docs-only change; no tests were required.
 - 2026-06-27: Drafted the Phase 3 observability automation blueprint (`docs/plans/p3_observability_automation.md`) detailing sampling cadence, webhook schema, dataset exports, ownership, and validation checkpoints. Synced `docs/task_backlog.md` / `docs/todo_next.md` to direct follow-up implementation planning.
 - 2026-06-27: Re-reviewed the Phase 3 observability blueprint, adding executive summary, dependency/milestone tables, and risk mitigations; updated `docs/task_backlog.md` with the expanded scope. Docs-only change; tests not required.
@@ -535,4 +536,4 @@
 
 - [OPS-CODEX-GUIDE] 2025-10-08: Aligned workflow docs with review feedback. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
 ## Next Task
-- Draft the P3 observability automation blueprint by detailing signal latency sampling cadence, weekly report webhook payload fields, and dashboard export datasets (document the plan under `docs/plans/` for implementation hand-off).
+- Produce the P3 observability automation DoD checklist (`docs/checklists/p3_observability_automation.md`), capturing CLI implementation gates, pytest coverage, and runbook updates so development can begin with acceptance criteria in place.
