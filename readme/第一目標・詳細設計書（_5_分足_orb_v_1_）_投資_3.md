@@ -18,7 +18,7 @@
 - **データ契約**: JSON SchemaでOHLC/特徴量/約定ログを検証（型・単位・範囲・時間連続）。
 - **コストモデル**: スプレッド（ライブ/バー）+ 期待スリッページ（EWMA）+ 手数料をpip換算。
 - **EV推定**: OCO=Beta-Binomial（勝率LCB）、可変利幅=t下側分位。閾値は `EV_LCB ≥ 0.5 pip` を基準とし、EVプロファイルの期待値/観測数に応じて上下補正する。
-- **サイズ**: 分数ケリー(0.25×)、1トレード損失≤0.5%、日次DD≤2%、クールダウン、近接指値マージ。
+- **サイズ**: 分数ケリー(0.25×)、1トレード損失≤0.5%、日次DD≤5%、クールダウン、近接指値マージ。
 - **Fill**: 保守（不利側優先）/Bridge（Brownian Bridge近似）の二系統で**両合格必須**。
 - **検証**: 2018-01-01〜2025-09-12の通し単一設定 + 年次“健康診断”。
 
@@ -133,7 +133,7 @@ flowchart LR
   - 追加で `trail = k_tr × ATR14` オプション（例: 0.5）
 - **リスク**:
   - 1トレード損失 ≤ 0.5% of Equity
-  - 日次DD ≤ 2% で当日停止
+  - 日次DD ≤ 5% で当日停止
   - 同一通貨 同方向のクールダウン=3本
   - 【追補】セッション内の発注回数制限（例: 各方向1回）を推奨（実装ガードに含める）。
 
@@ -162,6 +162,17 @@ flowchart LR
 - **サイズ制限 by サンプル数**: `n_eff < Nmin` のバケツは **サイズ0** または **縮小係数0.5×**。
 
 【追補（Beta逆CDF）】実装はWilson近似から開始し、依存が許される環境では正確版（scipy.stats.beta）へ切り替える。
+
+### EVウォームアップとキャリブレーション
+
+- `RunnerConfig.warmup_trades` を 50 件に設定し、統計が安定するまで EV ゲートを迂回するウォームアップ枠を確保する。【F:core/runner.py†L274-L307】【F:configs/strategies/day_orb_5m.yaml†L31-L40】
+- ウォームアップ中は `DayORB5m.signals` が `mode="warmup"` を経由してミニマムサイズの注文を出し、統計収集に専念する。【F:strategies/day_orb_5m.py†L161-L180】
+- `ctx.calibrating` / `ev_mode="off"` のときはケリー計算を回避し、サイズフロアだけを流すキャリブレーションモードで Fill 検証を行う。【F:strategies/day_orb_5m.py†L150-L168】
+
+### EV閾値調整ロジック
+
+- `DayORB5m.ev_threshold` は OR/ATR 比が高いときに閾値を引き下げ、境界付近では `ev_threshold_boost` で引き上げるダイナミック調整を行う。【F:strategies/day_orb_5m.py†L184-L205】
+- `ev_profile_stats`（直近期/長期）を参照し、観測数に応じた信頼度ウェイトで期待値との差分を平滑化して閾値へ反映する。過度な緩和/引き締めを避けるよう上下限を設けている。【F:strategies/day_orb_5m.py†L205-L216】
 
 ---
 
@@ -281,6 +292,17 @@ gate:
   warmup_trades: 0
 ```
 
+### `configs/strategies/day_orb_5m.yaml`（risk抜粋）
+
+```yaml
+risk:
+  risk_per_trade_pct: 0.25
+  max_daily_dd_pct: 5.0
+  notional_cap: 2000000
+  max_concurrent_positions: 1
+  warmup_trades: 50
+```
+
 ### `configs/sizing.yml`
 
 ```yaml
@@ -294,6 +316,8 @@ sizing:
   max_trade_loss_pct: 0.5
   equity_update: trade   # trade | daily
 ```
+
+※ Day ORB manifest 側で `max_daily_dd_pct` と `warmup_trades` を上書きしており、リスク閾値は 5%/50 件で運用する。【F:configs/strategies/day_orb_5m.yaml†L31-L40】
 
 ### `configs/acceptance.yml`
 
@@ -340,12 +364,21 @@ class DayORB5m(Strategy):
         if break_up(bar):  self.signal = make_signal("BUY")
         elif break_dn(bar): self.signal = make_signal("SELL")
     def signals(self):
-        if not self.signal or not pass_gates(self.ctx):
+        if not self.signal:
             return []
-        ev_lcb = self.ctx.ev.oc o_ev_lcb(self.signal, self.ctx)  # beta-binomial or t-lower
-        if ev_lcb < 0.5: return []
-        units = self.ctx.sz.size(self.signal, ev_lcb, self.ctx)
-        return [OrderIntent(..., oco=self.signal)]
+        ctx = resolve_runtime_context()
+        if cooldown_blocked(ctx) or not pass_gates(ctx):
+            return []
+        if ctx.calibrating or ctx.ev_mode == "off":
+            return [emit_calibration_order(self.signal, ctx)]
+        if ctx.warmup_left > 0:
+            return [emit_warmup_order(self.signal, ctx)]
+        threshold = self.ev_threshold(ctx, self.signal, ctx.threshold_lcb_pip)
+        ev_lcb = ctx.ev.ev_lcb_oco(self.signal.tp_pips, self.signal.sl_pips, ctx.cost_pips)
+        if ev_lcb < threshold:
+            return []
+        units = compute_qty_from_ctx(ctx, self.signal.sl_pips, tp_pips=self.signal.tp_pips, p_lcb=ctx.ev.p_lcb())
+        return [OrderIntent(..., oco=self.signal.with_qty(units))]
 ```
 
 ---
@@ -432,7 +465,7 @@ class DayORB5m(Strategy):
 5. Paper 30日 → SLO評価 → リリース判定
 
 【追加：運用MVP反映タスク】
-6. セッションOR化・クールダウン実装・Equity反映（日次DD停止）
+6. セッションOR化・クールダウン実装・Equity反映（日次DD≤5%停止）
 7. コストモデル拡張（スリッページ/拒否）とEV部分学習（Bridge）
 8. ファネル/recordsの列拡張（rv_band/セッション内訳、コスト内訳）と自動グリッド探索
 
