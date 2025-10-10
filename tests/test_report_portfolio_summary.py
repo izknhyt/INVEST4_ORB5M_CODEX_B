@@ -3,6 +3,7 @@ import statistics
 import subprocess
 import sys
 from pathlib import Path
+from typing import Dict, Tuple
 
 import pytest
 
@@ -12,6 +13,12 @@ from scripts import build_router_snapshot as build_router_snapshot_module
 DAY_MANIFEST = Path("configs/strategies/day_orb_5m.yaml")
 SCALPING_MANIFEST = Path("configs/strategies/tokyo_micro_mean_reversion.yaml")
 ROUTER_SAMPLE_METRICS = Path("reports/portfolio_samples/router_demo/metrics")
+
+
+def _load_router_demo_metrics(manifest_id: str) -> Tuple[Path, Dict[str, object]]:
+    metrics_path = (ROUTER_SAMPLE_METRICS / f"{manifest_id}.json").resolve()
+    payload = json.loads(metrics_path.read_text(encoding="utf-8"))
+    return metrics_path, payload
 
 
 def _write_metrics(path: Path, payload: dict) -> None:
@@ -339,4 +346,98 @@ def test_report_portfolio_summary_cli_budget_status(tmp_path: Path) -> None:
     assert scalping_entry["budget_headroom_pct"] < 0
     assert scalping_entry["budget_over_pct"] == pytest.approx(
         abs(scalping_entry["budget_headroom_pct"])
+    )
+
+
+def test_router_demo_pipeline_cli_budget_escalations(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    build_script = repo_root / "scripts" / "build_router_snapshot.py"
+    report_script = repo_root / "scripts" / "report_portfolio_summary.py"
+
+    day_metrics_path, _ = _load_router_demo_metrics("day_orb_5m_v1")
+    scalping_metrics_path, _ = _load_router_demo_metrics(
+        "tokyo_micro_mean_reversion_v0"
+    )
+
+    output_dir = tmp_path / "runs" / "router_pipeline" / "latest"
+    cmd = [
+        sys.executable,
+        str(build_script),
+        "--manifest",
+        str((repo_root / DAY_MANIFEST).resolve()),
+        "--manifest",
+        str((repo_root / SCALPING_MANIFEST).resolve()),
+        "--manifest-run",
+        f"day_orb_5m_v1={day_metrics_path}",
+        "--manifest-run",
+        f"tokyo_micro_mean_reversion_v0={scalping_metrics_path}",
+        "--positions",
+        "day_orb_5m_v1=1",
+        "--positions",
+        "tokyo_micro_mean_reversion_v0=2",
+        "--category-budget",
+        "day=3.0",
+        "--category-budget",
+        "scalping=0.05",
+        "--correlation-window-minutes",
+        "240",
+        "--indent",
+        "2",
+    ]
+    subprocess.run(cmd, check=True, capture_output=True, text=True, cwd=tmp_path)
+
+    telemetry_path = output_dir / "telemetry.json"
+    telemetry = json.loads(telemetry_path.read_text(encoding="utf-8"))
+
+    assert telemetry["category_budget_pct"]["day"] == pytest.approx(3.0)
+    assert telemetry["category_budget_pct"]["scalping"] == pytest.approx(0.05)
+    assert telemetry["category_utilisation_pct"]["day"] == pytest.approx(0.25, rel=1e-6)
+    assert telemetry["category_utilisation_pct"]["scalping"] == pytest.approx(
+        0.08, rel=1e-6
+    )
+
+    day_headroom = telemetry["category_budget_headroom_pct"]["day"]
+    scalping_headroom = telemetry["category_budget_headroom_pct"]["scalping"]
+    assert day_headroom == pytest.approx(
+        telemetry["category_budget_pct"]["day"]
+        - telemetry["category_utilisation_pct"]["day"]
+    )
+    assert 0 < day_headroom <= 5.0 + 1e-6
+
+    assert scalping_headroom == pytest.approx(
+        telemetry["category_budget_pct"]["scalping"]
+        - telemetry["category_utilisation_pct"]["scalping"]
+    )
+    assert scalping_headroom < 0
+
+    summary_output = tmp_path / "portfolio_summary.json"
+    summary_cmd = [
+        sys.executable,
+        str(report_script),
+        "--input",
+        str(output_dir),
+        "--output",
+        str(summary_output),
+        "--indent",
+        "2",
+    ]
+    subprocess.run(summary_cmd, check=True, capture_output=True, text=True, cwd=tmp_path)
+
+    summary = json.loads(summary_output.read_text(encoding="utf-8"))
+    categories = {row["category"]: row for row in summary["category_utilisation"]}
+
+    day_entry = categories["day"]
+    assert day_entry["budget_status"] == "warning"
+    assert "budget_over_pct" not in day_entry
+    assert day_entry["budget_headroom_pct"] == pytest.approx(
+        day_entry["budget_pct"] - day_entry["utilisation_pct"]
+    )
+
+    scalping_entry = categories["scalping"]
+    assert scalping_entry["budget_status"] == "breach"
+    assert scalping_entry["budget_over_pct"] == pytest.approx(
+        abs(scalping_entry["budget_headroom_pct"])
+    )
+    assert scalping_entry["budget_headroom_pct"] == pytest.approx(
+        scalping_entry["budget_pct"] - scalping_entry["utilisation_pct"]
     )
