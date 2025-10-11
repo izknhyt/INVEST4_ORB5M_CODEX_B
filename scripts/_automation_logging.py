@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, Iterable, Mapping, Optional
 
 import fcntl
 
@@ -147,6 +147,22 @@ def log_automation_event_with_sequence(
 
     with _locked_sequence_handle(sequence_path) as seq_handle:
         next_sequence = _read_next_sequence(seq_handle)
+        gap_warning = _prepare_sequence_gap_warning(
+            job_id,
+            log_path,
+            sequence_path,
+            expected_previous_sequence=next_sequence - 1,
+            next_sequence=next_sequence,
+        )
+        if gap_warning is not None:
+            log_automation_event(
+                gap_warning["job_id"],
+                "warning",
+                log_path=log_path,
+                schema_path=schema_path,
+                diagnostics=gap_warning["diagnostics"],
+                message=gap_warning["message"],
+            )
         entry = log_automation_event(
             job_id,
             status,
@@ -163,6 +179,101 @@ def log_automation_event_with_sequence(
         )
         _write_sequence(seq_handle, next_sequence)
         return entry
+
+
+def _prepare_sequence_gap_warning(
+    job_id: str,
+    log_path: Path,
+    sequence_path: Path,
+    *,
+    expected_previous_sequence: int,
+    next_sequence: int,
+) -> Optional[Dict[str, Any]]:
+    if expected_previous_sequence < 1:
+        return None
+    last_entry = _read_last_log_entry(log_path)
+    if not last_entry:
+        return None
+    last_sequence = last_entry.get("sequence")
+    if not isinstance(last_sequence, int):
+        return None
+    if last_sequence == expected_previous_sequence:
+        return None
+
+    diagnostics: Dict[str, Any] = {
+        "error_code": "sequence_gap",
+        "expected_previous_sequence": expected_previous_sequence,
+        "observed_previous_sequence": last_sequence,
+        "next_sequence": next_sequence,
+        "gap_size": abs(expected_previous_sequence - last_sequence),
+        "gap_direction": (
+            "observed_lower"
+            if last_sequence < expected_previous_sequence
+            else "observed_higher"
+        ),
+        "detected_for_job_id": job_id,
+        "sequence_path": str(sequence_path),
+        "log_path": str(log_path),
+    }
+    if isinstance(last_entry.get("job_id"), str):
+        diagnostics["observed_previous_job_id"] = last_entry["job_id"]
+    if isinstance(last_entry.get("logged_at"), str):
+        diagnostics["observed_previous_logged_at"] = last_entry["logged_at"]
+
+    message = (
+        "Detected automation run sequence gap: "
+        f"expected previous sequence {expected_previous_sequence}, "
+        f"observed {last_sequence}."
+    )
+    return {
+        "job_id": _derive_sequence_gap_job_id(job_id),
+        "message": message,
+        "diagnostics": diagnostics,
+    }
+
+
+def _read_last_log_entry(path: Path) -> Optional[Mapping[str, Any]]:
+    if not path.exists():
+        return None
+    with path.open("rb") as handle:
+        handle.seek(0, 2)
+        file_size = handle.tell()
+        if file_size == 0:
+            return None
+        chunk_size = 4096
+        data = b""
+        cursor = file_size
+        while cursor > 0:
+            read_size = min(chunk_size, cursor)
+            cursor -= read_size
+            handle.seek(cursor)
+            data = handle.read(read_size) + data
+            lines = data.splitlines()
+            for raw_line in reversed(lines):
+                stripped = raw_line.strip()
+                if not stripped:
+                    continue
+                try:
+                    decoded = stripped.decode("utf-8")
+                except UnicodeDecodeError as exc:
+                    raise AutomationLogError(
+                        f"Failed to decode last log entry in {path}: {exc}"
+                    ) from exc
+                try:
+                    return json.loads(decoded)
+                except json.JSONDecodeError as exc:
+                    raise AutomationLogError(
+                        f"Failed to parse last log entry in {path}: {exc}"
+                    ) from exc
+        return None
+
+
+def _derive_sequence_gap_job_id(job_id: str) -> str:
+    if _JOB_ID_PATTERN.match(job_id):
+        timestamp, _, _ = job_id.partition("-")
+        if timestamp:
+            return f"{timestamp}-sequence-gap"
+    return f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-sequence-gap"
 
 
 def _write_jsonl(entry: Mapping[str, Any], path: Path) -> None:
