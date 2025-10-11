@@ -518,7 +518,11 @@ def test_analyze_latency_uses_absolute_paths(monkeypatch):
     cmd = captured[0]
     root = run_daily_workflow.ROOT
     _assert_path_arg(cmd, "--input", root / "ops/signal_latency.csv")
-    _assert_path_arg(cmd, "--json-out", root / "reports/signal_latency.json")
+    _assert_path_arg(cmd, "--rollup-output", root / "ops/signal_latency_rollup.csv")
+    _assert_path_arg(cmd, "--heartbeat-file", root / "ops/latency_job_heartbeat.json")
+    _assert_path_arg(cmd, "--archive-dir", root / "ops/signal_latency_archive")
+    _assert_path_arg(cmd, "--archive-manifest", root / "ops/signal_latency_archive/manifest.jsonl")
+    _assert_path_arg(cmd, "--json-out", root / "reports/signal_latency_summary.json")
 
 
 def test_archive_state_uses_absolute_paths(monkeypatch):

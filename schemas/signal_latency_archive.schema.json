@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://invest3.example.com/schemas/signal_latency_archive.schema.json",
+  "title": "SignalLatencyArchiveEntry",
+  "type": "object",
+  "required": [
+    "job_id",
+    "path",
+    "sha256",
+    "row_count",
+    "rotated_at"
+  ],
+  "properties": {
+    "job_id": {
+      "type": "string",
+      "pattern": "^[0-9TZ:-]+-[a-z0-9_-]+$"
+    },
+    "path": {
+      "type": "string"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "row_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "rotated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": true
+}

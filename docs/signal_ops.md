@@ -11,15 +11,18 @@
 ```
 python3 scripts/analyze_signal_latency.py \
   --input ops/signal_latency.csv \
-  --slo-threshold 5 \
-  --failure-threshold 0.01 \
-  --out-json ops/latency_summary.json \
-  --out-csv ops/latency_summary.csv
+  --rollup-output ops/signal_latency_rollup.csv \
+  --heartbeat-file ops/latency_job_heartbeat.json \
+  --alert-config configs/observability/latency_alert.yaml \
+  --archive-dir ops/signal_latency_archive \
+  --archive-manifest ops/signal_latency_archive/manifest.jsonl \
+  --json-out reports/signal_latency_summary.json
 ```
 
-- `p95_latency` が閾値を超える、または失敗率が 1% を超えると終了コード 1 になります。
-- JSON 出力 (`--out-json` / 互換の `--json-out`) には `thresholds` キーが含まれ、`p95_latency` / `failure_rate` の違反有無と閾値がまとめられます。
-- CSV 出力 (`--out-csv`) は `metric,value,threshold,breach` 列で保存され、ダッシュボードや BI 取り込み時に利用します。
+- `reports/signal_latency_summary.json` には `samples_analyzed` / `latest_p95_ms` / `breach_streak` が含まれ、SLO 逸脱があった場合は `status="warning"`。
+- `ops/latency_job_heartbeat.json` の `pending_alerts` / `breach_streak` を監視することで、連続違反の有無を即座に把握できます。
+- 10MB を超えた RAW CSV は自動的に `ops/signal_latency_archive/YYYY/MM/<job_id>.csv.gz` へ退避され、manifest (`manifest.jsonl`) にハッシュとレコード数が追記されます。
+- Slack/PagerDuty へ連携する前に payload を確認したい場合は `--dry-run-alert` を付与し、`out/latency_alerts/<job_id>.json` をレビューしてください。
 
 ### CSV ローテーション
 - `ops/rotate_signal_latency.sh` で `ops/signal_latency.csv` を日次ローテーションし、当日の CSV をヘッダ付きの空ファイルとして再生成します。ローテーション済みファイルは `ops/archive/` に日付付きで保存されます。

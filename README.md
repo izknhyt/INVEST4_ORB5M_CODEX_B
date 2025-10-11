@@ -105,14 +105,18 @@ python3 scripts/run_sim.py \
 ```bash
 python3 scripts/analyze_signal_latency.py \
   --input ops/signal_latency.csv \
-  --slo-threshold 5 \
-  --failure-threshold 0.01 \
-  --out-json ops/latency_summary.json \
-  --out-csv ops/latency_summary.csv
+  --rollup-output ops/signal_latency_rollup.csv \
+  --heartbeat-file ops/latency_job_heartbeat.json \
+  --alert-config configs/observability/latency_alert.yaml \
+  --archive-dir ops/signal_latency_archive \
+  --archive-manifest ops/signal_latency_archive/manifest.jsonl \
+  --json-out reports/signal_latency_summary.json
 ```
-- `--slo-threshold`: p95 レイテンシの上限（秒）。閾値を超えると `thresholds.p95_latency.breach` が `true` になり終了コード 1。
-- `--failure-threshold`: 失敗率の上限（0〜1 の小数）。超過すると `thresholds.failure_rate.breach` が `true`。
-- `--out-json` / `--out-csv`: メトリクスと閾値判定を保存。どちらの閾値も超えない場合のみ終了コード 0。
+- `--rollup-output`: 1時間単位のロールアップを CSV へ書き込みます。既存ファイルがあればマージされ、`--rollup-retention-days` で保持期間を制御できます。
+- `--heartbeat-file`: 直近のジョブ成否・違反ステータスを JSON で保存します。`pending_alerts` と `breach_streak` が SLO 逸脱状況を示します。
+- `--alert-config`: `slo_p95_ms` や `warning_threshold` を定義する YAML。CLI フラグで上書きすることも可能です。
+- `--archive-dir` / `--archive-manifest`: 10MB 超の RAW CSV を gzip 化して退避し、manifest に `job_id` / `sha256` / `row_count` を追記します。
+- `--json-out`: stdout のサマリーをファイルへ保存します（`samples_analyzed` / `latest_p95_ms` / `breach_count` など）。Webhook テスト時は `--dry-run-alert` を併用すると `out/latency_alerts/<job_id>.json` にペイロードが出力されます。
 
 ### `scripts/check_data_quality.py`
 5m CSV のギャップや重複を集計し、JSON/CSV でサマリーを取得できます。
