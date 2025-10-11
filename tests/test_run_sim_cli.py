@@ -250,6 +250,31 @@ def test_load_bars_csv_requires_symbol_when_missing(tmp_path: Path) -> None:
     assert exc.value.code == "symbol_required"
 
 
+def test_load_bars_csv_supports_headerless_validated_snapshot(tmp_path: Path) -> None:
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(
+        "2024-01-01T09:00:00Z,USDJPY,5m,150.10,150.20,150.00,150.12,0,0.01\n"
+        "2024-01-01T09:05:00Z,USDJPY,5m,150.11,150.21,150.01,150.13,0,0.02\n",
+        encoding="utf-8",
+    )
+
+    iterator = load_bars_csv(
+        str(csv_path),
+        symbol="USDJPY",
+        default_symbol="USDJPY",
+        default_tf="5m",
+    )
+    bars = list(iterator)
+
+    assert [bar["timestamp"] for bar in bars] == [
+        "2024-01-01T09:00:00Z",
+        "2024-01-01T09:05:00Z",
+    ]
+    assert bars[0]["o"] == 150.10
+    assert bars[1]["c"] == 150.13
+    assert iterator.stats.skipped_rows == 0
+
+
 def test_run_sim_with_manifest(tmp_path: Path) -> None:
     manifest_path = _write_manifest(tmp_path)
     csv_path = tmp_path / "bars.csv"
