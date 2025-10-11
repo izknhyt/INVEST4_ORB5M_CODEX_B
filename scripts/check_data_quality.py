@@ -13,7 +13,7 @@ from collections import Counter, defaultdict
 from datetime import date, datetime, timezone
 from pathlib import Path
 from statistics import median
-from typing import Dict, List, Optional, Sequence, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -543,8 +543,62 @@ def _audit_internal(
     timestamp_line_numbers: defaultdict[datetime, List[int]] = defaultdict(list)
 
     with csv_path.open(newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for line_number, row in enumerate(reader, start=2):
+        raw_reader = csv.reader(f)
+        try:
+            first_row = next(raw_reader)
+        except StopIteration:
+            first_row = None
+
+        header_fields = set()
+        row_iterator: Iterable[Dict[str, str]]
+        start_line = 2
+
+        if first_row is None:
+            row_iterator = ()
+        else:
+            normalised_header = [
+                cell.lstrip("\ufeff").strip().lower() for cell in first_row
+            ]
+            header_fields = set(normalised_header)
+            required_header_subset = {
+                "timestamp",
+                "symbol",
+                "tf",
+                "o",
+                "h",
+                "l",
+                "c",
+            }
+            has_header = required_header_subset.issubset(header_fields)
+
+            if has_header:
+                fieldnames = [cell.strip() for cell in first_row]
+                row_iterator = csv.DictReader(f, fieldnames=fieldnames)
+                start_line = 2
+            else:
+                start_line = 1
+
+                def _row_generator():
+                    def _build_row(values: List[str]) -> Dict[str, str]:
+                        mapping: Dict[str, str] = {}
+                        core_fields = REQUIRED_COLS[:-1]
+                        for key, value in zip(core_fields, values):
+                            mapping[key] = value
+                        if len(values) > len(core_fields):
+                            mapping["spread"] = values[-1]
+                        else:
+                            mapping["spread"] = ""
+                        return mapping
+
+                    yield _build_row(first_row)
+                    for values in raw_reader:
+                        if not values:
+                            continue
+                        yield _build_row(values)
+
+                row_iterator = _row_generator()
+
+        for line_number, row in enumerate(row_iterator, start=start_line):
             if any(col not in row for col in REQUIRED_COLS):
                 missing_cols += 1
                 continue

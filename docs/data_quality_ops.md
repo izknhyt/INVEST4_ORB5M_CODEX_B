@@ -67,12 +67,14 @@ consistent location.
      --fail-on-calendar-day-warnings
    ```
 
-   The CLI prefers the headered snapshot. Running against
-   `validated/<SYMBOL>/5m.csv` (legacy headerless format) increments the
-   `missing_cols` counter and suppresses coverage ratio checks, so verify
-   `5m_with_header.csv` exists before attempting a reproduction. Capture
-   the reported `coverage_ratio` and `calendar_day_summary.warnings`
-   values from stdout — they feed directly into the acknowledgement log.
+   The CLI prefers the headered snapshot. When
+   `validated/<SYMBOL>/5m_with_header.csv` is missing it automatically
+   recognises the legacy headerless format, so coverage thresholds still
+   fire during reproductions. Keeping the headered snapshot available is
+   recommended because the column names simplify manual inspection, but
+   the fallback remains fully validated. Capture the reported
+   `coverage_ratio` and `calendar_day_summary.warnings` values from
+   stdout — they feed directly into the acknowledgement log.
 
 5. **Schedule remediation** — Decide whether the resolution requires a
    data backfill (`scripts/pull_prices.py`), manual CSV patching, or an
