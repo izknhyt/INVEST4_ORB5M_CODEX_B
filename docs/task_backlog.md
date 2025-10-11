@@ -27,6 +27,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 
 **Status Update (2026-06-15)**: Live `data_quality_failure` alert validation remains on hold until production emits the first alert. Operational bandwidth is redirected toward P2 portfolio reporting deliverables and P3 observability automation planning.
 - 2026-06-26: Phase 3 observability automation detailed design reviewed (`docs/phase3_detailed_design.md`), clarifying retention/manifest sequencing so the DoD checklist drafting can proceed without blockers.
+- 2026-06-27: Restored `scripts/check_data_quality.py` coverage checks for legacy headerless validated CSVs by auto-detecting missing headers, refreshed README / `docs/data_quality_ops.md` guidance, and added regression coverage for the fallback path so P0 data-quality guards stay reliable.
 <a id="p0-12-codex-first-documentation-cleanup"></a>
 ### ~~P0-12 Codex-first documentation cleanup~~ ✅ (2026-05-17 クローズ)
 

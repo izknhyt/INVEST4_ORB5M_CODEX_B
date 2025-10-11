@@ -147,7 +147,7 @@ python3 scripts/check_data_quality.py \
   --out-gap-json reports/data_quality/usdjpy_5m_gaps.json \
   --min-gap-minutes 15
 
-`scripts/run_daily_workflow.py --check-data-quality` also prefers `validated/<SYMBOL>/5m_with_header.csv` and only falls back to the legacy headerless snapshot if needed. Passing a headerless CSV to the audit CLI increments `missing_cols` and prevents coverage ratio checks, so use the headered snapshot for manual runs as well.
+`scripts/run_daily_workflow.py --check-data-quality` also prefers `validated/<SYMBOL>/5m_with_header.csv` and only falls back to the legacy headerless snapshot if needed. The audit CLI automatically detects headerless files, so coverage checks continue to run even when the fallback is used, but the headered snapshot remains the recommended source for manual investigations.
 ```
 
 - デフォルトのサマリーには `missing_rows_estimate` / `total_gap_minutes` / `average_gap_minutes` / `gap_details`（上位ギャップの詳細）を含みます。

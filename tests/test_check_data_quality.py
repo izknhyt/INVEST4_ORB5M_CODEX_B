@@ -22,6 +22,17 @@ def _write_sample_csv(path: Path) -> None:
     path.write_text("\n".join(rows), encoding="utf-8")
 
 
+def _write_headerless_csv(path: Path) -> None:
+    rows = [
+        "2024-01-01T00:00:00Z,USDJPY,5m,144.0,144.5,143.8,144.2,100,0.5",
+        "2024-01-01 00:05:00,USDJPY,5m,144.2,144.7,144.1,144.4,120,0.5",
+        "2024-01-01T00:15:00+00:00,USDJPY,5m,144.4,144.8,144.3,144.6,90,0.6",
+        "2024-01-01T00:15:00+00:00,USDJPY,5m,144.4,144.9,144.3,144.6,95,0.6",
+        "2024-01-01T00:20:00Z,USDJPY,5m,144.6,145.0,144.5,144.8,110,0.6",
+    ]
+    path.write_text("\n".join(rows), encoding="utf-8")
+
+
 def _write_multi_day_csv(path: Path) -> None:
     rows = [
         "timestamp,symbol,tf,o,h,l,c,v,spread",
@@ -78,6 +89,25 @@ def test_audit_summarises_gaps_and_coverage(tmp_path):
     assert summary["ignored_gap_count"] == 0
     assert summary["ignored_gap_minutes"] == pytest.approx(0.0)
     assert summary["ignored_missing_rows_estimate"] == 0
+
+
+def test_audit_handles_headerless_csv(tmp_path):
+    csv_path = tmp_path / "headerless.csv"
+    _write_headerless_csv(csv_path)
+
+    summary = check_data_quality.audit(csv_path)
+
+    assert summary["missing_cols"] == 0
+    assert summary["row_count"] == 5
+    assert summary["coverage_ratio"] == pytest.approx(0.8)
+    assert summary["duplicate_groups"] == 1
+    assert summary["duplicate_details"] == [
+        {
+            "timestamp": "2024-01-01T00:15:00",
+            "occurrences": 2,
+            "line_numbers": [3, 4],
+        }
+    ]
 
 
 def test_main_writes_json_summary(tmp_path, capsys):
