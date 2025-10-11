@@ -1,0 +1,90 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://invest3.example.com/schemas/automation_run.schema.json",
+  "title": "AutomationRunLogEntry",
+  "type": "object",
+  "required": [
+    "job_id",
+    "status",
+    "logged_at"
+  ],
+  "properties": {
+    "job_id": {
+      "type": "string",
+      "pattern": "^[0-9TZ:-]+-[a-z0-9_-]+$"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "error",
+        "skipped",
+        "dry_run",
+        "warning"
+      ]
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "logged_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "duration_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "attempts": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "artefacts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "alerts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "severity"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warning",
+              "critical"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "breach_range": {
+            "type": "string"
+          },
+          "evidence_path": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "diagnostics": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "message": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}
