@@ -21,7 +21,7 @@ import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence
+from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple
 
 if __package__ in (None, ""):
     # Allow running as a script without package context
@@ -87,6 +87,86 @@ class ExportContext:
     heartbeat_file: Path
     history_dir: Path
     archive_manifest: Path
+
+
+@dataclass
+class DatasetExportOutcome:
+    """Aggregated results from dataset export builders."""
+
+    results: List[DatasetResult]
+    status: Dict[str, str]
+    errors: List[Dict[str, Any]]
+
+
+def _record_error(
+    errors: List[Dict[str, Any]],
+    dataset: str,
+    error: Exception | str,
+    **extra: Any,
+) -> None:
+    message = error if isinstance(error, str) else str(error)
+    entry: Dict[str, Any] = {"dataset": dataset, "error": message}
+    if extra:
+        entry.update(extra)
+    errors.append(entry)
+
+
+def _export_selected_datasets(
+    ctx: ExportContext, dataset_names: Sequence[str]
+) -> DatasetExportOutcome:
+    results: List[DatasetResult] = []
+    status: Dict[str, str] = {}
+    errors: List[Dict[str, Any]] = []
+    for dataset in dataset_names:
+        builder = DATASET_BUILDERS.get(dataset)
+        if builder is None:
+            status[dataset] = "skipped"
+            continue
+        try:
+            result = builder(ctx)
+        except Exception as exc:  # noqa: BLE001 - propagate builder failure
+            status[dataset] = "error"
+            _record_error(errors, dataset, exc)
+        else:
+            results.append(result)
+            status[dataset] = "ok"
+    return DatasetExportOutcome(results=results, status=status, errors=errors)
+
+
+def _try_update_manifest(
+    ctx: ExportContext,
+    dataset_results: Sequence[DatasetResult],
+    automation_payload: Mapping[str, Any],
+) -> Tuple[Optional[Dict[str, Any]], Optional[Exception]]:
+    try:
+        manifest_entry = _update_manifest(ctx, dataset_results, automation_payload)
+    except Exception as exc:  # noqa: BLE001 - convert to recoverable error
+        return None, exc
+    return manifest_entry, None
+
+
+def _try_persist_history(
+    ctx: ExportContext, dataset_results: Sequence[DatasetResult]
+) -> Tuple[List[str], Optional[Exception]]:
+    try:
+        artefacts = _persist_history(ctx, dataset_results)
+    except Exception as exc:  # noqa: BLE001 - surface retention errors to caller
+        return [], exc
+    return artefacts, None
+
+
+def _update_heartbeat_safe(
+    ctx: ExportContext,
+    dataset_status: Mapping[str, str],
+    generated_at: datetime,
+    status: str,
+    errors: Sequence[Mapping[str, Any]],
+) -> Optional[Exception]:
+    try:
+        _update_heartbeat(ctx, dataset_status, generated_at, status, errors)
+    except Exception as exc:  # noqa: BLE001 - propagate to summary handling
+        return exc
+    return None
 
 
 def build_ev_history_dataset(ctx: ExportContext) -> DatasetResult:
@@ -280,41 +360,31 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     export_ctx.output_dir.mkdir(parents=True, exist_ok=True)
 
-    dataset_results: List[DatasetResult] = []
-    dataset_status: Dict[str, str] = {}
-    errors: List[Dict[str, Any]] = []
-
-    for dataset in datasets:
-        builder = DATASET_BUILDERS.get(dataset)
-        if builder is None:
-            dataset_status[dataset] = "skipped"
-            continue
-        try:
-            result = builder(export_ctx)
-            dataset_results.append(result)
-            dataset_status[dataset] = "ok"
-        except Exception as exc:  # noqa: BLE001 - propagate dataset errors in summary
-            dataset_status[dataset] = "error"
-            errors.append({"dataset": dataset, "error": str(exc)})
+    dataset_outcome = _export_selected_datasets(export_ctx, datasets)
+    dataset_results = dataset_outcome.results
+    dataset_status = dataset_outcome.status
+    errors = list(dataset_outcome.errors)
 
     status = "ok" if not errors else "error"
-    manifest_entry: Optional[Dict[str, Any]] = None
     artefacts: List[str] = [str(result.path) for result in dataset_results]
+    manifest_entry: Optional[Dict[str, Any]] = None
 
     if dataset_results:
-        try:
-            manifest_entry = _update_manifest(export_ctx, dataset_results, ctx.as_log_payload())
+        manifest_entry, manifest_error = _try_update_manifest(
+            export_ctx, dataset_results, ctx.as_log_payload()
+        )
+        if manifest_entry is not None:
             artefacts.append(str(export_ctx.manifest_path))
-        except Exception as exc:  # noqa: BLE001 - treat manifest errors as fatal
+        elif manifest_error is not None:
             status = "error"
-            errors.append({"dataset": "manifest", "error": str(exc)})
+            _record_error(errors, "manifest", manifest_error)
 
-    try:
-        history_paths = _persist_history(export_ctx, dataset_results)
-        artefacts.extend(history_paths)
-    except Exception as exc:  # noqa: BLE001
+    history_paths, history_error = _try_persist_history(export_ctx, dataset_results)
+    if history_error is not None:
         status = "error"
-        errors.append({"dataset": "history", "error": str(exc)})
+        _record_error(errors, "history", history_error)
+    else:
+        artefacts.extend(history_paths)
 
     heartbeat_error: Optional[Dict[str, Any]] = None
 
@@ -332,17 +402,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     "stdout": exc.stdout,
                     "stderr": exc.stderr,
                 }
-                errors.append({"dataset": "upload", "error": "upload_failed", "returncode": exc.returncode})
+                _record_error(errors, "upload", "upload_failed", returncode=exc.returncode)
         else:
             upload_result = {"command": upload_args, "skipped": True}
 
-    try:
-        _update_heartbeat(export_ctx, dataset_status, generated_at, status, errors)
+    heartbeat_exc = _update_heartbeat_safe(export_ctx, dataset_status, generated_at, status, errors)
+    if heartbeat_exc is None:
         artefacts.append(str(export_ctx.heartbeat_file))
-    except Exception as exc:  # noqa: BLE001
+    else:
         status = "error"
-        heartbeat_error = {"error": str(exc)}
-        errors.append({"dataset": "heartbeat", "error": str(exc)})
+        heartbeat_error = {"error": str(heartbeat_exc)}
+        _record_error(errors, "heartbeat", heartbeat_exc)
 
     summary = {
         "status": status,
