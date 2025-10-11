@@ -2,6 +2,11 @@
 
 ## Workflow Rule
 - Review this file before starting any task to confirm the latest context and checklist。
+- 2026-07-04: Realigned Phase 3 observability automation implementations with the detailed design by enriching latency rollups
+  (`analysis/latency_rollup.py`) with breach flags/streaks, updating `scripts/analyze_signal_latency.py` to validate archive manifes
+  ts and persist streak progress, and propagating the new metrics through the weekly payload/dashboard exports (`analysis/weekly_pa
+  yload.py`, `analysis/export_dashboard_data.py`). Refreshed the regression suites (`tests/test_analyze_signal_latency.py`, `tests/test
+  _weekly_payload.py`, `tests/test_dashboard_export.py`) and executed `python3 -m pytest` to confirm the full suite remains green.
 - 2026-06-30: Implemented the Phase 3 latency automation features (`analysis/latency_rollup.py`, `scripts/analyze_signal_latency.py`, `schemas/signal_latency_archive.schema.json`, `configs/observability/latency_alert.yaml`) with retention/rotation, heartbeat, and alert streak logging, refreshed docs/backlog/todo entries, and ran `python3 -m pytest tests/test_latency_rollup.py tests/test_analyze_signal_latency.py tests/test_run_daily_workflow.py` to capture regression coverage.
 - 2026-06-29: Began Phase 3 observability automation implementation by adding `scripts/_automation_logging.py`, `scripts/_automation_context.py`, and `schemas/automation_run.schema.json`, introducing pytest coverage (`tests/test_automation_logging.py`) and logging the kickoff in `docs/task_backlog.md`. Executed `python3 -m pytest` to keep the suite green.
 - 2026-06-29: Hardened automation logging by detecting sequence gaps in `log_automation_event_with_sequence`, emitting warning entries with `error_code="sequence_gap"`, updating regression coverage in `tests/test_automation_logging.py`, and validating via `python3 -m pytest tests/test_automation_logging.py`.

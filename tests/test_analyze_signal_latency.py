@@ -93,10 +93,13 @@ def test_main_updates_rollups_and_summary(tmp_path, capsys):
     assert summary["samples_analyzed"] == 2
     assert summary["rollups_total"] == 1
     assert summary["job_id"] == "20260629T000000Z-latency"
+    assert summary["breach_count"] == 0
 
     rollup_rows = list(csv.DictReader(rollup_path.open(encoding="utf-8")))
     assert len(rollup_rows) == 1
     assert float(rollup_rows[0]["p95_ms"]) >= 1390.0
+    assert rollup_rows[0]["breach_flag"].lower() in {"false", "0"}
+    assert int(rollup_rows[0]["breach_streak"]) == 0
 
     heartbeat = json.loads((tmp_path / "ops/latency_heartbeat.json").read_text(encoding="utf-8"))
     assert heartbeat["pending_alerts"] == 0
@@ -158,6 +161,7 @@ def test_breach_streak_and_alerts(tmp_path, capsys):
     first_summary = json.loads(capsys.readouterr().out.strip())
     assert first_summary["breach_streak"] == 1
     assert first_summary["status"] == "ok"
+    assert first_summary["breach_count"] == 1
 
     # append another high-latency sample to trigger warning on next run
     with raw_path.open("a", newline="", encoding="utf-8") as handle:
@@ -168,10 +172,14 @@ def test_breach_streak_and_alerts(tmp_path, capsys):
     second_summary = json.loads(capsys.readouterr().out.strip())
     assert second_summary["breach_streak"] >= 2
     assert second_summary["status"] == "warning"
+    assert second_summary["breach_count"] == 1
 
     heartbeat = json.loads(heartbeat_path.read_text(encoding="utf-8"))
     assert heartbeat["pending_alerts"] == 1
     assert heartbeat["breach_streak"] == second_summary["breach_streak"]
+
+    rollup_rows = list(csv.DictReader(rollup_path.open(encoding="utf-8")))
+    assert int(rollup_rows[-1]["breach_streak"]) == second_summary["breach_streak"]
 
 
 def test_rotation_generates_manifest(tmp_path, capsys):

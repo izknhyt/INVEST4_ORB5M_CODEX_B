@@ -11,7 +11,7 @@ import os
 import sys
 import time
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple
@@ -20,6 +20,7 @@ from analysis.latency_rollup import LatencyRollup, LatencySample, aggregate
 from core.utils import yaml_compat as yaml
 from scripts._automation_context import AutomationContext, build_automation_context
 from scripts._automation_logging import AutomationLogError, log_automation_event_with_sequence
+from scripts._schema import SchemaValidationError, load_json_schema, validate_json_schema
 
 RAW_FIELDNAMES = ["timestamp_utc", "latency_ms", "status", "detail", "source"]
 ROLLUP_FIELDNAMES = [
@@ -32,6 +33,8 @@ ROLLUP_FIELDNAMES = [
     "p95_ms",
     "p99_ms",
     "max_ms",
+    "breach_flag",
+    "breach_streak",
 ]
 DEFAULT_ALERT_CONFIG = {
     "slo_p95_ms": 5000,
@@ -40,6 +43,8 @@ DEFAULT_ALERT_CONFIG = {
     "failure_rate_threshold": 0.01,
 }
 DEFAULT_MAX_RAW_BYTES = 10 * 1024 * 1024
+REPO_ROOT = Path(__file__).resolve().parents[1]
+ARCHIVE_SCHEMA_PATH = REPO_ROOT / "schemas/signal_latency_archive.schema.json"
 
 
 @dataclass
@@ -291,47 +296,51 @@ def _execute_job(
         stored_records = []
         _write_raw_records(raw_path, stored_records)
 
+    alert_config = _load_alert_config(args)
     new_rollups = aggregate(record.to_sample() for record in records_for_rollup)
     existing_rollups = _load_rollup_rows(rollup_path)
     merged_rollups = _merge_rollups(existing_rollups, new_rollups)
     rollup_cutoff = now - timedelta(days=max(args.rollup_retention_days, 0))
-    merged_rollups = [
-        rollup
-        for rollup in merged_rollups
-        if rollup.window_end >= rollup_cutoff
-    ]
-    _write_rollups(rollup_path, merged_rollups)
-
-    alert_config = _load_alert_config(args)
+    merged_rollups = [rollup for rollup in merged_rollups if rollup.window_end >= rollup_cutoff]
+    annotated_rollups = _annotate_rollups(merged_rollups, alert_config)
     heartbeat = _load_heartbeat(heartbeat_path)
-    latest_rollup = merged_rollups[-1] if merged_rollups else None
-    breach_streak = heartbeat.get("breach_streak", 0)
+    previous_streak = int(heartbeat.get("breach_streak", 0) or 0)
+    if annotated_rollups:
+        latest_rollup = annotated_rollups[-1]
+        if latest_rollup.breach_flag:
+            breach_streak = previous_streak + 1
+        else:
+            breach_streak = 0
+        annotated_rollups[-1] = replace(latest_rollup, breach_streak=breach_streak)
+        latest_rollup = annotated_rollups[-1]
+    else:
+        latest_rollup = None
+        breach_streak = 0
+    _write_rollups(rollup_path, annotated_rollups)
     alerts: List[AlertPayload] = []
     severity: Optional[str] = None
     if latest_rollup:
-        if latest_rollup.p95_ms > alert_config.slo_p95_ms:
-            breach_streak += 1
-        else:
-            breach_streak = 0
         if latest_rollup.failure_rate > alert_config.failure_rate_threshold:
-            severity = severity or "warning"
-        if breach_streak >= alert_config.critical_threshold:
+            severity = "warning"
+        if latest_rollup.breach_streak >= alert_config.critical_threshold:
             severity = "critical"
-        elif breach_streak >= alert_config.warning_threshold:
+        elif latest_rollup.breach_streak >= alert_config.warning_threshold:
             severity = severity or "warning"
         if severity:
+            message = (
+                f"p95 latency {latest_rollup.p95_ms:.1f}ms "
+                f"(threshold {alert_config.slo_p95_ms:.1f}ms); "
+                f"failure_rate {latest_rollup.failure_rate:.4f}"
+            )
             alerts.append(
                 AlertPayload(
                     severity=severity,
-                    message=
-                    f"p95 latency {latest_rollup.p95_ms:.1f}ms above {alert_config.slo_p95_ms:.1f}ms",
-                    breach_range=f"last {breach_streak} samples",
+                    message=message,
+                    breach_range=f"last {max(1, latest_rollup.breach_streak)} samples",
                     evidence_path=str(rollup_path),
                     alert_id=f"latency-breach-{ctx.job_id}",
                 )
             )
-    else:
-        breach_streak = 0
 
     if args.dry_run_alert and alerts:
         _write_dry_run_alerts(Path(args.alerts_dir), ctx.job_id, alerts)
@@ -356,8 +365,8 @@ def _execute_job(
         "status": "dry_run" if args.dry_run_alert else ("warning" if alerts else "ok"),
         "samples_analyzed": len(records_for_rollup),
         "samples_retained": len(stored_records),
-        "rollups_total": len(merged_rollups),
-        "breach_count": len(alerts),
+        "rollups_total": len(annotated_rollups),
+        "breach_count": sum(1 for rollup in annotated_rollups if rollup.breach_flag),
         "breach_streak": breach_streak,
         "lock_latency_ms": round(lock_latency_ms, 3),
         "next_rotation_bytes": max(0, max(args.max_raw_bytes, 0) - raw_path.stat().st_size),
@@ -487,6 +496,8 @@ def _load_rollup_rows(path: Path) -> List[LatencyRollup]:
                     window_end = _parse_ts(window_end_text)
                 else:
                     window_end = window_start + timedelta(hours=1)
+                breach_flag = _parse_bool(row.get("breach_flag"))
+                breach_streak = int(float(row.get("breach_streak", 0) or 0))
                 rollups.append(
                     LatencyRollup(
                         window_start=window_start,
@@ -497,6 +508,8 @@ def _load_rollup_rows(path: Path) -> List[LatencyRollup]:
                         p95_ms=float(row.get("p95_ms", 0.0) or 0.0),
                         p99_ms=float(row.get("p99_ms", 0.0) or 0.0),
                         max_ms=float(row.get("max_ms", 0.0) or 0.0),
+                        breach_flag=breach_flag,
+                        breach_streak=breach_streak,
                     )
                 )
             except Exception:
@@ -512,6 +525,24 @@ def _merge_rollups(
     for rollup in new_rollups:
         rollup_map[rollup.window_start] = rollup
     return sorted(rollup_map.values(), key=lambda item: item.window_start)
+
+
+def _annotate_rollups(
+    rollups: Sequence[LatencyRollup],
+    alert_config: AlertConfig,
+) -> List[LatencyRollup]:
+    streak = 0
+    annotated: List[LatencyRollup] = []
+    for rollup in sorted(rollups, key=lambda item: item.window_start):
+        breach = rollup.p95_ms > alert_config.slo_p95_ms or (
+            rollup.failure_rate > alert_config.failure_rate_threshold
+        )
+        if breach:
+            streak += 1
+        else:
+            streak = 0
+        annotated.append(replace(rollup, breach_flag=breach, breach_streak=streak))
+    return annotated
 
 
 def _write_rollups(path: Path, rollups: Sequence[LatencyRollup]) -> None:
@@ -552,6 +583,7 @@ def _rotate_raw_file(
 
 def _append_manifest(path: Path, entry: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    _validate_manifest_entry(entry)
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
@@ -582,6 +614,23 @@ def _load_alert_config(args: argparse.Namespace) -> AlertConfig:
         critical_threshold=critical_threshold,
         failure_rate_threshold=failure_rate_threshold,
     )
+
+
+def _validate_manifest_entry(entry: Mapping[str, Any]) -> None:
+    try:
+        schema = load_json_schema(ARCHIVE_SCHEMA_PATH)
+        validate_json_schema(dict(entry), schema)
+    except (FileNotFoundError, SchemaValidationError) as exc:
+        raise AutomationLogError(f"invalid archive manifest entry: {exc}") from exc
+
+
+def _parse_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    text = str(value).strip().lower()
+    return text in {"1", "true", "yes", "y"}
 
 
 def _write_dry_run_alerts(directory: Path, job_id: str, alerts: Sequence[AlertPayload]) -> None:
