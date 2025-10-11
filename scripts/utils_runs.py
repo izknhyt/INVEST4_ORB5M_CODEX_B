@@ -24,6 +24,9 @@ class RunRecord:
     trades: int
     wins: int
     total_pips: float
+    sharpe: float | None = None
+    max_drawdown: float | None = None
+    pnl_per_trade: float | None = None
 
     @property
     def win_rate(self) -> float:
@@ -56,6 +59,9 @@ def load_runs_index(path: Path = Path("runs/index.csv")) -> List[RunRecord]:
                     trades=int(float(row.get("trades"))) if row.get("trades") else 0,
                     wins=int(float(row.get("wins"))) if row.get("wins") else 0,
                     total_pips=float(row.get("total_pips")) if row.get("total_pips") else 0.0,
+                    sharpe=float(row.get("sharpe")) if row.get("sharpe") else None,
+                    max_drawdown=float(row.get("max_drawdown")) if row.get("max_drawdown") else None,
+                    pnl_per_trade=float(row.get("pnl_per_trade")) if row.get("pnl_per_trade") else None,
                 )
             except Exception:
                 continue
