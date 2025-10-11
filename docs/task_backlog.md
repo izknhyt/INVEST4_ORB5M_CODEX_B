@@ -214,6 +214,8 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - 2026-06-28: Created [docs/checklists/p3_observability_automation.md](checklists/p3_observability_automation.md) covering CLI gates, automation logging, retention policies, validation commands, and documentation updates for the hand-off.
   - 2026-06-29: Kicked off implementation by landing shared automation scaffolding (`scripts/_automation_logging.py`, `scripts/_automation_context.py`) with JSON schema validation and regression tests so downstream CLI work can plug into a common logging/context backbone.
   - 2026-06-30: Implemented the latency automation CLI enhancements (`scripts/analyze_signal_latency.py`, `analysis/latency_rollup.py`, archive schema/config) with retention, rotation, heartbeat, and alert streak handling; refreshed docs and pytest coverage to match the Phase 3 detailed design.
+  - 2026-07-01: Delivered the weekly observability payload builder (`analysis/weekly_payload.py`) and CLI wiring (`scripts/summarize_runs.py`) with schema validation, webhook retries, history manifest, and automation logging coverage.
+  - 2026-07-02: Completed the dashboard export automation by extending `analysis/export_dashboard_data.py` with dataset-specific outputs, manifest sequencing, heartbeat/history rotation, upload retries, and JSON Schema validation. Added `schemas/dashboard_manifest.schema.json`, documented the new flow in `docs/observability_dashboard.md`, updated the P3 checklist, and introduced regression tests (`tests/test_dashboard_export.py`, `tests/test_dashboard_datasets.py`).
 
 ## 継続タスク / 保守
 - データスキーマ検証 (`scripts/check_data_quality.py`) を cron 化し、異常リストを `analysis/data_quality.md` に追記。

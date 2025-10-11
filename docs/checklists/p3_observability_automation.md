@@ -29,18 +29,18 @@
     - [x] ローテーション時の manifest (`ops/signal_latency_archive/manifest.jsonl`) とハートビート (`ops/latency_job_heartbeat.json`) を更新し、最新エントリに `job_id` / `checksum_sha256` / `row_count` を残した。
   - [x] `python3 -m pytest tests/test_analyze_signal_latency.py`（新設）や既存テストにより、SLO breach ロジック・ローテーション・ロックガードが回帰テストで担保されることを確認し、テストコマンドをログ化した。
 
-- [ ] **週次ヘルスレポートの自動生成と配信を固定化した。**
-  - [ ] `scripts/summarize_runs.py` を拡張し、`--weekly-payload`, `--payload-schema`, `--webhook-url-env`, `--webhook-secret-env`, `--max-retries`, `--retry-wait-seconds`, `--out-dir`, `--dry-run-webhook` を実装した。
-  - [ ] 週次 payload ビルダ (`analysis/weekly_payload.py`) を実装し、`WeeklyPayloadContext` / `WeeklyPayload` dataclass で runs / portfolio / latency rollup を集約、`ensure_complete()` で必須フィールド検証を行うようにした。
-  - [ ] JSON Schema `schemas/observability_weekly_report.schema.json` を整備し、payload 生成時に検証エラーを `status="error"`, `error_code="schema_validation_failed"` としてログ化する流れを構築した。
-  - [ ] Webhook 署名 (`X-OBS-Signature`), 再試行, ドライラン artefact (`out/weekly_report/<job_id>.json`) の生成、成功時の `ops/weekly_report_history/<week_start>.json` + `.sig` 保存と manifest 追記を実装した。
-  - [ ] `python3 -m pytest tests/test_summarize_runs.py::test_weekly_payload_schema`（等の新規ケース）を通し、schema 準拠と webhook 署名ロジックの回帰を確認した。
+- [x] **週次ヘルスレポートの自動生成と配信を固定化した。**
+  - [x] `scripts/summarize_runs.py` を拡張し、`--weekly-payload`, `--payload-schema`, `--webhook-url-env`, `--webhook-secret-env`, `--max-retries`, `--retry-wait-seconds`, `--out-dir`, `--dry-run-webhook` を実装した。
+  - [x] 週次 payload ビルダ (`analysis/weekly_payload.py`) を実装し、`WeeklyPayloadContext` / `WeeklyPayload` dataclass で runs / portfolio / latency rollup を集約、`ensure_complete()` で必須フィールド検証を行うようにした。
+  - [x] JSON Schema `schemas/observability_weekly_report.schema.json` を整備し、payload 生成時に検証エラーを `status="error"`, `error_code="schema_validation_failed"` としてログ化する流れを構築した。
+  - [x] Webhook 署名 (`X-OBS-Signature`), 再試行, ドライラン artefact (`out/weekly_report/<job_id>.json`) の生成、成功時の `ops/weekly_report_history/<week_start>.json` + `.sig` 保存と manifest 追記を実装した。
+  - [x] `python3 -m pytest tests/test_weekly_payload.py tests/test_summarize_runs.py::test_weekly_payload_cli_success` を通し、schema 準拠と webhook 署名ロジックの回帰を確認した。
 
-- [ ] **ダッシュボードデータセットのエクスポートを自動化した。**
-  - [ ] `analysis/export_dashboard_data.py` に `--dataset`, `--manifest`, `--provenance`, `--heartbeat-file`, `--upload-command` を追加し、EV history / slippage telemetry / turnover summary / latency rollups の各データセットを `out/dashboard/<dataset>.json` に出力する動線を整備した。
-  - [ ] 生成される manifest (`out/dashboard/manifest.json`) に `sequence`, `generated_at`, `checksum_sha256`, `row_count`, `datasets` 情報を追記し、排他制御 (`fcntl` ロック + `os.replace`) を実装した。
-  - [ ] `ops/dashboard_export_history/`・`ops/dashboard_export_archive_manifest.json`・`ops/dashboard_export_heartbeat.json` を更新するローテーションとヘルスビートを書き、60日/8週間の保管ポリシーが守られていることを確認した。
-  - [ ] `python3 -m pytest tests/test_dashboard_datasets.py`（新設）を通し、各データセットのフィールド検証と manifest 連番更新が回帰テストでカバーされていることを確認した。
+- [x] **ダッシュボードデータセットのエクスポートを自動化した。**
+  - [x] `analysis/export_dashboard_data.py` に `--dataset`, `--manifest`, `--provenance`, `--heartbeat-file`, `--upload-command` を追加し、EV history / slippage telemetry / turnover summary / latency rollups の各データセットを `out/dashboard/<dataset>.json` に出力する動線を整備した。
+  - [x] 生成される manifest (`out/dashboard/manifest.json`) に `sequence`, `generated_at`, `checksum_sha256`, `row_count`, `datasets` 情報を追記し、排他制御 (`fcntl` ロック + `os.replace`) を実装した。
+  - [x] `ops/dashboard_export_history/`・`ops/dashboard_export_archive_manifest.json`・`ops/dashboard_export_heartbeat.json` を更新するローテーションとヘルスビートを書き、60日/8週間の保管ポリシーが守られていることを確認した。
+  - [x] `python3 -m pytest tests/test_dashboard_datasets.py`（新設）を通し、各データセットのフィールド検証と manifest 連番更新が回帰テストでカバーされていることを確認した。
 
 - [ ] **ドキュメントと運用フローを更新した。**
   - [ ] `docs/state_runbook.md#observability-automation`（新設セクション）と [docs/observability_dashboard.md](../observability_dashboard.md) に CLI コマンド、期待 artefact、アラートエスカレーション、手動復旧手順を追記した。

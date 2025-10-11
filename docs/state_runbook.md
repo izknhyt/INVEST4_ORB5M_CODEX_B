@@ -82,3 +82,41 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
 - オンデマンド/常駐インジェスト設計: [docs/api_ingest_plan.md](api_ingest_plan.md)
 - Sandbox / 承認ガイド: [docs/codex_cloud_notes.md](codex_cloud_notes.md)
 - Incident 再現ノート: [analysis/incident_review.ipynb](../analysis/incident_review.ipynb)
+
+## 観測性オートメーション
+
+### CLI チェーン
+- 手動実行またはジョブ検証では以下を参照し、3 つの CLI（レイテンシ / 週次レポート / ダッシュボードエクスポート）を順番に実行する。
+  ```bash
+  python3 scripts/analyze_signal_latency.py --config configs/observability/latency.yaml --heartbeat-file ops/latency_job_heartbeat.json
+  python3 scripts/summarize_runs.py --weekly-payload --config configs/observability/weekly.yaml --dry-run-webhook
+  python3 analysis/export_dashboard_data.py \
+      --runs-root runs \
+      --state-archive-root ops/state_archive \
+      --strategy day_orb_5m.DayORB5m \
+      --symbol USDJPY \
+      --mode conservative \
+      --portfolio-telemetry reports/portfolio_samples/router_demo/telemetry.json \
+      --latency-rollup ops/signal_latency_rollup.csv \
+      --output-dir out/dashboard \
+      --manifest out/dashboard/manifest.json \
+      --heartbeat-file ops/dashboard_export_heartbeat.json \
+      --history-dir ops/dashboard_export_history \
+      --archive-manifest ops/dashboard_export_archive_manifest.jsonl
+  ```
+  - `--dataset` 未指定時は `ev_history` / `slippage` / `turnover` / `latency` の 4 データセットをすべて生成する。
+  - `--upload-command` を併用する場合は戻り値を summary JSON で確認し、失敗時は `ops/dashboard_export_heartbeat.json.last_failure` を参照する。
+
+### 成果物レビュー
+- `out/dashboard/manifest.json` — `sequence` が単調増加しているか、`datasets[].checksum_sha256` が最新 `out/dashboard/<dataset>.json` と一致しているか確認する。検証には `python3 -m json.tool out/dashboard/manifest.json` を利用しても良い。
+- `ops/dashboard_export_heartbeat.json` — `datasets` のステータスがすべて `ok` で `last_success_at` が 6 時間以内であること。`status="error"` の場合は `last_failure.errors` の `dataset` を基にリトライを行う。
+- 履歴: `ops/dashboard_export_history/<job_id>/` に各データセットのコピーと `manifest.json` が保存される。8 週間を超えたディレクトリは自動削除されるため、削除ログを `ops/dashboard_export_archive_manifest.jsonl` で確認する。
+
+### 失敗時トリアージ
+- Summary JSON（`--json-out` または stdout）で `errors[].dataset` を確認し、該当入力ファイル（例: `ops/signal_latency_rollup.csv` や `runs/index.csv`）の有無・権限をチェックする。
+- Upload 失敗 (`error_code="upload_failed"`) は戻り値・標準エラーを添えてストレージ運用チームへ連絡。ローカル artefact は履歴ディレクトリに残るため、共有ストレージが復旧次第再送信する。
+- Manifest/heartbeat 書き込みエラー時はファイル権限と残容量を確認し、必要に応じて `sudo chown` や `truncate -s 0` で破損ログを復旧したのち再実行する。
+
+### ナイトリー検証
+- cron へ投入する前に `tail -n 20 ops/automation_runs.log` と `python3 -m json.tool ops/dashboard_export_heartbeat.json` で最新エントリを点検し、`status`=`ok` と `sequence` の連番を確認する。
+- `run_daily_workflow.py --observability --dry-run` をスケジューラに登録する場合、`OPS_DASHBOARD_UPLOAD_CMD` などの secrets が正しく読み込めることを `analysis/export_dashboard_data.py --job-name observability --job-id $(date -u +%Y%m%dT%H%M%SZ)-observability --dataset ev_history --json-out /tmp/obs_check.json` でテスト実行し、summary JSON と `AutomationContext.describe()` の `environment` スナップショットを確認する。

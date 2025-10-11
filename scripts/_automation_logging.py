@@ -7,10 +7,9 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, Mapping, Optional
+from typing import Any, Dict, Mapping, Optional
 
 import fcntl
-from functools import lru_cache
 
 
 __all__ = [
@@ -28,6 +27,9 @@ AUTOMATION_SCHEMA_PATH = Path("schemas/automation_run.schema.json")
 _MAX_LOG_BYTES = 4096
 _ALLOWED_STATUS = {"ok", "error", "skipped", "dry_run", "warning"}
 _JOB_ID_PATTERN = re.compile(r"^[0-9TZ:-]+-[a-z0-9_-]+$")
+
+
+from ._schema import SchemaValidationError, load_json_schema, validate_json_schema
 
 
 class AutomationLogError(RuntimeError):
@@ -112,7 +114,11 @@ def log_automation_event(
             if key not in entry:
                 entry[key] = value
 
-    _validate_entry(entry, Path(schema_path))
+    schema = load_json_schema(Path(schema_path))
+    try:
+        validate_json_schema(entry, schema)
+    except SchemaValidationError as exc:
+        raise AutomationLogSchemaError(str(exc)) from exc
     _write_jsonl(entry, Path(log_path))
     return entry
 
@@ -222,118 +228,3 @@ def _write_sequence(sequence_handle: _SequenceHandle, value: int) -> None:
     sequence_handle.handle.flush()
 
 
-def _validate_entry(entry: Mapping[str, Any], schema_path: Path) -> None:
-    schema = _load_schema(schema_path)
-    try:
-        _validate_against_schema(entry, schema)
-    except AutomationLogSchemaError:
-        raise
-    except Exception as exc:  # pragma: no cover - defensive catch
-        raise AutomationLogSchemaError(str(exc)) from exc
-
-
-@lru_cache(maxsize=1)
-def _load_schema(schema_path: Path) -> Mapping[str, Any]:
-    if not schema_path.exists():
-        raise AutomationLogError(f"Schema file not found: {schema_path}")
-    with schema_path.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
-
-
-def _validate_against_schema(entry: Mapping[str, Any], schema: Mapping[str, Any]) -> None:
-    if schema.get("type") != "object":
-        raise AutomationLogSchemaError("automation log schema must describe an object")
-    required = schema.get("required", [])
-    for key in required:
-        if key not in entry:
-            raise AutomationLogSchemaError(f"Missing required field: {key}")
-    properties = schema.get("properties", {})
-    additional = schema.get("additionalProperties", True)
-    for key, value in entry.items():
-        if key in properties:
-            _validate_property(value, properties[key], key)
-        elif isinstance(additional, Mapping):
-            _validate_property(value, additional, key)
-        elif not additional:
-            raise AutomationLogSchemaError(f"Unexpected property: {key}")
-
-
-def _validate_property(value: Any, schema: Mapping[str, Any], key: str) -> None:
-    expected_type = schema.get("type")
-    if expected_type:
-        _validate_type(value, expected_type, key)
-    if "enum" in schema and value not in schema["enum"]:
-        raise AutomationLogSchemaError(f"Field '{key}' must be one of {schema['enum']}")
-    if isinstance(value, (int, float)) and "minimum" in schema:
-        if value < schema["minimum"]:
-            raise AutomationLogSchemaError(
-                f"Field '{key}' must be >= {schema['minimum']} (received {value})"
-            )
-    if schema.get("type") == "string" and "pattern" in schema:
-        if not re.match(schema["pattern"], value):
-            raise AutomationLogSchemaError(
-                f"Field '{key}' does not match pattern {schema['pattern']}"
-            )
-    if schema.get("type") == "string" and schema.get("format") == "date-time":
-        _validate_datetime(value, key)
-    if schema.get("type") == "array":
-        items = schema.get("items")
-        if items:
-            for index, element in enumerate(value):
-                _validate_property(element, items, f"{key}[{index}]")
-    if schema.get("type") == "object":
-        nested_properties = schema.get("properties", {})
-        nested_required = schema.get("required", [])
-        nested_additional = schema.get("additionalProperties", True)
-        for nested_key in nested_required:
-            if nested_key not in value:
-                raise AutomationLogSchemaError(
-                    f"Field '{key}' is missing required property '{nested_key}'"
-                )
-        for nested_key, nested_value in value.items():
-            if nested_key in nested_properties:
-                _validate_property(nested_value, nested_properties[nested_key], f"{key}.{nested_key}")
-            elif isinstance(nested_additional, Mapping):
-                _validate_property(nested_value, nested_additional, f"{key}.{nested_key}")
-            elif not nested_additional:
-                raise AutomationLogSchemaError(
-                    f"Field '{key}' has unexpected property '{nested_key}'"
-                )
-
-
-def _validate_type(value: Any, expected: str, key: str) -> None:
-    type_map = {
-        "string": str,
-        "integer": int,
-        "number": (int, float),
-        "object": Mapping,
-        "array": Iterable,
-        "boolean": bool,
-    }
-    python_type = type_map.get(expected)
-    if python_type is None:
-        return
-    if expected == "array":
-        if not isinstance(value, list):
-            raise AutomationLogSchemaError(f"Field '{key}' must be an array")
-    elif expected == "object":
-        if not isinstance(value, Mapping):
-            raise AutomationLogSchemaError(f"Field '{key}' must be an object")
-    elif expected == "integer":
-        if not isinstance(value, int):
-            raise AutomationLogSchemaError(f"Field '{key}' must be an integer")
-    elif expected == "number":
-        if not isinstance(value, (int, float)):
-            raise AutomationLogSchemaError(f"Field '{key}' must be a number")
-    else:
-        if not isinstance(value, python_type):
-            raise AutomationLogSchemaError(f"Field '{key}' must be of type {expected}")
-
-
-def _validate_datetime(value: str, key: str) -> None:
-    try:
-        if value.endswith("Z"):
-            value = value[:-1] + "+00:00"
-        datetime.fromisoformat(value)
-    except ValueError as exc:  # pragma: no cover - should be rare
-        raise AutomationLogSchemaError(f"Field '{key}' must be ISO8601 date-time") from exc

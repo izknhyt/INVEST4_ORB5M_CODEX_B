@@ -1,15 +1,12 @@
 from __future__ import annotations
 
+import csv
 import json
 import subprocess
 import sys
 from pathlib import Path
 
-from analysis.dashboard import (
-    load_ev_history,
-    load_state_slippage,
-    load_turnover_metrics,
-)
+from analysis.dashboard import load_ev_history, load_state_slippage, load_turnover_metrics
 
 
 ARCHIVE_DIR = Path("ops/state_archive/day_orb_5m.DayORB5m/USDJPY/conservative")
@@ -31,12 +28,17 @@ def test_loaders_return_data():
 
 
 def test_export_dashboard_cli(tmp_path):
-    out_path = tmp_path / "dashboard.json"
+    latency_rollup = tmp_path / "latency.csv"
+    _write_latency_rollup(latency_rollup)
+    output_dir = tmp_path / "dashboard"
+    manifest_path = output_dir / "manifest.json"
+    heartbeat_path = tmp_path / "heartbeat.json"
+    history_dir = tmp_path / "history"
+    archive_manifest = tmp_path / "archive_manifest.jsonl"
+    summary_path = tmp_path / "summary.json"
     cmd = [
         sys.executable,
         "analysis/export_dashboard_data.py",
-        "--out-json",
-        str(out_path),
         "--runs-root",
         str(RUNS_ROOT),
         "--state-archive-root",
@@ -49,21 +51,85 @@ def test_export_dashboard_cli(tmp_path):
         "conservative",
         "--portfolio-telemetry",
         str(TELEMETRY_PATH),
-        "--ev-limit",
-        "10",
-        "--slip-limit",
-        "5",
-        "--turnover-limit",
-        "5",
+        "--latency-rollup",
+        str(latency_rollup),
+        "--dataset",
+        "ev_history",
+        "--dataset",
+        "slippage",
+        "--dataset",
+        "turnover",
+        "--dataset",
+        "latency",
+        "--output-dir",
+        str(output_dir),
+        "--manifest",
+        str(manifest_path),
+        "--heartbeat-file",
+        str(heartbeat_path),
+        "--history-dir",
+        str(history_dir),
+        "--archive-manifest",
+        str(archive_manifest),
+        "--history-retention-days",
+        "9999",
+        "--json-out",
+        str(summary_path),
+        "--job-id",
+        "20240101T000000Z-dashboard",
         "--indent",
         "0",
     ]
     result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-    assert out_path.exists()
-    payload = json.loads(out_path.read_text())
-    assert payload["ev_history"], "EV history missing from payload"
-    assert payload["slippage"]["state"], "State slippage missing"
-    assert "turnover" in payload and isinstance(payload["turnover"], list)
-    latest = payload.get("win_rate_lcb", {}).get("latest")
-    assert latest and latest.get("win_rate_lcb") is not None
-    assert result.stdout.strip(), "CLI should report output path"
+    assert result.stdout.strip(), "CLI should emit summary"
+
+    datasets = {
+        "ev_history": output_dir / "ev_history.json",
+        "slippage": output_dir / "slippage.json",
+        "turnover": output_dir / "turnover.json",
+        "latency": output_dir / "latency.json",
+    }
+    for path in datasets.values():
+        assert path.exists(), f"dataset missing: {path.name}"
+
+    manifest = json.loads(manifest_path.read_text())
+    assert manifest["sequence"] == 1
+    assert {item["dataset"] for item in manifest["datasets"]} == set(datasets)
+
+    summary = json.loads(summary_path.read_text())
+    assert summary["status"] == "ok"
+    assert summary["datasets"] == {name: "ok" for name in datasets}
+    heartbeat = json.loads(heartbeat_path.read_text())
+    assert heartbeat["datasets"]["ev_history"] == "ok"
+    assert (history_dir / "20240101T000000Z-dashboard" / "ev_history.json").exists()
+
+
+def _write_latency_rollup(path: Path) -> None:
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(
+            [
+                "hour_utc",
+                "window_end_utc",
+                "count",
+                "failure_count",
+                "failure_rate",
+                "p50_ms",
+                "p95_ms",
+                "p99_ms",
+                "max_ms",
+            ]
+        )
+        writer.writerow(
+            [
+                "2024-01-01T00:00:00Z",
+                "2024-01-01T01:00:00Z",
+                "10",
+                "1",
+                "0.1",
+                "120",
+                "180",
+                "220",
+                "300",
+            ]
+        )

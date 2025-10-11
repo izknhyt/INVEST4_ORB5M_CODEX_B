@@ -7,6 +7,8 @@ from typing import Any, Dict, List
 import pytest
 
 from scripts import summarize_runs
+from scripts import _automation_logging
+from scripts._webhook import WebhookDeliveryResult, sign_payload
 
 
 def _write_runs_index(path: Path, rows: List[Dict[str, Any]]) -> None:
@@ -209,6 +211,22 @@ def sample_environment(tmp_path: Path) -> summarize_runs.SummaryPaths:
     )
 
 
+@pytest.fixture
+def _patch_weekly_automation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    log_path = tmp_path / "ops/automation_runs.log"
+    seq_path = tmp_path / "ops/automation_runs.sequence"
+    monkeypatch.setattr(_automation_logging, "AUTOMATION_LOG_PATH", log_path)
+    monkeypatch.setattr(_automation_logging, "AUTOMATION_SEQUENCE_PATH", seq_path)
+
+    def _log_with_paths(*args, **kwargs):
+        kwargs.setdefault("log_path", log_path)
+        kwargs.setdefault("sequence_path", seq_path)
+        return _automation_logging.log_automation_event_with_sequence(*args, **kwargs)
+
+    monkeypatch.setattr(summarize_runs, "log_automation_event_with_sequence", _log_with_paths)
+    return log_path
+
+
 def test_build_summary_with_all_components(sample_environment: summarize_runs.SummaryPaths) -> None:
     payload = summarize_runs.build_summary(
         sample_environment,
@@ -300,3 +318,119 @@ def test_dispatch_webhooks_posts_payload(monkeypatch: pytest.MonkeyPatch) -> Non
     assert captured["headers"]["content-type"] == "application/json"
     assert captured["headers"]["x-test"] == "1"
     assert captured["body"]["type"] == "benchmark_weekly_summary"
+
+
+def test_weekly_payload_cli_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    _patch_weekly_automation: Path,
+) -> None:
+    runs_root = tmp_path / "runs"
+    runs_root.mkdir()
+    _write_runs_index(
+        runs_root / "index.csv",
+        [
+            {
+                "run_id": "run_weekly",
+                "run_dir": "runs/run_weekly",
+                "timestamp": "20260701_010000",
+                "symbol": "USDJPY",
+                "mode": "conservative",
+                "equity": 100000,
+                "or_n": 4,
+                "k_tp": 0.6,
+                "k_sl": 0.4,
+                "threshold_lcb": 0.0,
+                "min_or_atr": "",
+                "allow_low_rv": True,
+                "allowed_sessions": "all",
+                "warmup": 40,
+                "trades": 120,
+                "wins": 70,
+                "total_pips": 150.5,
+            }
+        ],
+    )
+
+    reports_dir = tmp_path / "reports"
+    reports_dir.mkdir()
+    (reports_dir / "benchmark_summary.json").write_text("{}", encoding="utf-8")
+    portfolio_payload = {
+        "generated_at": "2026-06-29T00:00:00Z",
+        "category_utilisation": [
+            {"category": "day", "budget_status": "ok", "utilisation_pct": 30.0, "headroom_pct": 10.0},
+            {"category": "swing", "budget_status": "warning", "utilisation_pct": 20.0, "headroom_pct": 5.0},
+        ],
+        "gross_exposure": {"current_pct": 40.0, "headroom_pct": 20.0},
+        "drawdowns": {"aggregate": {"max_drawdown_pct": 2.0}},
+    }
+    portfolio_path = reports_dir / "portfolio_summary.json"
+    portfolio_path.write_text(json.dumps(portfolio_payload), encoding="utf-8")
+
+    latency_dir = tmp_path / "ops"
+    latency_dir.mkdir()
+    latency_path = latency_dir / "signal_latency_rollup.csv"
+    latency_path.write_text(
+        "hour_utc,window_end_utc,count,failure_count,failure_rate,p50_ms,p95_ms,p99_ms,max_ms\n"
+        "2026-06-29T00:00:00Z,2026-06-29T01:00:00Z,10,1,0.1,120,450,470,500\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("OBS_WEEKLY_WEBHOOK_URL", "https://example.test/webhook")
+    monkeypatch.setenv("OBS_WEEKLY_WEBHOOK_SECRET", "weeklysecret")
+
+    def fake_deliver(url, payload, **kwargs):  # type: ignore[no-untyped-def]
+        return WebhookDeliveryResult(url=url, status="ok", attempts=1, status_code=200, response_ms=125.0)
+
+    monkeypatch.setattr(summarize_runs, "deliver_webhook", fake_deliver)
+
+    history_dir = tmp_path / "history"
+    dry_dir = tmp_path / "dry"
+
+    args = [
+        "--weekly-payload",
+        "--runs-root",
+        str(runs_root),
+        "--portfolio-summary",
+        str(portfolio_path),
+        "--latency-rollup",
+        str(latency_path),
+        "--benchmark-summary",
+        str(reports_dir / "benchmark_summary.json"),
+        "--job-id",
+        "20260701T000000Z-weekly",
+        "--job-name",
+        "weekly-test",
+        "--out-dir",
+        str(history_dir),
+        "--dry-run-dir",
+        str(dry_dir),
+        "--webhook-url-env",
+        "OBS_WEEKLY_WEBHOOK_URL",
+        "--webhook-secret-env",
+        "OBS_WEEKLY_WEBHOOK_SECRET",
+        "--json-out",
+        str(tmp_path / "summary.json"),
+    ]
+
+    exit_code = summarize_runs.main(args)
+    assert exit_code == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["status"] == "ok"
+    week_start = output["week_start"]
+    history_path = history_dir / f"{week_start}.json"
+    assert history_path.exists()
+    log_entries = _patch_weekly_automation.read_text(encoding="utf-8").strip().splitlines()
+    assert log_entries and "20260701T000000Z-weekly" in log_entries[-1]
+
+    summary_data = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    assert summary_data["payload_checksum_sha256"]
+
+    signature_path = history_dir / f"{week_start}.sig"
+    signature = signature_path.read_text(encoding="utf-8").strip()
+    payload_bytes = json.dumps(json.loads(history_path.read_text(encoding="utf-8")), ensure_ascii=False).encode(
+        "utf-8"
+    )
+    assert signature == sign_payload(payload_bytes, "weeklysecret")
