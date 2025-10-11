@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from itertools import chain
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional, Sequence
+from typing import Any, Dict, Iterator, Mapping, Optional, Sequence
 
 import os
 import sys
@@ -396,6 +396,7 @@ class RuntimeConfig:
     manifest_path: Path
     csv_path: Path
     json_out: Optional[Path]
+    daily_csv_out: Optional[Path]
     equity: float
     start_ts: Optional[datetime]
     end_ts: Optional[datetime]
@@ -540,6 +541,8 @@ def _prepare_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
         json_out_value = Path(args.json_out)
     elif manifest_cli.get("json_out"):
         json_out_value = Path(manifest_cli["json_out"])
+    elif manifest_cli.get("out_json"):
+        json_out_value = Path(manifest_cli["out_json"])
     else:
         json_out_value = None
 
@@ -552,6 +555,24 @@ def _prepare_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
         )
     else:
         json_out = None
+
+    if getattr(args, "out_daily_csv", None):
+        daily_csv_value: Optional[Path] = Path(args.out_daily_csv)
+    elif manifest_cli.get("out_daily_csv"):
+        daily_csv_value = Path(manifest_cli["out_daily_csv"])
+    elif manifest_cli.get("dump_daily"):
+        daily_csv_value = Path(manifest_cli["dump_daily"])
+    else:
+        daily_csv_value = None
+
+    if daily_csv_value is not None:
+        daily_csv_out = (
+            daily_csv_value
+            if daily_csv_value.is_absolute()
+            else _resolve_repo_path(daily_csv_value)
+        )
+    else:
+        daily_csv_out = None
 
     if args.equity is not None:
         equity = float(args.equity)
@@ -614,6 +635,7 @@ def _prepare_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
         runner_config=runner_cfg,
         strategy_cls=strategy_cls,
         run_base_dir=run_base_dir,
+        daily_csv_out=daily_csv_out,
     )
 
 
@@ -705,6 +727,41 @@ def _format_ts(dt_value: Optional[datetime]) -> Optional[str]:
     return dt_utc.isoformat().replace("+00:00", "Z")
 
 
+def _write_daily_csv(path: Path, daily: Mapping[str, Mapping[str, Any]]) -> None:
+    import csv as _csv
+
+    cols = [
+        "date",
+        "breakouts",
+        "gate_pass",
+        "gate_block",
+        "ev_pass",
+        "ev_reject",
+        "fills",
+        "wins",
+        "pnl_pips",
+    ]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as f:
+        writer = _csv.writer(f)
+        writer.writerow(cols)
+        for day in sorted(daily.keys()):
+            entry = daily.get(day, {}) or {}
+            writer.writerow(
+                [
+                    day,
+                    int(entry.get("breakouts", 0)),
+                    int(entry.get("gate_pass", 0)),
+                    int(entry.get("gate_block", 0)),
+                    int(entry.get("ev_pass", 0)),
+                    int(entry.get("ev_reject", 0)),
+                    int(entry.get("fills", 0)),
+                    int(entry.get("wins", 0)),
+                    float(entry.get("pnl_pips", 0.0)),
+                ]
+            )
+
+
 def _write_run_outputs(
     config: RuntimeConfig,
     out: Dict[str, Any],
@@ -733,6 +790,12 @@ def _write_run_outputs(
         "ev_profile": str(config.ev_profile_path) if config.ev_profile_path else None,
     }
 
+    daily = getattr(metrics, "daily", None)
+    if daily:
+        daily_path = run_dir / "daily.csv"
+        _write_daily_csv(daily_path, daily)
+        out.setdefault("dump_daily", str(daily_path))
+
     with (run_dir / "params.json").open("w", encoding="utf-8") as f:
         json.dump(params, f, ensure_ascii=False, indent=2)
 
@@ -750,38 +813,6 @@ def _write_run_outputs(
             for record in records:
                 writer.writerow(record)
 
-    daily = getattr(metrics, "daily", None)
-    if daily:
-        import csv as _csv
-
-        cols = [
-            "date",
-            "breakouts",
-            "gate_pass",
-            "gate_block",
-            "ev_pass",
-            "ev_reject",
-            "fills",
-            "wins",
-            "pnl_pips",
-        ]
-        with (run_dir / "daily.csv").open("w", newline="", encoding="utf-8") as f:
-            writer = _csv.writer(f)
-            writer.writerow(cols)
-            for day in sorted(daily.keys()):
-                dd = daily[day]
-                writer.writerow([
-                    day,
-                    dd.get("breakouts", 0),
-                    dd.get("gate_pass", 0),
-                    dd.get("gate_block", 0),
-                    dd.get("ev_pass", 0),
-                    dd.get("ev_reject", 0),
-                    dd.get("fills", 0),
-                    dd.get("wins", 0),
-                    dd.get("pnl_pips", 0.0),
-                ])
-
     return run_dir
 
 
@@ -789,7 +820,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run minimal ORB simulation from a manifest")
     parser.add_argument("--manifest", required=True, help="Path to strategy manifest YAML")
     parser.add_argument("--csv", help="Override CSV input path (manifest defaults otherwise)")
-    parser.add_argument("--json-out", help="Write metrics JSON to the specified path")
+    parser.add_argument(
+        "--json-out",
+        "--out-json",
+        dest="json_out",
+        help="Write metrics JSON to the specified path",
+    )
+    parser.add_argument(
+        "--out-daily-csv",
+        "--dump-daily",
+        dest="out_daily_csv",
+        help="Write daily roll-up CSV to the specified path",
+    )
     parser.add_argument(
         "--symbol",
         help="Select manifest instrument by symbol when multiple entries exist",
@@ -912,6 +954,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     run_dir = _write_run_outputs(config, out, metrics)
     if run_dir is not None:
         _store_run_summary(run_dir, config)
+
+    if config.daily_csv_out:
+        _write_daily_csv(config.daily_csv_out, getattr(metrics, "daily", {}) or {})
+        out["dump_daily"] = str(config.daily_csv_out)
 
     if config.json_out:
         config.json_out.parent.mkdir(parents=True, exist_ok=True)
