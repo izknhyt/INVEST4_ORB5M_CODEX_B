@@ -74,6 +74,74 @@ def test_log_automation_event_sequence_increment(tmp_path):
     assert sequence_data["value"] == 2
 
 
+def test_log_automation_event_sequence_gap_warning(tmp_path):
+    log_path = tmp_path / "automation.log"
+    sequence_path = tmp_path / "automation.sequence"
+    schema_path = Path(AUTOMATION_SCHEMA_PATH)
+
+    # Seed three entries and then remove the latest log line to simulate a missing sequence.
+    first = log_automation_event_with_sequence(
+        generate_job_id("latency"),
+        "ok",
+        log_path=log_path,
+        sequence_path=sequence_path,
+        schema_path=schema_path,
+    )
+    second = log_automation_event_with_sequence(
+        generate_job_id("latency"),
+        "ok",
+        log_path=log_path,
+        sequence_path=sequence_path,
+        schema_path=schema_path,
+    )
+    third = log_automation_event_with_sequence(
+        generate_job_id("latency"),
+        "ok",
+        log_path=log_path,
+        sequence_path=sequence_path,
+        schema_path=schema_path,
+    )
+    assert first["sequence"] == 1
+    assert second["sequence"] == 2
+    assert third["sequence"] == 3
+
+    log_lines = log_path.read_text(encoding="utf-8").splitlines()
+    log_path.write_text(
+        "\n".join(log_lines[:-1]) + ("\n" if log_lines[:-1] else ""),
+        encoding="utf-8",
+    )
+
+    # Confirm the sequence file still records the removed value.
+    sequence_contents = json.loads(sequence_path.read_text(encoding="utf-8"))
+    assert sequence_contents["value"] == 3
+
+    job_id = generate_job_id("latency")
+    entry = log_automation_event_with_sequence(
+        job_id,
+        "ok",
+        log_path=log_path,
+        sequence_path=sequence_path,
+        schema_path=schema_path,
+    )
+    assert entry["sequence"] == 4
+
+    parsed_entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    assert parsed_entries[-1]["sequence"] == 4
+    warning_entry = parsed_entries[-2]
+    assert warning_entry["status"] == "warning"
+    diagnostics = warning_entry["diagnostics"]
+    assert diagnostics["error_code"] == "sequence_gap"
+    assert diagnostics["expected_previous_sequence"] == 3
+    assert diagnostics["observed_previous_sequence"] == 2
+    assert diagnostics["next_sequence"] == 4
+    assert diagnostics["gap_size"] == 1
+    assert diagnostics["gap_direction"] == "observed_lower"
+    assert diagnostics["detected_for_job_id"] == job_id
+
+    updated_sequence_contents = json.loads(sequence_path.read_text(encoding="utf-8"))
+    assert updated_sequence_contents["value"] == 4
+
+
 def test_log_automation_event_rejects_invalid_status(tmp_path):
     log_path = tmp_path / "automation.log"
     schema_path = Path(AUTOMATION_SCHEMA_PATH)
