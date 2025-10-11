@@ -135,3 +135,13 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
   - stdout summary の `status` と `failures` を確認し、失敗時は `ops/automation_runs.log` の `diagnostics.error_code` を基に復旧する。
   - 心拍が 6 時間以上更新されていない場合は `heartbeat_stale` で失敗するため、該当ジョブを再実行して artefact を再生成する。
 - `run_daily_workflow.py --observability --dry-run` をスケジューラに登録する場合、`OPS_DASHBOARD_UPLOAD_CMD` などの secrets が正しく読み込めることを `analysis/export_dashboard_data.py --job-name observability --job-id $(date -u +%Y%m%dT%H%M%SZ)-observability --dataset ev_history --json-out /tmp/obs_check.json` でテスト実行し、summary JSON と `AutomationContext.describe()` の `environment` スナップショットを確認する。`--dry-run` 指定時は `configs/observability/automation.yaml` の `args` に関わらず `--dry-run-alert` / `--dry-run-webhook` が自動付与されるため、Webhook を呼び出さずに artefact だけを検証できる。
+
+### シークレットとローテーション
+- `OBS_WEEKLY_WEBHOOK_URL` と `OBS_WEBHOOK_SECRET` はスケジューラ側で暗号化保管し、ローテーション時は `scripts/verify_observability_job.py --check-secrets --secret OBS_WEEKLY_WEBHOOK_URL --secret OBS_WEBHOOK_SECRET` で差し替え漏れを検知する。
+- 署名キーを更新する場合は `ops/weekly_report_history/<week_start>.sig` の再生成が必要。ローテーション直後に `--dry-run` 付きで週次ペイロードを流し、`payload_checksum_sha256` と署名値を記録する。
+- Secrets 変更時は `ops/automation_runs.log` に `status="dry_run"` エントリを残し、`diagnostics.config_version` にバージョンラベルをセットすることで監査証跡を一元化する。
+
+### ログレビューと保全
+- `ops/automation_runs.log` は 1 行 JSON ログで 4KB 未満を維持する。肥大化した場合は `python3 scripts/verify_observability_job.py --check-log ops/automation_runs.log --require-check` で schema 準拠を確認し、必要ならローテーション (`logrotate` など) を設定する。
+- 連番の欠損は `log_automation_event_with_sequence` が自動で `status="warning"` を書き込む。`ops/automation_runs.sequence` の値が飛んだ場合は `tail -n 5 ops/automation_runs.log` を確認し、リトライジョブの `job_id` を `state.md` に追記する。
+- Heartbeat ファイルは `tempfile`→`os.replace` で原子的に更新されるため、破損時は一度削除してからチェーンを再実行する。削除前に `ops/dashboard_export_history/` へ最新 artefact が残っているかチェックし、必要なら `ops/dashboard_export_archive_manifest.jsonl` を更新する。

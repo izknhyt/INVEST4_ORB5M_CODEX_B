@@ -4,6 +4,34 @@
 - `runs/`・`reports/`・`ops/` に分散している EV 履歴 / スリッページ推定 / 勝率 LCB / ターンオーバー指標を単一のダッシュボードで把握する。
 - エンジニアが手動で最新データを確認するときに、CLI と Notebook の双方から同じローダーを呼び出せるようにする。
 
+## 自動化クイックスタート
+1. `configs/observability/automation.yaml` を指定して `run_daily_workflow.py --observability` を実行すると、レイテンシ集計→週次ペイロード→ダッシュボードエクスポートが 1 コマンドで完了する。ドライラン検証時は `--dry-run` を併用すると `analyze_signal_latency.py` に `--dry-run-alert`、`summarize_runs.py` に `--dry-run-webhook` が自動付与される。
+   ```bash
+   PYTHONPATH=. OBS_WEEKLY_WEBHOOK_URL=https://hooks.invalid/example \
+   OBS_WEBHOOK_SECRET=dummy-signing-key \
+   python3 scripts/run_daily_workflow.py \
+       --observability \
+       --dry-run \
+       --observability-config configs/observability/automation.yaml
+   ```
+   - `configs/observability/weekly_payload.yaml`・`configs/observability/dashboard_export.yaml` を差し替えると、Webhook 送信先やエクスポート対象を環境ごとに切り替えられる。
+   - 実行後は `ops/automation_runs.log` にチェーン全体の結果が 1 行 JSON で追記され、`ops/latency_job_heartbeat.json`・`ops/weekly_report_heartbeat.json`・`ops/dashboard_export_heartbeat.json` に最新実行メタデータが記録される。
+2. 成果物の健全性チェックは `scripts/verify_observability_job.py` を利用する。ジョブ ID・ログ・ハートビート・ダッシュボード manifest・Secrets を一括検証でき、失敗時は `failures` 配列に `error_code` と詳細が出力される。
+   ```bash
+   python3 scripts/verify_observability_job.py \
+       --job-name observability-nightly-verify \
+       --check-log ops/automation_runs.log \
+       --sequence-file ops/automation_runs.sequence \
+       --heartbeat ops/latency_job_heartbeat.json \
+       --heartbeat ops/weekly_report_heartbeat.json \
+       --heartbeat ops/dashboard_export_heartbeat.json \
+       --dashboard-manifest out/dashboard/manifest.json \
+       --expected-dataset ev_history --expected-dataset slippage \
+       --expected-dataset turnover --expected-dataset latency \
+       --check-secrets --secret OBS_WEEKLY_WEBHOOK_URL --secret OBS_WEBHOOK_SECRET
+   ```
+   - `--require-job-entry` を付与すると、検証対象の `job_id` が事前に `ops/automation_runs.log` に記録されているかまで確認できる。夜間ジョブのダブルチェックに活用する。
+
 ## リフレッシュ手順
 1. `runs/index.csv` の `configs/ev_profiles/day_orb_5m.yaml` 行をチェックして Day ORB 最新ラン（例: `runs/USDJPY_conservative_20251002_214013`）を確認し、Tokyo Micro Mean Reversion についてはサンプルメトリクス `reports/portfolio_samples/router_demo/metrics/tokyo_micro_mean_reversion_v0.json` を利用する。以下のコマンドでルーター snapshot とポートフォリオサマリーを更新し、`budget_status` / `budget_over_pct` / `correlation_window_minutes` / `drawdowns` をレビューする。
    ```bash

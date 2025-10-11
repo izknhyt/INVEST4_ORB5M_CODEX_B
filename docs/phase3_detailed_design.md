@@ -20,6 +20,8 @@
   - Weeklyレポートとダッシュボードバンドルが60日分保持され、復旧手順が `docs/state_runbook.md` および `docs/checklists/p3_observability_automation.md` に掲載されている。
   - スケジューラ→CLI→artefact のトレースが 1 コマンドで検証できる（`scripts/verify_observability_job.py --job-id <...>` を追加想定）。
 
+> **実装状況（2026-07-06）** — 上記 DoD は `scripts/analyze_signal_latency.py`・`scripts/summarize_runs.py`・`analysis/export_dashboard_data.py`・`scripts/verify_observability_job.py`・`scripts/run_daily_workflow.py --observability` の各更新で満たされ、Runbook/チェックリスト/テスト（`tests/test_analyze_signal_latency.py` ほか）にも反映済み。以降は Secrets ローテーションとスケジューラ本番化の運用タスクにフォーカスする。
+
 ## 2. 背景と前提条件
 - フェーズ2でリフレッシュした `reports/portfolio_summary.json`、router demo サンプル (`reports/portfolio_samples/router_demo/**`)、`runs/index.csv` を安定供給できることを前提とする。
 - 既存の CLI (`scripts/analyze_signal_latency.py`, `scripts/summarize_runs.py`, `analysis/export_dashboard_data.py`) を拡張する設計とし、大規模な再実装は行わない。
