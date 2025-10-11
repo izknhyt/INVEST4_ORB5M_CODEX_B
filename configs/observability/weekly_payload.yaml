@@ -1,0 +1,11 @@
+# Weekly observability payload configuration.
+# Webhook destinations are populated via environment variables referenced by
+# ``run_daily_workflow.py --observability``.
+include:
+  - runs
+  - benchmarks
+  - portfolio
+  - health
+destinations:
+  webhooks: []
+  fail_on_error: true

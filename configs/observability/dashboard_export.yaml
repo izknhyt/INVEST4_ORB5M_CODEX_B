@@ -1,0 +1,9 @@
+# Dashboard dataset export configuration recorded for observability automation.
+datasets:
+  - ev_history
+  - slippage
+  - turnover
+  - latency
+notes:
+  retention_days: 56
+  upload_command: null
