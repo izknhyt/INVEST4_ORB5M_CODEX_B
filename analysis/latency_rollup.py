@@ -38,6 +38,8 @@ class LatencyRollup:
     p95_ms: float
     p99_ms: float
     max_ms: float
+    breach_flag: bool = False
+    breach_streak: int = 0
 
     @property
     def failure_rate(self) -> float:
@@ -56,6 +58,8 @@ class LatencyRollup:
             "p95_ms": round(self.p95_ms, 3),
             "p99_ms": round(self.p99_ms, 3),
             "max_ms": round(self.max_ms, 3),
+            "breach_flag": self.breach_flag,
+            "breach_streak": self.breach_streak,
         }
 
 

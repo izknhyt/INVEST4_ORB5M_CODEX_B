@@ -439,6 +439,8 @@ def _serialise_latency_entry(entry: LatencyRollupEntry) -> Dict[str, Any]:
         "p95_ms": entry.p95_ms,
         "p99_ms": entry.p99_ms,
         "max_ms": entry.max_ms,
+        "breach_flag": entry.breach_flag,
+        "breach_streak": entry.breach_streak,
     }
 
 

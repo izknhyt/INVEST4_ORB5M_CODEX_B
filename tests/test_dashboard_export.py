@@ -118,6 +118,8 @@ def _write_latency_rollup(path: Path) -> None:
                 "p95_ms",
                 "p99_ms",
                 "max_ms",
+                "breach_flag",
+                "breach_streak",
             ]
         )
         writer.writerow(
@@ -131,5 +133,7 @@ def _write_latency_rollup(path: Path) -> None:
                 "180",
                 "220",
                 "300",
+                "true",
+                "2",
             ]
         )

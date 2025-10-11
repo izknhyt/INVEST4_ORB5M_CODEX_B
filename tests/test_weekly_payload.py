@@ -35,8 +35,16 @@ def _make_run(**overrides) -> RunRecord:
     return RunRecord(**base)
 
 
-def _make_rollup(hours_offset: int, p95: float, failures: int = 0) -> LatencyRollupEntry:
+def _make_rollup(
+    hours_offset: int,
+    p95: float,
+    failures: int = 0,
+    *,
+    breach_flag: bool | None = None,
+    breach_streak: int = 0,
+) -> LatencyRollupEntry:
     start = datetime(2026, 6, 30, 0, 0, tzinfo=timezone.utc) + timedelta(hours=hours_offset)
+    resolved_flag = breach_flag if breach_flag is not None else failures > 0
     return LatencyRollupEntry(
         window_start=start,
         window_end=start + timedelta(hours=1),
@@ -47,6 +55,8 @@ def _make_rollup(hours_offset: int, p95: float, failures: int = 0) -> LatencyRol
         p95_ms=p95,
         p99_ms=p95 + 20.0,
         max_ms=p95 + 40.0,
+        breach_flag=resolved_flag,
+        breach_streak=breach_streak,
     )
 
 
@@ -62,8 +72,8 @@ def test_build_weekly_payload_sections(tmp_path: Path) -> None:
         "drawdowns": {"aggregate": {"max_drawdown_pct": 3.2}},
     }
     latency = [
-        _make_rollup(0, 450.0, failures=1),
-        _make_rollup(5, 600.0, failures=2),
+        _make_rollup(0, 450.0, failures=1, breach_streak=1),
+        _make_rollup(5, 600.0, failures=2, breach_streak=2),
     ]
     context = WeeklyPayloadContext(
         runs=runs,
@@ -83,14 +93,15 @@ def test_build_weekly_payload_sections(tmp_path: Path) -> None:
     assert data["latency"]["breach_count"] == 2
     assert any(alert["id"] == "latency_breach" for alert in data["alerts"])
     assert any(alert["id"] == "portfolio_budget" for alert in data["alerts"])
+    assert all("breach_streak" in breach for breach in data["latency"]["breaches"])
     assert data["runs"][0]["run_id"] == "run_b"
 
 
 def test_load_latency_rollups_parses_csv(tmp_path: Path) -> None:
     csv_path = tmp_path / "rollup.csv"
     csv_path.write_text(
-        "hour_utc,window_end_utc,count,failure_count,failure_rate,p50_ms,p95_ms,p99_ms,max_ms\n"
-        "2026-06-29T00:00:00Z,2026-06-29T01:00:00Z,5,1,0.2,100,200,250,300\n",
+        "hour_utc,window_end_utc,count,failure_count,failure_rate,p50_ms,p95_ms,p99_ms,max_ms,breach_flag,breach_streak\n"
+        "2026-06-29T00:00:00Z,2026-06-29T01:00:00Z,5,1,0.2,100,200,250,300,true,3\n",
         encoding="utf-8",
     )
 
@@ -100,3 +111,5 @@ def test_load_latency_rollups_parses_csv(tmp_path: Path) -> None:
     entry = entries[0]
     assert entry.window_start == datetime(2026, 6, 29, 0, 0, tzinfo=timezone.utc)
     assert entry.failure_count == 1
+    assert entry.breach_flag is True
+    assert entry.breach_streak == 3

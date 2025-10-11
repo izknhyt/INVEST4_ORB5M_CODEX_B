@@ -14,6 +14,14 @@ from scripts.utils_runs import RunRecord
 SCHEMA_VERSION = "1.0.0"
 
 
+def _parse_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"1", "true", "yes", "y"}
+
+
 @dataclass(frozen=True)
 class LatencyRollupEntry:
     """Single aggregated latency sample."""
@@ -27,6 +35,8 @@ class LatencyRollupEntry:
     p95_ms: float
     p99_ms: float
     max_ms: float
+    breach_flag: bool = False
+    breach_streak: int = 0
 
     @classmethod
     def from_row(cls, row: Mapping[str, Any]) -> Optional["LatencyRollupEntry"]:
@@ -40,6 +50,9 @@ class LatencyRollupEntry:
             p95_ms = float(row.get("p95_ms", 0.0) or 0.0)
             p99_ms = float(row.get("p99_ms", 0.0) or 0.0)
             max_ms = float(row.get("max_ms", 0.0) or 0.0)
+            breach_streak = int(float(row.get("breach_streak", 0) or 0))
+            raw_breach_flag = row.get("breach_flag")
+            breach_flag = _parse_bool(raw_breach_flag) if raw_breach_flag is not None else failure_rate > 0
         except Exception:
             return None
         return cls(
@@ -52,6 +65,8 @@ class LatencyRollupEntry:
             p95_ms=p95_ms,
             p99_ms=p99_ms,
             max_ms=max_ms,
+            breach_flag=breach_flag,
+            breach_streak=breach_streak,
         )
 
 
@@ -205,18 +220,22 @@ def _build_latency_section(entries: Sequence[LatencyRollupEntry], week_start: da
     p95_values = [entry.p95_ms for entry in recent]
     p99_values = [entry.p99_ms for entry in recent]
     max_values = [entry.max_ms for entry in recent]
-    breach_candidates = sorted(recent, key=lambda item: item.p95_ms, reverse=True)[:5]
+    breach_candidates = [
+        entry
+        for entry in sorted(recent, key=lambda item: item.p95_ms, reverse=True)[:5]
+        if entry.breach_flag or entry.failure_rate > 0
+    ]
     breaches = [
         {
             "hour_utc": _format_ts(entry.window_start),
             "p95_ms": round(entry.p95_ms, 3),
             "failure_rate": round(entry.failure_rate, 6),
             "count": entry.count,
+            "breach_streak": entry.breach_streak,
         }
         for entry in breach_candidates
-        if entry.failure_rate > 0 or entry.p95_ms > 0
     ]
-    breach_count = len([entry for entry in recent if entry.failure_rate > 0])
+    breach_count = sum(1 for entry in recent if entry.breach_flag or entry.failure_rate > 0)
     return {
         "p50_ms": round(statistics.fmean(p50_values), 3) if p50_values else 0.0,
         "p95_ms": round(max(p95_values), 3) if p95_values else 0.0,
