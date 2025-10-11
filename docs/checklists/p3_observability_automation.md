@@ -16,7 +16,7 @@
 - [ ] **共通オートメーション基盤を整備した。**
   - [ ] `scripts/_automation_logging.py`（または同等ヘルパー）を実装し、`log_automation_event(job_id, status, artefacts, alerts, diagnostics, attempts, duration_ms)` が `ops/automation_runs.log` へ 1 行 JSON を追記するよう統合した。
   - [ ] `scripts/_automation_context.py`（または既存ユーティリティ）で `AutomationContext`（commit SHA, command line, secrets, config パス等）を組み立て、全ジョブが同じ経路で参照する。
-  - [ ] `scripts/verify_observability_job.py`（もしくは同等 CLI）を追加し、`--job-id`, `--check-secrets`, `--check-log` でスケジューラ→CLI→成果物のトレース検証が出来るようにし、README / runbook に利用例を掲載した。
+- [x] `scripts/verify_observability_job.py` を追加し、`--job-id`, `--check-secrets`, `--check-log` / `--sequence-file` / `--heartbeat` / `--dashboard-manifest` でスケジューラ→CLI→成果物のトレース検証が出来るようにした。`docs/state_runbook.md` にコマンド例と失敗時の復旧ポイントを追記済み。
   - [ ] `run_daily_workflow.py --observability` サブコマンドを更新し、latency→weekly→dashboard の順にジョブを実行、失敗時に後続をスキップし `status="error"` をログへ記録するチェーン制御を実装した。
 
 - [ ] **シグナルレイテンシ監視ジョブを自動化した。**

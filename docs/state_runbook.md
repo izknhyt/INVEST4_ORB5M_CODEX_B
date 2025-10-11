@@ -119,4 +119,19 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
 
 ### ナイトリー検証
 - cron へ投入する前に `tail -n 20 ops/automation_runs.log` と `python3 -m json.tool ops/dashboard_export_heartbeat.json` で最新エントリを点検し、`status`=`ok` と `sequence` の連番を確認する。
+- `scripts/verify_observability_job.py` でチェーン全体を煙試験し、ログ・心拍・ダッシュボード manifest の整合を確認する。例:
+  ```bash
+  python3 scripts/verify_observability_job.py \
+      --job-name observability-nightly-verify \
+      --check-log ops/automation_runs.log \
+      --sequence-file ops/automation_runs.sequence \
+      --heartbeat ops/latency_job_heartbeat.json \
+      --heartbeat ops/weekly_report_heartbeat.json \
+      --heartbeat ops/dashboard_export_heartbeat.json \
+      --dashboard-manifest out/dashboard/manifest.json \
+      --expected-dataset ev_history --expected-dataset slippage --expected-dataset turnover --expected-dataset latency \
+      --check-secrets --secret OBS_WEEKLY_WEBHOOK_URL --secret OBS_WEBHOOK_SECRET
+  ```
+  - stdout summary の `status` と `failures` を確認し、失敗時は `ops/automation_runs.log` の `diagnostics.error_code` を基に復旧する。
+  - 心拍が 6 時間以上更新されていない場合は `heartbeat_stale` で失敗するため、該当ジョブを再実行して artefact を再生成する。
 - `run_daily_workflow.py --observability --dry-run` をスケジューラに登録する場合、`OPS_DASHBOARD_UPLOAD_CMD` などの secrets が正しく読み込めることを `analysis/export_dashboard_data.py --job-name observability --job-id $(date -u +%Y%m%dT%H%M%SZ)-observability --dataset ev_history --json-out /tmp/obs_check.json` でテスト実行し、summary JSON と `AutomationContext.describe()` の `environment` スナップショットを確認する。
