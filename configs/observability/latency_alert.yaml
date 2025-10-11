@@ -1,0 +1,5 @@
+# Default alert configuration for signal latency automation
+slo_p95_ms: 5000
+warning_threshold: 2
+critical_threshold: 3
+failure_rate_threshold: 0.01

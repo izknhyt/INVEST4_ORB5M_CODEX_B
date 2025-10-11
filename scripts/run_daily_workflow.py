@@ -1302,10 +1302,20 @@ def _build_analyze_latency_cmd():
         str(ROOT / "scripts/analyze_signal_latency.py"),
         "--input",
         str(ROOT / "ops/signal_latency.csv"),
-        "--slo-threshold",
-        "5",
+        "--rollup-output",
+        str(ROOT / "ops/signal_latency_rollup.csv"),
+        "--heartbeat-file",
+        str(ROOT / "ops/latency_job_heartbeat.json"),
+        "--alert-config",
+        str(ROOT / "configs/observability/latency_alert.yaml"),
+        "--archive-dir",
+        str(ROOT / "ops/signal_latency_archive"),
+        "--archive-manifest",
+        str(ROOT / "ops/signal_latency_archive/manifest.jsonl"),
+        "--lock-file",
+        str(ROOT / "ops/.latency.lock"),
         "--json-out",
-        str(ROOT / "reports/signal_latency.json"),
+        str(ROOT / "reports/signal_latency_summary.json"),
     ]
 
 

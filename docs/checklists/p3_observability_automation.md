@@ -20,14 +20,14 @@
   - [ ] `run_daily_workflow.py --observability` サブコマンドを更新し、latency→weekly→dashboard の順にジョブを実行、失敗時に後続をスキップし `status="error"` をログへ記録するチェーン制御を実装した。
 
 - [ ] **シグナルレイテンシ監視ジョブを自動化した。**
-  - [ ] `scripts/analyze_signal_latency.py` に以下の機能を実装し、ヘルプ出力とドキュメントを更新した。
+  - [x] `scripts/analyze_signal_latency.py` に以下の機能を実装し、ヘルプ出力とドキュメントを更新した。
     - `--raw-retention-days`, `--rollup-retention-days`, `--rollup-output`, `--lock-file`, `--alert-config`, `--dry-run-alert` フラグ。
     - ロック取得失敗時の `status="skipped"` ログ、`ops/signal_latency.csv` のローテーション（10MB 超で gzip 圧縮し manifest を更新）、ロールアップ生成 (`analysis/latency_rollup.aggregate`) と retention。
     - 連続 SLO breach の追跡、Webhook ペイロード生成、`alerts` ブロックの記録。
     - stdout JSON サマリー（`samples_written`, `rollups_written`, `breach_count`, `breach_streak`, `next_rotation_bytes`, `lock_latency_ms`）。
-  - [ ] `analysis/latency_rollup.py` を追加し、ロールアップ計算が CLI / pytest 双方から再利用できることを証明した。
-  - [ ] ローテーション時の manifest (`ops/signal_latency_archive/manifest.jsonl`) とハートビート (`ops/latency_job_heartbeat.json`) を更新し、最新エントリに `job_id` / `checksum_sha256` / `row_count` を残した。
-  - [ ] `python3 -m pytest tests/test_analyze_signal_latency.py`（新設）や既存テストにより、SLO breach ロジック・ローテーション・ロックガードが回帰テストで担保されることを確認し、テストコマンドをログ化した。
+    - [x] `analysis/latency_rollup.py` を追加し、ロールアップ計算が CLI / pytest 双方から再利用できることを証明した。
+    - [x] ローテーション時の manifest (`ops/signal_latency_archive/manifest.jsonl`) とハートビート (`ops/latency_job_heartbeat.json`) を更新し、最新エントリに `job_id` / `checksum_sha256` / `row_count` を残した。
+  - [x] `python3 -m pytest tests/test_analyze_signal_latency.py`（新設）や既存テストにより、SLO breach ロジック・ローテーション・ロックガードが回帰テストで担保されることを確認し、テストコマンドをログ化した。
 
 - [ ] **週次ヘルスレポートの自動生成と配信を固定化した。**
   - [ ] `scripts/summarize_runs.py` を拡張し、`--weekly-payload`, `--payload-schema`, `--webhook-url-env`, `--webhook-secret-env`, `--max-retries`, `--retry-wait-seconds`, `--out-dir`, `--dry-run-webhook` を実装した。

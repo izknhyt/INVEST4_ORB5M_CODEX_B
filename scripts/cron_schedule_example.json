@@ -8,7 +8,7 @@
     {
       "name": "signal_latency_check",
       "schedule": "30 23 * * *",
-      "command": "python3 scripts/analyze_signal_latency.py --input ops/signal_latency.csv --slo-threshold 5 --json-out reports/signal_latency.json"
+      "command": "python3 scripts/analyze_signal_latency.py --input ops/signal_latency.csv --rollup-output ops/signal_latency_rollup.csv --heartbeat-file ops/latency_job_heartbeat.json --alert-config configs/observability/latency_alert.yaml --archive-dir ops/signal_latency_archive --archive-manifest ops/signal_latency_archive/manifest.jsonl --json-out reports/signal_latency_summary.json"
     },
     {
       "name": "benchmark_pipeline_daily",
