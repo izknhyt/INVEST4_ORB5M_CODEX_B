@@ -596,6 +596,8 @@ def _prepare_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
         )
 
     auto_state = bool(manifest_cli.get("auto_state", True))
+    if args.auto_state is not None:
+        auto_state = bool(args.auto_state)
     aggregate_ev = bool(manifest_cli.get("aggregate_ev", True))
     strict = bool(args.strict)
 
@@ -845,10 +847,23 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--end-ts", type=_iso8601_arg, help="End timestamp (ISO8601)")
     parser.add_argument("--out-dir", help="Directory to store run artefacts (params/state/metrics)")
     parser.add_argument(
+        "--auto-state",
+        dest="auto_state",
+        action="store_true",
+        help="Force automatic state load/save even if the manifest disables it",
+    )
+    parser.add_argument(
+        "--no-auto-state",
+        dest="auto_state",
+        action="store_false",
+        help="Disable automatic state load/save even if the manifest enables it",
+    )
+    parser.add_argument(
         "--strict",
         action="store_true",
         help="Raise CSVFormatError if the loader skips any rows due to parse errors",
     )
+    parser.set_defaults(auto_state=None)
     return parser
 
 

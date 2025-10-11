@@ -502,6 +502,61 @@ def test_run_sim_creates_run_directory(tmp_path: Path) -> None:
     assert (run_path / "daily.csv").exists()
 
 
+def test_run_sim_cli_can_disable_auto_state(tmp_path: Path) -> None:
+    manifest_path = _write_manifest(tmp_path, auto_state=True)
+    state_dir = tmp_path / "state_archive"
+    manifest_text = manifest_path.read_text(encoding="utf-8")
+    manifest_text = manifest_text.replace(
+        "        aggregate_ev: false",
+        f"        aggregate_ev: false\n        state_archive: {state_dir}",
+    )
+    manifest_path.write_text(manifest_text, encoding="utf-8")
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(CSV_CONTENT, encoding="utf-8")
+    out_dir = tmp_path / "runs"
+
+    rc = run_sim_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--csv",
+            str(csv_path),
+            "--out-dir",
+            str(out_dir),
+        ]
+    )
+
+    assert rc == 0
+    run_dirs = sorted(out_dir.iterdir())
+    assert run_dirs
+    run_path = run_dirs[0]
+    assert (run_path / "state.json").exists()
+
+    shutil.rmtree(out_dir)
+    if state_dir.exists():
+        shutil.rmtree(state_dir)
+
+    rc = run_sim_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--csv",
+            str(csv_path),
+            "--out-dir",
+            str(out_dir),
+            "--no-auto-state",
+        ]
+    )
+
+    assert rc == 0
+    run_dirs = sorted(out_dir.iterdir())
+    assert run_dirs
+    run_path = run_dirs[0]
+    assert not (run_path / "state.json").exists()
+    metrics = json.loads((run_path / "metrics.json").read_text(encoding="utf-8"))
+    assert "loaded_state" not in metrics
+
+
 def test_run_sim_relative_out_dir_resolves_to_repo(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

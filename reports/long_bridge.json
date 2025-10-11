@@ -1,1 +1,55 @@
-{"trades": 758, "wins": 436, "total_pips": -933.5048165752418, "debug": {"no_breakout": 171237, "gate_block": 179335, "ev_reject": 172054, "zero_qty": 0, "ev_bypass": 8}, "dump_daily": "reports/long_bridge_daily.csv"}
+{
+  "trades": 1,
+  "wins": 0,
+  "win_rate": 0.0,
+  "total_pips": -1.4981937865312154,
+  "total_pnl_value": -14.981937865312155,
+  "sharpe": 0.0,
+  "max_drawdown": -14.981937865319196,
+  "equity_curve": [
+    [
+      "2025-10-02T16:14:59.999999Z",
+      100000.0
+    ],
+    [
+      "2025-10-02T16:15:00Z",
+      99985.01806213468
+    ]
+  ],
+  "runtime": {
+    "ev_pass": 0,
+    "ev_reject": 0,
+    "fills": 1,
+    "execution_health": {
+      "slippage_bps": 1.0009765625
+    }
+  },
+  "debug": {
+    "csv_loader": {
+      "skipped_rows": 0
+    }
+  },
+  "decay": 0.02,
+  "manifest_id": "day_orb_5m_v1",
+  "symbol": "USDJPY",
+  "mode": "bridge",
+  "equity": 100000.0,
+  "router": [
+    {
+      "manifest_id": "day_orb_5m_v1",
+      "eligible": true,
+      "score": 0.2,
+      "reasons": [
+        "category headroom (headroom=40.0%, usage=0.0%, cap=40.0%, score_delta=+0.20)",
+        "category budget headroom (headroom=40.0%, usage=0.0%, cap=40.0%, status=ok, score_delta=+0.00)"
+      ],
+      "category": "day",
+      "tags": [
+        "orb",
+        "breakout"
+      ]
+    }
+  ],
+  "run_dir": "/workspace/INVEST4_ORB5M_CODEX_B/runs/phase4/backtests/USDJPY_bridge_20251011_223149",
+  "dump_daily": "/workspace/INVEST4_ORB5M_CODEX_B/reports/long_bridge_daily.csv"
+}
