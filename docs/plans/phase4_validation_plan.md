@@ -12,7 +12,7 @@
 ### 1. 長期バックテスト改善（P4-01）
 - **評価軸**: 日次Sharpe ≥ 0.15、最大ドローダウン ≤ -8%、年間勝率 ≥ 52% を暫定基準とし、Bridge/Conservative双方で達成する。
 - **検証手順**:
-  - `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode <mode> --start-ts 2018-01-01T00:00:00Z --end-ts 2025-12-31T23:55:00Z --out-json reports/long_<mode>.json --out-daily-csv reports/long_<mode>_daily.csv` をベースコマンドとして採用。
+  - `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode <mode> --start-ts 2018-01-01T00:00:00Z --end-ts 2025-12-31T23:55:00Z --out-json reports/long_<mode>.json --out-daily-csv reports/long_<mode>_daily.csv --out-dir runs/phase4/backtests --no-auto-state` をベースコマンドとして採用。
   - パラメータ探索は `threshold_lcb_pip`、`alpha_prior`、`or_n` を中心に試行し、各トライアルを `runs/phase4/backtests/<timestamp>_<mode>_<paramset>/` 以下に保存。
   - 週次レビュー時に `docs/progress_phase4.md` へ最新メトリクス表と改善サマリを追記。
 - **安全策**:

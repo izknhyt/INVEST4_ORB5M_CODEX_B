@@ -26,6 +26,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 ## P0: 即着手（オンデマンドインジェスト + 基盤整備）
 
 **Status Update (2026-06-15)**: Live `data_quality_failure` alert validation remains on hold until production emits the first alert. Operational bandwidth is redirected toward P2 portfolio reporting deliverables and P3 observability automation planning.
+- 2026-07-05: Added `--no-auto-state` / `--auto-state` toggles to `scripts/run_sim.py`, expanded `configs/strategies/day_orb_5m.yaml` to include Bridge mode, and seeded `runs/phase4/backtests/` with baseline runs while logging the validated dataset coverage gap in `docs/progress_phase4.md`.
 - 2026-07-03: Restored `scripts/run_sim.py` CLI compatibility by adding the `--out-json` alias and `--out-daily-csv` export path so Phase 4 long-run commands execute without argument errors, and refreshed the logging reference accordingly.
 - 2026-06-26: Phase 3 observability automation detailed design reviewed (`docs/phase3_detailed_design.md`), clarifying retention/manifest sequencing so the DoD checklist drafting can proceed without blockers.
 - 2026-06-27: Restored `scripts/check_data_quality.py` coverage checks for legacy headerless validated CSVs by auto-detecting missing headers, refreshed README / `docs/data_quality_ops.md` guidance, and added regression coverage for the fallback path so P0 data-quality guards stay reliable.
@@ -235,6 +236,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - 改善後のメトリクスと再現コマンドを `docs/progress_phase4.md`・`state.md`・PR 説明に記録し、`reports/long_{mode}.json` / `reports/long_{mode}_daily.csv` を更新する。
   - 変更内容に対応する検証ログ（例: `python3 scripts/run_sim.py ...`）を提示し、レビュワーが再現できるよう artefact パスを一覧化する。
 - **Notes**:
+  - 2026-07-05: `scripts/run_sim.py --no-auto-state` で Conservative/Bridge ベースラインを再取得したところ、`validated/USDJPY/5m.csv` が 2025-10-02 以降のみであることが判明。2018–2024 の validated スナップショット再構築と `runs/phase4/backtests/` パラメータ探索ディレクトリ整備を優先 TODO として記録。
   - 2026-06-27: [docs/plans/phase4_validation_plan.md](plans/phase4_validation_plan.md) で Sharpe/最大DD/年間勝率の暫定目標とベース再実行コマンド、runs 配下の成果物整理方針を確定。週次レビュー時に `docs/progress_phase4.md` へメトリクス表を追記する運用を開始。
   - 2025-10-11: Baselineレビューで Conservative -243 pips / Bridge -934 pips を確認。パラメータ再調整に着手。
 
