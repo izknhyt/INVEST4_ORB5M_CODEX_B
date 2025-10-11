@@ -1,6 +1,7 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-07-04: Implemented `scripts/verify_observability_job.py` to validate automation logs, heartbeat freshness, dashboard manifest schema, and observability secrets in one command. Updated `docs/state_runbook.md` / `docs/checklists/p3_observability_automation.md` / `docs/task_backlog.md` / `docs/todo_next.md`, added regression coverage via `tests/test_verify_observability_job.py`, and ran `python3 -m pytest` (339 tests) to confirm the suite stays green.
 - Review this file before starting any task to confirm the latest context and checklist。
 - 2026-07-04: Realigned Phase 3 observability automation implementations with the detailed design by enriching latency rollups
   (`analysis/latency_rollup.py`) with breach flags/streaks, updating `scripts/analyze_signal_latency.py` to validate archive manifes
@@ -550,4 +551,4 @@
 
 - [OPS-CODEX-GUIDE] 2025-10-08: Aligned workflow docs with review feedback. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
 ## Next Task
-- Implement `scripts/verify_observability_job.py` to cross-check automation artefacts (`ops/automation_runs.log`, heartbeat files, dataset manifests) against `docs/phase3_detailed_design.md`, refresh the P3 checklist/docs, and add targeted pytest coverage so schedulers can validate observability jobs in one command.
+- Prepare the `run_daily_workflow.py --observability` chain for scheduling by finalising configs (`configs/observability/*.yaml`), running a dry-run with production-like secrets, capturing artefact paths, and documenting the rollout/rollback steps with storage operations sign-off.
