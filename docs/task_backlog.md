@@ -235,6 +235,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - **Notes**:
   - 2026-06-27: [docs/plans/phase4_validation_plan.md](plans/phase4_validation_plan.md) で Sharpe/最大DD/年間勝率の暫定目標とベース再実行コマンド、runs 配下の成果物整理方針を確定。週次レビュー時に `docs/progress_phase4.md` へメトリクス表を追記する運用を開始。
   - 2025-10-11: Baselineレビューで Conservative -243 pips / Bridge -934 pips を確認。パラメータ再調整に着手。
+  - 2026-07-08: `scripts/run_sim.py` に `--out-json` / `--out-daily-csv` エイリアスを追加し、長期ランで `reports/long_{mode}.json` / `reports/long_{mode}_daily.csv` を直接生成できるよう復旧。Phase4 検証計画のコマンド列がそのまま再現可能になった。
 
 ### P4-02 異常系テスト自動化
 - **DoD**:
