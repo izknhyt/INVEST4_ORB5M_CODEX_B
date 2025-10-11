@@ -17,15 +17,15 @@
 
 ### In Progress
 
-- [P3 Observability automation kickoff](./task_backlog.md#p3-観測性・レポート自動化) — CLI 実装とテストは完了済み。2026-07-06 時点で `docs/observability_dashboard.md` に自動化クイックスタートを追記し、`docs/state_runbook.md#観測性オートメーション` へ Secrets ローテーションとログ保全手順を反映、DoD チェックリストを更新してドキュメント整合性を確保した。次ステップ: ストレージ運用チームと本番 webhook／アップロード手順をレビューし、cron ジョブの初回本番実行とロールバック練習を完了させる（`state.md` Next Task 参照）。
+- [P4-01 長期バックテスト改善](./task_backlog.md#p4-01-長期バックテスト改善) — 2018–2025 通しランの再実行に向けて現状メトリクスを棚卸し中。次ステップ: `scripts/run_sim.py` で Conservative/Bridge の最新ランを取得しパラメータ調整案を検証、`docs/progress_phase4.md` に結果と再現コマンドを追記する。
 
 ### On Hold
 
 - Monitor for the first production `data_quality_failure` alert to validate the acknowledgement workflow once live signals begin flowing. (P0 ops loop paused until production data triggers an alert.)
 ### Ready
 
-
-
+- [P4-02 異常系テスト自動化](./task_backlog.md#p4-02-異常系テスト自動化) — 既存 `tests/test_data_robustness.py` のカバレッジ確認と追加シナリオ設計から着手。
+- [P4-03 Go/No-Go チェックリスト確定](./task_backlog.md#p4-03-go-no-go-チェックリスト確定) — P4-01 の改善内容を踏まえ、チェック項目の責任者・頻度・ログテンプレを埋める。
 
 ### Pending Review
 

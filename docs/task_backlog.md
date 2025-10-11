@@ -200,7 +200,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - 2025-12-02: Mean Reversion 戦略の本実装を `strategies/mean_reversion.py` へ移行し、`configs/strategies/mean_reversion.yaml` / `configs/ev_profiles/mean_reversion.yaml` を整備。`analysis/broker_fills.ipynb` を公開してブローカー別比較を Notebook でも検証可能にし、`tests/test_mean_reversion_strategy.py` を追加してゲート・EV 調整ロジックの回帰を確保。
   - 2026-02-13: `docs/checklists/multi_strategy_validation.md` をフォローして Day ORB / Mean Reversion を最新テンプレで実行。`runs/multi_strategy/` に指標を再生成し、EV プロファイル有無で差分が無いこと（`reversion.json` vs `reversion_no_profile.json`）と、`ev_reject=330` が Mean Reversion の LCB フィルタで律速になっている点を記録。サマリ表と実測コメントを更新し、チェックリスト完了状態を維持。
 
-## P3: 観測性・レポート自動化
+## ~~P3: 観測性・レポート自動化~~ ✅ (2025-10-11 クローズ)
 - **シグナル/レイテンシ監視自動化**: `scripts/analyze_signal_latency.py` を日次ジョブ化し、`ops/signal_latency.csv` をローテーション。SLO違反でアラート。
 - **週次レポート生成**: `scripts/summarize_runs.py` を拡張し、ベースライン/ローリング run・カテゴリ別稼働率・ヘルスチェック結果をまとめて Webhook送信。
   - 2026-04-16: `scripts/summarize_runs.py` を通知ペイロード生成フローに刷新し、`--config` での include/宛先制御と Webhook ドライランを追加。`docs/benchmark_runbook.md` に運用手順を記載し、`tests/test_summarize_runs.py` で集計精度と Webhook ペイロードを回帰テスト化。
@@ -221,6 +221,33 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - 2026-07-05: Finalised the observability scheduling package by normalising `configs/observability/automation.yaml` to use `{ROOT}`-aware `args` mappings, adding a global `--dry-run` guard to `run_daily_workflow.py` so latency/weekly jobs skip webhooks during rehearsals, refreshing `configs/observability/*.yaml` defaults, and documenting rollout・rollback steps in `docs/observability_dashboard.md` / `docs/state_runbook.md`.
   - 2026-07-06: Closed the documentation alignment loop—added the observability automation quickstart and log/secrets playbook to `docs/observability_dashboard.md` / `docs/state_runbook.md`, captured implementation status in `docs/plans/p3_observability_automation.md`・`docs/phase3_detailed_design.md`, refreshed the DoD checklist, and synced `docs/todo_next.md` / `state.md` with the next scheduling hand-off.
   - 2026-07-07: Introduced `scripts/verify_dashboard_bundle.py` to re-check dashboard manifests, dataset checksums, and history retention ahead of uploads. Documented the workflow in `docs/observability_dashboard.md`, updated the P3 DoD checklist, refreshed `docs/plans/p3_observability_automation.md` / `docs/phase3_detailed_design.md`, and added regression coverage via `tests/test_verify_dashboard_bundle.py`.
+  - 2025-10-11: Exercised the observability automation chain end-to-end (pytest, dry-run workflow, verify CLI, dashboard bundle check), persisted the latest weekly payload to `ops/weekly_report_history/2025-10-06.json`/`.sig`, and confirmed automation logs/heartbeats match the detailed design requirements。Remaining ops follow-up (production cron cut-over, secret rotation drills) tracked under P4 operational readiness tasks。
+
+## P4: 検証とリリースゲート
+
+### P4-01 長期バックテスト改善
+- **DoD**:
+  - Conservative / Bridge の 2018–2025 通しランを最新データで再実行し、Sharpe・最大DD・年間勝率がリリース基準を満たすようパラメータまたはガードを調整する。
+  - 改善後のメトリクスと再現コマンドを `docs/progress_phase4.md`・`state.md`・PR 説明に記録し、`reports/long_{mode}.json` / `reports/long_{mode}_daily.csv` を更新する。
+  - 変更内容に対応する検証ログ（例: `python3 scripts/run_sim.py ...`）を提示し、レビュワーが再現できるよう artefact パスを一覧化する。
+- **Notes**:
+  - 2025-10-11: Baselineレビューで Conservative -243 pips / Bridge -934 pips を確認。パラメータ再調整に着手。
+
+### P4-02 異常系テスト自動化
+- **DoD**:
+  - スプレッド急拡大・欠損バー・レイテンシ障害など主要異常シナリオを `pytest` 常設テストに組み込み、CI で再現可能にする。
+  - 再現 CLI / テストデータ作成手順を `docs/state_runbook.md#incident` と `docs/progress_phase4.md` に追記する。
+  - 失敗時のエラーコード／通知フローがログに残ることを `tests/test_data_robustness.py` 等で検証する。
+- **Notes**:
+  - 2025-10-11: Ready へ昇格予定。既存テストパターンを棚卸しして設計差分をまとめる。
+
+### P4-03 Go/No-Go チェックリスト確定
+- **DoD**:
+  - `docs/go_nogo_checklist.md` を最新運用手順（state バックアップ、通知 SLO、秘密情報の確認、ローリング検証結果共有）で更新し、Paper 移行時の承認プロセスを定義する。
+  - チェック項目ごとに担当者・頻度・検証ログテンプレを付与し、`state.md` と `docs/todo_next_archive.md` へ記録方法を明記する。
+  - モックレビューを実施し、記録を残すことで実運用の準備が整っていることを確認する。
+- **Notes**:
+  - 2025-10-11: Ready へ昇格予定。P4-01 の結果を踏まえて更新範囲を確定する。
 
 ## 継続タスク / 保守
 - データスキーマ検証 (`scripts/check_data_quality.py`) を cron 化し、異常リストを `analysis/data_quality.md` に追記。

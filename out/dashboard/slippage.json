@@ -1,0 +1,1469 @@
+{
+  "dataset": "slippage",
+  "generated_at": "2025-10-11T11:35:53.687028Z",
+  "job_id": "20251011T113553Z-observability-dashboard",
+  "state": [
+    {
+      "timestamp": "2025-09-23T11:26:05Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-23T12:57:17Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-23T13:10:30Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-24T12:13:31Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-24T12:13:38Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-24T12:13:43Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-24T12:13:47Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-24T12:16:48Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-24T12:16:55Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-24T12:17:00Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-24T12:17:04Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-27T21:35:17Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-27T21:35:22Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-27T21:35:25Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-27T21:35:27Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-28T21:30:54Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-28T21:31:00Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-28T21:31:03Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-28T21:31:05Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-28T21:32:04Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-28T21:32:10Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-28T21:32:12Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-28T21:32:14Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-28T23:35:37Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-28T23:35:45Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-28T23:35:50Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-28T23:35:53Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-29T11:43:48Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-29T11:43:57Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-29T11:44:01Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-29T11:44:04Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-29T11:49:07Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-29T11:49:15Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-29T11:49:19Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-29T11:49:22Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-29T13:49:38Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-29T13:49:40Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-29T13:49:41Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-29T13:49:42Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-29T13:50:56Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-29T13:50:58Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-29T13:50:59Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-09-29T13:51:00Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-10-01T12:22:22Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-10-01T12:22:24Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-10-01T12:22:26Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-10-02T14:44:16Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-10-02T14:44:17Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-10-02T14:44:18Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-10-02T14:44:39Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-10-02T14:44:40Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-10-02T14:46:09Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-10-02T14:46:10Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-10-02T21:40:13Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-10-02T21:40:15Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-10-02T21:40:16Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-10-04T10:38:11Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-10-05T13:20:55Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-10-05T13:23:39Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    },
+    {
+      "timestamp": "2025-10-05T13:25:19Z",
+      "coefficients": {
+        "narrow": 0.02,
+        "normal": 0.05,
+        "wide": 0.1
+      },
+      "source": "state_archive",
+      "ewma_alpha": 0.1,
+      "curve": {
+        "narrow": {
+          "a": 0.02,
+          "b": 0.0
+        },
+        "normal": {
+          "a": 0.05,
+          "b": 0.0
+        },
+        "wide": {
+          "a": 0.1,
+          "b": 0.0
+        }
+      }
+    }
+  ],
+  "execution": [
+    {
+      "timestamp": "2025-10-05T12:12:44.678723Z",
+      "coefficients": {
+        "slippage_bps": 2.5,
+        "reject_rate": 0.012
+      },
+      "source": "execution:day_orb_5m_v1"
+    },
+    {
+      "timestamp": "2025-10-05T12:12:44.678723Z",
+      "coefficients": {
+        "slippage_bps": 4.1,
+        "reject_rate": 0.032
+      },
+      "source": "execution:tokyo_micro_mean_reversion_v0"
+    }
+  ],
+  "sources": {
+    "archive_dir": "/Users/izumimotohayato/development/invest3_orb5m_codex/ops/state_archive/day_orb_5m.DayORB5m/USDJPY/conservative",
+    "portfolio_telemetry": "/Users/izumimotohayato/development/invest3_orb5m_codex/reports/portfolio_samples/router_demo/telemetry.json"
+  }
+}

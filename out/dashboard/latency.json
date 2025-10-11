@@ -1,0 +1,23 @@
+{
+  "dataset": "latency",
+  "generated_at": "2025-10-11T11:35:53.687028Z",
+  "job_id": "20251011T113553Z-observability-dashboard",
+  "rows": [
+    {
+      "window_start": "2025-10-11T11:00:00Z",
+      "window_end": "2025-10-11T12:00:00Z",
+      "count": 1,
+      "failure_count": 0,
+      "failure_rate": 0.0,
+      "p50_ms": 2100.0,
+      "p95_ms": 2100.0,
+      "p99_ms": 2100.0,
+      "max_ms": 2100.0,
+      "breach_flag": false,
+      "breach_streak": 0
+    }
+  ],
+  "sources": {
+    "latency_rollup": "/Users/izumimotohayato/development/invest3_orb5m_codex/ops/signal_latency_rollup.csv"
+  }
+}

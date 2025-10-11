@@ -1,0 +1,11 @@
+{
+  "job_id": "20251011T113553Z-observability-dashboard",
+  "generated_at": "2025-10-11T11:35:53.687028Z",
+  "datasets": {
+    "ev_history": "ok",
+    "slippage": "ok",
+    "turnover": "ok",
+    "latency": "ok"
+  },
+  "last_success_at": "2025-10-11T11:35:53.687028Z"
+}

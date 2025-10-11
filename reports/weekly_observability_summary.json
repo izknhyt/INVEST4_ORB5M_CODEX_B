@@ -1,0 +1,13 @@
+{
+  "status": "dry_run",
+  "job_id": "20251011T113553Z-observability-weekly",
+  "week_start": "2025-10-06",
+  "payload_checksum_sha256": "00e25fb84273240c463f9397f9b61cb4c9693d9d781a0b8df540fcb5e42bf356",
+  "artefacts": [
+    "/Users/izumimotohayato/development/invest3_orb5m_codex/out/weekly_report/20251011T113553Z-observability-weekly.json"
+  ],
+  "destinations": [],
+  "attempts": 0,
+  "duration_ms": 8.574,
+  "alerts": []
+}

@@ -1,0 +1,75 @@
+{
+  "status": "ok",
+  "job_id": "20251011T113553Z-observability-dashboard",
+  "generated_at": "2025-10-11T11:35:53.687028Z",
+  "datasets": {
+    "ev_history": "ok",
+    "slippage": "ok",
+    "turnover": "ok",
+    "latency": "ok"
+  },
+  "artefacts": [
+    "/Users/izumimotohayato/development/invest3_orb5m_codex/out/dashboard/ev_history.json",
+    "/Users/izumimotohayato/development/invest3_orb5m_codex/out/dashboard/slippage.json",
+    "/Users/izumimotohayato/development/invest3_orb5m_codex/out/dashboard/turnover.json",
+    "/Users/izumimotohayato/development/invest3_orb5m_codex/out/dashboard/latency.json",
+    "/Users/izumimotohayato/development/invest3_orb5m_codex/out/dashboard/manifest.json",
+    "/Users/izumimotohayato/development/invest3_orb5m_codex/ops/dashboard_export_history/20251011T113553Z-observability-dashboard/ev_history.json",
+    "/Users/izumimotohayato/development/invest3_orb5m_codex/ops/dashboard_export_history/20251011T113553Z-observability-dashboard/slippage.json",
+    "/Users/izumimotohayato/development/invest3_orb5m_codex/ops/dashboard_export_history/20251011T113553Z-observability-dashboard/turnover.json",
+    "/Users/izumimotohayato/development/invest3_orb5m_codex/ops/dashboard_export_history/20251011T113553Z-observability-dashboard/latency.json",
+    "/Users/izumimotohayato/development/invest3_orb5m_codex/ops/dashboard_export_history/20251011T113553Z-observability-dashboard/manifest.json",
+    "/Users/izumimotohayato/development/invest3_orb5m_codex/ops/dashboard_export_heartbeat.json"
+  ],
+  "sequence": 1,
+  "errors": [],
+  "manifest": {
+    "sequence": 1,
+    "generated_at": "2025-10-11T11:35:53.687028Z",
+    "job_id": "20251011T113553Z-observability-dashboard",
+    "datasets": [
+      {
+        "dataset": "ev_history",
+        "path": "/Users/izumimotohayato/development/invest3_orb5m_codex/out/dashboard/ev_history.json",
+        "checksum_sha256": "dc2280421480008a296e40196f88181ae4102e2b7c9bb9257e12dc4fe3db2e63",
+        "row_count": 66,
+        "generated_at": "2025-10-11T11:35:53.687028Z",
+        "source_hash": "4637e3c03304a7676c1b31855f089c4ea58e6e909684b5ea3c90b8a567a703a1"
+      },
+      {
+        "dataset": "slippage",
+        "path": "/Users/izumimotohayato/development/invest3_orb5m_codex/out/dashboard/slippage.json",
+        "checksum_sha256": "2bf00db6cfc0549be19e4bfedc8e983536d0a6eb066a3d95045d4bdf7f1a4eb2",
+        "row_count": 62,
+        "generated_at": "2025-10-11T11:35:53.687028Z",
+        "source_hash": "2e8c7d78be00f88776ea3693ed3ac4bd1687828cc684c48f2998d01c35f6fe5c"
+      },
+      {
+        "dataset": "turnover",
+        "path": "/Users/izumimotohayato/development/invest3_orb5m_codex/out/dashboard/turnover.json",
+        "checksum_sha256": "359e4b43ba7cca9c78b2be83774bf006eff1cf4727ce9d32f42eb36a16dc5515",
+        "row_count": 50,
+        "generated_at": "2025-10-11T11:35:53.687028Z",
+        "source_hash": "17801158c693c1b8981376f880cb2ca46880b3cadba3936ba07e37e9b485b26d"
+      },
+      {
+        "dataset": "latency",
+        "path": "/Users/izumimotohayato/development/invest3_orb5m_codex/out/dashboard/latency.json",
+        "checksum_sha256": "0a263e96a135bf8f5438c33fe9d90bcfcf8d71dee65bdd6863e3f5c4253455c8",
+        "row_count": 1,
+        "generated_at": "2025-10-11T11:35:53.687028Z",
+        "source_hash": "12983aa5bb8a8473f957ee622de0033475ab3e2813048555a9fa5b3644d5df2d"
+      }
+    ],
+    "provenance": {
+      "command": "/Users/izumimotohayato/development/invest3_orb5m_codex/analysis/export_dashboard_data.py --config /Users/izumimotohayato/development/invest3_orb5m_codex/configs/observability/dashboard_export.yaml --json-out /Users/izumimotohayato/development/invest3_orb5m_codex/reports/dashboard_export_summary.json --job-name observability-dashboard --runs-root /Users/izumimotohayato/development/invest3_orb5m_codex/runs --state-archive-root /Users/izumimotohayato/development/invest3_orb5m_codex/ops/state_archive --portfolio-telemetry /Users/izumimotohayato/development/invest3_orb5m_codex/reports/portfolio_samples/router_demo/telemetry.json --heartbeat-file /Users/izumimotohayato/development/invest3_orb5m_codex/ops/dashboard_export_heartbeat.json --history-dir /Users/izumimotohayato/development/invest3_orb5m_codex/ops/dashboard_export_history --archive-manifest /Users/izumimotohayato/development/invest3_orb5m_codex/ops/dashboard_export_archive_manifest.jsonl --dataset ev_history --dataset slippage --dataset turnover --dataset latency",
+      "commit_sha": "unknown",
+      "inputs": [
+        "/Users/izumimotohayato/development/invest3_orb5m_codex/ops/signal_latency_rollup.csv",
+        "/Users/izumimotohayato/development/invest3_orb5m_codex/ops/state_archive/day_orb_5m.DayORB5m/USDJPY/conservative",
+        "/Users/izumimotohayato/development/invest3_orb5m_codex/reports/portfolio_samples/router_demo/telemetry.json",
+        "/Users/izumimotohayato/development/invest3_orb5m_codex/runs"
+      ]
+    }
+  }
+}

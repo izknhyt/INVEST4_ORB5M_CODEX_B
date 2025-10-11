@@ -1,0 +1,171 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2025-10-11T11:35:53.616019Z",
+  "week_start": "2025-10-06",
+  "runs": [
+    {
+      "run_id": "USDJPY_conservative_20250922_170914",
+      "symbol": "USDJPY",
+      "mode": "conservative",
+      "timestamp": "2025-09-22T17:09:14Z",
+      "trades": 536,
+      "wins": 347,
+      "total_pips": 361.095714,
+      "win_rate": 0.647388,
+      "pnl_per_trade": 0.673686
+    },
+    {
+      "run_id": "grid_USDJPY_bridge_or4_ktp1.2_ksl0.4_20250921_134957",
+      "symbol": "USDJPY",
+      "mode": "bridge",
+      "timestamp": "2025-09-21T13:49:57Z",
+      "trades": 1145,
+      "wins": 508,
+      "total_pips": 279.695258,
+      "win_rate": 0.443668,
+      "pnl_per_trade": 0.244275
+    },
+    {
+      "run_id": "USDJPY_conservative_20251002_214013",
+      "symbol": "USDJPY",
+      "mode": "conservative",
+      "timestamp": "2025-10-02T21:40:13Z",
+      "trades": 300,
+      "wins": 192,
+      "total_pips": 222.937143,
+      "win_rate": 0.64,
+      "sharpe": 1.37469,
+      "max_drawdown": -93.668571,
+      "pnl_per_trade": 0.743124
+    },
+    {
+      "run_id": "USDJPY_conservative_20250923_221030",
+      "symbol": "USDJPY",
+      "mode": "conservative",
+      "timestamp": "2025-09-23T22:10:30Z",
+      "trades": 197,
+      "wins": 128,
+      "total_pips": 184.781429,
+      "win_rate": 0.649746,
+      "pnl_per_trade": 0.937977
+    },
+    {
+      "run_id": "grid_USDJPY_conservative_or4_ktp1.2_ksl0.4_20250921_134022",
+      "symbol": "USDJPY",
+      "mode": "conservative",
+      "timestamp": "2025-09-21T13:40:22Z",
+      "trades": 898,
+      "wins": 394,
+      "total_pips": 182.797143,
+      "win_rate": 0.438753,
+      "pnl_per_trade": 0.20356
+    },
+    {
+      "run_id": "grid_USDJPY_conservative_or4_ktp1.2_ksl0.4_20250921_134637",
+      "symbol": "USDJPY",
+      "mode": "conservative",
+      "timestamp": "2025-09-21T13:46:37Z",
+      "trades": 898,
+      "wins": 394,
+      "total_pips": 182.797143,
+      "win_rate": 0.438753,
+      "pnl_per_trade": 0.20356
+    },
+    {
+      "run_id": "grid_USDJPY_conservative_or4_ktp1.2_ksl0.4_20250921_135952",
+      "symbol": "USDJPY",
+      "mode": "conservative",
+      "timestamp": "2025-09-21T13:59:52Z",
+      "trades": 898,
+      "wins": 394,
+      "total_pips": 182.797143,
+      "win_rate": 0.438753,
+      "pnl_per_trade": 0.20356
+    },
+    {
+      "run_id": "grid_USDJPY_bridge_or6_ktp1.0_ksl0.4_20250921_131237",
+      "symbol": "USDJPY",
+      "mode": "bridge",
+      "timestamp": "2025-09-21T13:12:37Z",
+      "trades": 814,
+      "wins": 383,
+      "total_pips": 146.763604,
+      "win_rate": 0.470516,
+      "pnl_per_trade": 0.180299
+    },
+    {
+      "run_id": "USDJPY_conservative_20250922_175708",
+      "symbol": "USDJPY",
+      "mode": "conservative",
+      "timestamp": "2025-09-22T17:57:08Z",
+      "trades": 382,
+      "wins": 254,
+      "total_pips": 100.388571,
+      "win_rate": 0.664921,
+      "pnl_per_trade": 0.262797
+    },
+    {
+      "run_id": "grid_USDJPY_conservative_or8_ktp1.2_ksl0.4_20250921_134447",
+      "symbol": "USDJPY",
+      "mode": "conservative",
+      "timestamp": "2025-09-21T13:44:47Z",
+      "trades": 108,
+      "wins": 43,
+      "total_pips": 62.48,
+      "win_rate": 0.398148,
+      "pnl_per_trade": 0.578519
+    }
+  ],
+  "portfolio": {
+    "budget_status": "ok",
+    "category_utilisation": [
+      {
+        "category": "day",
+        "utilisation_pct": 0.5,
+        "budget_status": "ok",
+        "headroom_pct": 39.5
+      },
+      {
+        "category": "scalping",
+        "utilisation_pct": 0.16,
+        "budget_status": "ok",
+        "headroom_pct": 14.84
+      }
+    ],
+    "gross_exposure_pct": 0.33,
+    "headroom_pct": 19.67,
+    "drawdown_pct": 0.3140108657728156,
+    "generated_at": "2025-10-10T09:24:42.863760+00:00"
+  },
+  "latency": {
+    "p50_ms": 2100.0,
+    "p95_ms": 2100.0,
+    "p99_ms": 2100.0,
+    "max_ms": 2100.0,
+    "breach_count": 0,
+    "breaches": [],
+    "samples": 1
+  },
+  "alerts": [],
+  "sources": {
+    "runs_index": "/Users/izumimotohayato/development/invest3_orb5m_codex/runs/index.csv",
+    "portfolio_summary": "/Users/izumimotohayato/development/invest3_orb5m_codex/reports/portfolio_summary.json",
+    "latency_rollup": "/Users/izumimotohayato/development/invest3_orb5m_codex/ops/signal_latency_rollup.csv"
+  },
+  "metadata": {
+    "automation": {
+      "job_name": "observability-weekly",
+      "job_id": "20251011T113553Z-observability-weekly",
+      "started_at": "2025-10-11T11:35:53.614352Z",
+      "command": "/Users/izumimotohayato/development/invest3_orb5m_codex/scripts/summarize_runs.py --weekly-payload --config /Users/izumimotohayato/development/invest3_orb5m_codex/configs/observability/weekly_payload.yaml --json-out /Users/izumimotohayato/development/invest3_orb5m_codex/reports/weekly_observability_summary.json --job-name observability-weekly --webhook-secret-env OBS_WEBHOOK_SECRET --webhook-url-env OBS_WEEKLY_WEBHOOK_URL --runs-root /Users/izumimotohayato/development/invest3_orb5m_codex/runs --portfolio-summary /Users/izumimotohayato/development/invest3_orb5m_codex/reports/portfolio_summary.json --benchmark-summary /Users/izumimotohayato/development/invest3_orb5m_codex/reports/benchmark_summary.json --health-checks /Users/izumimotohayato/development/invest3_orb5m_codex/ops/health/state_checks.json --latency-rollup /Users/izumimotohayato/development/invest3_orb5m_codex/ops/signal_latency_rollup.csv --dry-run-webhook",
+      "commit_sha": null,
+      "config_path": "/Users/izumimotohayato/development/invest3_orb5m_codex/configs/observability/weekly_payload.yaml",
+      "metadata": {}
+    },
+    "generated_at": "2025-10-11T11:35:53.616019Z",
+    "week_start": "2025-10-06"
+  },
+  "destinations": {
+    "webhooks": []
+  }
+}

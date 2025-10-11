@@ -1,0 +1,30 @@
+{
+  "job_id": "20251011T113553Z-observability-dashboard",
+  "generated_at": "2025-10-11T11:35:53.687028Z",
+  "datasets": [
+    {
+      "dataset": "ev_history",
+      "path": "/Users/izumimotohayato/development/invest3_orb5m_codex/ops/dashboard_export_history/20251011T113553Z-observability-dashboard/ev_history.json",
+      "checksum_sha256": "dc2280421480008a296e40196f88181ae4102e2b7c9bb9257e12dc4fe3db2e63",
+      "row_count": 66
+    },
+    {
+      "dataset": "slippage",
+      "path": "/Users/izumimotohayato/development/invest3_orb5m_codex/ops/dashboard_export_history/20251011T113553Z-observability-dashboard/slippage.json",
+      "checksum_sha256": "2bf00db6cfc0549be19e4bfedc8e983536d0a6eb066a3d95045d4bdf7f1a4eb2",
+      "row_count": 62
+    },
+    {
+      "dataset": "turnover",
+      "path": "/Users/izumimotohayato/development/invest3_orb5m_codex/ops/dashboard_export_history/20251011T113553Z-observability-dashboard/turnover.json",
+      "checksum_sha256": "359e4b43ba7cca9c78b2be83774bf006eff1cf4727ce9d32f42eb36a16dc5515",
+      "row_count": 50
+    },
+    {
+      "dataset": "latency",
+      "path": "/Users/izumimotohayato/development/invest3_orb5m_codex/ops/dashboard_export_history/20251011T113553Z-observability-dashboard/latency.json",
+      "checksum_sha256": "0a263e96a135bf8f5438c33fe9d90bcfcf8d71dee65bdd6863e3f5c4253455c8",
+      "row_count": 1
+    }
+  ]
+}
