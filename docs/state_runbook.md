@@ -134,4 +134,4 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
   ```
   - stdout summary の `status` と `failures` を確認し、失敗時は `ops/automation_runs.log` の `diagnostics.error_code` を基に復旧する。
   - 心拍が 6 時間以上更新されていない場合は `heartbeat_stale` で失敗するため、該当ジョブを再実行して artefact を再生成する。
-- `run_daily_workflow.py --observability --dry-run` をスケジューラに登録する場合、`OPS_DASHBOARD_UPLOAD_CMD` などの secrets が正しく読み込めることを `analysis/export_dashboard_data.py --job-name observability --job-id $(date -u +%Y%m%dT%H%M%SZ)-observability --dataset ev_history --json-out /tmp/obs_check.json` でテスト実行し、summary JSON と `AutomationContext.describe()` の `environment` スナップショットを確認する。
+- `run_daily_workflow.py --observability --dry-run` をスケジューラに登録する場合、`OPS_DASHBOARD_UPLOAD_CMD` などの secrets が正しく読み込めることを `analysis/export_dashboard_data.py --job-name observability --job-id $(date -u +%Y%m%dT%H%M%SZ)-observability --dataset ev_history --json-out /tmp/obs_check.json` でテスト実行し、summary JSON と `AutomationContext.describe()` の `environment` スナップショットを確認する。`--dry-run` 指定時は `configs/observability/automation.yaml` の `args` に関わらず `--dry-run-alert` / `--dry-run-webhook` が自動付与されるため、Webhook を呼び出さずに artefact だけを検証できる。

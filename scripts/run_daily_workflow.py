@@ -38,6 +38,11 @@ _OBSERVABILITY_AUTOMATION_CONFIG = ROOT / "configs/observability/automation.yaml
 _OBSERVABILITY_WEEKLY_CONFIG = ROOT / "configs/observability/weekly_payload.yaml"
 _OBSERVABILITY_DASHBOARD_CONFIG = ROOT / "configs/observability/dashboard_export.yaml"
 _OBSERVABILITY_WEEKLY_SUMMARY = ROOT / "reports/weekly_observability_summary.json"
+_OBSERVABILITY_DRY_RUN_FLAGS: Dict[str, List[str]] = {
+    "latency": ["--dry-run-alert"],
+    "weekly": ["--dry-run-webhook"],
+    "dashboard": [],
+}
 _OBSERVABILITY_DASHBOARD_SUMMARY = ROOT / "reports/dashboard_export_summary.json"
 
 
@@ -1365,6 +1370,12 @@ def _load_observability_config(path: Optional[Path]) -> Mapping[str, Any]:
     return loaded
 
 
+def _normalise_observability_token(token: str) -> str:
+    if "{ROOT}" in token:
+        return token.replace("{ROOT}", str(ROOT))
+    return token
+
+
 def _extract_observability_argv(section: Mapping[str, Any]) -> List[str]:
     argv: List[str] = []
     tokens = section.get("argv")
@@ -1372,16 +1383,34 @@ def _extract_observability_argv(section: Mapping[str, Any]) -> List[str]:
         tokens = section.get("args")
     if tokens is None:
         return argv
+
+    def _append_token(raw: Any) -> None:
+        token = _normalise_observability_token(str(raw))
+        argv.append(token)
+
     if isinstance(tokens, Mapping):
         for key, value in tokens.items():
-            argv.append(str(key))
             if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
-                argv.extend(str(item) for item in value)
-            elif value is not None:
-                argv.append(str(value))
+                for item in value:
+                    if isinstance(item, Sequence) and not isinstance(item, (str, bytes)):
+                        if not item:
+                            continue
+                        _append_token(key)
+                        for nested in item:
+                            _append_token(nested)
+                    else:
+                        _append_token(key)
+                        _append_token(item)
+                continue
+            _append_token(key)
+            if value is not None:
+                _append_token(value)
         return argv
     if isinstance(tokens, Sequence) and not isinstance(tokens, (str, bytes)):
-        return [str(item) for item in tokens]
+        for item in tokens:
+            _append_token(item)
+        return argv
+    _append_token(tokens)
     return argv
 
 
@@ -1403,6 +1432,8 @@ def _run_observability_chain(args: argparse.Namespace) -> int:
         ("dashboard", _build_dashboard_export_cmd),
     ]
 
+    dry_run = bool(getattr(args, "dry_run", False))
+
     for name, builder in steps:
         section = config.get(name, {}) if isinstance(config, Mapping) else {}
         if isinstance(section, Mapping) and section.get("enabled") is False:
@@ -1410,6 +1441,10 @@ def _run_observability_chain(args: argparse.Namespace) -> int:
         cmd = builder()
         if isinstance(section, Mapping):
             cmd.extend(_extract_observability_argv(section))
+        if dry_run:
+            for flag in _OBSERVABILITY_DRY_RUN_FLAGS.get(name, []):
+                if flag not in cmd:
+                    cmd.append(flag)
         exit_code = run_cmd(cmd)
         if exit_code:
             return exit_code
@@ -1790,6 +1825,14 @@ def main(argv=None) -> int:
         "--observability-config",
         default=str(_OBSERVABILITY_AUTOMATION_CONFIG),
         help="YAML config controlling observability chain overrides.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "When paired with --observability, append dry-run flags to automation steps "
+            "so external webhooks are skipped."
+        ),
     )
     parser.add_argument("--archive-state", action="store_true", help="Archive state.json files")
     parser.add_argument("--bars", default=None, help="Override bars CSV path (default: validated/<symbol>/5m.csv)")

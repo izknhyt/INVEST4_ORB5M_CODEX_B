@@ -1,6 +1,7 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-07-05: Finalised the observability scheduling rollout by adding a repo-root-aware `--dry-run` guard to `scripts/run_daily_workflow.py`, normalising `configs/observability/automation.yaml` to `args` mappings with `{ROOT}` expansion, and refreshing docs (`docs/observability_dashboard.md`, `docs/state_runbook.md`, backlog/todo anchors) with rollout/rollback guidance. Verified the chain with `PYTHONPATH=. OBS_WEEKLY_WEBHOOK_URL=https://hooks.invalid/example OBS_WEBHOOK_SECRET=dummy-signing-key python3 scripts/run_daily_workflow.py --observability --dry-run --observability-config configs/observability/automation.yaml` and executed `PYTHONPATH=. python3 -m pytest` (341 tests) to keep the suite green.
 - 2026-07-04: Implemented `scripts/verify_observability_job.py` to validate automation logs, heartbeat freshness, dashboard manifest schema, and observability secrets in one command. Updated `docs/state_runbook.md` / `docs/checklists/p3_observability_automation.md` / `docs/task_backlog.md` / `docs/todo_next.md`, added regression coverage via `tests/test_verify_observability_job.py`, and ran `python3 -m pytest` (339 tests) to confirm the suite stays green.
 - Review this file before starting any task to confirm the latest context and checklist。
 - 2026-07-04: Realigned Phase 3 observability automation implementations with the detailed design by enriching latency rollups
@@ -551,4 +552,4 @@
 
 - [OPS-CODEX-GUIDE] 2025-10-08: Aligned workflow docs with review feedback. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
 ## Next Task
-- Prepare the `run_daily_workflow.py --observability` chain for scheduling by finalising configs (`configs/observability/*.yaml`), running a dry-run with production-like secrets, capturing artefact paths, and documenting the rollout/rollback steps with storage operations sign-off.
+- Coordinate with storage operations on the first live `run_daily_workflow.py --observability` cron execution: confirm production webhook secrets, stage rollout/rollback drills, and capture artefact/heartbeat verification logs for sign-off.

@@ -17,7 +17,7 @@
 
 ### In Progress
 
-- [P3 Observability automation kickoff](./task_backlog.md#p3-観測性・レポート自動化) — 設計資料を `docs/plans/p3_observability_automation.md`（ブループリント）と `docs/phase3_detailed_design.md`（詳細設計）に集約完了。レイテンシ CLI・週次 payload・ダッシュボードエクスポート CLI に加えて、`scripts/verify_observability_job.py` でログ／心拍／manifest／Secrets を一括検証できるよう整備し、runbook と DoD チェックリストへ反映した。次ステップ: `run_daily_workflow.py --observability` チェーンの定期ジョブ化とストレージ運用チームとのアップロード手順レビュー。
+- [P3 Observability automation kickoff](./task_backlog.md#p3-観測性・レポート自動化) — 設計資料を `docs/plans/p3_observability_automation.md`（ブループリント）と `docs/phase3_detailed_design.md`（詳細設計）に集約完了。レイテンシ CLI・週次 payload・ダッシュボードエクスポート CLI に加えて、`scripts/verify_observability_job.py` でログ／心拍／manifest／Secrets を一括検証できるよう整備し、runbook と DoD チェックリストへ反映した。`configs/observability/automation.yaml` の `{ROOT}` 対応 `args` と `run_daily_workflow.py --observability --dry-run` を使ったドライラン手順をドキュメント化済み。次ステップ: ストレージ運用チームと本番 webhook／アップロード手順をレビューし、cron ジョブの初回本番実行とロールバック練習を完了させる。
 
 ### On Hold
 
