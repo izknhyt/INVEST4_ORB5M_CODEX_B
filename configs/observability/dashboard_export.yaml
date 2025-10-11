@@ -1,9 +1,17 @@
 # Dashboard dataset export configuration recorded for observability automation.
+# Paths may reference ``{ROOT}`` which is expanded by ``run_daily_workflow.py``.
 datasets:
   - ev_history
   - slippage
   - turnover
   - latency
+paths:
+  runs_root: "{ROOT}/runs"
+  state_archive_root: "{ROOT}/ops/state_archive"
+  portfolio_telemetry: "{ROOT}/reports/portfolio_samples/router_demo/telemetry.json"
+  heartbeat_file: "{ROOT}/ops/dashboard_export_heartbeat.json"
+  history_dir: "{ROOT}/ops/dashboard_export_history"
+  archive_manifest: "{ROOT}/ops/dashboard_export_archive_manifest.jsonl"
 notes:
   retention_days: 56
   upload_command: null

@@ -54,10 +54,28 @@
    - `--dataset` を複数指定すると `ev_history` / `slippage` / `turnover` / `latency` の任意サブセットを生成できる（未指定時は全データセット）。
    - `--archive-dir` を指定すると戦略/シンボル/モードの組み合わせを上書きできる。`--ev-limit`・`--slip-limit`・`--turnover-limit`・`--latency-limit` で履歴件数を調整可能。
    - 実行後は `out/dashboard/<dataset>.json` と `out/dashboard/manifest.json`、ハートビート `ops/dashboard_export_heartbeat.json` が更新され、履歴ディレクトリ `ops/dashboard_export_history/<job_id>/` にコピーが残る。8 週間以上前の履歴は自動的に削除され、削除ログが `ops/dashboard_export_archive_manifest.jsonl` に追記される。
-   - `run_daily_workflow.py --observability --observability-config configs/observability/automation.yaml` を利用すると、信号レイテンシ集計→週次ペイロード生成→ダッシュボードエクスポートの順に同一チェーンで実行できる。デフォルト設定は `configs/observability/automation.yaml` に集約しており、`argv` リストを編集すると各サブコマンドへ追加フラグを伝播できる。cron で運用する場合は `OBS_WEEKLY_WEBHOOK_URL` / `OBS_WEBHOOK_SECRET` を環境変数で注入し、失敗時は `ops/automation_runs.log` の `job_id` をチェックする。
+   - `run_daily_workflow.py --observability --observability-config configs/observability/automation.yaml` を利用すると、信号レイテンシ集計→週次ペイロード生成→ダッシュボードエクスポートの順に同一チェーンで実行できる。デフォルト設定は `configs/observability/automation.yaml` に集約しており、`args` マップに `--job-name` や `--runs-root` を追記すると各サブコマンドへ追加フラグを伝播できる。cron で運用する場合は `OBS_WEEKLY_WEBHOOK_URL` / `OBS_WEBHOOK_SECRET` を環境変数で注入し、失敗時は `ops/automation_runs.log` の `job_id` をチェックする。
+   - ドライランは `python3 scripts/run_daily_workflow.py --observability --dry-run --observability-config configs/observability/automation.yaml` のように `--dry-run` を併用する。これにより `analyze_signal_latency.py` へ `--dry-run-alert`、`summarize_runs.py` へ `--dry-run-webhook` が自動付与され、Webhook を呼び出さずに artefact とログのみ更新できる。
 3. Notebook で可視化したい場合は `analysis/portfolio_monitor.ipynb` を開き、最初のセルを実行してデータ構造を更新する。
    - `pandas` が無い環境ではリスト形式で値が返るため、そのまま JSON 出力をレビューするか、必要に応じて `pip install pandas` で依存を追加する。
 4. 共有用ストレージへアップロードする際は `out/dashboard/manifest.json` の `sequence` / `generated_at` と `ops/dashboard_export_heartbeat.json` の `last_success_at` をメッセージに添えて通知する。
+
+## スケジューリングとロールバック手順
+
+1. **前提整備** — ストレージ運用チームと共有し、`configs/observability/automation.yaml` の `args` に含まれる `--runs-root` / `--state-archive-root` / `--portfolio-telemetry` が正しいマウントパスを指していることを確認する。必要に応じて `"{ROOT}"` プレースホルダでリポジトリルートを明示する。
+2. **ドライラン検証** — 以下のコマンドを `OBS_WEEKLY_WEBHOOK_URL` / `OBS_WEBHOOK_SECRET` をダミー値でエクスポートした状態で実行し、`ops/automation_runs.log` に `"status": "dry_run"` が記録されること、`ops/latency_job_heartbeat.json` / `ops/weekly_report_history/` / `out/dashboard/*.json` が生成されることを確認する。
+   ```bash
+   PYTHONPATH=. \\
+   OBS_WEEKLY_WEBHOOK_URL=https://hooks.invalid/example \\
+   OBS_WEBHOOK_SECRET=dummy-signing-key \\
+   python3 scripts/run_daily_workflow.py \\
+       --observability \\
+       --dry-run \\
+       --observability-config configs/observability/automation.yaml
+   ```
+   - 成功時は `out/latency_alerts/<job_id>.json`（dry-run アラート）と `out/weekly_report/<job_id>.json` が更新される。不要なファイルはコミット対象から除外する。
+3. **本番スケジュール投入** — Cron/CI へ投入する際は `OBS_WEEKLY_WEBHOOK_URL` / `OBS_WEBHOOK_SECRET` を本番値に差し替え、`--dry-run` を削除してジョブを登録する。初回実行後に `ops/automation_runs.log`、`ops/dashboard_export_heartbeat.json`、`ops/weekly_report_history/*.json` をレビューし、ストレージ運用チームへ artefact パスを共有する。
+4. **ロールバック** — 失敗時はスケジューラからジョブを外し、`ops/dashboard_export_history/` に残った未承認バンドルを削除して `ops/dashboard_export_archive_manifest.jsonl` へ記録する。`scripts/verify_observability_job.py --check-log ops/automation_runs.log` を実行し、直近エントリが `status="error"` のままでないことを確認してから再投入する。
 
 ## データソースの対応付け
 | データセット | 参照元 | 出力先 | 補足 |

@@ -1,6 +1,7 @@
 # Weekly observability payload configuration.
 # Webhook destinations are populated via environment variables referenced by
-# ``run_daily_workflow.py --observability``.
+# ``run_daily_workflow.py --observability``. Toggle ``destinations.dry_run`` or
+# supply ``--dry-run`` to the workflow for rehearsals that skip webhook posts.
 include:
   - runs
   - benchmarks
@@ -9,3 +10,4 @@ include:
 destinations:
   webhooks: []
   fail_on_error: true
+  dry_run: false

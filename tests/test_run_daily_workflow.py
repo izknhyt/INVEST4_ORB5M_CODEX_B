@@ -591,6 +591,56 @@ def test_observability_chain_stops_after_failure(monkeypatch, tmp_path):
     assert order == ["analyze_signal_latency.py"]
 
 
+def test_observability_chain_dry_run_appends_flags(monkeypatch, tmp_path):
+    captured: list[list[str]] = []
+
+    def fake_run_cmd(cmd):
+        captured.append(cmd)
+        return 0
+
+    monkeypatch.setattr(run_daily_workflow, "run_cmd", fake_run_cmd)
+    config_path = tmp_path / "observability.yaml"
+    config_path.write_text("{}", encoding="utf-8")
+
+    exit_code = run_daily_workflow.main(
+        ["--observability", "--dry-run", "--observability-config", str(config_path)]
+    )
+
+    assert exit_code == 0
+    assert len(captured) == 3
+    assert "--dry-run-alert" in captured[0]
+    assert "--dry-run-webhook" in captured[1]
+    # Dashboard export does not require a dry-run flag but should still execute.
+    assert Path(captured[2][1]).name == "export_dashboard_data.py"
+
+
+def test_observability_config_expands_root_placeholder(monkeypatch, tmp_path):
+    captured: list[list[str]] = []
+
+    def fake_run_cmd(cmd):
+        captured.append(cmd)
+        return 0
+
+    monkeypatch.setattr(run_daily_workflow, "run_cmd", fake_run_cmd)
+
+    config_path = tmp_path / "observability.yaml"
+    config_path.write_text(
+        """
+latency:
+  args:
+    --extra-path: "{ROOT}/ops/sample.json"
+        """.strip(),
+        encoding="utf-8",
+    )
+
+    exit_code = run_daily_workflow.main(
+        ["--observability", "--observability-config", str(config_path)]
+    )
+
+    assert exit_code == 0
+    assert any(arg.endswith("/ops/sample.json") for arg in captured[0])
+
+
 def test_archive_state_uses_absolute_paths(monkeypatch):
     captured = _capture_run_cmd(monkeypatch)
 
