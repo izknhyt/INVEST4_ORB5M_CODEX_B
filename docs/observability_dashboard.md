@@ -31,6 +31,16 @@
        --check-secrets --secret OBS_WEEKLY_WEBHOOK_URL --secret OBS_WEBHOOK_SECRET
    ```
    - `--require-job-entry` を付与すると、検証対象の `job_id` が事前に `ops/automation_runs.log` に記録されているかまで確認できる。夜間ジョブのダブルチェックに活用する。
+3. ダッシュボードバンドルを共有する前に `scripts/verify_dashboard_bundle.py` で manifest・各データセットのチェックサム・履歴リテンションを検証する。
+   ```bash
+   python3 scripts/verify_dashboard_bundle.py \
+       --manifest out/dashboard/manifest.json \
+       --history-dir ops/dashboard_export_history \
+       --archive-manifest ops/dashboard_export_archive_manifest.jsonl \
+       --expected-dataset ev_history --expected-dataset slippage \
+       --expected-dataset turnover --expected-dataset latency
+   ```
+   - `--retention-days` で履歴保持期間を切り替え可能。検証結果は stdout と `--json-out` 先に JSON で保存でき、`ops/automation_runs.log` にも自動追記される。
 
 ## リフレッシュ手順
 1. `runs/index.csv` の `configs/ev_profiles/day_orb_5m.yaml` 行をチェックして Day ORB 最新ラン（例: `runs/USDJPY_conservative_20251002_214013`）を確認し、Tokyo Micro Mean Reversion についてはサンプルメトリクス `reports/portfolio_samples/router_demo/metrics/tokyo_micro_mean_reversion_v0.json` を利用する。以下のコマンドでルーター snapshot とポートフォリオサマリーを更新し、`budget_status` / `budget_over_pct` / `correlation_window_minutes` / `drawdowns` をレビューする。
