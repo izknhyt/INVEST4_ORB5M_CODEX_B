@@ -1,3 +1,4 @@
+import csv
 import json
 import shutil
 import textwrap
@@ -301,6 +302,60 @@ def test_run_sim_with_manifest(tmp_path: Path) -> None:
     assert data["debug"]["csv_loader"]["skipped_rows"] == 0
 
 
+def test_run_sim_accepts_out_json_alias(tmp_path: Path) -> None:
+    manifest_path = _write_manifest(tmp_path)
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(CSV_CONTENT, encoding="utf-8")
+    json_out = tmp_path / "alias_metrics.json"
+
+    rc = run_sim_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--csv",
+            str(csv_path),
+            "--out-json",
+            str(json_out),
+        ]
+    )
+
+    assert rc == 0
+    payload = json.loads(json_out.read_text(encoding="utf-8"))
+    assert payload["symbol"] == "USDJPY"
+    assert payload["mode"] == "conservative"
+
+
+def test_run_sim_writes_daily_csv(tmp_path: Path) -> None:
+    manifest_path = _write_manifest(tmp_path)
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(CSV_CONTENT, encoding="utf-8")
+    json_out = tmp_path / "metrics.json"
+    daily_out = tmp_path / "daily.csv"
+
+    rc = run_sim_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--csv",
+            str(csv_path),
+            "--json-out",
+            str(json_out),
+            "--out-daily-csv",
+            str(daily_out),
+        ]
+    )
+
+    assert rc == 0
+    data = json.loads(json_out.read_text(encoding="utf-8"))
+    assert data.get("dump_daily") == str(daily_out)
+    with daily_out.open(encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    assert rows
+    first_row = rows[0]
+    assert first_row["date"] == "2024-01-01"
+    assert "pnl_pips" in first_row
+
+
 def test_run_sim_respects_time_window(tmp_path: Path) -> None:
     manifest_path = _write_manifest(tmp_path)
     csv_path = tmp_path / "bars.csv"
@@ -443,6 +498,8 @@ def test_run_sim_creates_run_directory(tmp_path: Path) -> None:
     assert params_path.exists()
     metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
     assert metrics.get("run_dir") == str(run_path)
+    assert metrics.get("dump_daily") == str(run_path / "daily.csv")
+    assert (run_path / "daily.csv").exists()
 
 
 def test_run_sim_relative_out_dir_resolves_to_repo(

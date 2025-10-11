@@ -26,6 +26,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 ## P0: 即着手（オンデマンドインジェスト + 基盤整備）
 
 **Status Update (2026-06-15)**: Live `data_quality_failure` alert validation remains on hold until production emits the first alert. Operational bandwidth is redirected toward P2 portfolio reporting deliverables and P3 observability automation planning.
+- 2026-07-03: Restored `scripts/run_sim.py` CLI compatibility by adding the `--out-json` alias and `--out-daily-csv` export path so Phase 4 long-run commands execute without argument errors, and refreshed the logging reference accordingly.
 - 2026-06-26: Phase 3 observability automation detailed design reviewed (`docs/phase3_detailed_design.md`), clarifying retention/manifest sequencing so the DoD checklist drafting can proceed without blockers.
 - 2026-06-27: Restored `scripts/check_data_quality.py` coverage checks for legacy headerless validated CSVs by auto-detecting missing headers, refreshed README / `docs/data_quality_ops.md` guidance, and added regression coverage for the fallback path so P0 data-quality guards stay reliable.
 - 2026-06-28: Enabled `scripts/run_sim.py` to auto-detect headerless validated CSV snapshots so manifest-driven backtests can load the shared datasets without manual header injection, extending pytest coverage for the loader fallback.

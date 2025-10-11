@@ -1,6 +1,6 @@
 # Backtest Runner Logging Reference
 
-> ⚠️ 2026-04-05 の CLI 簡素化で `--dump-csv` / `--dump-daily` フラグは削除されました。本ノートは Runner のデバッグカウンタ/レコード構造を説明する目的で残しており、実際の出力は `run_sim.py --manifest ... --out-dir <dir>` で生成される `records.csv` / `daily.csv`（manifest 側で有効化した場合）に対応させてください。
+> ⚠️ 2026-04-05 の CLI 簡素化で `--dump-csv` / `--dump-daily` フラグは削除されました。本ノートは Runner のデバッグカウンタ/レコード構造を説明する目的で残しており、実際の出力は `run_sim.py --manifest ... --out-dir <dir>` で生成される `records.csv` / `daily.csv`（manifest 側で有効化した場合）か、`--out-daily-csv <path>` で直接エクスポートした日次サマリに対応させてください。
 
 This note documents how `BacktestRunner` evaluates signals and how to interpret the artifacts historically exposed via dump outputs.
 
