@@ -396,6 +396,7 @@ class RuntimeConfig:
     manifest_path: Path
     csv_path: Path
     json_out: Optional[Path]
+    daily_csv_out: Optional[Path]
     equity: float
     start_ts: Optional[datetime]
     end_ts: Optional[datetime]
@@ -553,6 +554,25 @@ def _prepare_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
     else:
         json_out = None
 
+    daily_csv_value: Optional[Path]
+    if getattr(args, "daily_csv_out", None):
+        daily_csv_value = Path(args.daily_csv_out)
+    elif manifest_cli.get("daily_csv_out"):
+        daily_csv_value = Path(manifest_cli["daily_csv_out"])
+    elif manifest_cli.get("out_daily_csv"):
+        daily_csv_value = Path(manifest_cli["out_daily_csv"])
+    else:
+        daily_csv_value = None
+
+    if daily_csv_value is not None:
+        daily_csv_out = (
+            daily_csv_value
+            if daily_csv_value.is_absolute()
+            else _resolve_repo_path(daily_csv_value)
+        )
+    else:
+        daily_csv_out = None
+
     if args.equity is not None:
         equity = float(args.equity)
     else:
@@ -598,6 +618,7 @@ def _prepare_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
         manifest_path=manifest_path,
         csv_path=csv_path,
         json_out=json_out,
+        daily_csv_out=daily_csv_out,
         equity=equity,
         start_ts=args.start_ts,
         end_ts=args.end_ts,
@@ -711,6 +732,9 @@ def _write_run_outputs(
     metrics,
 ) -> Optional[Path]:
     if not config.run_base_dir:
+        daily = getattr(metrics, "daily", None)
+        if daily and config.daily_csv_out:
+            _write_daily_csv(config.daily_csv_out, daily)
         return None
 
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
@@ -752,25 +776,36 @@ def _write_run_outputs(
 
     daily = getattr(metrics, "daily", None)
     if daily:
-        import csv as _csv
+        run_daily_path = run_dir / "daily.csv"
+        _write_daily_csv(run_daily_path, daily)
+        if config.daily_csv_out:
+            _write_daily_csv(config.daily_csv_out, daily)
 
-        cols = [
-            "date",
-            "breakouts",
-            "gate_pass",
-            "gate_block",
-            "ev_pass",
-            "ev_reject",
-            "fills",
-            "wins",
-            "pnl_pips",
-        ]
-        with (run_dir / "daily.csv").open("w", newline="", encoding="utf-8") as f:
-            writer = _csv.writer(f)
-            writer.writerow(cols)
-            for day in sorted(daily.keys()):
-                dd = daily[day]
-                writer.writerow([
+    return run_dir
+
+
+def _write_daily_csv(path: Path, daily: Dict[str, Dict[str, Any]]) -> None:
+    import csv as _csv
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    cols = [
+        "date",
+        "breakouts",
+        "gate_pass",
+        "gate_block",
+        "ev_pass",
+        "ev_reject",
+        "fills",
+        "wins",
+        "pnl_pips",
+    ]
+    with path.open("w", newline="", encoding="utf-8") as f:
+        writer = _csv.writer(f)
+        writer.writerow(cols)
+        for day in sorted(daily.keys()):
+            dd = daily[day] or {}
+            writer.writerow(
+                [
                     day,
                     dd.get("breakouts", 0),
                     dd.get("gate_pass", 0),
@@ -780,16 +815,26 @@ def _write_run_outputs(
                     dd.get("fills", 0),
                     dd.get("wins", 0),
                     dd.get("pnl_pips", 0.0),
-                ])
-
-    return run_dir
+                ]
+            )
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run minimal ORB simulation from a manifest")
     parser.add_argument("--manifest", required=True, help="Path to strategy manifest YAML")
     parser.add_argument("--csv", help="Override CSV input path (manifest defaults otherwise)")
-    parser.add_argument("--json-out", help="Write metrics JSON to the specified path")
+    parser.add_argument(
+        "--json-out",
+        "--out-json",
+        dest="json_out",
+        help="Write metrics JSON to the specified path",
+    )
+    parser.add_argument(
+        "--daily-csv-out",
+        "--out-daily-csv",
+        dest="daily_csv_out",
+        help="Write daily metrics CSV to the specified path",
+    )
     parser.add_argument(
         "--symbol",
         help="Select manifest instrument by symbol when multiple entries exist",

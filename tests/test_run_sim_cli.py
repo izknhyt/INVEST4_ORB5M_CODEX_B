@@ -3,6 +3,7 @@ import shutil
 import textwrap
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -521,6 +522,29 @@ def test_run_sim_relative_json_out_resolves_to_repo(
             json_expected.unlink()
 
 
+def test_run_sim_out_json_alias_creates_file(tmp_path: Path) -> None:
+    manifest_path = _write_manifest(tmp_path)
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(CSV_CONTENT, encoding="utf-8")
+    json_out = tmp_path / "metrics_alias.json"
+
+    rc = run_sim_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--csv",
+            str(csv_path),
+            "--out-json",
+            str(json_out),
+        ]
+    )
+
+    assert rc == 0
+    assert json_out.exists()
+    payload = json.loads(json_out.read_text(encoding="utf-8"))
+    assert payload.get("symbol") == "USDJPY"
+
+
 def test_run_sim_reports_aggregate_ev_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -571,3 +595,70 @@ def test_run_sim_reports_aggregate_ev_failure(
 
     assert captured_kwargs["kwargs"]["capture_output"] is True
     assert captured_kwargs["kwargs"]["text"] is True
+
+
+def test_run_sim_out_daily_csv_writes_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest_path = _write_manifest(tmp_path)
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(CSV_CONTENT, encoding="utf-8")
+    daily_out = tmp_path / "daily_alias.csv"
+    json_out = tmp_path / "metrics.json"
+
+    class DummyMetrics:
+        def __init__(self) -> None:
+            self.debug: dict[str, Any] = {}
+            self.records: list[dict[str, Any]] = []
+            self.daily = {"2024-01-01": {"breakouts": 1, "wins": 1, "pnl_pips": 5.0}}
+            self.runtime: dict[str, Any] = {}
+
+        def as_dict(self) -> dict[str, Any]:
+            return {"trades": 0}
+
+    class DummyRunner:
+        def __init__(
+            self,
+            equity: float,
+            symbol: str,
+            runner_cfg: Any = None,
+            debug: bool = False,
+            strategy_cls: Any = None,
+            ev_profile: Any = None,
+        ) -> None:
+            self.ev_global = SimpleNamespace(decay=0.9)
+            self.ev_profile = ev_profile or {}
+
+        def load_state_file(self, path: str) -> None:  # pragma: no cover - unused in this test
+            return None
+
+        def _apply_ev_profile(self) -> None:  # pragma: no cover - compatibility hook
+            return None
+
+        def run(self, bars, mode: str) -> DummyMetrics:
+            return DummyMetrics()
+
+        def export_state(self) -> dict[str, Any]:  # pragma: no cover - unused
+            return {}
+
+    monkeypatch.setattr("scripts.run_sim.BacktestRunner", DummyRunner)
+
+    rc = run_sim_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--csv",
+            str(csv_path),
+            "--out-json",
+            str(json_out),
+            "--out-daily-csv",
+            str(daily_out),
+        ]
+    )
+
+    assert rc == 0
+    assert json_out.exists()
+    assert daily_out.exists()
+    content = daily_out.read_text(encoding="utf-8").strip().splitlines()
+    assert content[0].startswith("date,")
+    assert any(line.startswith("2024-01-01,") for line in content[1:])
