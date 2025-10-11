@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Union
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Union
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -32,6 +32,13 @@ _fetch_yfinance_records = ingest_providers.fetch_yfinance_records
 _raise_provider_error = ingest_providers.raise_provider_error
 _mark_dukascopy_offer_side = ingest_providers.mark_dukascopy_offer_side
 _YFinanceFallbackRunner = ingest_providers.YFinanceFallbackRunner
+
+
+_OBSERVABILITY_AUTOMATION_CONFIG = ROOT / "configs/observability/automation.yaml"
+_OBSERVABILITY_WEEKLY_CONFIG = ROOT / "configs/observability/weekly_payload.yaml"
+_OBSERVABILITY_DASHBOARD_CONFIG = ROOT / "configs/observability/dashboard_export.yaml"
+_OBSERVABILITY_WEEKLY_SUMMARY = ROOT / "reports/weekly_observability_summary.json"
+_OBSERVABILITY_DASHBOARD_SUMMARY = ROOT / "reports/dashboard_export_summary.json"
 
 
 def _load_dukascopy_fetch() -> Callable[..., object]:
@@ -1319,6 +1326,96 @@ def _build_analyze_latency_cmd():
     ]
 
 
+def _build_weekly_payload_cmd() -> List[str]:
+    return [
+        sys.executable,
+        str(ROOT / "scripts/summarize_runs.py"),
+        "--weekly-payload",
+        "--config",
+        str(_OBSERVABILITY_WEEKLY_CONFIG),
+        "--json-out",
+        str(_OBSERVABILITY_WEEKLY_SUMMARY),
+    ]
+
+
+def _build_dashboard_export_cmd() -> List[str]:
+    return [
+        sys.executable,
+        str(ROOT / "analysis/export_dashboard_data.py"),
+        "--config",
+        str(_OBSERVABILITY_DASHBOARD_CONFIG),
+        "--json-out",
+        str(_OBSERVABILITY_DASHBOARD_SUMMARY),
+    ]
+
+
+def _load_observability_config(path: Optional[Path]) -> Mapping[str, Any]:
+    if path is None:
+        return {}
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return {}
+    try:
+        loaded = yaml.safe_load(text) or {}
+    except Exception:
+        return {}
+    if not isinstance(loaded, Mapping):
+        return {}
+    return loaded
+
+
+def _extract_observability_argv(section: Mapping[str, Any]) -> List[str]:
+    argv: List[str] = []
+    tokens = section.get("argv")
+    if tokens is None:
+        tokens = section.get("args")
+    if tokens is None:
+        return argv
+    if isinstance(tokens, Mapping):
+        for key, value in tokens.items():
+            argv.append(str(key))
+            if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+                argv.extend(str(item) for item in value)
+            elif value is not None:
+                argv.append(str(value))
+        return argv
+    if isinstance(tokens, Sequence) and not isinstance(tokens, (str, bytes)):
+        return [str(item) for item in tokens]
+    return argv
+
+
+def _run_observability_chain(args: argparse.Namespace) -> int:
+    config_path_value = _resolve_path_argument(
+        getattr(args, "observability_config", None),
+        default=_OBSERVABILITY_AUTOMATION_CONFIG,
+    )
+    if isinstance(config_path_value, Path):
+        config_path = config_path_value
+    elif config_path_value:
+        config_path = Path(config_path_value)
+    else:
+        config_path = None
+    config = _load_observability_config(config_path)
+    steps: List[tuple[str, Callable[[], List[str]]]] = [
+        ("latency", _build_analyze_latency_cmd),
+        ("weekly", _build_weekly_payload_cmd),
+        ("dashboard", _build_dashboard_export_cmd),
+    ]
+
+    for name, builder in steps:
+        section = config.get(name, {}) if isinstance(config, Mapping) else {}
+        if isinstance(section, Mapping) and section.get("enabled") is False:
+            continue
+        cmd = builder()
+        if isinstance(section, Mapping):
+            cmd.extend(_extract_observability_argv(section))
+        exit_code = run_cmd(cmd)
+        if exit_code:
+            return exit_code
+    return 0
+
+
 def _build_archive_state_cmd():
     return [
         sys.executable,
@@ -1681,6 +1778,19 @@ def main(argv=None) -> int:
     )
     parser.add_argument("--optimize", action="store_true", help="Run parameter optimization")
     parser.add_argument("--analyze-latency", action="store_true", help="Analyze signal latency")
+    parser.add_argument(
+        "--observability",
+        action="store_true",
+        help=(
+            "Run the observability automation chain (latency sampling, weekly payload, "
+            "dashboard export) in sequence."
+        ),
+    )
+    parser.add_argument(
+        "--observability-config",
+        default=str(_OBSERVABILITY_AUTOMATION_CONFIG),
+        help="YAML config controlling observability chain overrides.",
+    )
     parser.add_argument("--archive-state", action="store_true", help="Archive state.json files")
     parser.add_argument("--bars", default=None, help="Override bars CSV path (default: validated/<symbol>/5m.csv)")
     parser.add_argument("--webhook", default=None)
@@ -1761,6 +1871,11 @@ def main(argv=None) -> int:
         )
         if exit_code:
             return exit_code
+    if args.observability:
+        exit_code = _run_observability_chain(args)
+        if exit_code:
+            return exit_code
+        args.analyze_latency = False
     mode_builders = [
         (args.check_data_quality, lambda: _build_data_quality_cmd(args, bars_csv)),
         (args.update_state, lambda: _build_update_state_cmd(args, bars_csv)),

@@ -3,8 +3,8 @@ import sys
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from types import SimpleNamespace
 from typing import Dict
+import textwrap
 
 import pytest
 from core.utils import yaml_compat
@@ -523,6 +523,72 @@ def test_analyze_latency_uses_absolute_paths(monkeypatch):
     _assert_path_arg(cmd, "--archive-dir", root / "ops/signal_latency_archive")
     _assert_path_arg(cmd, "--archive-manifest", root / "ops/signal_latency_archive/manifest.jsonl")
     _assert_path_arg(cmd, "--json-out", root / "reports/signal_latency_summary.json")
+
+
+def test_observability_chain_respects_config(monkeypatch, tmp_path):
+    captured: list[list[str]] = []
+
+    def fake_run_cmd(cmd):
+        captured.append(cmd)
+        return 0
+
+    monkeypatch.setattr(run_daily_workflow, "run_cmd", fake_run_cmd)
+
+    config_text = textwrap.dedent(
+        """
+        latency:
+          argv:
+            - --dry-run-alert
+        weekly:
+          argv:
+            - --dry-run-webhook
+            - --job-name
+            - custom-weekly
+        dashboard:
+          argv:
+            - --dataset
+            - latency
+            - --job-name
+            - custom-dashboard
+        """
+    )
+    config_path = tmp_path / "observability.yaml"
+    config_path.write_text(config_text, encoding="utf-8")
+
+    exit_code = run_daily_workflow.main(
+        ["--observability", "--observability-config", str(config_path)]
+    )
+
+    assert exit_code == 0
+    assert [Path(cmd[1]).name for cmd in captured] == [
+        "analyze_signal_latency.py",
+        "summarize_runs.py",
+        "export_dashboard_data.py",
+    ]
+    assert "--dry-run-alert" in captured[0]
+    assert "--dry-run-webhook" in captured[1]
+    assert captured[1][captured[1].index("--job-name") + 1] == "custom-weekly"
+    assert captured[2].count("--dataset") >= 1
+    assert captured[2][captured[2].index("--job-name") + 1] == "custom-dashboard"
+
+
+def test_observability_chain_stops_after_failure(monkeypatch, tmp_path):
+    order: list[str] = []
+
+    def fake_run_cmd(cmd):
+        order.append(Path(cmd[1]).name)
+        return 9 if len(order) == 1 else 0
+
+    monkeypatch.setattr(run_daily_workflow, "run_cmd", fake_run_cmd)
+    config_path = tmp_path / "observability.yaml"
+    config_path.write_text("{}", encoding="utf-8")
+
+    exit_code = run_daily_workflow.main(
+        ["--observability", "--observability-config", str(config_path)]
+    )
+
+    assert exit_code == 9
+    assert order == ["analyze_signal_latency.py"]
 
 
 def test_archive_state_uses_absolute_paths(monkeypatch):
