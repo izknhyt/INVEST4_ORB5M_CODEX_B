@@ -10,6 +10,12 @@
 - **Primary Deliverables**: CLI extensions (cadence flags, manifest outputs), automation run logs, JSON schemas, updated runbooks/checklists, and coordination artifacts with analytics engineering.
 - **Success Metrics**: (1) No missed cron executions over a four-week pilot; (2) latency breach alerts acknowledged within 10 minutes of emission; (3) dashboard bundle checksum drift resolved within a single automation retry cycle; (4) zero manual steps required in the weekly checklist once cutover completes.
 
+## Implementation Status (2026-07-06)
+- `scripts/analyze_signal_latency.py`, `scripts/summarize_runs.py`, `analysis/export_dashboard_data.py`, `scripts/verify_observability_job.py`, and `scripts/run_daily_workflow.py --observability` now implement the detailed design requirements（ロック・ローテーション・Webhook 署名・manifest 連番・ドライランガード等）。
+- 主要 CLI は `schemas/automation_run.schema.json`／`schemas/observability_weekly_report.schema.json`／`schemas/dashboard_manifest.schema.json` に従って検証され、`tests/test_analyze_signal_latency.py` / `tests/test_weekly_payload.py` / `tests/test_dashboard_datasets.py` / `tests/test_verify_observability_job.py` / `tests/test_run_daily_workflow.py` が回帰を保証する。
+- 運用手順は `docs/state_runbook.md#観測性オートメーション` と `docs/observability_dashboard.md` の自動化クイックスタートにまとめ、DoD チェックリスト `docs/checklists/p3_observability_automation.md` も更新して完了条件とログレビュー手順を反映した。
+- 今後のフォローアップはスケジューラ本番切り替えと Secrets ローテーション演習（`state.md` / `docs/todo_next.md` の Next Task 参照）に集約済み。
+
 ## Context Inventory
 - **Existing deliverables**
   - `scripts/analyze_signal_latency.py` captures point-in-time latency measurements with cron-ready defaults referenced in `docs/progress_phase3.md`.

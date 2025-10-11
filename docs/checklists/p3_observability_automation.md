@@ -17,7 +17,7 @@
   - [ ] `scripts/_automation_logging.py`（または同等ヘルパー）を実装し、`log_automation_event(job_id, status, artefacts, alerts, diagnostics, attempts, duration_ms)` が `ops/automation_runs.log` へ 1 行 JSON を追記するよう統合した。
   - [ ] `scripts/_automation_context.py`（または既存ユーティリティ）で `AutomationContext`（commit SHA, command line, secrets, config パス等）を組み立て、全ジョブが同じ経路で参照する。
 - [x] `scripts/verify_observability_job.py` を追加し、`--job-id`, `--check-secrets`, `--check-log` / `--sequence-file` / `--heartbeat` / `--dashboard-manifest` でスケジューラ→CLI→成果物のトレース検証が出来るようにした。`docs/state_runbook.md` にコマンド例と失敗時の復旧ポイントを追記済み。
-  - [ ] `run_daily_workflow.py --observability` サブコマンドを更新し、latency→weekly→dashboard の順にジョブを実行、失敗時に後続をスキップし `status="error"` をログへ記録するチェーン制御を実装した。
+  - [x] `run_daily_workflow.py --observability` サブコマンドを更新し、latency→weekly→dashboard の順にジョブを実行、失敗時に後続をスキップし `status="error"` をログへ記録するチェーン制御を実装した。
 
 - [ ] **シグナルレイテンシ監視ジョブを自動化した。**
   - [x] `scripts/analyze_signal_latency.py` に以下の機能を実装し、ヘルプ出力とドキュメントを更新した。
@@ -42,11 +42,11 @@
   - [x] `ops/dashboard_export_history/`・`ops/dashboard_export_archive_manifest.json`・`ops/dashboard_export_heartbeat.json` を更新するローテーションとヘルスビートを書き、60日/8週間の保管ポリシーが守られていることを確認した。
   - [x] `python3 -m pytest tests/test_dashboard_datasets.py`（新設）を通し、各データセットのフィールド検証と manifest 連番更新が回帰テストでカバーされていることを確認した。
 
-- [ ] **ドキュメントと運用フローを更新した。**
-  - [ ] `docs/state_runbook.md#observability-automation`（新設セクション）と [docs/observability_dashboard.md](../observability_dashboard.md) に CLI コマンド、期待 artefact、アラートエスカレーション、手動復旧手順を追記した。
-  - [ ] `docs/plans/p3_observability_automation.md` / `docs/phase3_detailed_design.md` の差分（例: 新規フラグ、manifest フォーマット）を反映し、DoD チェックリストとの整合を取った。
-  - [ ] `docs/task_backlog.md#p3-観測性・レポート自動化` に進捗メモと DoD リンクを追加し、`docs/todo_next.md` / `docs/todo_next_archive.md` / `state.md` と同期した。
-  - [ ] `README.md` ないしドキュメントポータルへ、観測性オートメーションの再現手順・主要 CLI の導線を追記し、初見のレビュワーが該当チェックリストに辿り着けるようにした。
+- [x] **ドキュメントと運用フローを更新した。**
+  - [x] `docs/state_runbook.md#観測性オートメーション` に secrets ローテーション・ログ保全の運用メモを追記し、[docs/observability_dashboard.md](../observability_dashboard.md) にチェーン実行と `scripts/verify_observability_job.py` のクイックスタートを追加した。
+  - [x] `docs/plans/p3_observability_automation.md` / `docs/phase3_detailed_design.md` へ実装状況のサマリーを追記し、DoD とテスト・runbook 更新の整合を明示した。
+  - [x] `docs/task_backlog.md#p3-観測性・レポート自動化` に最新の進捗メモを追加し、`docs/todo_next.md` / `docs/todo_next_archive.md` / `state.md` と同期した。
+  - [x] `README.md` / ドキュメントポータル群から `docs/observability_dashboard.md`・`docs/checklists/p3_observability_automation.md` への導線を確認し、観測性オートメーションの再現手順がワンクリックで辿れるよう整えた。
 
 - [ ] **運用確認と記録を完了した。**
   - [ ] `python3 -m pytest` と観測性向けの追加テストコマンド（例: `python3 scripts/run_daily_workflow.py --observability --dry-run --config configs/observability/full_chain.yaml`, `python3 scripts/verify_observability_job.py --job-id $(date -u +%Y%m%dT%H%M%SZ)-observability --check-log ops/automation_runs.log`）を実行し、結果を `state.md` / PR ログに記録した。
