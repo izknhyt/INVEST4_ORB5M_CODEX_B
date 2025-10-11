@@ -231,6 +231,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - 改善後のメトリクスと再現コマンドを `docs/progress_phase4.md`・`state.md`・PR 説明に記録し、`reports/long_{mode}.json` / `reports/long_{mode}_daily.csv` を更新する。
   - 変更内容に対応する検証ログ（例: `python3 scripts/run_sim.py ...`）を提示し、レビュワーが再現できるよう artefact パスを一覧化する。
 - **Notes**:
+  - 2026-06-27: [docs/plans/phase4_validation_plan.md](plans/phase4_validation_plan.md) で Sharpe/最大DD/年間勝率の暫定目標とベース再実行コマンド、runs 配下の成果物整理方針を確定。週次レビュー時に `docs/progress_phase4.md` へメトリクス表を追記する運用を開始。
   - 2025-10-11: Baselineレビューで Conservative -243 pips / Bridge -934 pips を確認。パラメータ再調整に着手。
 
 ### P4-02 異常系テスト自動化
@@ -239,6 +240,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - 再現 CLI / テストデータ作成手順を `docs/state_runbook.md#incident` と `docs/progress_phase4.md` に追記する。
   - 失敗時のエラーコード／通知フローがログに残ることを `tests/test_data_robustness.py` 等で検証する。
 - **Notes**:
+  - 2026-06-27: 検証計画でデータ欠損・ボラティリティジャンプ・レイテンシ遅延・状態不整合のシナリオと `pytest -k robustness --maxfail=1` のCIスモークを定義。fixtures共通化と Slack風通知ログの整備をタスクリストへ追加。
   - 2025-10-11: Ready へ昇格予定。既存テストパターンを棚卸しして設計差分をまとめる。
 
 ### P4-03 Go/No-Go チェックリスト確定
@@ -247,6 +249,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - チェック項目ごとに担当者・頻度・検証ログテンプレを付与し、`state.md` と `docs/todo_next_archive.md` へ記録方法を明記する。
   - モックレビューを実施し、記録を残すことで実運用の準備が整っていることを確認する。
 - **Notes**:
+  - 2026-06-27: 検証計画でチェック項目を「データ品質 / シミュレーション / 運用準備 / レビュー体制」に分類し、担当者・頻度・証跡リンク欄を `docs/go_nogo_checklist.md` へ追加する更新ステップとモックレビュー記録先（本ドキュメント／`docs/todo_next_archive.md`）を設定。
   - 2025-10-11: Ready へ昇格予定。P4-01 の結果を踏まえて更新範囲を確定する。
 
 ## 継続タスク / 保守

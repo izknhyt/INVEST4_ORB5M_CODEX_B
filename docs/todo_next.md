@@ -17,7 +17,7 @@
 
 ### In Progress
 
-- [P4-01 長期バックテスト改善](./task_backlog.md#p4-01-長期バックテスト改善) — 2018–2025 通しランの再実行に向けて現状メトリクスを棚卸し中。次ステップ: `scripts/run_sim.py` で Conservative/Bridge の最新ランを取得しパラメータ調整案を検証、`docs/progress_phase4.md` に結果と再現コマンドを追記する。
+- [P4-01 長期バックテスト改善](./task_backlog.md#p4-01-長期バックテスト改善) — [検証計画](plans/phase4_validation_plan.md) を策定し、Sharpe/最大DD/年間勝率の暫定目標とベース再実行コマンドを定義。次ステップ: `runs/phase4/backtests/` 配下にパラメータ探索結果を蓄積し、週次で `docs/progress_phase4.md` へメトリクス表を追記する。
 
 ### On Hold
 
