@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from itertools import chain
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Dict, Iterator, Optional, Sequence
 
 import os
 import sys
@@ -96,6 +96,25 @@ CSV_COLUMN_ALIASES: Dict[str, tuple[str, ...]] = {
     "c": ("c", "close", "close_price"),
     "v": ("v", "volume", "vol", "qty"),
     "spread": ("spread", "spr", "spread_pips"),
+}
+
+_HEADERLESS_FALLBACK_COLUMNS: tuple[str, ...] = (
+    "timestamp",
+    "symbol",
+    "tf",
+    "o",
+    "h",
+    "l",
+    "c",
+    "v",
+    "spread",
+)
+_HEADERLESS_RESTKEY = "__headerless_extra__"
+_REQUIRED_CANONICAL_COLUMNS: tuple[str, ...] = ("timestamp", "o", "h", "l", "c")
+_KNOWN_HEADER_TOKENS: set[str] = {
+    alias
+    for canonical, aliases in CSV_COLUMN_ALIASES.items()
+    for alias in (canonical, *aliases)
 }
 
 
@@ -183,6 +202,33 @@ def load_bars_csv(
                 details=_format_strict_details(reason, context),
             )
 
+    def _normalize_header_token(value: Optional[str]) -> str:
+        return str(value or "").strip().lower()
+
+    def _looks_like_headerless(fieldnames: Optional[Sequence[str]]) -> bool:
+        if not fieldnames:
+            return False
+        normalized = [_normalize_header_token(name) for name in fieldnames]
+        recognized = sum(1 for token in normalized if token in _KNOWN_HEADER_TOKENS)
+        if recognized >= len(_REQUIRED_CANONICAL_COLUMNS):
+            return False
+        data_like = any(
+            any(ch.isdigit() for ch in token)
+            or ("t" in token and "-" in token)
+            or "." in token
+            for token in normalized
+        )
+        return data_like
+
+    def _row_matches_header_tokens(row: Dict[str, Any]) -> bool:
+        for column in _HEADERLESS_FALLBACK_COLUMNS:
+            value = row.get(column)
+            if value is None:
+                return False
+            if _normalize_header_token(value) != column:
+                return False
+        return True
+
     def _iter() -> Iterator[Dict[str, Any]]:
         default_tf_normalized = (
             str(default_tf).strip().lower() if default_tf is not None else ""
@@ -195,7 +241,7 @@ def load_bars_csv(
                 raise CSVFormatError("header_missing")
 
             header_lookup = {
-                (name or "").strip().lower(): name
+                _normalize_header_token(name): name
                 for name in reader.fieldnames
                 if name is not None
             }
@@ -208,13 +254,31 @@ def load_bars_csv(
                         break
 
             missing_required = [
-                key for key in ("timestamp", "o", "h", "l", "c") if key not in alias_map
+                key for key in _REQUIRED_CANONICAL_COLUMNS if key not in alias_map
             ]
+            headerless_mode = False
             if missing_required:
-                raise CSVFormatError(
-                    "missing_required_columns",
-                    details=",".join(missing_required),
-                )
+                if _looks_like_headerless(reader.fieldnames or []):
+                    headerless_mode = True
+                    f.seek(0)
+                    reader = csv.DictReader(
+                        f,
+                        fieldnames=list(_HEADERLESS_FALLBACK_COLUMNS),
+                        restkey=_HEADERLESS_RESTKEY,
+                    )
+                    alias_map = {
+                        column: column for column in _HEADERLESS_FALLBACK_COLUMNS
+                    }
+                    missing_required = [
+                        key
+                        for key in _REQUIRED_CANONICAL_COLUMNS
+                        if key not in alias_map
+                    ]
+                if missing_required:
+                    raise CSVFormatError(
+                        "missing_required_columns",
+                        details=",".join(missing_required),
+                    )
 
             used_columns = set(alias_map.values())
             symbol_key = alias_map.get("symbol")
@@ -223,24 +287,32 @@ def load_bars_csv(
             spread_key = alias_map.get("spread")
 
             for row in reader:
-                context = {"line": reader.line_num, "row": dict(row)}
-                ts_raw = row.get(alias_map["timestamp"])
+                row_copy = dict(row)
+                extra_values = None
+                if headerless_mode:
+                    extra_values = row_copy.pop(_HEADERLESS_RESTKEY, None)
+                context = {"line": reader.line_num, "row": dict(row_copy)}
+
+                if headerless_mode and reader.line_num == 1 and _row_matches_header_tokens(row_copy):
+                    continue
+
+                ts_raw = row_copy.get(alias_map["timestamp"])
                 if ts_raw in (None, ""):
                     _record_skip("timestamp_missing", context)
                     continue
 
                 try:
-                    open_px = float(row[alias_map["o"]])
-                    high_px = float(row[alias_map["h"]])
-                    low_px = float(row[alias_map["l"]])
-                    close_px = float(row[alias_map["c"]])
+                    open_px = float(row_copy[alias_map["o"]])
+                    high_px = float(row_copy[alias_map["h"]])
+                    low_px = float(row_copy[alias_map["l"]])
+                    close_px = float(row_copy[alias_map["c"]])
                 except (TypeError, ValueError):
                     _record_skip("price_parse_error", context)
                     continue
 
                 row_symbol: Optional[str]
                 if symbol_key:
-                    raw_symbol = row.get(symbol_key)
+                    raw_symbol = row_copy.get(symbol_key)
                     row_symbol = str(raw_symbol).strip() if raw_symbol is not None else None
                 else:
                     row_symbol = default_symbol.strip() if isinstance(default_symbol, str) else default_symbol
@@ -251,8 +323,8 @@ def load_bars_csv(
                     )
 
                 row_tf: str
-                if tf_key and row.get(tf_key):
-                    raw_tf = str(row[tf_key]).strip()
+                if tf_key and row_copy.get(tf_key):
+                    raw_tf = str(row_copy[tf_key]).strip()
                     row_tf = raw_tf.lower() if raw_tf else default_tf_normalized
                 else:
                     row_tf = default_tf_normalized
@@ -279,11 +351,11 @@ def load_bars_csv(
                     "h": high_px,
                     "l": low_px,
                     "c": close_px,
-                    "v": _float_or_zero(row.get(volume_key, 0.0) if volume_key else 0.0),
-                    "spread": _float_or_zero(row.get(spread_key, 0.0) if spread_key else 0.0),
+                    "v": _float_or_zero(row_copy.get(volume_key, 0.0) if volume_key else 0.0),
+                    "spread": _float_or_zero(row_copy.get(spread_key, 0.0) if spread_key else 0.0),
                 }
 
-                for key, value in row.items():
+                for key, value in row_copy.items():
                     if key in used_columns:
                         continue
                     if value in (None, ""):
@@ -292,6 +364,16 @@ def load_bars_csv(
                         bar[key] = float(value)
                     except ValueError:
                         bar[key] = value
+
+                if extra_values:
+                    for index, value in enumerate(extra_values):
+                        if value in (None, ""):
+                            continue
+                        key = f"extra_{index}"
+                        try:
+                            bar[key] = float(value)
+                        except ValueError:
+                            bar[key] = value
 
                 yield bar
 
