@@ -534,8 +534,8 @@ class BacktestRunner:
         self.lifecycle.reset_slip_learning()
 
         # strategy
-        self._strategy_cfg: Dict[str, Any] = self.rcfg.strategy.as_dict()
-        self._instruments: List[str] = [symbol]
+        self._strategy_cfg: Dict[str, Any] = deepcopy(self.rcfg.strategy.as_dict())
+        self._instruments: List[str] = [self.symbol]
         self._initialise_strategy_instance()
         self._apply_ev_profile()
 

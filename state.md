@@ -1,6 +1,10 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-07-06: Ensured `BacktestRunner` reuses cached strategy configuration and instrument metadata, reinstantiates a fresh
+  strategy at the start of each `run`, confirmed `load_state_file` restores metrics after the reset, added a regression that
+  verifies repeated runs emit from the first eligible bar, and executed `python3 -m pytest tests/test_runner.py
+  tests/test_day_orb_retest.py`.
 - 2026-07-06: Refactored `core/runner.BacktestRunner` to cache strategy config/instrument metadata, reinstantiate strategies at the start of each `run`, preserved `load_state_file` rehydration, added a regression ensuring repeated runs emit on the first eligible bar, and executed `python3 -m pytest tests/test_runner.py tests/test_day_orb_retest.py`.
 - 2026-07-06: Normalised instrument modes in strategy manifest loader and run_sim runtime config, added uppercase-mode manifest regression in `tests/test_run_sim_cli.py`, and ran `python3 -m pytest tests/test_run_sim_cli.py` to confirm the guardrails.
 - 2026-07-14: Added guards to align router snapshot correlations and portfolio summary aggregates from the latest common equity
