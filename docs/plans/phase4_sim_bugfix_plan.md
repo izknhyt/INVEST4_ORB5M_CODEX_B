@@ -4,12 +4,19 @@
 - Focus: harden the Day ORB simulation pipeline before Phase 4 validation by removing deterministic and sporadic defects, then refactor the CLI and runner for maintainability without regressing financial outputs.
 - Success hinges on shipping a reproducible baseline, codifying every bug into tests, and instrumenting the workflow so Codex Cloud and local operators can re-run the suite without guesswork.
 - Deliverables: patched `scripts/run_sim.py` + runner modules, expanded pytest coverage, refreshed long-run artefacts under `runs/phase4/backtests/` and `reports/`, and updated operational documentation (`docs/progress_phase4.md`, `docs/state_runbook.md`, `docs/go_nogo_checklist.md`).
+- Backlog alignment: maps to P4-01 (long-run parity), P4-02 (runner hardening), and P4-03 (operational readiness) with explicit doc/state updates for each exit.
+
+## 0.1 Scope & Guardrails
+- **In scope**: Day ORB 5m strategy (Conservative / Bridge), Python runner + CLI stack, validated USDJPY 5m data pipeline, Codex Cloud automation glue.
+- **Out of scope**: New strategy features, multi-symbol manifest expansion, non-USDJPY data remediation beyond coverage/duplicate audits, portfolio router changes.
+- **Constraints**: Must keep manifests/backtests reproducible under Python 3.10, no dependency upgrades beyond pinned requirements, and no schema changes that would invalidate existing artefact archives without migration notes.
 
 ## 1. Objectives & Success Criteria
-- **Stability**: Conservative and Bridge 2018–2025 runs complete without crashes, non-deterministic fills, or missing artefacts.
-- **Accuracy**: Metrics (`Sharpe`, `max_drawdown`, `annual_win_rate`, EV buckets) match archived baselines or expected improvements after parameter updates.
-- **Regression Safety**: Every defect encountered during triage is converted into an automated test covering logic, CLI, and data quality. CI (`python3 -m pytest`) and long-run simulations must pass post-refactor.
-- **Operational Readiness**: Documentation and `state.md` logs contain reproducible commands, artefact paths, and sign-offs for Phase 4 DoD (aligned with P4-01/P4-02/P4-03 backlog entries).
+- **Stability**: Conservative and Bridge 2018–2025 runs complete without crashes, non-deterministic fills, or missing artefacts. Runs seeded from clean state must match reruns that resume from persisted state snapshots.
+- **Accuracy**: Metrics (`Sharpe`, `max_drawdown`, `annual_win_rate`, EV buckets) match archived baselines or expected improvements after parameter updates. Numerical tolerance: ±0.5 bp on win-rate/Sharpe, ±0.1% on drawdown, 0 tolerance for trade-count drift unless documented.
+- **Regression Safety**: Every defect encountered during triage is converted into an automated test covering logic, CLI, and data quality. CI (`python3 -m pytest`) and long-run simulations must pass post-refactor. Git history must link test IDs to backlog bug IDs.
+- **Operational Readiness**: Documentation and `state.md` logs contain reproducible commands, artefact paths, dataset hash evidence, and sign-offs for Phase 4 DoD (aligned with P4-01/P4-02/P4-03 backlog entries).
+- **Automation Readiness**: Nightly smoke bundle executes within ≤90 minutes on Codex Cloud standard nodes and produces artefacts under a deterministic directory layout.
 
 ## 2. Context & Pain Points
 - Reference run (`runs/phase4/backtests/USDJPY_conservative_20251012_140919`) exposed: inconsistent Brownian Bridge fill ordering, EV gate miscounts, stale CLI flags, and gaps when validated data snapshots changed.
@@ -17,14 +24,28 @@
 - Codex Cloud automation requires deterministic artefact layout (`reports/long_{mode}.json`, `*_daily.csv`) and verbose logging to unblock headless troubleshooting.
 
 ## 3. Workstreams Overview
-| ID | Theme | Primary Outcomes | Key Artefacts |
-| --- | --- | --- | --- |
-| W1 | Baseline Reproducibility | Deterministic long-run outputs, diffable metrics, reproducible commands | `runs/phase4/backtests/*`, `reports/long_{mode}*.json/csv` |
-| W2 | Defect Remediation & Guard Rails | Bug backlog flushed, targeted regression tests, CLI flag parity | `scripts/run_sim.py`, `tests/test_run_sim_cli.py`, `tests/test_runner*.py` |
-| W3 | Structural Refactor | Modular CLI pipeline, shared I/O utilities, clearer logging | `scripts/run_sim.py`, `scripts/lib/run_sim_io.py` (new), logging configs |
-| W4 | Observability & Ops Sync | Enhanced instrumentation, docs and state alignment, nightly automation spec | `docs/progress_phase4.md`, `docs/state_runbook.md`, `docs/go_nogo_checklist.md` |
+| ID | Theme | Primary Outcomes | Key Artefacts | Owners |
+| --- | --- | --- | --- | --- |
+| W0 | Preflight & Alignment | Scope signed-off, dataset fingerprints captured, backlog/task anchors synced | `docs/task_backlog.md`, `docs/progress_phase4.md`, `state.md` | Tech Lead + Ops |
+| W1 | Baseline Reproducibility | Deterministic long-run outputs, diffable metrics, reproducible commands | `runs/phase4/backtests/*`, `reports/long_{mode}*.json/csv` | Backtest WG |
+| W2 | Defect Remediation & Guard Rails | Bug backlog flushed, targeted regression tests, CLI flag parity | `scripts/run_sim.py`, `tests/test_run_sim_cli.py`, `tests/test_runner*.py` | Backtest WG + QA |
+| W3 | Structural Refactor | Modular CLI pipeline, shared I/O utilities, clearer logging | `scripts/run_sim.py`, `scripts/lib/run_sim_io.py` (new), logging configs | Platform |
+| W4 | Observability & Ops Sync | Enhanced instrumentation, docs and state alignment, nightly automation spec | `docs/progress_phase4.md`, `docs/state_runbook.md`, `docs/go_nogo_checklist.md` | Ops + DevRel |
+
+Workstreams overlap by at most two days—changes only graduate downstream once upstream exit signals are documented in `docs/progress_phase4.md`.
+
+## 3.1 Milestone Handshake Checklist
+- Confirm backlog anchors (`P4-01`–`P4-03`) marked “In Progress” with the latest date and link to this plan.
+- Record SHA256 of `validated/USDJPY/5m.csv` and manifest version in `state.md` before code changes.
+- Baseline reruns must occur before any remediation/refactor commit merges; store diff reports in `reports/diffs/`.
 
 ## 4. Detailed Playbook
+### W0 — Preflight & Alignment
+1. Sync `state.md` Next Task block with Phase 4 bugfix scope and log current dataset/manifest fingerprints.
+2. Reconcile backlog/task trackers: ensure `docs/task_backlog.md` and `docs/todo_next.md` reference this plan and enumerate planned deliverables.
+3. Establish communication cadence (daily async update in `docs/progress_phase4.md`, weekly review meeting notes).
+4. Capture hardware/runtime baselines (CPU type, RAM, average wall-clock for conservative run) to detect performance regressions later.
+
 ### W1 — Baseline Reproducibility
 1. Validate input data before any code change:
    - `python3 scripts/check_data_quality.py --csv validated/USDJPY/5m.csv --calendar-day-summary`
@@ -34,6 +55,8 @@
    - `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode bridge --start-ts 2018-01-01T00:00:00Z --end-ts 2025-12-31T23:55:00Z --out-json reports/long_bridge.json --out-daily-csv reports/long_bridge_daily.csv --out-dir runs/phase4/backtests --no-auto-state`
 3. Diff `metrics.json` and `daily.csv` against archived runs; record deltas (expected vs unexpected) in `docs/progress_phase4.md` with direct file links.
 4. Snapshot CLI stdout/stderr and key log excerpts into `runs/phase4/backtests/<timestamp>/session.log` for reproducibility.
+5. Store SHA256 hashes for each artefact (`metrics.json`, `daily.csv`, `records.csv`) and reference them in `docs/progress_phase4.md`.
+6. Set up `reports/diffs/README.md` summarising how to interpret diff outputs to avoid misclassification of expected vs unexpected deltas.
 
 ### W2 — Defect Remediation & Guard Rails
 1. Build a structured bug notebook (table or tracked issue list) capturing for each defect: reproduction command, observed vs expected, root cause hypothesis, priority (Blocker / High / Medium / Low).
@@ -47,6 +70,8 @@
    - `python3 -m pytest tests/test_runner.py tests/test_runner_features.py`
    - `python3 -m pytest -k robustness --maxfail=1`
 5. After each fix, rerun the relevant long-run command(s) to ensure financial outputs remain sane; log results in `docs/progress_phase4.md` alongside bug IDs.
+6. Document new config toggles or environment assumptions immediately in `docs/state_runbook.md` to reduce drift.
+7. Keep a running change log for telemetry fields (new columns/JSON keys) so downstream consumers can adjust parsers before release.
 
 ### W3 — Structural Refactor
 1. Once W2 test suite is green, extract the CLI into discrete helpers:
@@ -58,6 +83,8 @@
 3. Expand logging to emit structured events (EV gate decisions, Brownian Bridge probabilities, trailing stop adjustments) with unique context IDs for later correlation.
 4. Enforce module boundaries with additional tests (e.g., `tests/test_run_sim_io.py`) and update imports to avoid circular dependencies.
 5. Execute `python3 -m pytest` plus the long-run commands to certify parity before merging.
+6. Run performance smoke tests (e.g., 2024 Q1 window) before and after refactor to ensure runtime overhead stays within ±10%.
+7. Prepare migration guidance for any internal API adjustments (call sites, manifests) and cross-link it from `docs/progress_phase4.md`.
 
 ### W4 — Observability & Operational Sync
 1. Surface new logging fields or behavioural toggles in `docs/state_runbook.md` (incident response) and `docs/go_nogo_checklist.md` (release sign-off).
@@ -67,6 +94,7 @@
    - Long-run metric snapshots after each major parameter or code change
    - Checklist of nightly/weekly automation commands (e.g., `python3 scripts/run_sim.py ... --no-auto-state`)
 4. Define the nightly smoke test bundle for Codex Cloud (`python3 -m pytest tests/test_run_sim_cli.py tests/test_runner.py`, plus a shortened simulation if runtime permits) and link it in `docs/state_runbook.md`.
+5. Publish an “operator quick reference” appendix summarising daily/weekly/monthly tasks and expected artefact locations.
 
 ## 5. Test & Tooling Strategy
 - Pytest guard rails:
@@ -76,11 +104,14 @@
 - Simulation spot checks: run shortened windows (e.g., 2024 Q1) during development to validate performance quickly before launching the full 2018–2025 backtest.
 - Artefact diffing: adopt `python3 scripts/compare_metrics.py --left runs/phase4/backtests/<prev>/metrics.json --right runs/phase4/backtests/<curr>/metrics.json` (script to add if missing) to automate numerical comparisons.
 - Continuous integration: gate merges on pytest success; optionally integrate the conservative long-run command as a nightly job in Codex Cloud.
+- Test debt tracker: maintain a checklist of unconverted manual repro steps; escalate any open items at the weekly review.
 
 ## 6. Data Integrity Gates
 - Always run the coverage audit before and after large refactors: `python3 scripts/check_data_quality.py --csv validated/USDJPY/5m.csv --calendar-day-summary`.
 - Document any preprocessing (`data/usdjpy_5m_2018-2024_utc.csv` merges, header injections) in `docs/progress_phase4.md` and keep CSV hashes in `state.md`.
 - Record expected schema versions in the manifest (`archive_namespace`, feature toggles) so refactors do not silently diverge from the dataset contract.
+- Introduce a data freshness checkpoint (`python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6`) before long-run backtests to guard against stale baselines.
+- Capture validation evidence (row counts, duplicate stats) in `reports/data_quality/phase4/` with timestamps for audit.
 
 ## 7. Documentation & Communication
 - `docs/progress_phase4.md`: add a dedicated "Simulation Bugfix & Refactor" subsection with timeline, bug table, and metrics snapshots.
@@ -88,22 +119,26 @@
 - `docs/go_nogo_checklist.md`: ensure the simulation validation row points to the refreshed regression test suite and most recent long-run artefacts.
 - `state.md`: maintain chronological logs (start/finish timestamps, commands executed, artefact locations, blockers).
 - Commit/PR hygiene: include the exact commands executed in the PR description and summarise the outcomes (tests, long-run metrics). Summaries remain in Japanese per collaboration norms.
+- Weekly sync notes: append a dated “Phase 4 Bugfix Stand-up” bullet list to `docs/progress_phase4.md` capturing decisions, outstanding risks, and owners.
+- Notify downstream consumers (router/portfolio teams) via `docs/notifications/phase4_sim_release.md` (new) once regression parity is confirmed.
 
 ## 8. Timeline & Milestones
 | Week | Focus | Exit Signals |
 | --- | --- | --- |
-| Week 0 (current) | Plan approval, baseline reruns, bug notebook populated | Deterministic baseline artefacts, doc updates committed |
-| Week 1 | Hotfix high-priority defects, expand regression suite | All known blockers resolved, pytest suite green |
-| Week 2 | Structural refactor, logging upgrades | Modular `scripts/run_sim.py`, new helper modules tested |
-| Week 3 | Operational polish, automation rehearsal | Nightly smoke plan documented, Go/No-Go checklist aligned |
+| Week 0 (current) | Plan approval, baseline reruns, bug notebook populated | Deterministic baseline artefacts, doc updates committed, dataset hashes logged |
+| Week 1 | Hotfix high-priority defects, expand regression suite | All known blockers resolved, pytest suite green, bug notebook only contains deferred/low-priority issues |
+| Week 2 | Structural refactor, logging upgrades | Modular `scripts/run_sim.py`, new helper modules tested, performance deltas within tolerance |
+| Week 3 | Operational polish, automation rehearsal | Nightly smoke plan documented, Go/No-Go checklist aligned, operator appendix published |
 
 ## 9. Exit Criteria (Phase 4 Readiness)
 - Conservative and Bridge 2018–2025 runs meet Phase 4 DoD metrics and updated artefacts are stored under `reports/` with reproducible commands.
 - Bug backlog is empty or reclassified with mitigation, and each entry references a regression test.
 - Refactored code passes full pytest suite and long-run replays without behavioural drift.
 - Documentation (`docs/progress_phase4.md`, `docs/state_runbook.md`, `docs/go_nogo_checklist.md`, `state.md`) reflects the new workflow and has cross-links to artefacts.
+- Codex Cloud nightly pipeline executes the smoke bundle without manual intervention and uploads artefacts/logs to the agreed locations.
 
 ## 10. Open Questions
-1. Should we introduce additional manifests (e.g., alternative symbols or shorter look-back windows) to verify generalisation before Phase 4 sign-off?
-2. Where should exploratory parameter sweeps live (`runs/phase4/experiments/` vs dedicated archive) to preserve auditability without cluttering the baseline directory?
-3. Which subset of the long-run commands can run nightly within Codex Cloud resource constraints? Do we need a shortened scenario for daily health checks?
+1. Should we introduce additional manifests (e.g., alternative symbols or shorter look-back windows) to verify generalisation before Phase 4 sign-off? → Proposal: pilot with a 2022-focused USDJPY slice under `runs/phase4/validation/` and record outcomes before expanding scope.
+2. Where should exploratory parameter sweeps live (`runs/phase4/experiments/` vs dedicated archive) to preserve auditability without cluttering the baseline directory? → Recommend `runs/phase4/experiments/<ticket-id>/` with an index CSV and README linking to the bug notebook.
+3. Which subset of the long-run commands can run nightly within Codex Cloud resource constraints? Do we need a shortened scenario for daily health checks? → Action: benchmark a 2019–2020 conservative slice (<30 min target) and document results to decide if nightly cadence is feasible.
+4. Do we need an automated alert when baseline metrics drift beyond tolerance? → Consider extending `scripts/compare_metrics.py` to emit Slack/webhook notifications for off-nominal diffs.
