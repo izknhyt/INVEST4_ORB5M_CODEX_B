@@ -649,26 +649,41 @@ def _load_ev_profile(path: Path) -> Optional[Dict[str, Any]]:
     return data if data else None
 
 
+def _resolve_archive_namespace(
+    config: RuntimeConfig,
+) -> tuple[Optional[Path], Optional[str]]:
+    namespace_raw = getattr(config.manifest.state, "archive_namespace", None)
+    if not namespace_raw:
+        return None, None
+
+    namespace_str = str(namespace_raw).strip()
+    if not namespace_str:
+        return None, None
+
+    namespace_path = Path(namespace_str)
+    if namespace_path.is_absolute():
+        return namespace_path, namespace_str
+
+    resolved_path = config.state_archive_root / namespace_path
+    # Use POSIX-style separators so CLI consumers receive a stable string.
+    return resolved_path, namespace_path.as_posix()
+
+
 def _resolve_state_archive(config: RuntimeConfig) -> Path:
-    namespace = config.manifest.state.archive_namespace
-    if namespace:
-        return _resolve_repo_path(Path(namespace))
+    namespace_path, _ = _resolve_archive_namespace(config)
+    if namespace_path is not None:
+        return namespace_path
     state_key = _strategy_state_key(config.strategy_cls)
     return config.state_archive_root / state_key / config.symbol / config.mode
 
 
-def _aggregate_ev(namespace_path: Path, config: RuntimeConfig) -> None:
-    namespace_str = config.manifest.state.archive_namespace
-    if namespace_str:
-        archive_base = Path(".")
-    else:
-        archive_base = config.state_archive_root
-
+def _aggregate_ev(_namespace_path: Path, config: RuntimeConfig) -> None:
+    _, namespace_str = _resolve_archive_namespace(config)
     cmd = [
         sys.executable,
         str(ROOT_PATH / "scripts" / "aggregate_ev.py"),
         "--archive",
-        str(archive_base),
+        str(config.state_archive_root),
         "--strategy",
         config.manifest.strategy.class_path,
         "--symbol",
@@ -680,10 +695,6 @@ def _aggregate_ev(namespace_path: Path, config: RuntimeConfig) -> None:
     ]
     if namespace_str:
         cmd.extend(["--archive-namespace", namespace_str])
-    else:
-        # When no namespace is provided, aggregate_ev expects the archive base to
-        # contain strategy/symbol/mode subdirectories.
-        pass
     if config.ev_profile_path:
         cmd.extend(["--out-yaml", str(config.ev_profile_path)])
     result = subprocess.run(cmd, check=False, capture_output=True, text=True)

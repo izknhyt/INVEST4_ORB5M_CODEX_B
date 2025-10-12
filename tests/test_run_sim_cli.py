@@ -557,6 +557,49 @@ def test_run_sim_cli_can_disable_auto_state(tmp_path: Path) -> None:
     assert "loaded_state" not in metrics
 
 
+def test_run_sim_uses_custom_archive_namespace_with_custom_root(tmp_path: Path) -> None:
+    manifest_path = _write_manifest(tmp_path, auto_state=True)
+    custom_root = tmp_path / "custom_state_archive"
+    namespace = "custom/strategy/ns"
+
+    manifest_text = manifest_path.read_text(encoding="utf-8")
+    manifest_text = manifest_text.replace(
+        "    aggregate_ev: false",
+        f"    aggregate_ev: false\n    state_archive: {custom_root}",
+    )
+    manifest_text = manifest_text.replace(
+        "state: {}",
+        f"state:\n  archive_namespace: {namespace}",
+    )
+    manifest_path.write_text(manifest_text, encoding="utf-8")
+
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(CSV_CONTENT, encoding="utf-8")
+    out_dir = tmp_path / "runs"
+
+    rc = run_sim_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--csv",
+            str(csv_path),
+            "--out-dir",
+            str(out_dir),
+        ]
+    )
+
+    assert rc == 0
+    archive_dir = custom_root / Path(namespace)
+    assert archive_dir.exists() and archive_dir.is_dir()
+    state_files = sorted(archive_dir.glob("*.json"))
+    assert state_files, "expected state file in custom archive namespace"
+
+    run_dirs = sorted(out_dir.iterdir())
+    assert run_dirs
+    run_path = run_dirs[0]
+    assert (run_path / "state.json").exists()
+
+
 def test_run_sim_relative_out_dir_resolves_to_repo(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -683,3 +726,8 @@ def test_run_sim_reports_aggregate_ev_failure(
 
     assert captured_kwargs["kwargs"]["capture_output"] is True
     assert captured_kwargs["kwargs"]["text"] is True
+    cmd = captured_kwargs["cmd"]
+    assert "--archive" in cmd
+    archive_index = cmd.index("--archive")
+    assert cmd[archive_index + 1] == str(ROOT_PATH / "ops" / "state_archive")
+    assert "--archive-namespace" not in cmd
