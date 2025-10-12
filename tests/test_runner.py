@@ -2,6 +2,7 @@ import csv
 import copy
 import json
 import math
+import tempfile
 from contextlib import ExitStack
 from pathlib import Path
 from typing import List, Optional, Tuple, Mapping
@@ -516,14 +517,22 @@ class TestRunner(unittest.TestCase):
         expected_bucket_beta = runner.ev_buckets[key].beta
         state = runner.export_state()
 
-        rcfg_target = RunnerConfig(warmup_trades=10)
-        restored_runner = BacktestRunner(
-            equity=75_000.0,
-            symbol="USDJPY",
-            runner_cfg=rcfg_target,
-        )
-        restored_runner.load_state(state)
-        metrics = restored_runner.run([])
+        with tempfile.NamedTemporaryFile("w+", delete=False) as tmp_state:
+            json.dump(state, tmp_state)
+            tmp_state.flush()
+            state_path = tmp_state.name
+
+        try:
+            rcfg_target = RunnerConfig(warmup_trades=10)
+            restored_runner = BacktestRunner(
+                equity=75_000.0,
+                symbol="USDJPY",
+                runner_cfg=rcfg_target,
+            )
+            restored_runner.load_state_file(state_path)
+            metrics = restored_runner.run([])
+        finally:
+            Path(state_path).unlink(missing_ok=True)
 
         self.assertEqual(restored_runner._warmup_left, expected_warmup)
         self.assertAlmostEqual(restored_runner.ev_global.alpha, expected_global_alpha)
@@ -963,8 +972,9 @@ class TestRunner(unittest.TestCase):
     def test_run_resets_ev_and_slip_state_between_runs(self):
         """Ensure learning state resets so repeated runs trade identically.
 
-        The strategy instance persists between ``run`` invocations, so the
-        helper emits the same single signal whenever its lone bar is observed.
+        The runner now reinstantiates the strategy on every ``run`` call while
+        also clearing EV/slippage state so the helper emits the same signal when
+        its lone bar is processed multiple times.
         """
 
         class SingleBarStrategy(Strategy):
@@ -1057,6 +1067,140 @@ class TestRunner(unittest.TestCase):
         self.assertEqual(second_trades, 1)
         self.assertEqual(first_debug, second_debug)
         self.assertLess(metrics_second.total_pips, 0.0)
+
+    def test_run_reinitializes_strategy_between_runs(self):
+        class FirstBarSignalStrategy(Strategy):
+            def __init__(self) -> None:
+                super().__init__()
+                self._pending: Optional[OrderIntent] = None
+                self._emitted = False
+
+            def on_start(self, cfg, instruments, state_store) -> None:
+                self._pending = None
+                self._emitted = False
+
+            def on_bar(self, bar) -> None:
+                if not self._emitted:
+                    self._pending = OrderIntent(
+                        side="BUY",
+                        qty=1.0,
+                        price=bar["c"],
+                        oco={"tp_pips": 1.0, "sl_pips": 1.0},
+                    )
+                else:
+                    self._pending = None
+
+            def get_pending_signal(self) -> Optional[OrderIntent]:
+                return self._pending
+
+            def signals(self, ctx: Optional[Mapping[str, object]] = None):
+                if ctx is not None:
+                    self.update_context(ctx)
+                if self._pending is None:
+                    return []
+                self._emitted = True
+                intent = self._pending
+                self._pending = None
+                return [intent]
+
+        cfg = RunnerConfig(
+            warmup_trades=0,
+            threshold_lcb_pip=0.0,
+            include_expected_slip=True,
+            slip_cap_pip=1.0,
+            risk_per_trade_pct=1.0,
+        )
+        symbol = "USDJPY"
+        runner = BacktestRunner(
+            equity=100_000.0,
+            symbol=symbol,
+            runner_cfg=cfg,
+            strategy_cls=FirstBarSignalStrategy,
+            debug=True,
+        )
+
+        def _ev_factory(_key):
+            return self.DummyEV(ev_lcb=5.0, p_lcb=0.6)
+
+        runner._get_ev_manager = _ev_factory
+
+        slip_delta = 2.0 * pip_size(symbol)
+
+        def _force_winning_fill(bar_ctx, spec):
+            signed = 1 if spec.side == "BUY" else -1
+            entry_px = spec.entry
+            exit_px = entry_px + signed * slip_delta
+            return {
+                "fill": True,
+                "entry_px": entry_px,
+                "exit_px": exit_px,
+                "exit_reason": "tp",
+            }
+
+        base_ts = datetime(2024, 1, 5, 9, 0, tzinfo=timezone.utc)
+        bars_first = [
+            make_bar(
+                base_ts,
+                symbol,
+                150.0,
+                150.2,
+                149.8,
+                150.1,
+                spread=0.01,
+            ),
+            make_bar(
+                base_ts + timedelta(minutes=5),
+                symbol,
+                150.1,
+                150.25,
+                149.95,
+                150.15,
+                spread=0.01,
+            ),
+        ]
+        bars_second_start = base_ts + timedelta(hours=1)
+        bars_second = [
+            make_bar(
+                bars_second_start,
+                symbol,
+                151.0,
+                151.2,
+                150.8,
+                151.1,
+                spread=0.01,
+            ),
+            make_bar(
+                bars_second_start + timedelta(minutes=5),
+                symbol,
+                151.1,
+                151.3,
+                150.9,
+                151.15,
+                spread=0.01,
+            ),
+        ]
+
+        with patch.object(
+            runner.fill_engine_c,
+            "simulate",
+            autospec=True,
+            side_effect=_force_winning_fill,
+        ):
+            metrics_first = runner.run(list(bars_first), mode="conservative")
+            metrics_second = runner.run(list(bars_second), mode="conservative")
+
+        self.assertEqual(metrics_first.trades, 1)
+        self.assertEqual(metrics_second.trades, 1)
+        self.assertTrue(metrics_first.records)
+        self.assertTrue(metrics_second.records)
+        self.assertEqual(
+            metrics_first.records[0]["entry_ts"],
+            bars_first[0]["timestamp"],
+        )
+        self.assertEqual(
+            metrics_second.records[0]["entry_ts"],
+            bars_second[0]["timestamp"],
+        )
 
     def test_metrics_compute_sharpe_and_drawdown(self):
         metrics = Metrics()
