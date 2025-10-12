@@ -2738,6 +2738,55 @@ class TestRunner(unittest.TestCase):
         finally:
             runner.execution.finalize_trade = original_finalize
 
+    def test_finalize_trade_counts_trailing_exit_as_win(self):
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
+        key = ("LDN", "normal", "mid")
+        daily_entry = runner._create_daily_entry()
+        runner._current_daily_entry = daily_entry
+        runner.daily["2024-01-01"] = daily_entry
+        ctx_snapshot = TradeContextSnapshot(
+            session="LDN",
+            rv_band="mid",
+            spread_band="normal",
+            cost_base=0.0,
+            expected_slip_pip=0.0,
+            pip_value=10.0,
+        )
+        ctx = {
+            "cost_pips": 0.0,
+            "base_cost_pips": 0.0,
+            "spread_band": "normal",
+            "rv_band": "mid",
+            "ev_key": key,
+            "expected_slip_pip": 0.0,
+            "pip_value": 10.0,
+        }
+
+        runner.execution.finalize_trade(
+            exit_ts="2024-01-01T09:00:00Z",
+            entry_ts="2024-01-01T08:00:00Z",
+            side="BUY",
+            entry_px=150.00,
+            exit_px=150.20,
+            exit_reason="trail",
+            ctx_snapshot=ctx_snapshot,
+            ctx=ctx,
+            qty_sample=1.0,
+            slip_actual=0.0,
+            ev_key=key,
+            tp_pips=40.0,
+            sl_pips=20.0,
+            debug_stage="trade_exit",
+        )
+
+        self.assertEqual(runner.metrics.trades, 1)
+        self.assertAlmostEqual(runner.metrics.wins, 1.0)
+        self.assertGreater(runner.metrics.total_pips, 0.0)
+        bucket = runner.ev_buckets[key]
+        self.assertGreater(bucket.alpha, 0.0)
+        self.assertLess(bucket.beta, bucket.alpha)
+        self.assertAlmostEqual(daily_entry["wins"], 1.0)
+
     def test_handle_active_position_same_bar_hits_buy_and_sell(self):
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
         pip_value = pip_size(runner.symbol)

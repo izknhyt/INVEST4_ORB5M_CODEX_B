@@ -14,6 +14,7 @@ from scripts.run_sim import (
     ROOT_PATH,
     load_bars_csv,
     main as run_sim_main,
+    _write_daily_csv,
 )
 
 
@@ -378,6 +379,31 @@ def test_run_sim_writes_daily_csv(tmp_path: Path) -> None:
     first_row = rows[0]
     assert first_row["date"] == "2024-01-01"
     assert "pnl_pips" in first_row
+
+
+def test_write_daily_csv_preserves_fractional_wins(tmp_path: Path) -> None:
+    daily = {
+        "2024-01-02": {
+            "breakouts": 1,
+            "gate_pass": 1,
+            "gate_block": 0,
+            "ev_pass": 0,
+            "ev_reject": 0,
+            "fills": 1,
+            "wins": 0.625,
+            "pnl_pips": 1.5,
+        }
+    }
+    daily_path = tmp_path / "daily.csv"
+    _write_daily_csv(daily_path, daily)
+
+    with daily_path.open(encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+
+    assert rows
+    row = rows[0]
+    assert row["date"] == "2024-01-02"
+    assert pytest.approx(float(row["wins"]), rel=0, abs=1e-9) == 0.625
 
 
 def test_run_sim_respects_time_window(tmp_path: Path) -> None:

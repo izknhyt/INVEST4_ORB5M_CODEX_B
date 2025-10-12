@@ -1,0 +1,59 @@
+{
+  "trades": 2,
+  "wins": 0.0,
+  "win_rate": 0.0,
+  "total_pips": -3.045899875251483,
+  "total_pnl_value": -30.458998752514837,
+  "sharpe": -14.329062038629043,
+  "max_drawdown": -30.458998752525076,
+  "equity_curve": [
+    [
+      "2024-01-02T08:49:59.999999Z",
+      100000.0
+    ],
+    [
+      "2024-01-02T08:50:00Z",
+      99983.26741797199
+    ],
+    [
+      "2024-01-02T13:25:00Z",
+      99969.54100124747
+    ]
+  ],
+  "runtime": {
+    "ev_pass": 0,
+    "ev_reject": 0,
+    "fills": 2,
+    "execution_health": {
+      "slippage_bps": 0.7499999999993179
+    }
+  },
+  "debug": {
+    "csv_loader": {
+      "skipped_rows": 0
+    }
+  },
+  "decay": 0.02,
+  "manifest_id": "day_orb_5m_v1",
+  "symbol": "USDJPY",
+  "mode": "conservative",
+  "equity": 100000.0,
+  "router": [
+    {
+      "manifest_id": "day_orb_5m_v1",
+      "eligible": true,
+      "score": 0.2,
+      "reasons": [
+        "category headroom (headroom=40.0%, usage=0.0%, cap=40.0%, score_delta=+0.20)",
+        "category budget headroom (headroom=40.0%, usage=0.0%, cap=40.0%, status=ok, score_delta=+0.00)"
+      ],
+      "category": "day",
+      "tags": [
+        "orb",
+        "breakout"
+      ]
+    }
+  ],
+  "run_dir": "/Users/izumimotohayato/development/invest3_orb5m_codex/tmp/run_bug_test/USDJPY_conservative_20251012_134440",
+  "dump_daily": "/Users/izumimotohayato/development/invest3_orb5m_codex/tmp/run_bug_test/USDJPY_conservative_20251012_134440/daily.csv"
+}

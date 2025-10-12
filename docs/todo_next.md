@@ -17,7 +17,7 @@
 
 ### In Progress
 
-- [P4-01 長期バックテスト改善](./task_backlog.md#p4-01-長期バックテスト改善) — [検証計画](plans/phase4_validation_plan.md) を策定し、Sharpe/最大DD/年間勝率の暫定目標とベース再実行コマンドを定義。次ステップ: `runs/phase4/backtests/` 配下にパラメータ探索結果を蓄積し、週次で `docs/progress_phase4.md` へメトリクス表を追記する。
+- [P4-01 長期バックテスト改善](./task_backlog.md#p4-01-長期バックテスト改善) — [検証計画](plans/phase4_validation_plan.md) と進捗ログを同期済み。2018–2025通しの `validated/USDJPY/5m*.csv` を再構築し、短期ビューは `validated/USDJPY/5m_recent*.csv` へ退避。次ステップ: 新データで Conservative/Bridge の長期ランを再実行し、`docs/progress_phase4.md#運用チェックリスト` にメトリクス/証跡リンクを追記する。
 
 ### On Hold
 

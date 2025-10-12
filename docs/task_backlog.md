@@ -31,6 +31,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2026-06-26: Phase 3 observability automation detailed design reviewed (`docs/phase3_detailed_design.md`), clarifying retention/manifest sequencing so the DoD checklist drafting can proceed without blockers.
 - 2026-06-27: Restored `scripts/check_data_quality.py` coverage checks for legacy headerless validated CSVs by auto-detecting missing headers, refreshed README / `docs/data_quality_ops.md` guidance, and added regression coverage for the fallback path so P0 data-quality guards stay reliable.
 - 2026-06-28: Enabled `scripts/run_sim.py` to auto-detect headerless validated CSV snapshots so manifest-driven backtests can load the shared datasets without manual header injection, extending pytest coverage for the loader fallback.
+- 2026-07-16: Patched the BacktestRunner trailing-stop accounting bug so profitable trail exits contribute to EV buckets / win率, documented the remediation in `docs/backtest_runner_logging.md`, and added regression coverage (`python3 -m pytest tests/test_runner.py`).
 <a id="p0-12-codex-first-documentation-cleanup"></a>
 ### ~~P0-12 Codex-first documentation cleanup~~ ✅ (2026-05-17 クローズ)
 
@@ -136,6 +137,25 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - **Notes**: Keep the shared log free from repeated entries for the same alert so auditors can reconcile acknowledgements without guessing which row is authoritative. Provide a clear override for historical imports or intentionally duplicated records.
 - 2026-06-14: Added duplicate-detection to `scripts/record_data_quality_alert.py`, introduced a `--allow-duplicate` override, documented the guard in `docs/data_quality_ops.md` / `ops/health/data_quality_alerts.md`, updated the DoD checklist, and extended regression tests to cover the new behaviours.
 
+<a id="p0-18-simulation-daily-wins-precision"></a>
+### ~~P0-18 Simulation daily wins precision fix~~ ✅ (2026-07-20 クローズ)
+
+- **DoD**:
+  - `scripts/run_sim.py` daily CSV export preserves probability-weighted `wins` values without truncating fractional results.
+  - Regression coverage exercises `_write_daily_csv` so fractional wins remain intact after future refactors.
+  - Backlog/state/todo docs capture the fix and note the verification command used to validate the behaviour.
+- **Deliverables**: Code patch in `scripts/run_sim.py`, updated pytest coverage.
+- 2026-07-20: Updated `_write_daily_csv` to keep fractional wins, added pytest coverage (`tests/test_run_sim_cli.py::test_write_daily_csv_preserves_fractional_wins`), ran `python3 -m pytest`, and synced `state.md` / `docs/todo_next.md` with the closure note.
+
+<a id="p0-19-phase4-sim-bugfix-plan"></a>
+### ~~P0-19 Phase 4 simulation bugfix & refactor plan refresh~~ ✅ (2026-07-21 クローズ)
+
+- **DoD**:
+  - `docs/plans/phase4_sim_bugfix_plan.md` captures W1–W4 workstreams with explicit commands, success metrics, and links to Phase 4 artefacts.
+  - The plan specifies regression expectations (`python3 -m pytest` bundles, long-run commands) and references documentation touchpoints (`docs/progress_phase4.md`, `docs/state_runbook.md`, `docs/go_nogo_checklist.md`).
+  - Backlog and progress docs log the update so future sessions can follow the remediation playbook without rediscovery.
+- 2026-07-21: Reauthored the plan with an executive summary, objectives, workstreams, test/tooling strategy, timeline, and open questions to guide Phase 4 simulation bugfix and refactor execution; aligned references for Codex Cloud hand-offs.
+
 <a id="p0-07"></a>
 ### P0-07 runs/index 再構築スクリプト整備 (完了)
 
@@ -235,8 +255,10 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - **DoD**:
   - Conservative / Bridge の 2018–2025 通しランを最新データで再実行し、Sharpe・最大DD・年間勝率がリリース基準を満たすようパラメータまたはガードを調整する。
   - 改善後のメトリクスと再現コマンドを `docs/progress_phase4.md`・`state.md`・PR 説明に記録し、`reports/long_{mode}.json` / `reports/long_{mode}_daily.csv` を更新する。
-  - 変更内容に対応する検証ログ（例: `python3 scripts/run_sim.py ...`）を提示し、レビュワーが再現できるよう artefact パスを一覧化する。
+  - Paper 判定に向けたエビデンスを `docs/go_nogo_checklist.md`・`docs/progress_phase4.md#運用チェックリスト` に保存し、承認ログのリンクとともに共有する。
 - **Notes**:
+  - 2026-07-15: `data/usdjpy_5m_2018-2024_utc.csv` / `data/usdjpy_5m_2025.csv` / 既存短期スナップショットをマージし、`validated/USDJPY/5m.csv` / `_with_header.csv` を2018–2025通しに更新。短期ビューは `validated/USDJPY/5m_recent*.csv` へ退避し、`scripts/check_data_quality.py --calendar-day-summary` でギャップが週末由来であることを確認（coverage_ratio=0.71）。長期ランは新ファイルで再実行予定。
+  - 2026-07-15: `docs/progress_phase4.md` のハイライトを刷新し、Go/No-Go チェックリストに担当者・頻度・証跡列を追加。次回ランからメトリクスと証跡リンクを `docs/progress_phase4.md#運用チェックリスト` に記録する準備を整えた。
   - 2026-07-05: `scripts/run_sim.py --no-auto-state` で Conservative/Bridge ベースラインを再取得したところ、`validated/USDJPY/5m.csv` が 2025-10-02 以降のみであることが判明。2018–2024 の validated スナップショット再構築と `runs/phase4/backtests/` パラメータ探索ディレクトリ整備を優先 TODO として記録。
   - 2026-06-27: [docs/plans/phase4_validation_plan.md](plans/phase4_validation_plan.md) で Sharpe/最大DD/年間勝率の暫定目標とベース再実行コマンド、runs 配下の成果物整理方針を確定。週次レビュー時に `docs/progress_phase4.md` へメトリクス表を追記する運用を開始。
   - 2025-10-11: Baselineレビューで Conservative -243 pips / Bridge -934 pips を確認。パラメータ再調整に着手。
@@ -256,6 +278,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - チェック項目ごとに担当者・頻度・検証ログテンプレを付与し、`state.md` と `docs/todo_next_archive.md` へ記録方法を明記する。
   - モックレビューを実施し、記録を残すことで実運用の準備が整っていることを確認する。
 - **Notes**:
+  - 2026-07-15: `docs/go_nogo_checklist.md` を担当者・頻度・証跡列付きテーブルへ刷新し、Paper 判定ログを `docs/progress_phase4.md` と連携させる更新ルールを追加。
   - 2026-06-27: 検証計画でチェック項目を「データ品質 / シミュレーション / 運用準備 / レビュー体制」に分類し、担当者・頻度・証跡リンク欄を `docs/go_nogo_checklist.md` へ追加する更新ステップとモックレビュー記録先（本ドキュメント／`docs/todo_next_archive.md`）を設定。
   - 2025-10-11: Ready へ昇格予定。P4-01 の結果を踏まえて更新範囲を確定する。
 

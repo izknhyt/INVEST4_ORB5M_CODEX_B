@@ -765,6 +765,7 @@ def _write_daily_csv(path: Path, daily: Mapping[str, Mapping[str, Any]]) -> None
         writer.writerow(cols)
         for day in sorted(daily.keys()):
             entry = daily.get(day, {}) or {}
+            wins_value = float(entry.get("wins", 0.0))
             writer.writerow(
                 [
                     day,
@@ -774,7 +775,7 @@ def _write_daily_csv(path: Path, daily: Mapping[str, Mapping[str, Any]]) -> None
                     int(entry.get("ev_pass", 0)),
                     int(entry.get("ev_reject", 0)),
                     int(entry.get("fills", 0)),
-                    int(entry.get("wins", 0)),
+                    wins_value,
                     float(entry.get("pnl_pips", 0.0)),
                 ]
             )

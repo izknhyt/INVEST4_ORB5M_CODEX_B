@@ -32,6 +32,7 @@ class RunnerExecutionManager:
 
     def __init__(self, runner: "BacktestRunner") -> None:
         self._runner = runner
+        self._PNL_EPSILON = 1e-9
 
     @staticmethod
     def _default_ev_key(ctx: Mapping[str, Any]) -> tuple[str, str, Optional[Any]]:
@@ -71,6 +72,31 @@ class RunnerExecutionManager:
         if prob > 1.0:
             return 1.0
         return prob
+
+    def _is_win_after_cost(self, exit_reason: Optional[str], pnl_pips: float) -> bool:
+        if exit_reason == "tp":
+            return True
+        if exit_reason == "trail" and pnl_pips > self._PNL_EPSILON:
+            return True
+        return False
+
+    def _net_pnl_pips(
+        self,
+        *,
+        side: str,
+        entry_px: float,
+        exit_px: float,
+        ctx: Mapping[str, Any],
+    ) -> float:
+        direction = 1.0 if side == "BUY" else -1.0
+        price_move = (exit_px - entry_px) * direction
+        pnl_pips = price_to_pips(price_move, self._runner.symbol)
+        base_cost = ctx.get("cost_pips", ctx.get("base_cost_pips", 0.0))
+        try:
+            cost_value = float(base_cost)
+        except (TypeError, ValueError):
+            cost_value = 0.0
+        return pnl_pips - cost_value
 
     @staticmethod
     def _should_count_ev_pass(ev_result: Any, calibrating: bool) -> bool:
@@ -269,7 +295,19 @@ class RunnerExecutionManager:
                 if prob is not None:
                     manager.update_weighted(prob)
                 else:
-                    manager.update(decision.exit_reason == "tp")
+                    exit_px = decision.exit_px
+                    if exit_px is None:
+                        manager.update(False)
+                    else:
+                        pnl_unit = self._net_pnl_pips(
+                            side=pos_state.side,
+                            entry_px=pos_state.entry_px,
+                            exit_px=exit_px,
+                            ctx=ctx,
+                        )
+                        manager.update(
+                            self._is_win_after_cost(decision.exit_reason, pnl_unit)
+                        )
                 continue
             updated_state = cast(
                 CalibrationPositionState, decision.updated_pos or pos_state
@@ -441,7 +479,15 @@ class RunnerExecutionManager:
                 if prob is not None:
                     manager.update_weighted(prob)
                 else:
-                    manager.update(exit_reason == "tp")
+                    pnl_unit = self._net_pnl_pips(
+                        side=intent.side,
+                        entry_px=entry_px,
+                        exit_px=exit_px,
+                        ctx=ctx,
+                    )
+                    manager.update(
+                        self._is_win_after_cost(exit_reason, pnl_unit)
+                    )
                 return None
             qty_sample, slip_actual = runner._update_slip_learning(
                 order=intent,
@@ -622,7 +668,7 @@ class RunnerExecutionManager:
         except (TypeError, ValueError):
             qty_effective = 0.0
         pnl_pips = pnl_pips_unit * qty_effective
-        hit = exit_reason == "tp"
+        hit = self._is_win_after_cost(exit_reason, pnl_pips)
         prob = self._coerce_probability(p_tp)
         if prob is not None:
             win_increment = prob
@@ -707,4 +753,3 @@ class RunnerExecutionManager:
             timestamp=timestamp,
             pnl_value=pnl_value,
         )
-

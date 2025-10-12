@@ -1,0 +1,43 @@
+{
+  "trades": 0,
+  "wins": 0.0,
+  "win_rate": null,
+  "total_pips": 0.0,
+  "total_pnl_value": 0.0,
+  "sharpe": null,
+  "max_drawdown": null,
+  "equity_curve": [],
+  "runtime": {
+    "ev_pass": 0,
+    "ev_reject": 0,
+    "fills": 0
+  },
+  "debug": {
+    "csv_loader": {
+      "skipped_rows": 0
+    }
+  },
+  "decay": 0.02,
+  "manifest_id": "day_orb_5m_v1",
+  "symbol": "USDJPY",
+  "mode": "conservative",
+  "equity": 100000.0,
+  "router": [
+    {
+      "manifest_id": "day_orb_5m_v1",
+      "eligible": true,
+      "score": 0.2,
+      "reasons": [
+        "category headroom (headroom=40.0%, usage=0.0%, cap=40.0%, score_delta=+0.20)",
+        "category budget headroom (headroom=40.0%, usage=0.0%, cap=40.0%, status=ok, score_delta=+0.00)"
+      ],
+      "category": "day",
+      "tags": [
+        "orb",
+        "breakout"
+      ]
+    }
+  ],
+  "run_dir": "/Users/izumimotohayato/development/invest3_orb5m_codex/tmp/run_bug_test_small/USDJPY_conservative_20251012_134507",
+  "dump_daily": "/Users/izumimotohayato/development/invest3_orb5m_codex/tmp/run_bug_test_small/USDJPY_conservative_20251012_134507/daily.csv"
+}

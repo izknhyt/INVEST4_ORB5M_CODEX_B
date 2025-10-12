@@ -65,6 +65,8 @@ Example: `runs/USDJPY_conservative_20250922_175708/records.csv` contains the app
 
 `daily.csv` は `metrics.daily` の集計結果で、`breakouts`, `gate_pass`, `gate_block`, `ev_pass`, `ev_reject`, `fills`, `wins`, `pnl_pips` などの列を含みます。長期ランの例は `reports/long_conservative_daily.csv` を参照してください。【F:reports/long_conservative_daily.csv†L1-L5】
 
+2026-07-16 の修正で、トレール決済（`exit_reason="trail"`）がコスト控除後もプラスで終わった場合は勝ちトレードとして `wins` / `win_rate` に加算され、同時に EV バケットも成功（`alpha` 増分）として更新されるよう統一しました。従来はトレールで利益確定しても負け扱いとなり EV 推定が不当に悪化していたため、日次サマリと `metrics.win_rate` の乖離に注意してください。
+
 ## Equity curve baseline
 
 `Metrics` now seeds `equity_curve` with the runner's starting equity (paired with the first trade's timestamp) whenever `_reset_runtime_state` is invoked. The structure is a list of `[timestamp, equity]` pairs so downstream tools can align fills with the bar chronology. Each subsequent trade appends the updated account equity using the bar timestamp supplied to `record_trade`, ensuring drawdown and Sharpe calculations reference the same baseline even after state resets.
