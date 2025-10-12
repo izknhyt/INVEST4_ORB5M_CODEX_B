@@ -98,6 +98,36 @@ class DatasetExportOutcome:
     errors: List[Dict[str, Any]]
 
 
+def _finalise_dataset_result(
+    ctx: ExportContext,
+    *,
+    name: str,
+    payload: Mapping[str, Any],
+    row_count: int,
+    sources: Mapping[str, str],
+) -> DatasetResult:
+    """Persist a dataset payload and return its metadata."""
+
+    data = dict(payload)
+    dataset_name = data.get("dataset", name)
+    if dataset_name != name:
+        raise ValueError(f"dataset payload name mismatch: expected {name}, found {dataset_name}")
+    normalised_sources = dict(sources)
+    data["dataset"] = dataset_name
+    data["sources"] = normalised_sources
+    checksum = _compute_checksum(data, indent=ctx.args.indent)
+    target = ctx.output_dir / f"{name}.json"
+    _write_json_atomic(target, data, indent=ctx.args.indent)
+    return DatasetResult(
+        name=name,
+        payload=data,
+        row_count=row_count,
+        checksum_sha256=checksum,
+        path=target,
+        sources=normalised_sources,
+    )
+
+
 def _record_error(
     errors: List[Dict[str, Any]],
     dataset: str,
@@ -173,6 +203,7 @@ def build_ev_history_dataset(ctx: ExportContext) -> DatasetResult:
     history = load_ev_history(ctx.archive_dir, limit=ctx.args.ev_limit)
     rows = [_serialise_ev_snapshot(snapshot) for snapshot in history]
     latest = rows[-1] if rows else None
+    sources = {"archive_dir": str(ctx.archive_dir)}
     payload: Dict[str, Any] = {
         "dataset": "ev_history",
         "generated_at": _isoformat(ctx.generated_at),
@@ -181,72 +212,61 @@ def build_ev_history_dataset(ctx: ExportContext) -> DatasetResult:
         "symbol": ctx.args.symbol,
         "mode": ctx.args.mode,
         "rows": rows,
-        "sources": {"archive_dir": str(ctx.archive_dir)},
+        "sources": sources,
     }
     if latest:
         payload["latest"] = latest
-    checksum = _compute_checksum(payload, indent=ctx.args.indent)
-    target = ctx.output_dir / "ev_history.json"
-    _write_json_atomic(target, payload, indent=ctx.args.indent)
-    return DatasetResult(
+    return _finalise_dataset_result(
+        ctx,
         name="ev_history",
         payload=payload,
         row_count=len(rows),
-        checksum_sha256=checksum,
-        path=target,
-        sources={"archive_dir": str(ctx.archive_dir)},
+        sources=sources,
     )
 
 
 def build_slippage_dataset(ctx: ExportContext) -> DatasetResult:
     state_snapshots = load_state_slippage(ctx.archive_dir, limit=ctx.args.slip_limit)
     execution_snapshots: List[SlippageSnapshot] = []
-    telemetry_sources: Dict[str, str] = {}
+    sources: Dict[str, str] = {"archive_dir": str(ctx.archive_dir)}
     if ctx.telemetry_path is not None and ctx.telemetry_path.exists():
         execution_snapshots = load_execution_slippage(ctx.telemetry_path)
-        telemetry_sources["portfolio_telemetry"] = str(ctx.telemetry_path)
+        sources["portfolio_telemetry"] = str(ctx.telemetry_path)
     payload = {
         "dataset": "slippage",
         "generated_at": _isoformat(ctx.generated_at),
         "job_id": ctx.job_id,
         "state": [_serialise_slippage_snapshot(item) for item in state_snapshots],
         "execution": [_serialise_slippage_snapshot(item) for item in execution_snapshots],
-        "sources": {"archive_dir": str(ctx.archive_dir), **telemetry_sources},
+        "sources": sources,
     }
     row_count = len(payload["state"]) + len(payload["execution"])
-    checksum = _compute_checksum(payload, indent=ctx.args.indent)
-    target = ctx.output_dir / "slippage.json"
-    _write_json_atomic(target, payload, indent=ctx.args.indent)
-    return DatasetResult(
+    return _finalise_dataset_result(
+        ctx,
         name="slippage",
         payload=payload,
         row_count=row_count,
-        checksum_sha256=checksum,
-        path=target,
-        sources=payload["sources"],
+        sources=sources,
     )
 
 
 def build_turnover_dataset(ctx: ExportContext) -> DatasetResult:
     turnover = load_turnover_metrics(ctx.runs_root, limit=ctx.args.turnover_limit)
     rows = [_serialise_turnover_snapshot(item) for item in turnover]
+    sources = {"runs_root": str(ctx.runs_root)}
     payload = {
         "dataset": "turnover",
         "generated_at": _isoformat(ctx.generated_at),
         "job_id": ctx.job_id,
         "rows": rows,
-        "sources": {"runs_root": str(ctx.runs_root)},
+        "sources": sources,
     }
-    checksum = _compute_checksum(payload, indent=ctx.args.indent)
-    target = ctx.output_dir / "turnover.json"
-    _write_json_atomic(target, payload, indent=ctx.args.indent)
-    return DatasetResult(
+    return _finalise_dataset_result(
+        ctx,
         name="turnover",
         payload=payload,
         row_count=len(rows),
-        checksum_sha256=checksum,
-        path=target,
-        sources=payload["sources"],
+        sources=sources,
     )
 
 
@@ -257,23 +277,20 @@ def build_latency_dataset(ctx: ExportContext) -> DatasetResult:
     if ctx.args.latency_limit is not None and ctx.args.latency_limit >= 0:
         entries = entries[-ctx.args.latency_limit :]
     rows = [_serialise_latency_entry(item) for item in entries]
+    sources = {"latency_rollup": str(ctx.latency_path)}
     payload = {
         "dataset": "latency",
         "generated_at": _isoformat(ctx.generated_at),
         "job_id": ctx.job_id,
         "rows": rows,
-        "sources": {"latency_rollup": str(ctx.latency_path)},
+        "sources": sources,
     }
-    checksum = _compute_checksum(payload, indent=ctx.args.indent)
-    target = ctx.output_dir / "latency.json"
-    _write_json_atomic(target, payload, indent=ctx.args.indent)
-    return DatasetResult(
+    return _finalise_dataset_result(
+        ctx,
         name="latency",
         payload=payload,
         row_count=len(rows),
-        checksum_sha256=checksum,
-        path=target,
-        sources=payload["sources"],
+        sources=sources,
     )
 
 
