@@ -1,6 +1,11 @@
-import pytest
+from __future__ import annotations
+
+from typing import Dict
 from unittest.mock import patch
 
+import pytest
+
+from strategies.scalping_template import ScalpingTemplate
 from strategies.session_momentum_continuation import SessionMomentumContinuation
 from strategies.tokyo_micro_mean_reversion import TokyoMicroMeanReversion
 
@@ -123,3 +128,45 @@ def test_session_momentum_continuation_emits_signal_with_trend_features(day_ctx:
     assert intent.oco is not None
     assert intent.oco["tp_pips"] > 0.0
     assert intent.oco["sl_pips"] > 0.0
+
+
+class _DummyScalpingStrategy(ScalpingTemplate):
+    """Lightweight helper to expose template sizing paths in tests."""
+
+    def _maybe_build_signal(self, bar: Dict[str, float]) -> Dict[str, float]:
+        return {
+            "side": "buy",
+            "entry": bar.get("mid", 0.0),
+            "tp_pips": 8.0,
+            "sl_pips": 5.0,
+        }
+
+
+def test_scalping_template_emits_signal_without_ev_estimator(scalping_ctx: dict) -> None:
+    strategy = _DummyScalpingStrategy()
+    strategy.on_start({}, ["USDJPY"], {})
+    strategy.on_bar({"mid": 1.0})
+
+    intents = list(strategy.signals(scalping_ctx))
+
+    assert len(intents) == 1
+    intent = intents[0]
+    assert intent.qty > 0.0
+    assert intent.oco["tp_pips"] == pytest.approx(8.0)
+    assert intent.oco["sl_pips"] == pytest.approx(5.0)
+
+
+def test_scalping_template_prefers_context_qty_over_computed(scalping_ctx: dict) -> None:
+    strategy = _DummyScalpingStrategy()
+    strategy.on_start({}, ["USDJPY"], {})
+    strategy.on_bar({"mid": 1.0})
+
+    ctx = dict(scalping_ctx)
+    ctx["qty"] = 1.75
+
+    with patch("strategies.scalping_template.compute_qty_from_ctx") as mocked_compute:
+        intents = list(strategy.signals(ctx))
+
+    mocked_compute.assert_not_called()
+    assert len(intents) == 1
+    assert intents[0].qty == pytest.approx(1.75)

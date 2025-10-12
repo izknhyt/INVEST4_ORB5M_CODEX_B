@@ -16,6 +16,7 @@ Usage guidelines:
 """
 from __future__ import annotations
 
+import math
 from typing import Any, Dict, Iterable, Optional, Mapping
 
 from core.sizing import compute_qty_from_ctx
@@ -90,7 +91,36 @@ class ScalpingTemplate(Strategy):
 
         signal = self._apply_signal_defaults(dict(pending))
         sl_pips = max(0.1, float(signal.get("sl_pips", self.cfg.get("default_sl_pips", 6.0))))
-        qty = compute_qty_from_ctx(ctx_data, sl_pips)
+
+        qty_ctx = ctx_data.get("qty")
+        if qty_ctx is not None:
+            try:
+                qty = float(qty_ctx)
+            except (TypeError, ValueError):
+                qty = 0.0
+            else:
+                if not math.isfinite(qty):
+                    qty = 0.0
+        else:
+            tp_pips = float(signal.get("tp_pips", self.cfg.get("default_tp_pips", 4.0)))
+            ev = ctx_data.get("ev_oco")
+            p_lcb = 0.5
+            if ev is not None:
+                p_lcb_method = getattr(ev, "p_lcb", None)
+                if callable(p_lcb_method):
+                    try:
+                        p_lcb = float(p_lcb_method())
+                    except (TypeError, ValueError):
+                        p_lcb = 0.5
+            if not math.isfinite(p_lcb):
+                p_lcb = 0.5
+            qty = compute_qty_from_ctx(
+                ctx_data,
+                sl_pips,
+                mode="production",
+                tp_pips=tp_pips,
+                p_lcb=p_lcb,
+            )
         if qty <= 0:
             return []
 
