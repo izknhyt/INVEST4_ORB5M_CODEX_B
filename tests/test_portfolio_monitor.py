@@ -87,6 +87,34 @@ def test_build_portfolio_summary_returns_expected_sections(base_dir: Path) -> No
     assert summary["execution_health"]["day_orb_5m_v1"]["reject_rate"] == pytest.approx(0.012, rel=1e-6)
 
 
+def test_build_portfolio_summary_handles_mixed_timestamp_formats(tmp_path: Path) -> None:
+    snapshot_dir, _ = _prepare_snapshot(tmp_path)
+
+    metrics_dir = snapshot_dir / "metrics"
+    metrics_files = sorted(metrics_dir.glob("*.json"))
+    timestamp_sets = [
+        ["2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z"],
+        ["2025-01-01T00:00:00", "2025-01-02T00:00:00"],
+    ]
+    equity_values = [
+        [100000.0, 100500.0],
+        [200000.0, 200300.0],
+    ]
+    for path, timestamps, values in zip(metrics_files, timestamp_sets, equity_values):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["equity_curve"] = [
+            [timestamps[0], values[0]],
+            [timestamps[1], values[1]],
+        ]
+        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+    summary = build_portfolio_summary(snapshot_dir)
+
+    aggregate_curve = summary["aggregate_equity_curve"]
+    assert len(aggregate_curve) == 2
+    assert all(point["ts"].endswith("Z") for point in aggregate_curve)
+
+
 def test_report_portfolio_summary_cli(tmp_path: Path) -> None:
     output_path = tmp_path / "summary.json"
     cmd = [
