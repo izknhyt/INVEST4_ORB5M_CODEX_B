@@ -14,6 +14,7 @@
 ## 0.2 Dependencies & Interfaces
 - **Dataset readiness**: `validated/USDJPY/5m.csv` backfill and header alignment (per `state.md` Next Task) must land before W1 begins. Capture SHA256 + row count in `docs/progress_phase4.md` and mirror the numbers in `state.md` for reproducibility.
 - **Manifest contract**: `configs/strategies/day_orb_5m.yaml` is the single source of truth for feature toggles. Any refactor that mutates schema must also update `configs/strategies/README.md` (if added) and the manifest changelog.
+- **Runner state compatibility**: Persisted snapshots in `runs/**/state.json` include a `runner_config_fingerprint`. Before altering runner defaults, record the pre-change fingerprint in `docs/progress_phase4.md` and confirm resumption parity when the fingerprint changes.
 - **Automation hooks**: Codex Cloud nightly workflows consume `runs/phase4/backtests/index.csv` and `reports/long_*.json`. Refactors must keep filenames stable or provide a compatibility shim plus migration notice.
 - **Downstream integrations**: Router/portfolio analytics ingest EV bucket summaries. Coordinate format changes with the owners listed in `docs/router_architecture.md` before merging.
 - **Ops tooling**: `scripts/manage_task_cycle.py` remains the gatekeeper for doc/state synchronisation. W0 must validate the dry-run flows so later stages do not drift from operational guardrails.
@@ -62,11 +63,14 @@ Workstreams overlap by at most two days—changes only graduate downstream once 
 2. Establish gold runs for both modes:
    - `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode conservative --start-ts 2018-01-01T00:00:00Z --end-ts 2025-12-31T23:55:00Z --out-json reports/long_conservative.json --out-daily-csv reports/long_conservative_daily.csv --out-dir runs/phase4/backtests --no-auto-state`
    - `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode bridge --start-ts 2018-01-01T00:00:00Z --end-ts 2025-12-31T23:55:00Z --out-json reports/long_bridge.json --out-daily-csv reports/long_bridge_daily.csv --out-dir runs/phase4/backtests --no-auto-state`
-3. Diff `metrics.json` and `daily.csv` against archived runs; record deltas (expected vs unexpected) in `docs/progress_phase4.md` with direct file links.
-4. Snapshot CLI stdout/stderr and key log excerpts into `runs/phase4/backtests/<timestamp>/session.log` for reproducibility.
-5. Store SHA256 hashes for each artefact (`metrics.json`, `daily.csv`, `records.csv`) and reference them in `docs/progress_phase4.md`.
-6. Set up `reports/diffs/README.md` summarising how to interpret diff outputs to avoid misclassification of expected vs unexpected deltas.
-7. Record runtime envelope (start/end timestamps, CPU utilisation snapshot) alongside metrics so later optimisations can be validated without rerunning full histories.
+3. Validate resume parity using the same artefact directory:
+   - First pass (state creation): `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs/phase4/backtests/resume_check --auto-state`
+   - Second pass (state reuse): re-run the command above and diff `metrics.json`/`records.csv`; log the fingerprint + diff outcome in `docs/progress_phase4.md`.
+4. Diff `metrics.json` and `daily.csv` against archived runs; record deltas (expected vs unexpected) in `docs/progress_phase4.md` with direct file links.
+5. Snapshot CLI stdout/stderr and key log excerpts into `runs/phase4/backtests/<timestamp>/session.log` for reproducibility.
+6. Store SHA256 hashes for each artefact (`metrics.json`, `daily.csv`, `records.csv`) and reference them in `docs/progress_phase4.md`.
+7. Set up `reports/diffs/README.md` summarising how to interpret diff outputs to avoid misclassification of expected vs unexpected deltas.
+8. Record runtime envelope (start/end timestamps, CPU utilisation snapshot) alongside metrics so later optimisations can be validated without rerunning full histories.
 
 ### W2 — Defect Remediation & Guard Rails
 1. Build a structured bug notebook at `docs/progress_phase4.md#bug-tracking` capturing for each defect: reproduction command, observed vs expected, root cause hypothesis, owner, priority (Blocker / High / Medium / Low), and intended fix release.
@@ -74,6 +78,7 @@ Workstreams overlap by at most two days—changes only graduate downstream once 
    - CLI/argument regressions → `tests/test_run_sim_cli.py`
    - Runner logic (fill sequencing, EV gate thresholds, trailing stops, state archival) → `tests/test_runner.py`, `tests/test_runner_features.py`
    - Data ingestion/validation gaps → `tests/test_data_robustness.py` with fixtures under `tests/fixtures/run_sim/`
+   - Resume parity / state persistence regressions → add parametrised cases to `tests/test_runner.py::test_load_state_round_trip` (or new dedicated test) covering conservative and bridge modes.
 3. Apply minimal hotfixes (Phase A) guided by tests, keeping public interfaces stable. Collect commit-level notes on impacted modules and link each change back to a bug notebook ID in commit messages.
 4. Maintain focused pytest loops during remediation:
    - `python3 -m pytest tests/test_run_sim_cli.py`
@@ -114,6 +119,7 @@ Workstreams overlap by at most two days—changes only graduate downstream once 
   - Core regression: `python3 -m pytest tests/test_run_sim_cli.py tests/test_runner.py tests/test_runner_features.py`
   - Robustness sweep: `python3 -m pytest -k robustness --maxfail=1`
   - Optional focussed suites (`tests/test_run_sim_io.py`, `tests/test_data_robustness.py::test_missing_calendar_blocks` once added).
+- State persistence smoke: run a shortened resume scenario (`python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --mode conservative --start-ts 2024-01-01T00:00:00Z --end-ts 2024-03-31T23:55:00Z --out-dir runs/phase4/backtests/resume_q1 --auto-state`) twice and diff outputs to ensure deterministic reloads.
 - Simulation spot checks: run shortened windows (e.g., 2024 Q1) during development to validate performance quickly before launching the full 2018–2025 backtest.
 - Artefact diffing: adopt `python3 scripts/compare_metrics.py --left runs/phase4/backtests/<prev>/metrics.json --right runs/phase4/backtests/<curr>/metrics.json` (script to add if missing) to automate numerical comparisons.
 - Continuous integration: gate merges on pytest success; optionally integrate the conservative long-run command as a nightly job in Codex Cloud.
@@ -134,6 +140,15 @@ Workstreams overlap by at most two days—changes only graduate downstream once 
 - Record expected schema versions in the manifest (`archive_namespace`, feature toggles) so refactors do not silently diverge from the dataset contract.
 - Introduce a data freshness checkpoint (`python3 scripts/check_benchmark_freshness.py --target USDJPY:conservative --max-age-hours 6`) before long-run backtests to guard against stale baselines.
 - Capture validation evidence (row counts, duplicate stats) in `reports/data_quality/phase4/` with timestamps for audit.
+
+## 6.1 Risk Register & Mitigations
+| Risk | Impact | Mitigation / Owner |
+| --- | --- | --- |
+| Dataset refresh slips past W1 | Baseline parity impossible, downstream automation blocked | Ops to pin dataset hash in `state.md` before W1; Tech Lead to block code merges until hashes recorded |
+| Runner refactor breaks persisted states | Nightly jobs fail or diverge silently | Add resume regression tests (W2) and enforce manual resume smoke run (W1); QA to monitor fingerprint deltas |
+| Codex Cloud runtime > 90 minutes | Automation SLA missed, smoke bundle skipped | Capture runtime telemetry in W1 and profile hotspots during W3 refactor; escalate if >80 minutes sustained |
+| Logging schema drift without doc updates | Incident response playbooks outdated | Ops to require `docs/state_runbook.md` diff in every PR touching logging; DevRel to audit weekly |
+| Diff tooling backlog (compare_metrics script) not delivered | Manual metric checks become error-prone | Assign Backtest WG owner during W2, fail release review if diff script missing |
 
 ## 7. Documentation & Communication
 - `docs/progress_phase4.md`: add a dedicated "Simulation Bugfix & Refactor" subsection with timeline, bug table, and metrics snapshots.
