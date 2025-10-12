@@ -7,6 +7,7 @@
   tests/test_day_orb_retest.py`.
 - 2026-07-06: Refactored `core/runner.BacktestRunner` to cache strategy config/instrument metadata, reinstantiate strategies at the start of each `run`, preserved `load_state_file` rehydration, added a regression ensuring repeated runs emit on the first eligible bar, and executed `python3 -m pytest tests/test_runner.py tests/test_day_orb_retest.py`.
 - 2026-07-06: Normalised instrument modes in strategy manifest loader and run_sim runtime config, added uppercase-mode manifest regression in `tests/test_run_sim_cli.py`, and ran `python3 -m pytest tests/test_run_sim_cli.py` to confirm the guardrails.
+- 2026-07-06: Migrated `scripts/run_target_loop.py` to generate manifest-driven `run_sim` invocations (temporary manifest merge + CLI cleanup), refreshed default base arguments, and added regression coverage via `tests/test_run_target_loop.py`. Executed `python3 -m pytest` to confirm the suite stays green.
 - 2026-07-14: Added guards to align router snapshot correlations and portfolio summary aggregates from the latest common equity
   timestamp, forward-filling initial values when necessary, and introduced offset-start regressions in
   `tests/test_report_portfolio_summary.py` / `tests/test_portfolio_monitor.py`. Executed
