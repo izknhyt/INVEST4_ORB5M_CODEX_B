@@ -18,7 +18,7 @@ def test_manifest_sequence_increments_and_history(tmp_path):
     history_dir = tmp_path / "history"
     archive_manifest = tmp_path / "archive_manifest.jsonl"
 
-    _run_cli(
+    summary_first = _run_cli(
         job_id="20240101T000000Z-dashboard",
         output_dir=output_dir,
         manifest_path=manifest_path,
@@ -28,6 +28,29 @@ def test_manifest_sequence_increments_and_history(tmp_path):
         latency_path=latency_path,
         history_retention_days=9999,
     )
+
+    expected_archive_dir = str((ARCHIVE_ROOT / "day_orb_5m.DayORB5m" / "USDJPY" / "conservative").resolve())
+    expected_runs_root = str(RUNS_ROOT.resolve())
+    expected_latency = str(latency_path.resolve())
+    expected_telemetry = str(TELEMETRY_PATH.resolve())
+
+    ev_payload = json.loads((output_dir / "ev_history.json").read_text())
+    assert ev_payload["dataset"] == "ev_history"
+    assert ev_payload["job_id"] == summary_first["job_id"]
+    assert ev_payload["sources"] == {"archive_dir": expected_archive_dir}
+
+    slippage_payload = json.loads((output_dir / "slippage.json").read_text())
+    assert slippage_payload["sources"] == {
+        "archive_dir": expected_archive_dir,
+        "portfolio_telemetry": expected_telemetry,
+    }
+
+    turnover_payload = json.loads((output_dir / "turnover.json").read_text())
+    assert turnover_payload["sources"] == {"runs_root": expected_runs_root}
+
+    latency_payload = json.loads((output_dir / "latency.json").read_text())
+    assert latency_payload["sources"] == {"latency_rollup": expected_latency}
+    assert len(latency_payload["rows"]) == 1
 
     summary_second = _run_cli(
         job_id="20240102T000000Z-dashboard",
