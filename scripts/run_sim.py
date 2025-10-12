@@ -527,7 +527,12 @@ def _prepare_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
     )
     symbol = instrument.symbol
     timeframe = instrument.timeframe
-    mode = instrument.mode or "conservative"
+    raw_mode = getattr(instrument, "mode", None)
+    if raw_mode is not None:
+        mode_candidate = str(raw_mode).strip().lower()
+    else:
+        mode_candidate = ""
+    mode = mode_candidate or "conservative"
 
     manifest_cli = dict(manifest.runner.cli_args or {})
 
