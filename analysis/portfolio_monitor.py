@@ -22,12 +22,16 @@ class StrategySeries:
 
 
 def _parse_timestamp(value: str) -> datetime:
+    value = value.strip()
     if value.endswith("Z"):
         value = value[:-1] + "+00:00"
     try:
-        return datetime.fromisoformat(value)
+        dt = datetime.fromisoformat(value)
     except ValueError as exc:
         raise ValueError(f"Invalid ISO timestamp: {value}") from exc
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 def _coerce_float(value: Any) -> float:
@@ -63,7 +67,8 @@ def _normalise_equity_curve(raw: Sequence[Any]) -> List[Tuple[datetime, str, flo
             raise ValueError(f"Equity curve entry missing equity value: {entry!r}")
         ts_str = str(ts)
         dt = _parse_timestamp(ts_str)
-        normalised.append((dt, ts_str, _coerce_float(equity)))
+        label = dt.isoformat().replace("+00:00", "Z")
+        normalised.append((dt, label, _coerce_float(equity)))
     normalised.sort(key=lambda item: item[0])
     return normalised
 

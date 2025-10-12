@@ -1,6 +1,7 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-07-13: Normalised `analysis/portfolio_monitor._parse_timestamp` to emit UTC-aware datetimes, unified equity curve labels to ISO strings with `Z`, and added a mixed-format regression in `tests/test_portfolio_monitor.py`. Executed `python3 -m pytest tests/test_portfolio_monitor.py` to confirm the fix.
 - 2026-07-12: Normalised portfolio equity curve parsing so zero balances survive summary and router snapshot builds, extended regression coverage with zero-equity fixtures, and ran `python3 -m pytest tests/test_portfolio_monitor.py tests/test_report_portfolio_summary.py` to confirm the acceptance flows stay green.
 - 2026-07-11: Converted trade win tracking to probability-weighted increments across `core/runner_execution.py` and `core/runner.py`, updated same-bar exit tests so 0.51 TP probability records a 51% win rate, and executed `python3 -m pytest` (350 tests) to confirm regressions stay green.
 - 2026-07-10: Updated `scripts/run_sim.py` to resolve relative state archive namespaces against custom `state_archive_root`, aligned `aggregate_ev` CLI construction to always pass the manifest namespace alongside the configured archive root, and added regression coverage in `tests/test_run_sim_cli.py` to verify custom archive roots store state snapshots. Executed `python3 -m pytest tests/test_run_sim_cli.py` for validation.
