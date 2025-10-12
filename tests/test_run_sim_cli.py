@@ -110,8 +110,10 @@ def _write_manifest(
     *,
     auto_state: bool = False,
     aggregate_ev: bool = False,
+    mode: str = "conservative",
 ) -> Path:
     manifest = MANIFEST_TEMPLATE
+    manifest = manifest.replace("mode: conservative", f"mode: {mode}")
     manifest = manifest.replace(
         "auto_state: false", f"auto_state: {'true' if auto_state else 'false'}"
     )
@@ -322,6 +324,28 @@ def test_run_sim_accepts_out_json_alias(tmp_path: Path) -> None:
     assert rc == 0
     payload = json.loads(json_out.read_text(encoding="utf-8"))
     assert payload["symbol"] == "USDJPY"
+    assert payload["mode"] == "conservative"
+
+
+def test_run_sim_manifest_uppercase_mode(tmp_path: Path) -> None:
+    manifest_path = _write_manifest(tmp_path, mode="ConSeRvAtIvE")
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(CSV_CONTENT, encoding="utf-8")
+    json_out = tmp_path / "uppercase_metrics.json"
+
+    rc = run_sim_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--csv",
+            str(csv_path),
+            "--json-out",
+            str(json_out),
+        ]
+    )
+
+    assert rc == 0
+    payload = json.loads(json_out.read_text(encoding="utf-8"))
     assert payload["mode"] == "conservative"
 
 

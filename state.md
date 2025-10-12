@@ -1,6 +1,7 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-07-06: Normalised instrument modes in strategy manifest loader and run_sim runtime config, added uppercase-mode manifest regression in `tests/test_run_sim_cli.py`, and ran `python3 -m pytest tests/test_run_sim_cli.py` to confirm the guardrails.
 - 2026-07-14: Added guards to align router snapshot correlations and portfolio summary aggregates from the latest common equity
   timestamp, forward-filling initial values when necessary, and introduced offset-start regressions in
   `tests/test_report_portfolio_summary.py` / `tests/test_portfolio_monitor.py`. Executed

@@ -34,10 +34,13 @@ class InstrumentSpec:
             raise ValueError("instrument.symbol is required")
         if not tf:
             raise ValueError("instrument.timeframe is required")
-        mode = data.get("mode")
-        if mode is not None:
-            mode = str(mode)
-        return cls(symbol=symbol, timeframe=tf, mode=mode)
+        mode_value = data.get("mode")
+        if mode_value is not None:
+            mode_str = str(mode_value).strip()
+            mode_norm = mode_str.lower() if mode_str else None
+        else:
+            mode_norm = None
+        return cls(symbol=symbol, timeframe=tf, mode=mode_norm)
 
 
 @dataclass
