@@ -114,9 +114,13 @@ def _align_series(points: List[Tuple[datetime, float]], timeline: Sequence[datet
             last_value = points[idx][1]
             idx += 1
         if last_value is None:
-            raise ValueError(
-                f"equity curve for {manifest_id} (from {source}) missing value on or before {ts.isoformat()}"
-            )
+            first_ts, first_value = points[0]
+            if ts < first_ts:
+                last_value = first_value
+            else:
+                raise ValueError(
+                    f"equity curve for {manifest_id} (from {source}) missing value on or before {ts.isoformat()}"
+                )
         aligned.append(last_value)
     return aligned
 
@@ -128,7 +132,12 @@ def _compute_pairwise_correlations(
 ) -> Dict[str, Dict[str, float]]:
     if not curves:
         return {}
-    timeline = sorted({point[0] for series in curves.values() for point in series})
+    start_dt = max(series[0][0] for series in curves.values() if series)
+    timeline = [
+        dt
+        for dt in sorted({point[0] for series in curves.values() for point in series})
+        if dt >= start_dt
+    ]
     if len(timeline) < 2:
         return {key: {} for key in curves}
     aligned: Dict[str, List[float]] = {}

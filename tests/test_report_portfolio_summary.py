@@ -503,3 +503,71 @@ def test_router_demo_pipeline_cli_budget_escalations(tmp_path: Path) -> None:
     assert scalping_entry["budget_headroom_pct"] == pytest.approx(
         scalping_entry["budget_pct"] - scalping_entry["utilisation_pct"]
     )
+
+
+def test_build_router_snapshot_handles_offset_equity_curves(tmp_path: Path) -> None:
+    day_run = tmp_path / "runs" / "day"
+    scalping_run = tmp_path / "runs" / "scalping"
+
+    day_curve = [
+        ["2025-01-01T00:00:00Z", 100000.0],
+        ["2025-01-02T00:00:00Z", 100250.0],
+        ["2025-01-03T00:00:00Z", 100450.0],
+        ["2025-01-04T00:00:00Z", 100900.0],
+        ["2025-01-05T00:00:00Z", 101100.0],
+    ]
+    scalping_curve = [
+        ["2025-01-03T00:00:00Z", 60000.0],
+        ["2025-01-04T00:00:00Z", 60300.0],
+        ["2025-01-05T00:00:00Z", 60450.0],
+    ]
+
+    _write_metrics(
+        day_run / "metrics.json",
+        {
+            "trades": 4,
+            "equity_curve": day_curve,
+            "runtime": {"execution_health": {"reject_rate": 0.01, "slippage_bps": 3.0}},
+        },
+    )
+    _write_metrics(
+        scalping_run / "metrics.json",
+        {
+            "trades": 2,
+            "equity_curve": scalping_curve,
+            "runtime": {"execution_health": {"reject_rate": 0.02, "slippage_bps": 5.0}},
+        },
+    )
+
+    snapshot_dir = tmp_path / "snapshot_offset"
+    cmd = [
+        sys.executable,
+        "scripts/build_router_snapshot.py",
+        "--output",
+        str(snapshot_dir),
+        "--manifest",
+        str(DAY_MANIFEST),
+        "--manifest",
+        str(SCALPING_MANIFEST),
+        "--manifest-run",
+        f"day_orb_5m_v1={day_run}",
+        "--manifest-run",
+        f"tokyo_micro_mean_reversion_v0={scalping_run}",
+        "--positions",
+        "day_orb_5m_v1=1",
+        "--positions",
+        "tokyo_micro_mean_reversion_v0=1",
+        "--indent",
+        "2",
+    ]
+    subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+    telemetry_path = snapshot_dir / "telemetry.json"
+    telemetry = json.loads(telemetry_path.read_text(encoding="utf-8"))
+
+    corr_value = telemetry["strategy_correlations"]["day_orb_5m_v1"]["tokyo_micro_mean_reversion_v0"]
+    expected_corr = _compute_expected_correlation(
+        [point[1] for point in day_curve[-3:]],
+        [point[1] for point in scalping_curve],
+    )
+    assert corr_value == pytest.approx(expected_corr, rel=1e-6)

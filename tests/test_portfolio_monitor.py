@@ -2,6 +2,7 @@ import json
 import shutil
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Tuple
 
@@ -48,6 +49,15 @@ def _prepare_snapshot(tmp_path: Path) -> Tuple[Path, Dict[str, str]]:
         _override_manifest_name(manifest_dest, new_name)
         sentinel_names[payload["manifest_id"]] = new_name
     return snapshot_dir, sentinel_names
+
+
+def _normalise_label(value: str) -> str:
+    dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
+    return dt.isoformat().replace("+00:00", "Z")
 
 
 def _update_snapshot_telemetry(
@@ -113,6 +123,29 @@ def test_build_portfolio_summary_handles_mixed_timestamp_formats(tmp_path: Path)
     aggregate_curve = summary["aggregate_equity_curve"]
     assert len(aggregate_curve) == 2
     assert all(point["ts"].endswith("Z") for point in aggregate_curve)
+
+
+def test_build_portfolio_summary_handles_offset_equity_curves(tmp_path: Path) -> None:
+    snapshot_dir, _ = _prepare_snapshot(tmp_path)
+
+    metrics_dir = snapshot_dir / "metrics"
+    metrics_files = sorted(metrics_dir.glob("*.json"))
+    offset_path = metrics_files[0]
+    payload = json.loads(offset_path.read_text(encoding="utf-8"))
+    curve = payload["equity_curve"]
+    trimmed_curve = curve[3:]
+    if len(trimmed_curve) < 3:
+        pytest.skip("sample equity curve too short for offset test")
+    payload["equity_curve"] = trimmed_curve
+    offset_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+    expected_start = _normalise_label(trimmed_curve[0][0])
+    summary = build_portfolio_summary(snapshot_dir)
+
+    aggregate_curve = summary["aggregate_equity_curve"]
+    assert aggregate_curve
+    assert aggregate_curve[0]["ts"] == expected_start
+    assert all(point["ts"] >= expected_start for point in aggregate_curve)
 
 
 def test_report_portfolio_summary_cli(tmp_path: Path) -> None:

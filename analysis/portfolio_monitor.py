@@ -97,17 +97,19 @@ def _load_strategy_series(path: Path) -> Tuple[StrategyManifest, List[Tuple[date
 def _aggregate_equity_curves(curves: Mapping[str, List[Tuple[datetime, str, float]]]) -> List[Tuple[datetime, str, float]]:
     if not curves:
         return []
-    timeline_set = {point[0] for series in curves.values() for point in series}
+    start_dt = max(series[0][0] for series in curves.values() if series)
     ts_label: Dict[datetime, str] = {}
     for series in curves.values():
         for dt, label, _ in series:
-            ts_label.setdefault(dt, label)
-    timeline = sorted(timeline_set)
+            if dt >= start_dt and dt not in ts_label:
+                ts_label[dt] = label
+    timeline = [dt for dt in sorted(ts_label) if dt >= start_dt]
     index_map: Dict[str, int] = {key: 0 for key in curves}
     last_values: Dict[str, float] = {key: None for key in curves}
     aggregated: List[Tuple[datetime, str, float]] = []
     for dt in timeline:
         total = 0.0
+        missing_value = False
         for key, series in curves.items():
             idx = index_map[key]
             while idx < len(series) and series[idx][0] <= dt:
@@ -116,10 +118,15 @@ def _aggregate_equity_curves(curves: Mapping[str, List[Tuple[datetime, str, floa
             index_map[key] = idx
             value = last_values[key]
             if value is None:
-                raise ValueError(
-                    f"Equity curve for {key} missing value on or before {ts_label[dt]}"
-                )
+                first_dt, _, first_value = series[0]
+                if dt < first_dt:
+                    value = first_value
+                else:
+                    missing_value = True
+                    break
             total += value
+        if missing_value:
+            continue
         aggregated.append((dt, ts_label[dt], total))
     return aggregated
 
