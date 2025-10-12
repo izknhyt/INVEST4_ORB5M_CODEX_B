@@ -1,6 +1,10 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-07-15: Updated `strategies/scalping_template.ScalpingTemplate.signals` to honour context-provided quantities before
+  invoking `compute_qty_from_ctx`, added a guarded 0.5 fallback when `ev_oco` is unavailable so production sizing always
+  receives a probability, introduced regression coverage in `tests/test_strategy_feature_integration.py` to confirm the
+  template emits intents without mocking sizing, and ran `python3 -m pytest` for validation.
 - 2026-07-06: Ensured `BacktestRunner` reuses cached strategy configuration and instrument metadata, reinstantiates a fresh
   strategy at the start of each `run`, confirmed `load_state_file` restores metrics after the reset, added a regression that
   verifies repeated runs emit from the first eligible bar, and executed `python3 -m pytest tests/test_runner.py
