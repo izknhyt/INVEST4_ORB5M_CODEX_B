@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
 """Run optimization + evaluation loop until targets satisfied or max iterations reached."""
 from __future__ import annotations
+
 import argparse
 import json
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
+from typing import Any, Dict, List
 
 ROOT = Path(__file__).resolve().parents[1]
+
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from core.utils import yaml_compat as yaml
 
 
 def call(cmd: list[str]) -> subprocess.CompletedProcess:
@@ -29,21 +37,112 @@ def run_optuna(trials: int, base_args: list[str], out_path: Path) -> dict | None
         return None
 
 
+def _resolve_repo_path(path: Path) -> Path:
+    if path.is_absolute():
+        return path
+    return (ROOT / path).resolve()
+
+
+def _load_manifest(path: Path) -> Dict[str, Any]:
+    try:
+        content = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        raise FileNotFoundError(f"manifest not found: {path}")
+    data = yaml.safe_load(content)
+    if not isinstance(data, dict):
+        raise ValueError("manifest must be a mapping")
+    return data
+
+
+def _apply_params_to_manifest(data: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
+    manifest = json.loads(json.dumps(data))
+    strategy_block = manifest.setdefault("strategy", {})
+    parameters = strategy_block.setdefault("parameters", {})
+    runner_block = manifest.setdefault("runner", {})
+    runner_cfg = runner_block.setdefault("runner_config", {})
+    runner_cli = runner_block.setdefault("cli_args", {})
+
+    if "or_n" in params:
+        try:
+            parameters["or_n"] = int(params["or_n"])
+        except (TypeError, ValueError):
+            pass
+    if "k_tp" in params:
+        try:
+            parameters["k_tp"] = float(params["k_tp"])
+        except (TypeError, ValueError):
+            pass
+    if "k_sl" in params:
+        try:
+            parameters["k_sl"] = float(params["k_sl"])
+        except (TypeError, ValueError):
+            pass
+    if "threshold_lcb" in params:
+        try:
+            value = float(params["threshold_lcb"])
+        except (TypeError, ValueError):
+            value = None
+        if value is not None:
+            runner_cfg["threshold_lcb_pip"] = value
+            runner_cli["threshold_lcb"] = value
+
+    return manifest
+
+
+def _build_run_sim_args(
+    base_args: List[str],
+    manifest_path: Path,
+    metrics_path: Path,
+    daily_path: Path,
+) -> List[str]:
+    passthrough: List[str] = []
+    skip_next = False
+    for token in base_args:
+        if skip_next:
+            skip_next = False
+            continue
+        if token == "--manifest":
+            skip_next = True
+            continue
+        if token in {"--json-out", "--out-json", "--dump-daily", "--out-daily-csv"}:
+            skip_next = True
+            continue
+        passthrough.append(token)
+    cmd = [sys.executable, str(ROOT / "scripts/run_sim.py"), "--manifest", str(manifest_path)]
+    cmd.extend(passthrough)
+    cmd.extend(["--json-out", str(metrics_path), "--out-daily-csv", str(daily_path)])
+    return cmd
+
+
 def run_sim(base_args: list[str], params: dict, metrics_path: Path, daily_path: Path) -> bool:
-    args = [sys.executable, str(ROOT / "scripts/run_sim.py")]
-    args += base_args
-    args += [
-        "--or-n", str(params.get("or_n", 4)),
-        "--k-tp", f"{params.get('k_tp', 1.0):.2f}",
-        "--k-sl", f"{params.get('k_sl', 0.6):.2f}",
-        "--threshold-lcb", f"{params.get('threshold_lcb', 0.3):.2f}",
-        "--json-out", str(metrics_path),
-        "--dump-daily", str(daily_path),
-        "--dump-max", "0",
-    ]
+    manifest_arg: Path | None = None
+    tokens = list(base_args)
+    for idx, token in enumerate(tokens):
+        if token == "--manifest" and idx + 1 < len(tokens):
+            manifest_arg = _resolve_repo_path(Path(tokens[idx + 1]))
+            break
+    if manifest_arg is None:
+        print("[target_loop] --manifest must be supplied via --base-args")
+        return False
+
+    try:
+        manifest_data = _load_manifest(manifest_arg)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[target_loop] failed to load manifest {manifest_arg}: {exc}")
+        return False
+
+    manifest_with_params = _apply_params_to_manifest(manifest_data, params or {})
+
     metrics_path.parent.mkdir(parents=True, exist_ok=True)
     daily_path.parent.mkdir(parents=True, exist_ok=True)
-    result = call(args)
+
+    with tempfile.TemporaryDirectory(prefix="target_loop_") as tmp_dir:
+        tmp_manifest_path = Path(tmp_dir) / "manifest.yaml"
+        with tmp_manifest_path.open("w", encoding="utf-8") as handle:
+            yaml.safe_dump(manifest_with_params, handle, sort_keys=False)
+        cmd = _build_run_sim_args(tokens, tmp_manifest_path, metrics_path, daily_path)
+        result = call(cmd)
+
     if result.returncode != 0:
         print(result.stderr)
         return False
@@ -90,14 +189,23 @@ def parse_args(argv=None):
     p.add_argument("--trials", type=int, default=5)
     p.add_argument("--max-iter", type=int, default=5)
     p.add_argument("--targets", default="configs/targets.json")
-    p.add_argument("--base-args", nargs=argparse.REMAINDER,
-                   default=["--csv", "data/usdjpy_5m_2018-2024_utc.csv",
-                            "--symbol", "USDJPY",
-                            "--mode", "conservative",
-                            "--equity", "100000",
-                            "--allow-low-rv",
-                            "--allowed-sessions", "LDN,NY"],
-                   help="Base arguments for run_sim")
+    p.add_argument(
+        "--base-args",
+        nargs=argparse.REMAINDER,
+        default=[
+            "--manifest",
+            "configs/strategies/day_orb_5m.yaml",
+            "--csv",
+            "validated/USDJPY/5m.csv",
+            "--symbol",
+            "USDJPY",
+            "--mode",
+            "conservative",
+            "--equity",
+            "100000",
+        ],
+        help="Base arguments for run_sim",
+    )
     p.add_argument("--out", default="analysis/target_loop_summary.json")
     return p.parse_args(argv)
 
