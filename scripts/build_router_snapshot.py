@@ -73,14 +73,24 @@ def _normalise_curve(raw: Sequence[Any], *, manifest_id: str, source: Path) -> L
     points: List[Tuple[datetime, float]] = []
     for entry in raw:
         if isinstance(entry, Mapping):
-            ts = entry.get("ts") or entry.get("timestamp") or entry.get("date")
-            equity = entry.get("equity") or entry.get("value") or entry.get("equity_value")
+            ts = None
+            for key in ("ts", "timestamp", "date"):
+                if key in entry:
+                    ts = entry[key]
+                    break
+            equity = None
+            for key in ("equity", "value", "equity_value"):
+                if key in entry:
+                    equity = entry[key]
+                    break
         elif isinstance(entry, Sequence) and len(entry) >= 2:
             ts, equity = entry[0], entry[1]
         else:
             raise ValueError(f"unsupported equity curve entry {entry!r} in {source}")
         if ts is None:
             raise ValueError(f"equity curve entry missing timestamp in {source}")
+        if equity is None:
+            raise ValueError(f"equity curve entry missing equity value in {source}")
         ts_str = str(ts)
         try:
             dt = _parse_iso_timestamp(ts_str)
