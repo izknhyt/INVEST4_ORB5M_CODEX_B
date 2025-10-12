@@ -7,7 +7,7 @@ from typing import Dict, Tuple
 
 import pytest
 
-from analysis.portfolio_monitor import build_portfolio_summary
+from analysis.portfolio_monitor import build_portfolio_summary, load_portfolio_snapshot
 
 FIXTURE_DIR = Path("reports/portfolio_samples/router_demo")
 
@@ -160,3 +160,31 @@ def test_build_portfolio_summary_reports_budget_status(tmp_path: Path) -> None:
     assert scalping_entry["budget_over_pct"] == pytest.approx(
         abs(scalping_entry["budget_headroom_pct"])
     )
+
+
+def test_build_portfolio_summary_accepts_zero_equity_values(tmp_path: Path) -> None:
+    snapshot_dir, _ = _prepare_snapshot(tmp_path)
+
+    metrics_dir = snapshot_dir / "metrics"
+    for metrics_file in metrics_dir.glob("*.json"):
+        payload = json.loads(metrics_file.read_text(encoding="utf-8"))
+        curve = payload.get("equity_curve", [])
+        if not curve:
+            continue
+        first_point = curve[0]
+        if isinstance(first_point, list):
+            first_point[1] = 0.0
+        elif isinstance(first_point, dict):
+            first_point["equity"] = 0.0
+        else:
+            raise AssertionError(f"Unexpected equity curve entry format: {first_point!r}")
+        payload["equity_curve"] = curve
+        metrics_file.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+    strategies, _ = load_portfolio_snapshot(snapshot_dir)
+    for series in strategies:
+        equities = [point[2] for point in series.equity_curve]
+        assert any(value == pytest.approx(0.0) for value in equities)
+
+    summary = build_portfolio_summary(snapshot_dir)
+    assert summary["aggregate_equity_curve"]

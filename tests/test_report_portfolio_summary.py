@@ -231,6 +231,68 @@ def test_build_router_snapshot_cli_generates_portfolio_summary(tmp_path: Path) -
     assert summary["correlation_window_minutes"] == pytest.approx(240.0)
 
 
+def test_build_router_snapshot_cli_accepts_zero_equity(tmp_path: Path) -> None:
+    day_run = tmp_path / "runs" / "day_zero"
+    scalping_run = tmp_path / "runs" / "scalping_zero"
+
+    day_curve = [
+        {"ts": "2025-01-01T00:00:00Z", "equity": 0.0},
+        {"ts": "2025-01-02T00:00:00Z", "equity": 100200.0},
+    ]
+    scalping_curve = [
+        ["2025-01-01T00:00:00Z", 50000.0],
+        ["2025-01-02T00:00:00Z", 50100.0],
+    ]
+
+    _write_metrics(
+        day_run / "metrics.json",
+        {
+            "equity_curve": day_curve,
+            "runtime": {"execution_health": {"reject_rate": 0.0, "slippage_bps": 1.5}},
+        },
+    )
+    _write_metrics(
+        scalping_run / "metrics.json",
+        {
+            "equity_curve": scalping_curve,
+            "runtime": {"execution_health": {"reject_rate": 0.02, "slippage_bps": 2.5}},
+        },
+    )
+
+    snapshot_dir = tmp_path / "snapshot_zero"
+    cmd = [
+        sys.executable,
+        "scripts/build_router_snapshot.py",
+        "--output",
+        str(snapshot_dir),
+        "--manifest",
+        str(DAY_MANIFEST),
+        "--manifest",
+        str(SCALPING_MANIFEST),
+        "--manifest-run",
+        f"day_orb_5m_v1={day_run}",
+        "--manifest-run",
+        f"tokyo_micro_mean_reversion_v0={scalping_run}",
+        "--positions",
+        "day_orb_5m_v1=1",
+        "--positions",
+        "tokyo_micro_mean_reversion_v0=1",
+        "--correlation-window-minutes",
+        "240",
+        "--indent",
+        "2",
+    ]
+    subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+    telemetry_path = snapshot_dir / "telemetry.json"
+    telemetry = json.loads(telemetry_path.read_text(encoding="utf-8"))
+    assert telemetry["execution_health"]["day_orb_5m_v1"]["reject_rate"] == pytest.approx(0.0)
+
+    day_metrics_path = snapshot_dir / "metrics" / "day_orb_5m_v1.json"
+    day_payload = json.loads(day_metrics_path.read_text(encoding="utf-8"))
+    assert day_payload["equity_curve"][0]["equity"] == pytest.approx(0.0)
+
+
 def test_build_router_snapshot_cli_uses_router_demo_metrics(tmp_path: Path) -> None:
     snapshot_dir = _build_router_snapshot_from_samples(tmp_path)
 

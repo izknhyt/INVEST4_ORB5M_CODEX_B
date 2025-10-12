@@ -43,14 +43,24 @@ def _normalise_equity_curve(raw: Sequence[Any]) -> List[Tuple[datetime, str, flo
     normalised: List[Tuple[datetime, str, float]] = []
     for entry in raw:
         if isinstance(entry, Mapping):
-            ts = entry.get("ts") or entry.get("timestamp") or entry.get("date")
-            equity = entry.get("equity") or entry.get("value") or entry.get("equity_value")
+            ts = None
+            for key in ("ts", "timestamp", "date"):
+                if key in entry:
+                    ts = entry[key]
+                    break
+            equity = None
+            for key in ("equity", "value", "equity_value"):
+                if key in entry:
+                    equity = entry[key]
+                    break
         elif isinstance(entry, Sequence) and len(entry) >= 2:
             ts, equity = entry[0], entry[1]
         else:
             raise ValueError(f"Unsupported equity curve entry: {entry!r}")
         if ts is None:
             raise ValueError(f"Equity curve entry missing timestamp: {entry!r}")
+        if equity is None:
+            raise ValueError(f"Equity curve entry missing equity value: {entry!r}")
         ts_str = str(ts)
         dt = _parse_timestamp(ts_str)
         normalised.append((dt, ts_str, _coerce_float(equity)))
