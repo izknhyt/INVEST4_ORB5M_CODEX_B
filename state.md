@@ -9,6 +9,7 @@
   template emits intents without mocking sizing, and ran `python3 -m pytest` for validation.
 - 2026-07-16: Fixed trailing-stop EV accounting so profitable `exit_reason="trail"` closes increment win metrics / EV buckets, added regression coverage in `tests/test_runner.py::test_finalize_trade_counts_trailing_exit_as_win`, refreshed `docs/backtest_runner_logging.md`, and ran `python3 -m pytest` after the change。
 - 2026-07-20: Ensured `scripts/run_sim.py` keeps probability-weighted daily `wins` values by updating `_write_daily_csv`, added regression coverage in `tests/test_run_sim_cli.py::test_write_daily_csv_preserves_fractional_wins`, and ran `python3 -m pytest` to confirm the suite stays green。
+- 2026-07-21: Reviewed and expanded `docs/plans/phase4_sim_bugfix_plan.md` with scope guardrails, preflight alignment steps, risk/owner assignments, and updated open-question guidance. ドキュメント更新のみのためテストは未実施。
 - 2026-07-06: Ensured `BacktestRunner` reuses cached strategy configuration and instrument metadata, reinstantiates a fresh
   strategy at the start of each `run`, confirmed `load_state_file` restores metrics after the reset, added a regression that
   verifies repeated runs emit from the first eligible bar, and executed `python3 -m pytest tests/test_runner.py
