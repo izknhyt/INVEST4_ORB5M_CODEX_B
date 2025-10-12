@@ -1,6 +1,7 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-07-26: Consolidated the Phase 4 risk register into a single table within `docs/plans/phase4_sim_bugfix_plan.md`, merged duplicate entries, and refreshed mitigation metadata (likelihood / owner columns). ドキュメント更新のみのためテスト実行は不要と判断。
 - 2026-07-24: Confirmed `validated/USDJPY/5m.csv` currently ends at 2025-10-02T22:15:00Z, updated `docs/plans/phase4_sim_bugfix_plan.md` W1 baseline commands to match the available data, and documented the restoration steps for a future 2025-12-31 horizon. ドキュメント更新のみのためテスト実行は不要と判断。
 - 2026-07-23: Added review follow-up checklist, bug notebook table template, and compare-metrics backlog call-outs to `docs/plans/phase4_sim_bugfix_plan.md` so plan reviewers can trace accountability gaps before W0 exit. ドキュメント更新のみのためテスト実行は不要と判断。
 - 2026-07-22: Refined `docs/plans/phase4_sim_bugfix_plan.md` (dependencies, workstream exit signals, resume parity validation, risk register) so Phase 4 simulation remediation has senior-level guardrails before kick-off. Added runner state fingerprint guardrails, resume smoke commands, and mitigation ownership entries. ドキュメント更新のみであるためテスト実行は不要と判断。
