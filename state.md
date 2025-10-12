@@ -1,6 +1,7 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-07-22: Refined `docs/plans/phase4_sim_bugfix_plan.md` (dependencies, workstream exit signals, test ownership matrix, risk register) so Phase 4 simulation remediation has senior-level guardrails before kick-off. ドキュメント更新のみであるためテスト実行は不要と判断。
 - 2026-07-15: Refreshed Phase 4 documentation (`docs/progress_phase4.md`, `docs/go_nogo_checklist.md`, `docs/task_backlog.md`, `docs/todo_next.md`) so Go/No-Go evidence capture includes owner/frequency/log columns and backlog DoD reflects the updated workflow. ドキュメントのみの更新のためテスト実行は不要と判断。
 - 2026-07-15: Rebuilt perennial USDJPY dataset by merging `data/usdjpy_5m_2018-2024_utc.csv`, `data/usdjpy_5m_2025.csv`, and the recent snapshot into `validated/USDJPY/5m.csv` / `_with_header.csv` (579,578 rows). Archived the short-run slice as `validated/USDJPY/5m_recent*.csv` and ran `python3 scripts/check_data_quality.py --csv validated/USDJPY/5m.csv --symbol USDJPY --out-json reports/data_quality/usdjpy_5m_summary.json --calendar-day-summary`（coverage≈0.71、ギャップ=週末・祝日）。長期 run_sim はサンドボックス制限で途中停止したためローカル再実行が必要。
 - 2026-07-15: Updated `strategies/scalping_template.ScalpingTemplate.signals` to honour context-provided quantities before
