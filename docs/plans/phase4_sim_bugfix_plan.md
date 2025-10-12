@@ -147,7 +147,7 @@ Workstreams overlap by at most two days—changes only graduate downstream once 
 - Optional focussed suites (`tests/test_run_sim_io.py`, `tests/test_data_robustness.py::test_missing_calendar_blocks` once added).
 
 ### 5.3 State Persistence Smoke
-Run a shortened resume scenario (`python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --mode conservative --start-ts 2024-01-01T00:00:00Z --end-ts 2024-03-31T23:55:00Z --out-dir runs/phase4/backtests/resume_q1 --auto-state`) twice and diff outputs to ensure deterministic reloads.
+Run a shortened resume scenario (`python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode conservative --start-ts 2024-01-01T00:00:00Z --end-ts 2024-03-31T23:55:00Z --out-dir runs/phase4/backtests/resume_q1 --auto-state`) twice and diff outputs to ensure deterministic reloads.
 
 ### 5.4 Simulation Spot Checks
 Run shortened windows (e.g., 2024 Q1) during development to validate performance quickly before launching the full 2018–2025 backtest.
