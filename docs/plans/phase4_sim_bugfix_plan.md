@@ -69,9 +69,10 @@ Workstreams overlap by at most two days—changes only graduate downstream once 
 1. Validate input data before any code change:
    - `python3 scripts/check_data_quality.py --csv validated/USDJPY/5m.csv --calendar-day-summary`
    - Document coverage in `docs/progress_phase4.md` and attach representative JSON snippets if anomalies exist.
-2. Establish gold runs for both modes:
-   - `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode conservative --start-ts 2018-01-01T00:00:00Z --end-ts 2025-12-31T23:55:00Z --out-json reports/long_conservative.json --out-daily-csv reports/long_conservative_daily.csv --out-dir runs/phase4/backtests --no-auto-state`
-   - `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode bridge --start-ts 2018-01-01T00:00:00Z --end-ts 2025-12-31T23:55:00Z --out-json reports/long_bridge.json --out-daily-csv reports/long_bridge_daily.csv --out-dir runs/phase4/backtests --no-auto-state`
+2. Establish gold runs for both modes (the validated snapshot currently ends at **2025-10-02T22:15:00Z**):
+   - `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode conservative --start-ts 2018-01-01T00:00:00Z --end-ts 2025-10-02T22:15:00Z --out-json reports/long_conservative.json --out-daily-csv reports/long_conservative_daily.csv --out-dir runs/phase4/backtests --no-auto-state`
+   - `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode bridge --start-ts 2018-01-01T00:00:00Z --end-ts 2025-10-02T22:15:00Z --out-json reports/long_bridge.json --out-daily-csv reports/long_bridge_daily.csv --out-dir runs/phase4/backtests --no-auto-state`
+   - If the dataset is later extended (e.g., restored to a 2025-12-31T23:55:00Z horizon), re-run the data quality audit, update both `--end-ts` arguments to match the new terminal bar, and refresh the recorded hashes/artefact links in `docs/progress_phase4.md` and `state.md` before declaring the baselines reproducible.
 3. Validate resume parity using the same artefact directory:
    - First pass (state creation): `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs/phase4/backtests/resume_check --auto-state`
    - Second pass (state reuse): re-run the command above and diff `metrics.json`/`records.csv`; log the fingerprint + diff outcome in `docs/progress_phase4.md`.
