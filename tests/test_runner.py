@@ -5,7 +5,8 @@ import math
 import tempfile
 from contextlib import ExitStack
 from pathlib import Path
-from typing import List, Optional, Tuple, Mapping
+from typing import Any, List, Optional, Tuple, Mapping
+from types import SimpleNamespace
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
@@ -3288,6 +3289,142 @@ class TestRunner(unittest.TestCase):
 
         self.assertEqual(updates, [False])
         self.assertFalse(runner.calib_positions)
+
+    def test_run_resets_strategy_state_between_invocations(self) -> None:
+        class ResettableStrategy(Strategy):
+            def __init__(self) -> None:
+                super().__init__()
+                self.start_count = 0
+                self.run_id = 0
+                self._eligible_seen = False
+                self._pending_signal: Optional[dict] = None
+                self._strategy_id = id(self)
+
+            def on_start(
+                self,
+                cfg: dict,
+                instruments: List[str],
+                state_store: dict,
+            ) -> None:
+                self.start_count += 1
+                self.run_id = self.start_count
+                self._eligible_seen = False
+                self._pending_signal = None
+
+            def on_bar(self, bar: dict) -> None:
+                if bar.get("eligible") and not self._eligible_seen:
+                    self._eligible_seen = True
+                    self._pending_signal = {
+                        "side": "BUY",
+                        "tp_pips": 1.0,
+                        "sl_pips": 1.0,
+                        "run_id": self.run_id,
+                        "strategy_id": self._strategy_id,
+                    }
+                else:
+                    self._pending_signal = None
+
+            def get_pending_signal(self) -> Optional[dict]:
+                return self._pending_signal
+
+            def signals(self, ctx: Optional[Mapping[str, Any]] = None) -> List[OrderIntent]:
+                if self._pending_signal is None:
+                    return []
+                self._pending_signal = None
+                return [OrderIntent(side="BUY", qty=1.0)]
+
+        runner = BacktestRunner(
+            equity=10_000.0,
+            symbol="USDJPY",
+            strategy_cls=ResettableStrategy,
+        )
+
+        base_ts = datetime(2024, 1, 1, 0, 0, tzinfo=timezone.utc)
+        bar_a = make_bar(base_ts, "USDJPY", 150.0, 150.2, 149.8, 150.1, spread=0.01)
+        bar_b = make_bar(
+            base_ts + timedelta(minutes=5),
+            "USDJPY",
+            150.1,
+            150.3,
+            149.9,
+            150.2,
+            spread=0.01,
+        )
+        bar_b["eligible"] = True
+        first_run_bars = [bar_a, bar_b]
+
+        bar_c = make_bar(
+            base_ts + timedelta(minutes=10),
+            "USDJPY",
+            150.2,
+            150.4,
+            150.0,
+            150.3,
+            spread=0.01,
+        )
+        bar_c["eligible"] = True
+        bar_d = make_bar(
+            base_ts + timedelta(minutes=15),
+            "USDJPY",
+            150.3,
+            150.5,
+            150.1,
+            150.4,
+            spread=0.01,
+        )
+        second_run_bars = [bar_c, bar_d]
+
+        captured_signals: List[Tuple[int, str, int]] = []
+
+        def fake_compute_features(
+            bar: dict,
+            *,
+            session: str,
+            new_session: bool,
+            calibrating: bool,
+        ) -> SimpleNamespace:
+            return SimpleNamespace(bar_input=bar, ctx={}, entry_ctx=None)
+
+        def fake_maybe_enter_trade(
+            *,
+            bar: dict,
+            features: SimpleNamespace,
+            mode: str,
+            pip_size_value: float,
+            calibrating: bool,
+        ) -> None:
+            runner.stg.on_bar(features.bar_input)
+            pending = runner.stg.get_pending_signal()
+            if pending is None:
+                return
+            captured_signals.append(
+                (
+                    pending["strategy_id"],
+                    features.bar_input["timestamp"],
+                    pending["run_id"],
+                )
+            )
+            runner.stg.signals()
+
+        with patch.object(runner, "_compute_features", side_effect=fake_compute_features), patch.object(
+            runner, "_handle_active_position", return_value=False
+        ), patch.object(
+            runner, "_resolve_calibration_positions", return_value=None
+        ), patch.object(
+            runner.execution, "maybe_enter_trade", side_effect=fake_maybe_enter_trade
+        ):
+            runner.run(first_run_bars)
+            self.assertTrue(captured_signals)
+            first_strategy_id, first_run_ts, first_run_id = captured_signals[0]
+            self.assertEqual(first_run_ts, bar_b["timestamp"])
+
+            captured_signals.clear()
+
+            runner.run(second_run_bars)
+            self.assertTrue(captured_signals)
+            second_strategy_id, second_run_ts, second_run_id = captured_signals[0]
+            self.assertEqual(second_run_ts, bar_c["timestamp"])
+            self.assertNotEqual(second_strategy_id, first_strategy_id)
 
 
 
