@@ -187,6 +187,7 @@ Workstreams overlap by at most two days—changes only graduate downstream once 
 | Week 1 | Hotfix high-priority defects, expand regression suite | All known blockers resolved, pytest suite green, bug notebook only contains deferred/low-priority issues |
 | Week 2 | Structural refactor, logging upgrades | Modular `scripts/run_sim.py`, new helper modules tested, performance deltas within tolerance |
 | Week 3 | Operational polish, automation rehearsal | Nightly smoke plan documented, Go/No-Go checklist aligned, operator appendix published |
+| Week 4 | Observability & Operational Sync | Nightly smoke documentation approved, operator appendix live, Codex Cloud smoke dry-run recorded |
 
 ## 9. Exit Criteria (Phase 4 Readiness)
 - Conservative and Bridge 2018–2025 runs meet Phase 4 DoD metrics and updated artefacts are stored under `reports/` with reproducible commands.
