@@ -590,4 +590,7 @@
 
 - [OPS-CODEX-GUIDE] 2025-10-08: Aligned workflow docs with review feedback. DoD: [docs/task_backlog.md#codex-session-operations-guide](docs/task_backlog.md#codex-session-operations-guide).
 ## Next Task
-- Backfill the validated USDJPY dataset for Phase4: promote a headered `validated/USDJPY/5m.csv` covering 2018–2024, verify integrity with `python3 scripts/check_data_quality.py --csv validated/USDJPY/5m.csv --calendar-day-summary --fail-under-coverage 0.995 --fail-on-duplicate-groups 5`, then rerun the long-run baselines (`python3 scripts/run_sim.py ... --out-dir runs/phase4/backtests --no-auto-state`) to refresh metrics in `docs/progress_phase4.md` and unblock parameter sweeps。
+- Backfill the validated USDJPY dataset for Phase4: promote a headered `validated/USDJPY/5m.csv` covering 2018–2024 to restore the W1 baseline reproducibility window. _Updated 2026-07-25: current validated coverage is limited to the 2018-01-01T00:00:00Z–2024-12-31T23:55:00Z slice sourced from `data/usdjpy_5m_2018-2024_utc.csv`; revisit this entry when the 2025 ingest is scheduled._
+  - Acquire or regenerate the 2018–2024 USDJPY 5m bars (ingest pipeline, archival S3 dump, or Dukascopy/yfinance replay) before overwriting `validated/USDJPY/5m.csv`.
+  - Verify integrity with `python3 scripts/check_data_quality.py --csv validated/USDJPY/5m.csv --calendar-day-summary --fail-under-coverage 0.995 --fail-on-duplicate-groups 5`, archive the JSON summaries, and log hashes in `docs/progress_phase4.md`.
+  - Rerun the long-run baselines using the commands in [docs/plans/phase4_sim_bugfix_plan.md §W1](docs/plans/phase4_sim_bugfix_plan.md#w1-baseline-reproducibility) once validation passes, and note in this section when the horizon is extended to 2025.
