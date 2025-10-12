@@ -19,6 +19,11 @@
 - **Downstream integrations**: Router/portfolio analytics ingest EV bucket summaries. Coordinate format changes with the owners listed in `docs/router_architecture.md` before merging.
 - **Ops tooling**: `scripts/manage_task_cycle.py` remains the gatekeeper for doc/state synchronisation. W0 must validate the dry-run flows so later stages do not drift from operational guardrails.
 
+## 0.3 Review Follow-ups
+- [ ] **Bug notebook template landed** — Publish the table skeleton described in W0.6 directly inside `docs/progress_phase4.md#bug-tracking` and link to the owning backlog ticket before declaring W0 complete. Owner: Tech Lead (Due: W0 end-of-week).
+- [ ] **Baseline evidence cross-links** — Once dataset hashes and baseline commands are logged, ensure `docs/progress_phase4.md` and `state.md` share the same SHA256 / row-count tuples and include a permalink to `runs/phase4/backtests/index.csv`. Owner: Ops (Due: first W1 sync).
+- [ ] **Compare-metrics automation** — If `scripts/compare_metrics.py` does not yet exist, open backlog item `P4-04` during W1 kickoff to track delivery and reference it from Section 5.5 so diff automation is not forgotten. Owner: Backtest WG (Due: W1 day 2).
+
 ## 1. Objectives & Success Criteria
 - **Stability**: Conservative and Bridge 2018–2025 runs complete without crashes, non-deterministic fills, or missing artefacts. Runs seeded from clean state must match reruns that resume from persisted state snapshots.
 - **Accuracy**: Metrics (`Sharpe`, `max_drawdown`, `annual_win_rate`, EV buckets) match archived baselines or expected improvements after parameter updates. Numerical tolerance: ±0.5 bp on win-rate/Sharpe, ±0.1% on drawdown, 0 tolerance for trade-count drift unless documented.
@@ -55,6 +60,10 @@ Workstreams overlap by at most two days—changes only graduate downstream once 
 4. Capture hardware/runtime baselines (CPU type, RAM, average wall-clock for conservative run) to detect performance regressions later.
 5. Validate `scripts/manage_task_cycle.py --dry-run start-task --anchor P4-01` and `--dry-run finish-task` outputs so doc/state commits remain reproducible when workstreams close.
 6. Stage a shared bug notebook skeleton at `docs/progress_phase4.md#bug-tracking` (table placeholder) before remediation starts.
+   | Bug ID | Date Logged | Symptom Summary | Impact | Status | Regression Test | Artefact Link | Owner |
+   | --- | --- | --- | --- | --- | --- | --- | --- |
+   | TBD-001 | 2026-07-XX | Example: Resume run drifts daily wins | High | Open | tests/test_runner.py::test_resume_parity | runs/phase4/backtests/resume_check/metrics.json | Backtest WG |
+   Capture at least the columns above when seeding the table so subsequent updates stay consistent.
 
 ### W1 — Baseline Reproducibility
 1. Validate input data before any code change:
@@ -67,6 +76,7 @@ Workstreams overlap by at most two days—changes only graduate downstream once 
    - First pass (state creation): `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs/phase4/backtests/resume_check --auto-state`
    - Second pass (state reuse): re-run the command above and diff `metrics.json`/`records.csv`; log the fingerprint + diff outcome in `docs/progress_phase4.md`.
 4. Diff `metrics.json` and `daily.csv` against archived runs; record deltas (expected vs unexpected) in `docs/progress_phase4.md` with direct file links.
+   - Use `python3 scripts/compare_metrics.py --left <gold>/metrics.json --right <candidate>/metrics.json` (once implemented) and note the diff artefact path. If the script is still pending, log the backlog ticket opened in Section 0.3 inside the doc entry so reviewers can trace accountability.
 5. Snapshot CLI stdout/stderr and key log excerpts into `runs/phase4/backtests/<timestamp>/session.log` for reproducibility.
 6. Store SHA256 hashes for each artefact (`metrics.json`, `daily.csv`, `records.csv`) and reference them in `docs/progress_phase4.md`.
 7. Set up `reports/diffs/README.md` summarising how to interpret diff outputs to avoid misclassification of expected vs unexpected deltas.
@@ -122,6 +132,7 @@ Workstreams overlap by at most two days—changes only graduate downstream once 
 - State persistence smoke: run a shortened resume scenario (`python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --mode conservative --start-ts 2024-01-01T00:00:00Z --end-ts 2024-03-31T23:55:00Z --out-dir runs/phase4/backtests/resume_q1 --auto-state`) twice and diff outputs to ensure deterministic reloads.
 - Simulation spot checks: run shortened windows (e.g., 2024 Q1) during development to validate performance quickly before launching the full 2018–2025 backtest.
 - Artefact diffing: adopt `python3 scripts/compare_metrics.py --left runs/phase4/backtests/<prev>/metrics.json --right runs/phase4/backtests/<curr>/metrics.json` (script to add if missing) to automate numerical comparisons.
+  - If the helper script has not landed yet, reference backlog `P4-04` in the run log and capture a manual diff workflow (e.g., `jq` + spreadsheet steps) so auditors understand the temporary process.
 - Continuous integration: gate merges on pytest success; optionally integrate the conservative long-run command as a nightly job in Codex Cloud.
 - Test debt tracker: maintain a checklist of unconverted manual repro steps; escalate any open items at the weekly review.
 
