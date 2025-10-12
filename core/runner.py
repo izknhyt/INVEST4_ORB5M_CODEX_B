@@ -10,6 +10,7 @@ NOTE: Placeholder thresholds and simplified assumptions to keep dependencies min
 from __future__ import annotations
 from typing import Any, Callable, ClassVar, Dict, Iterable, List, Mapping, Optional, Tuple, Set, Union
 from collections import deque
+from copy import deepcopy
 import hashlib
 import math
 from datetime import datetime, timezone, timedelta
@@ -533,10 +534,9 @@ class BacktestRunner:
         self.lifecycle.reset_slip_learning()
 
         # strategy
-        self.stg = self.strategy_cls()
-        self.stg.on_start(self.rcfg.strategy.as_dict(), [symbol], {})
-        self._strategy_gate_hook = self._resolve_strategy_hook("strategy_gate")
-        self._ev_threshold_hook = self._resolve_strategy_hook("ev_threshold")
+        self._strategy_cfg: Dict[str, Any] = self.rcfg.strategy.as_dict()
+        self._instruments: List[str] = [symbol]
+        self._initialise_strategy_instance()
         self._apply_ev_profile()
 
     def _init_ev_state(self) -> None:
@@ -547,6 +547,14 @@ class BacktestRunner:
 
     def _reset_runtime_state(self) -> None:
         self.lifecycle.reset_runtime_state()
+
+    def _initialise_strategy_instance(self) -> None:
+        cfg_payload = deepcopy(self._strategy_cfg)
+        instruments = list(self._instruments)
+        self.stg = self.strategy_cls()
+        self.stg.on_start(cfg_payload, instruments, {})
+        self._strategy_gate_hook = self._resolve_strategy_hook("strategy_gate")
+        self._ev_threshold_hook = self._resolve_strategy_hook("ev_threshold")
 
     def _build_rv_window(self) -> deque:
         return deque(maxlen=self.rcfg.rv_q_lookback_bars)
@@ -1476,10 +1484,10 @@ class BacktestRunner:
     def run(self, bars: List[Dict[str, Any]], mode: str = "conservative") -> Metrics:
         """Run a full batch simulation resetting runtime and learning state first.
 
-        The strategy instance itself is reused across runs so strategy-level state
-        management should ensure fresh signals per bar when invoking ``run``
-        repeatedly.
+        Each invocation reinstantiates the strategy so per-strategy caches and
+        pending signals are cleared before processing the provided bars.
         """
+        self._initialise_strategy_instance()
         self._reset_runtime_state()
         self._init_ev_state()
         self._reset_slip_learning()
