@@ -127,16 +127,6 @@ Workstreams overlap by at most two days—changes only graduate downstream once 
 6. Dry-run the smoke bundle on Codex Cloud staging once and record wall-clock/runtime stats plus any deviations from local execution.
 
 ## 5. Test & Tooling Strategy
-- Pytest guard rails:
-  - Core regression: `python3 -m pytest tests/test_run_sim_cli.py tests/test_runner.py tests/test_runner_features.py`
-  - Robustness sweep: `python3 -m pytest -k robustness --maxfail=1`
-  - Optional focussed suites (`tests/test_run_sim_io.py`, `tests/test_data_robustness.py::test_missing_calendar_blocks` once added).
-- State persistence smoke: run a shortened resume scenario (`python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --mode conservative --start-ts 2024-01-01T00:00:00Z --end-ts 2024-03-31T23:55:00Z --out-dir runs/phase4/backtests/resume_q1 --auto-state`) twice and diff outputs to ensure deterministic reloads.
-- Simulation spot checks: run shortened windows (e.g., 2024 Q1) during development to validate performance quickly before launching the full 2018–2025 backtest.
-- Artefact diffing: adopt `python3 scripts/compare_metrics.py --left runs/phase4/backtests/<prev>/metrics.json --right runs/phase4/backtests/<curr>/metrics.json` (script to add if missing) to automate numerical comparisons.
-  - If the helper script has not landed yet, reference backlog `P4-04` in the run log and capture a manual diff workflow (e.g., `jq` + spreadsheet steps) so auditors understand the temporary process.
-- Continuous integration: gate merges on pytest success; optionally integrate the conservative long-run command as a nightly job in Codex Cloud.
-- Test debt tracker: maintain a checklist of unconverted manual repro steps; escalate any open items at the weekly review.
 
 ### 5.1 Test Ownership Matrix
 | Suite / Tool | Purpose | Trigger | Owner | Exit Criteria |
@@ -146,6 +136,27 @@ Workstreams overlap by at most two days—changes only graduate downstream once 
 | `python3 -m pytest -k robustness --maxfail=1` | Stress edge cases (missing data, partial windows) | Prior to merging remediation/refactor commits | QA | Zero unexpected failures; new fixtures documented in `tests/fixtures/run_sim/README.md` |
 | Long-run conservative/bridge backtests | Financial regression coverage | After W1 baseline + post-defect batches | Backtest WG | Metrics within tolerance, hashes logged in `state.md` |
 | Codex Cloud smoke bundle | Automation health | Weekly + before release candidate | Ops | Report attached to `docs/progress_phase4.md` with runtime + artefact links |
+
+### 5.2 Pytest Guard Rails
+- Core regression: `python3 -m pytest tests/test_run_sim_cli.py tests/test_runner.py tests/test_runner_features.py`
+- Robustness sweep: `python3 -m pytest -k robustness --maxfail=1`
+- Optional focussed suites (`tests/test_run_sim_io.py`, `tests/test_data_robustness.py::test_missing_calendar_blocks` once added).
+
+### 5.3 State Persistence Smoke
+Run a shortened resume scenario (`python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --mode conservative --start-ts 2024-01-01T00:00:00Z --end-ts 2024-03-31T23:55:00Z --out-dir runs/phase4/backtests/resume_q1 --auto-state`) twice and diff outputs to ensure deterministic reloads.
+
+### 5.4 Simulation Spot Checks
+Run shortened windows (e.g., 2024 Q1) during development to validate performance quickly before launching the full 2018–2025 backtest.
+
+### 5.5 Compare-metrics Automation
+Adopt `python3 scripts/compare_metrics.py --left runs/phase4/backtests/<prev>/metrics.json --right runs/phase4/backtests/<curr>/metrics.json` (script to add if missing) to automate numerical comparisons.
+- If the helper script has not landed yet, reference backlog `P4-04` in the run log and capture a manual diff workflow (e.g., `jq` + spreadsheet steps) so auditors understand the temporary process.
+
+### 5.6 Continuous Integration
+Gate merges on pytest success; optionally integrate the conservative long-run command as a nightly job in Codex Cloud.
+
+### 5.7 Test Debt Tracker
+Maintain a checklist of unconverted manual repro steps; escalate any open items at the weekly review.
 
 ## 6. Data Integrity Gates
 - Always run the coverage audit before and after large refactors: `python3 scripts/check_data_quality.py --csv validated/USDJPY/5m.csv --calendar-day-summary`.

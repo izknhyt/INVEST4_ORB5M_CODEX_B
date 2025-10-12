@@ -1,6 +1,7 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-07-29: Refined `docs/plans/phase4_sim_bugfix_plan.md` Section 5 structure so the compare-metrics automation follow-up now points to the dedicated `### 5.5` guidance, adding subsection headers for the surrounding tooling notes. ドキュメントのみの更新のためテスト実行は不要と判断。
 - 2026-07-28: Re-confirmed the latest USDJPY 5 m bar (2025-10-02T22:15:00Z) in `validated/USDJPY/5m.csv`, updated `docs/plans/phase4_sim_bugfix_plan.md` W1 baseline commands to match the truncated 2025 coverage, and documented the restoration steps required when the 2025-12-31 horizon returns. ドキュメント更新のみのためテスト実行は不要と判断。
 - 2026-07-27: Extended `docs/plans/phase4_sim_bugfix_plan.md` timeline with the Week 4 observability/ops sync exit signals (nightly smoke documentation, operator appendix, Codex Cloud dry-run) and revalidated W0–W4 numbering alignment. ドキュメント更新のみのためテスト実行は不要と判断。
 - 2026-07-26: Consolidated the Phase 4 risk register into a single table within `docs/plans/phase4_sim_bugfix_plan.md`, merged duplicate entries, and refreshed mitigation metadata (likelihood / owner columns). ドキュメント更新のみのためテスト実行は不要と判断。
