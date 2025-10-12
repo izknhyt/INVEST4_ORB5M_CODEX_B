@@ -155,13 +155,15 @@ Workstreams overlap by at most two days—changes only graduate downstream once 
 - Capture validation evidence (row counts, duplicate stats) in `reports/data_quality/phase4/` with timestamps for audit.
 
 ## 6.1 Risk Register & Mitigations
-| Risk | Impact | Mitigation / Owner |
-| --- | --- | --- |
-| Dataset refresh slips past W1 | Baseline parity impossible, downstream automation blocked | Ops to pin dataset hash in `state.md` before W1; Tech Lead to block code merges until hashes recorded |
-| Runner refactor breaks persisted states | Nightly jobs fail or diverge silently | Add resume regression tests (W2) and enforce manual resume smoke run (W1); QA to monitor fingerprint deltas |
-| Codex Cloud runtime > 90 minutes | Automation SLA missed, smoke bundle skipped | Capture runtime telemetry in W1 and profile hotspots during W3 refactor; escalate if >80 minutes sustained |
-| Logging schema drift without doc updates | Incident response playbooks outdated | Ops to require `docs/state_runbook.md` diff in every PR touching logging; DevRel to audit weekly |
-| Diff tooling backlog (compare_metrics script) not delivered | Manual metric checks become error-prone | Assign Backtest WG owner during W2, fail release review if diff script missing |
+| Risk | Impact | Likelihood | Mitigation / Contingency | Owner |
+| --- | --- | --- | --- | --- |
+| Validated dataset backfill slips or diverges from plan | Blocks W1 gold runs, invalidates hashes, and stalls baseline parity | Medium | Lock the CSV snapshot in git-lfs or the artefact store, record checksum early, keep a fallback headerless snapshot for smoke tests, and block merges until hashes are recorded in `state.md` | Ops + Backtest WG |
+| Runner refactor breaks persisted states | Nightly jobs fail or diverge silently | Medium | Add resume regression tests during W2, enforce the manual resume smoke run in W1, and have QA monitor runner fingerprint deltas | Backtest WG + QA |
+| Refactor introduces runtime regression >10% | Extends automation window beyond 90 minutes | Medium | Capture baseline runtimes in W0, add `analysis/perf_baseline.md` quick-check commands if needed, and revert to the previous module boundary when regressions persist beyond a day | Platform |
+| Codex Cloud automation resource limits | Nightly smoke bundle flakes or times out | Medium | Capture runtime telemetry in W1, profile hotspots during the W3 refactor, dry-run in W4.6, adjust concurrency or dataset slices, and document manual rerun steps in `docs/state_runbook.md` while escalating when runtime exceeds 80 minutes | Ops |
+| Bug notebook entries left untested | Latent regressions reappear post-release | Low-Medium | Enforce the W2.8 test reference requirement, hold weekly notebook status reviews, and block merges lacking linked test IDs | Tech Lead |
+| Logging schema drift without documentation updates | Downstream dashboards fail to ingest updates and incident playbooks become outdated | Low | Require a `docs/state_runbook.md` diff on every logging PR, coordinate the W3.8 sign-off, add an integration test stub that loads the latest JSON into router pipeline fixtures, and schedule weekly audits | Ops + DevRel + Platform + Router |
+| Diff tooling backlog (compare_metrics script) not delivered | Manual metric checks become error-prone | Medium | Assign a Backtest WG owner during W2, open backlog item P4-04 if the helper is missing, document the interim manual diff workflow, and fail release review if the script remains absent | Backtest WG |
 
 ## 7. Documentation & Communication
 - `docs/progress_phase4.md`: add a dedicated "Simulation Bugfix & Refactor" subsection with timeline, bug table, and metrics snapshots.
@@ -199,11 +201,3 @@ Workstreams overlap by at most two days—changes only graduate downstream once 
 3. Which subset of the long-run commands can run nightly within Codex Cloud resource constraints? Do we need a shortened scenario for daily health checks? → Action: benchmark a 2019–2020 conservative slice (<30 min target) and document results to decide if nightly cadence is feasible. **Owner**: Ops, coordinate with Backtest WG before Week 2.
 4. Do we need an automated alert when baseline metrics drift beyond tolerance? → Consider extending `scripts/compare_metrics.py` to emit Slack/webhook notifications for off-nominal diffs. **Owner**: Platform to spike during W3, with go/no-go at the Week 3 review.
 
-## 11. Risk Register & Mitigations
-| Risk | Impact | Likelihood | Mitigation / Contingency | Owner |
-| --- | --- | --- | --- | --- |
-| Validated dataset backfill slips or diverges from plan | Blocks W1 gold runs and invalidates hashes | Medium | Lock CSV snapshot in git-lfs or artefact store, record checksum early, add fallback to prior headerless snapshot for smoke tests | Ops + Backtest WG |
-| Refactor introduces runtime regression >10% | Extends automation window beyond 90 minutes | Medium | Capture baseline runtimes in W0, add `analysis/perf_baseline.md` (if needed) with quick-check command, revert to pre-refactor module boundary if regression persists >1 day | Platform |
-| Bug notebook entries left untested | Latent regressions reappear post-release | Low-Medium | Enforce test reference requirement (W2.8), weekly review of notebook status, block merges lacking linked test IDs | Tech Lead |
-| Logging schema drift breaks downstream parsers | Router/portfolio dashboards fail to ingest updates | Low | Coordinate via W3.8 sign-off, add integration test stub that loads latest JSON into router pipeline fixtures | Platform + Router |
-| Codex Cloud automation resource limits | Nightly smoke bundle flakes or times out | Medium | Dry-run in W4.6, adjust concurrency / dataset slice, document manual rerun steps in `docs/state_runbook.md` | Ops |
