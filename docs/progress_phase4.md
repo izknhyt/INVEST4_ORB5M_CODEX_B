@@ -11,6 +11,7 @@
 - 2018–2025 通しの `validated/USDJPY/5m.csv` / `_with_header.csv` を再構築し、既存の短期スナップショットは `validated/USDJPY/5m_recent*.csv` へ退避。`scripts/check_data_quality.py` でギャップ/重複無し（週末ギャップ由来で coverage≈0.71）を確認。
 
 ## 設計・テスト方針ログ
+- 2026-07-22: `scripts/run_sim.py` の CSV ローダーでシンボル比較を大文字・小文字非依存にし、ランアーティファクトへマニフェスト準拠のシンボル表記を保存するよう修正。`datetime.utcnow()` 依存を除去して将来の互換性警告を解消し、`python3 -m pytest tests/test_run_sim_cli.py` でリグレッションを確認した。
 - 2026-07-05: `configs/strategies/day_orb_5m.yaml` に Bridge モードを追加し、`scripts/run_sim.py --no-auto-state` で Conservative/Bridge のベースラインを `runs/phase4/backtests/` に保存。最新 `validated/USDJPY/5m.csv` が 2025 年 10 月以降のみであることを確認し、2018–2024 の validated データ再発行を TODO に登録。
 - 2026-07-15: `data/usdjpy_5m_2018-2024_utc.csv` / `data/usdjpy_5m_2025.csv` / 既存の短期スナップショットをマージし、`validated/USDJPY/5m.csv`（ヘッダ無し）と `validated/USDJPY/5m_with_header.csv`（ヘッダ有り）を更新。従来の短期ビューは `validated/USDJPY/5m_recent*.csv` へ退避し、`scripts/check_data_quality.py --calendar-day-summary` 実行でギャップが週末・祝日由来であることを確認（coverage_ratio=0.71）。
 - 2026-06-27: `docs/plans/phase4_validation_plan.md` を新設。長期バックテスト改善・異常系テスト自動化・Go/No-Go チェックリスト確定の3ストリームについて、評価軸、検証コマンド、アーティファクト更新ルール、週次マイルストーン、リスク対応を定義した。

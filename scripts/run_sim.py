@@ -229,6 +229,17 @@ def load_bars_csv(
                 return False
         return True
 
+    def _normalize_symbol(value: Optional[Any]) -> tuple[Optional[str], Optional[str]]:
+        if value is None:
+            return None, None
+        text = str(value).strip()
+        if not text:
+            return None, None
+        return text, text.upper()
+
+    symbol_filter_raw, symbol_filter_norm = _normalize_symbol(symbol)
+    default_symbol_text, default_symbol_norm = _normalize_symbol(default_symbol)
+
     def _iter() -> Iterator[Dict[str, Any]]:
         default_tf_normalized = (
             str(default_tf).strip().lower() if default_tf is not None else ""
@@ -310,13 +321,16 @@ def load_bars_csv(
                     _record_skip("price_parse_error", context)
                     continue
 
-                row_symbol: Optional[str]
+                row_symbol_text: Optional[str]
+                row_symbol_norm: Optional[str]
                 if symbol_key:
                     raw_symbol = row_copy.get(symbol_key)
-                    row_symbol = str(raw_symbol).strip() if raw_symbol is not None else None
+                    row_symbol_text, row_symbol_norm = _normalize_symbol(raw_symbol)
                 else:
-                    row_symbol = default_symbol.strip() if isinstance(default_symbol, str) else default_symbol
-                if not row_symbol:
+                    row_symbol_text, row_symbol_norm = default_symbol_text, default_symbol_norm
+                if row_symbol_text is None:
+                    row_symbol_text, row_symbol_norm = default_symbol_text, default_symbol_norm
+                if row_symbol_text is None:
                     raise CSVFormatError(
                         "symbol_required",
                         details="Provide --csv together with --manifest that supplies symbol info.",
@@ -328,7 +342,7 @@ def load_bars_csv(
                     row_tf = raw_tf.lower() if raw_tf else default_tf_normalized
                 else:
                     row_tf = default_tf_normalized
-                if symbol and row_symbol != symbol:
+                if symbol_filter_norm and row_symbol_norm != symbol_filter_norm:
                     continue
 
                 ts_filter_required = start_ts is not None or end_ts is not None
@@ -343,9 +357,15 @@ def load_bars_csv(
                     if end_ts and bar_dt > end_ts:
                         continue
 
+                canonical_symbol = row_symbol_text
+                if symbol_filter_raw and row_symbol_norm == symbol_filter_norm:
+                    canonical_symbol = symbol_filter_raw
+                elif canonical_symbol is None and default_symbol_text:
+                    canonical_symbol = default_symbol_text
+
                 bar: Dict[str, Any] = {
                     "timestamp": ts_raw,
-                    "symbol": row_symbol,
+                    "symbol": canonical_symbol,
                     "tf": row_tf,
                     "o": open_px,
                     "h": high_px,
@@ -789,7 +809,7 @@ def _write_run_outputs(
     if not config.run_base_dir:
         return None
 
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     run_dir = config.run_base_dir / f"{config.symbol}_{config.mode}_{timestamp}"
     run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1002,7 +1022,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     if config.auto_state:
         archive_dir = archive_dir or _resolve_state_archive(config)
         archive_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         archive_path = archive_dir / f"{timestamp}.json"
         state_payload = runner.export_state()
         with archive_path.open("w", encoding="utf-8") as f:

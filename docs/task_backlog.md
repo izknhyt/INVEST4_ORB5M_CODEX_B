@@ -26,6 +26,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 ## P0: 即着手（オンデマンドインジェスト + 基盤整備）
 
 **Status Update (2026-06-15)**: Live `data_quality_failure` alert validation remains on hold until production emits the first alert. Operational bandwidth is redirected toward P2 portfolio reporting deliverables and P3 observability automation planning.
+- 2026-07-22: Hardened the Phase 4 simulation CSV loader so symbol filters ignore case mismatches and kept run artefact naming stable; removed deprecated `datetime.utcnow()` usage ahead of the W2 defect-remediation pass and revalidated via `python3 -m pytest tests/test_run_sim_cli.py`.
 - 2026-07-05: Added `--no-auto-state` / `--auto-state` toggles to `scripts/run_sim.py`, expanded `configs/strategies/day_orb_5m.yaml` to include Bridge mode, and seeded `runs/phase4/backtests/` with baseline runs while logging the validated dataset coverage gap in `docs/progress_phase4.md`.
 - 2026-07-03: Restored `scripts/run_sim.py` CLI compatibility by adding the `--out-json` alias and `--out-daily-csv` export path so Phase 4 long-run commands execute without argument errors, and refreshed the logging reference accordingly.
 - 2026-06-26: Phase 3 observability automation detailed design reviewed (`docs/phase3_detailed_design.md`), clarifying retention/manifest sequencing so the DoD checklist drafting can proceed without blockers.
