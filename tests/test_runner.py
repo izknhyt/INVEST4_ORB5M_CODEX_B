@@ -307,7 +307,7 @@ class TestRunner(unittest.TestCase):
 
         self.assertIsNone(runner.pos)
         self.assertEqual(runner.metrics.trades, 1)
-        self.assertEqual(runner.metrics.wins, 1)
+        self.assertAlmostEqual(runner.metrics.wins, 1.0)
         self.assertAlmostEqual(runner.metrics.total_pips, tp_pips)
         self.assertAlmostEqual(runner.metrics.total_pnl_value, tp_pips * ctx_common["pip_value"])
         ev_manager.update.assert_called_once_with(True)
@@ -1090,11 +1090,12 @@ class TestRunner(unittest.TestCase):
                     continue
                 pnl = float(row.get("pnl_pips", 0.0))
                 ts = (base_ts + timedelta(minutes=idx)).isoformat().replace("+00:00", "Z")
-                metrics.record_trade(pnl, pnl > 0, timestamp=ts)
+                win_value = 1.0 if pnl > 0 else 0.0
+                metrics.record_trade(pnl, win_value, timestamp=ts)
 
         result = metrics.as_dict()
         self.assertEqual(metrics.trades, 4)
-        self.assertEqual(metrics.wins, 2)
+        self.assertAlmostEqual(metrics.wins, 2.0)
         self.assertAlmostEqual(metrics.total_pips, 5.0)
         self.assertAlmostEqual(metrics.total_pnl_value, 5.0)
         curve = metrics.as_dict()["equity_curve"]
@@ -2244,7 +2245,7 @@ class TestRunner(unittest.TestCase):
         self.assertIsNone(runner.pos)
         self.assertEqual(len(runner.records), 2)
         self.assertEqual(runner.metrics.trades, 2)
-        self.assertEqual(runner.metrics.wins, 1)
+        self.assertAlmostEqual(runner.metrics.wins, 1.0)
         self.assertEqual(runner._warmup_left, 0)
         daily_entry = getattr(runner, "_current_daily_entry", None)
         self.assertIsNotNone(daily_entry)
@@ -2253,7 +2254,7 @@ class TestRunner(unittest.TestCase):
             self.assertEqual(daily_entry["gate_pass"], 2)
             self.assertEqual(daily_entry["ev_pass"], 2)
             self.assertEqual(daily_entry["fills"], 2)
-            self.assertEqual(daily_entry["wins"], 1)
+            self.assertAlmostEqual(float(daily_entry["wins"]), 1.0)
         self.assertEqual(stub_ev.last_update, False)
 
     def test_maybe_enter_trade_rechecks_ev_after_warmup_consumed(self):
@@ -2654,6 +2655,58 @@ class TestRunner(unittest.TestCase):
                     self.assertIsNone(runner.pos)
         finally:
             runner.execution.finalize_trade = original_finalize
+
+    def test_same_bar_probability_updates_fractional_wins(self):
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
+        pip_value = pip_size(runner.symbol)
+        entry = 150.00
+        tp = entry + 0.20
+        sl = entry - 0.20
+        runner.pos = ActivePositionState(
+            side="BUY",
+            entry_px=entry,
+            tp_px=tp,
+            sl_px=sl,
+            trail_pips=0.0,
+            qty=1.0,
+            entry_ts="2024-01-01T08:00:00+00:00",
+            ctx_snapshot=TradeContextSnapshot(),
+            ev_key=None,
+            tp_pips=(tp - entry) / pip_value,
+            sl_pips=(entry - sl) / pip_value,
+        )
+        runner._current_daily_entry = runner._create_daily_entry()
+        probability = 0.51
+        exit_px = probability * tp + (1 - probability) * sl
+        bar = {
+            "o": entry,
+            "h": tp + 0.05,
+            "l": sl - 0.05,
+            "c": entry,
+            "timestamp": "2024-01-01T08:40:00+00:00",
+        }
+        ctx = {"session": "TOK", "spread_band": "normal", "rv_band": "core"}
+        with patch(
+            "core.runner_execution.resolve_same_bar_collision",
+            return_value=(exit_px, "tp", probability),
+        ):
+            runner._handle_active_position(
+                bar=bar,
+                ctx=ctx,
+                mode="bridge",
+                pip_size_value=pip_value,
+                new_session=False,
+            )
+
+        self.assertIsNone(runner.pos)
+        self.assertEqual(runner.metrics.trades, 1)
+        self.assertAlmostEqual(runner.metrics.wins, probability)
+        metrics_dict = runner.metrics.as_dict()
+        self.assertAlmostEqual(metrics_dict["win_rate"], probability)
+        daily_entry = getattr(runner, "_current_daily_entry", None)
+        self.assertIsNotNone(daily_entry)
+        if daily_entry is not None:
+            self.assertAlmostEqual(float(daily_entry["wins"]), probability)
 
     def test_bridge_same_bar_probability_respects_config(self):
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
