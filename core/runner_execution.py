@@ -624,6 +624,10 @@ class RunnerExecutionManager:
         pnl_pips = pnl_pips_unit * qty_effective
         hit = exit_reason == "tp"
         prob = self._coerce_probability(p_tp)
+        if prob is not None:
+            win_increment = prob
+        else:
+            win_increment = 1.0 if hit else 0.0
         pip_value_ctx = ctx_snapshot_map.get("pip_value")
         if pip_value_ctx is None:
             pip_value_ctx = ctx.get("pip_value", 10.0)
@@ -635,13 +639,13 @@ class RunnerExecutionManager:
         runner._equity_live += pnl_value
         self.record_trade_metrics(
             pnl_pips,
-            hit,
+            win_increment,
             timestamp=exit_ts,
             pnl_value=pnl_value,
         )
         runner._increment_daily("fills")
-        if hit:
-            runner._increment_daily("wins")
+        if win_increment:
+            runner._increment_daily("wins", win_increment)
         runner._increment_daily("pnl_pips", pnl_pips)
         runner._increment_daily("pnl_value", pnl_value)
         runner._increment_daily("slip_est", est_slip_used)
@@ -691,7 +695,7 @@ class RunnerExecutionManager:
     def record_trade_metrics(
         self,
         pnl_pips: float,
-        hit: bool,
+        win_increment: float,
         *,
         timestamp: Any,
         pnl_value: Optional[float] = None,
@@ -699,7 +703,7 @@ class RunnerExecutionManager:
         runner = self._runner
         runner.metrics.record_trade(
             pnl_pips,
-            hit,
+            win_increment,
             timestamp=timestamp,
             pnl_value=pnl_value,
         )

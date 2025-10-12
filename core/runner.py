@@ -82,7 +82,7 @@ def _coerce_same_bar_policy(value: Union[str, SameBarPolicy]) -> SameBarPolicy:
 @dataclass
 class Metrics:
     trades: int = 0
-    wins: int = 0
+    wins: float = 0.0
     total_pips: float = 0.0
     total_pnl_value: float = 0.0
     trade_returns: List[float] = field(default_factory=list)
@@ -124,7 +124,7 @@ class Metrics:
     def record_trade(
         self,
         pnl_pips: float,
-        hit: bool,
+        win_increment: float,
         *,
         timestamp: Any,
         pnl_value: Optional[float] = None,
@@ -134,8 +134,11 @@ class Metrics:
         self.trades += 1
         self.total_pips += pnl_val
         self.total_pnl_value += pnl_equity
-        if hit:
-            self.wins += 1
+        try:
+            win_value = float(win_increment)
+        except (TypeError, ValueError):
+            win_value = 0.0
+        self.wins += win_value
         self.trade_returns.append(pnl_equity)
         ts_value, dt_value = self._normalise_timestamp(timestamp)
         if self._equity_seed is None:
@@ -491,9 +494,9 @@ class BacktestRunner:
         "ev_pass",
         "ev_reject",
         "fills",
-        "wins",
     )
     DAILY_FLOAT_FIELDS: ClassVar[Tuple[str, ...]] = (
+        "wins",
         "pnl_pips",
         "pnl_value",
         "slip_est",
@@ -1109,14 +1112,14 @@ class BacktestRunner:
     def _record_trade_metrics(
         self,
         pnl_pips: float,
-        hit: bool,
+        win_increment: float,
         *,
         timestamp: Any,
         pnl_value: Optional[float] = None,
     ) -> None:
         self.execution.record_trade_metrics(
             pnl_pips,
-            hit,
+            win_increment,
             timestamp=timestamp,
             pnl_value=pnl_value,
         )
