@@ -61,7 +61,7 @@ Workstreams overlap by at most two days—changes only graduate downstream once 
 2. Reconcile backlog/task trackers: ensure `docs/task_backlog.md` and `docs/todo_next.md` reference this plan and enumerate planned deliverables.
 3. Establish communication cadence (daily async update in `docs/progress_phase4.md`, weekly review meeting notes).
 4. Capture hardware/runtime baselines (CPU type, RAM, average wall-clock for conservative run) to detect performance regressions later.
-5. Validate `scripts/manage_task_cycle.py --dry-run start-task --anchor P4-01` and `--dry-run finish-task` outputs so doc/state commits remain reproducible when workstreams close.
+5. Validate `scripts/manage_task_cycle.py --dry-run start-task --anchor docs/task_backlog.md#p4-01-長期バックテスト改善` and `--dry-run finish-task --anchor docs/task_backlog.md#p4-01-長期バックテスト改善` outputs so doc/state commits remain reproducible when workstreams close.
 6. Stage a shared bug notebook skeleton at `docs/progress_phase4.md#bug-tracking` (table placeholder) before remediation starts.
    | Bug ID | Date Logged | Symptom Summary | Impact | Status | Regression Test | Artefact Link | Owner |
    | --- | --- | --- | --- | --- | --- | --- | --- |

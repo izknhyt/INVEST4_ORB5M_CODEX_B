@@ -1,6 +1,7 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-07-31: Updated `docs/plans/phase4_sim_bugfix_plan.md` W0 Step 5 to reference the full `docs/task_backlog.md#p4-01-長期バックテスト改善` anchor in the `manage_task_cycle` dry-run examples so backlog-aligned invocations remain reproducible. ドキュメント更新のみのためテスト実行は不要と判断。
 - 2026-07-30: Re-confirmed `validated/USDJPY/5m.csv` validated coverage ends at 2024-12-31T21:55:00Z, updated the `Next Task` gate to quarantine 2025+ bars, and aligned `docs/plans/phase4_sim_bugfix_plan.md` objectives/baseline commands with the 2018-2024 window. ドキュメントのみの更新のためテスト実行は不要と判断。
 - 2026-07-29: Refined `docs/plans/phase4_sim_bugfix_plan.md` Section 5 structure so the compare-metrics automation follow-up now points to the dedicated `### 5.5` guidance, adding subsection headers for the surrounding tooling notes. ドキュメントのみの更新のためテスト実行は不要と判断。
 - 2026-07-28: Re-confirmed the latest USDJPY 5 m bar (2025-10-02T22:15:00Z) in `validated/USDJPY/5m.csv`, updated `docs/plans/phase4_sim_bugfix_plan.md` W1 baseline commands to match the truncated 2025 coverage, and documented the restoration steps required when the 2025-12-31 horizon returns. ドキュメント更新のみのためテスト実行は不要と判断。
