@@ -931,3 +931,8 @@ def test_run_sim_reports_aggregate_ev_failure(
     archive_index = cmd.index("--archive")
     assert cmd[archive_index + 1] == str(ROOT_PATH / "ops" / "state_archive")
     assert "--archive-namespace" not in cmd
+    assert "--strategy" in cmd
+    strategy_index = cmd.index("--strategy")
+    assert (
+        cmd[strategy_index + 1] == "mean_reversion.MeanReversionStrategy"
+    )

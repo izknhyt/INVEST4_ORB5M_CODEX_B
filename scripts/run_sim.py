@@ -705,13 +705,14 @@ def _resolve_state_archive(config: RuntimeConfig) -> Path:
 
 def _aggregate_ev(_namespace_path: Path, config: RuntimeConfig) -> None:
     _, namespace_str = _resolve_archive_namespace(config)
+    strategy_key = _strategy_state_key(config.strategy_cls)
     cmd = [
         sys.executable,
         str(ROOT_PATH / "scripts" / "aggregate_ev.py"),
         "--archive",
         str(config.state_archive_root),
         "--strategy",
-        config.manifest.strategy.class_path,
+        strategy_key,
         "--symbol",
         config.symbol,
         "--mode",
