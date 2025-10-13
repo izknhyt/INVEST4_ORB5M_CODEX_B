@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import pytest
 
@@ -426,6 +427,104 @@ def test_run_sim_writes_daily_csv(tmp_path: Path) -> None:
     first_row = rows[0]
     assert first_row["date"] == "2024-01-01"
     assert "pnl_pips" in first_row
+
+
+def test_run_sim_debug_records_written(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    manifest_path = _write_manifest(tmp_path)
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(CSV_CONTENT, encoding="utf-8")
+    out_dir = tmp_path / "runs"
+
+    captured: dict[str, Any] = {}
+
+    class DummyMetrics:
+        def __init__(self) -> None:
+            self.debug = {}
+            self.runtime = {}
+            self.daily = {}
+            self.records = [
+                {
+                    "stage": "strategy_gate",
+                    "reason_stage": "cooldown_guard",
+                    "rv_band": "mid",
+                    "or_atr_ratio": 0.4,
+                }
+            ]
+
+        def as_dict(self) -> dict[str, Any]:
+            return {
+                "trades": 0,
+                "wins": 0.0,
+                "win_rate": None,
+                "total_pips": 0.0,
+                "total_pnl_value": 0.0,
+                "sharpe": None,
+                "max_drawdown": None,
+                "equity_curve": [],
+                "runtime": {},
+                "debug": {},
+            }
+
+    class DummyRunner:
+        def __init__(
+            self,
+            *,
+            equity: float,
+            symbol: str,
+            runner_cfg: Any,
+            debug: bool,
+            debug_sample_limit: int,
+            strategy_cls: Any,
+        ) -> None:
+            captured.update({
+                "equity": equity,
+                "symbol": symbol,
+                "debug": debug,
+                "debug_sample_limit": debug_sample_limit,
+                "strategy_cls": strategy_cls,
+            })
+            self.ev_global = SimpleNamespace(decay=0.02)
+
+        def run(self, bars: Any, mode: str) -> DummyMetrics:
+            captured["mode"] = mode
+            return DummyMetrics()
+
+        def load_state_file(self, path: str) -> bool:  # pragma: no cover - not used
+            return False
+
+        def export_state(self) -> dict[str, Any]:  # pragma: no cover - not used
+            return {}
+
+    monkeypatch.setattr(run_sim, "BacktestRunner", DummyRunner)
+
+    rc = run_sim_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--csv",
+            str(csv_path),
+            "--out-dir",
+            str(out_dir),
+            "--debug",
+            "--debug-sample-limit",
+            "5",
+        ]
+    )
+
+    assert rc == 0
+    assert captured["debug"] is True
+    assert captured["debug_sample_limit"] == 5
+    created_dirs = list(out_dir.iterdir())
+    assert created_dirs, "expected run directory to be created"
+    run_path = created_dirs[0]
+    records_path = run_path / "records.csv"
+    assert records_path.exists(), "records.csv should be written when debug records are present"
+    with records_path.open(encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    assert rows and rows[0]["stage"] == "strategy_gate"
+    session_payload = json.loads((run_path / "session.log").read_text(encoding="utf-8"))
+    assert session_payload["flags"]["debug"] is True
+    assert session_payload["flags"]["debug_sample_limit"] == 5
 
 
 def test_write_daily_csv_preserves_fractional_wins(tmp_path: Path) -> None:

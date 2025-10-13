@@ -446,6 +446,8 @@ class RuntimeConfig:
     runner_config: RunnerConfig
     strategy_cls: type
     run_base_dir: Optional[Path]
+    debug: bool
+    debug_sample_limit: int
 
 
 def _load_strategy_class(class_path: str) -> type:
@@ -639,6 +641,24 @@ def _prepare_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
     aggregate_ev = _coerce_bool(manifest_cli.get("aggregate_ev"), default=True)
     strict = bool(args.strict)
 
+    debug_default = _coerce_bool(manifest_cli.get("debug"), default=False)
+    debug = debug_default
+    if args.debug is not None:
+        debug = _coerce_bool(args.debug, default=debug_default)
+
+    debug_sample_limit = 0
+    manifest_debug_limit = manifest_cli.get("debug_sample_limit")
+    if manifest_debug_limit is not None:
+        try:
+            debug_sample_limit = max(0, int(manifest_debug_limit))
+        except (TypeError, ValueError):
+            debug_sample_limit = 0
+    if args.debug_sample_limit is not None:
+        try:
+            debug_sample_limit = max(0, int(args.debug_sample_limit))
+        except (TypeError, ValueError):
+            debug_sample_limit = 0
+
     state_archive_root = Path(manifest_cli.get("state_archive", "ops/state_archive"))
     state_archive_root = _resolve_repo_path(state_archive_root)
 
@@ -675,6 +695,8 @@ def _prepare_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
         runner_config=runner_cfg,
         strategy_cls=strategy_cls,
         run_base_dir=run_base_dir,
+        debug=debug,
+        debug_sample_limit=debug_sample_limit,
         daily_csv_out=daily_csv_out,
     )
 
@@ -956,6 +978,8 @@ def _write_session_log(
             "aggregate_ev": config.aggregate_ev,
             "use_ev_profile": config.use_ev_profile,
             "ev_profile": str(config.ev_profile_path) if config.ev_profile_path else None,
+            "debug": config.debug,
+            "debug_sample_limit": config.debug_sample_limit,
         },
         "paths": {
             "run_dir": str(run_dir),
@@ -1026,7 +1050,24 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Raise CSVFormatError if the loader skips any rows due to parse errors",
     )
-    parser.set_defaults(auto_state=None)
+    parser.add_argument(
+        "--debug",
+        dest="debug",
+        action="store_true",
+        help="Enable debug record capture (records.csv) for gate analysis",
+    )
+    parser.add_argument(
+        "--no-debug",
+        dest="debug",
+        action="store_false",
+        help="Disable debug record capture even if the manifest enables it",
+    )
+    parser.add_argument(
+        "--debug-sample-limit",
+        type=int,
+        help="Maximum number of debug records to retain when debug capture is enabled",
+    )
+    parser.set_defaults(auto_state=None, debug=None)
     return parser
 
 
@@ -1080,7 +1121,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         equity=config.equity,
         symbol=config.symbol,
         runner_cfg=config.runner_config,
-        debug=False,
+        debug=config.debug,
+        debug_sample_limit=config.debug_sample_limit,
         strategy_cls=config.strategy_cls,
     )
 

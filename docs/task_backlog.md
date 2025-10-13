@@ -307,6 +307,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2026-08-12: Runner コンテキストへ `loss_streak` / `daily_loss_pips` / `daily_trade_count` を露出し、Day ORB シグナルは EV 依存なしで連敗・日次DD・日次本数ガードを評価するよう更新。マニフェストの OR/ATR 閾値と TP/SL 比率を緩和し、EV フラグ（`ev_mode=off` / `auto_state=false` / `aggregate_ev=false` / `use_ev_profile=false`）を維持したままシンプルリブート検証用のしきい値を反映。
 - 2026-08-13: Day ORB のシンプルガード運用でブロック理由を追跡できるよう、クールダウン・日次本数・ATR帯・マイクロトレンド・サイズ失敗時の `_last_gate_reason` を詳細化し、`tests/test_day_orb_retest.py` に EV オフ前提のガード回帰を追加。EV プロファイルを再稼働させずにモニタリング指標を可視化する下準備を整備。
 - 2026-08-14: `_last_gate_reason` の内容を Runner デバッグ出力へ連携するため、`core/runner_entry.EntryGate` が戦略ゲート失敗時に連敗ガード・日次損失/本数・ATR帯・マイクロトレンド・サイズ算出情報を `strategy_gate` レコードへ転記するよう拡張。`core/runner.py` と `docs/backtest_runner_logging.md` を同期し、`tests/test_runner.py::test_strategy_gate_metadata_includes_day_orb_guards` で EV 無効化状態のまま可視化を回帰テスト化。
+- 2026-08-15: `scripts/run_sim.py` に `--debug` / `--debug-sample-limit` を追加して EV 無効化のまま `strategy_gate` レコードを収集し、`scripts/summarize_strategy_gate.py` で `records.csv` を集計できる分析パスを整備。閾値調整の試行錯誤を EV プロファイル再稼働なしで進めるための観測手段を確立。
 
 ## 継続タスク / 保守
 - データスキーマ検証 (`scripts/check_data_quality.py`) を cron 化し、異常リストを `analysis/data_quality.md` に追記。
