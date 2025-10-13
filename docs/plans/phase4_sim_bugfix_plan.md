@@ -105,6 +105,7 @@ Workstreams overlap by at most two days—changes only graduate downstream once 
 6. Document new config toggles or environment assumptions immediately in `docs/state_runbook.md` to reduce drift.
 7. Keep a running change log for telemetry fields (new columns/JSON keys) so downstream consumers can adjust parsers before release.
 8. Gate merges on bug notebook sign-off: each resolved item must reference the regression test that now covers it and the artefact path used for verification.
+   - 2026-08-11 checkpoint: Bug notebook entries TBD-001〜003 are resolved with linked regressions (`tests/test_runner.py`, `tests/test_run_sim_cli.py`). No Blocker/High severity defects remain open after W2 remediation.
 
 ### W3 — Structural Refactor
 1. Once W2 test suite is green, extract the CLI into discrete helpers:
