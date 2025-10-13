@@ -607,6 +607,48 @@ def test_run_sim_cli_can_disable_auto_state(tmp_path: Path) -> None:
     assert "loaded_state" not in metrics
 
 
+def test_run_sim_cli_handles_string_bool_flags(tmp_path: Path) -> None:
+    manifest_path = _write_manifest(tmp_path, auto_state=True, aggregate_ev=True)
+    state_dir = tmp_path / "state_archive"
+    manifest_text = manifest_path.read_text(encoding="utf-8")
+    manifest_text = manifest_text.replace(
+        "    auto_state: true",
+        '    auto_state: "false"',
+    )
+    manifest_text = manifest_text.replace(
+        "    aggregate_ev: true",
+        f'    aggregate_ev: "false"\n    state_archive: {state_dir}',
+    )
+    manifest_path.write_text(manifest_text, encoding="utf-8")
+
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(CSV_CONTENT, encoding="utf-8")
+    out_dir = tmp_path / "runs"
+
+    rc = run_sim_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--csv",
+            str(csv_path),
+            "--out-dir",
+            str(out_dir),
+        ]
+    )
+
+    assert rc == 0
+    run_dirs = sorted(out_dir.iterdir())
+    assert run_dirs
+    run_path = run_dirs[0]
+    assert not (run_path / "state.json").exists()
+    assert not state_dir.exists()
+    metrics = json.loads((run_path / "metrics.json").read_text(encoding="utf-8"))
+    assert "loaded_state" not in metrics
+    params = json.loads((run_path / "params.json").read_text(encoding="utf-8"))
+    assert params.get("auto_state") is False
+    assert params.get("aggregate_ev") is False
+
+
 def test_run_sim_uses_custom_archive_namespace_with_custom_root(tmp_path: Path) -> None:
     manifest_path = _write_manifest(tmp_path, auto_state=True)
     custom_root = tmp_path / "custom_state_archive"
