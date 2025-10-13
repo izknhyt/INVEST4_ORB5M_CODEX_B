@@ -118,6 +118,26 @@ _KNOWN_HEADER_TOKENS: set[str] = {
 }
 
 
+def _coerce_bool(value: Any, *, default: bool) -> bool:
+    """Convert heterogeneous truthy/falsey inputs into stable booleans."""
+
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if not normalized:
+            return False
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off"}:
+            return False
+    return bool(value)
+
+
 def _resolve_repo_path(path: Path) -> Path:
     if path.is_absolute():
         return path
@@ -600,16 +620,16 @@ def _prepare_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
             else _resolve_repo_path(out_dir_value)
         )
 
-    auto_state = bool(manifest_cli.get("auto_state", True))
+    auto_state = _coerce_bool(manifest_cli.get("auto_state"), default=True)
     if args.auto_state is not None:
-        auto_state = bool(args.auto_state)
-    aggregate_ev = bool(manifest_cli.get("aggregate_ev", True))
+        auto_state = _coerce_bool(args.auto_state, default=auto_state)
+    aggregate_ev = _coerce_bool(manifest_cli.get("aggregate_ev"), default=True)
     strict = bool(args.strict)
 
     state_archive_root = Path(manifest_cli.get("state_archive", "ops/state_archive"))
     state_archive_root = _resolve_repo_path(state_archive_root)
 
-    use_ev_profile = bool(manifest_cli.get("use_ev_profile", True))
+    use_ev_profile = _coerce_bool(manifest_cli.get("use_ev_profile"), default=True)
     ev_profile_path = manifest_cli.get("ev_profile") or manifest.state.ev_profile
     if ev_profile_path and use_ev_profile:
         ev_profile_path = _resolve_repo_path(Path(ev_profile_path))
