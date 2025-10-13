@@ -370,7 +370,6 @@ class EntryGate:
                 tp_pips=tp_pips,
                 sl_pips=sl_pips,
             )
-        self._runner._increment_daily("gate_pass")
         return EntryEvaluation(
             outcome=GateCheckOutcome(passed=True),
             context=entry_ctx,
@@ -480,8 +479,6 @@ class EVGate:
                     tp_pips=tp_pips,
                     sl_pips=sl_pips,
                 )
-        else:
-            self._runner._increment_daily("ev_pass")
         ev_ctx = EVContext.from_entry(ctx)
         ev_ctx.threshold_lcb_pip = threshold_lcb
         ev_ctx.threshold_lcb = threshold_lcb

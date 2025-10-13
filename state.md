@@ -1,6 +1,9 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-08-02: Updated `RunnerExecutionManager.maybe_enter_trade` to aggregate gate/EV daily counters per intent (including the first)
+so bypassed calibration paths honour `_should_count_ev_pass`, removed legacy gate/EV increments from `core/runner_entry`, and extended
+`tests/test_runner.py` to assert single-intent tallies. Executed `python3 -m pytest tests/test_runner.py` to confirm the regression suite.
 - 2026-08-01: `scripts/run_sim.py` の run ディレクトリ／自動 state 保存タイムスタンプ生成を `scripts._time_utils.utcnow_aware` に統一し、`datetime.utcnow()` 依存による DeprecationWarning を解消。回帰テスト `tests/test_run_sim_cli.py::test_run_sim_timestamps_use_aware_helper` を追加し、`python3 -m pytest` を実行して Phase4 バグフィックス計画の W2 ガードレールに沿って挙動を確認。
 - 2026-07-31: Hardened `scripts/run_sim.py` boolean coercion so manifest `runner.cli_args.auto_state` / `aggregate_ev` handle quoted strings and no longer force unintended state archive saves per Phase 4 bugfix plan guardrails. Added regression `tests/test_run_sim_cli.py::test_run_sim_cli_handles_string_bool_flags` and executed `python3 -m pytest tests/test_run_sim_cli.py` to confirm the fix.
 - 2026-07-31: Added the validated USDJPY dataset flag to the Phase 4 resume smoke command in `docs/plans/phase4_sim_bugfix_plan.md` §5.3 so operators consistently reference `validated/USDJPY/5m.csv` when verifying state persistence. ドキュメント更新のみのためテスト実行は不要と判断。
