@@ -645,6 +645,9 @@ class BacktestRunner:
             exec_health["slippage_bps"] = totals["slip_real"] / float(totals["fills"])
         if exec_health:
             runtime["execution_health"] = exec_health
+        resume_skipped = getattr(self.lifecycle, "resume_skipped_bars", 0)
+        if resume_skipped:
+            runtime["resume_skipped_bars"] = int(resume_skipped)
         return runtime
 
     @staticmethod
@@ -1434,6 +1437,8 @@ class BacktestRunner:
         ps = pip_size(self.symbol)
         allowed_tf = self._resolve_allowed_timeframes(allowed_timeframes)
         for bar in bars:
+            if self.lifecycle.should_skip_bar(bar):
+                continue
             if not validate_bar(bar, allowed_timeframes=allowed_tf):
                 continue
             new_session, session, calibrating = self._update_daily_state(bar)
