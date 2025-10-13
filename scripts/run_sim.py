@@ -958,8 +958,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         latest_state = _latest_state_file(archive_dir)
         if latest_state is not None:
             try:
-                runner.load_state_file(str(latest_state))
-                loaded_state_path = str(latest_state)
+                if runner.load_state_file(str(latest_state)):
+                    loaded_state_path = str(latest_state)
+                else:
+                    loaded_state_path = None
             except Exception:
                 loaded_state_path = None
 

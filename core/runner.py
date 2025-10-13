@@ -1142,17 +1142,17 @@ class BacktestRunner:
     def export_state(self) -> Dict[str, Any]:
         return self.lifecycle.export_state()
 
-    def _apply_state_dict(self, state: Mapping[str, Any]) -> None:
-        self.lifecycle.apply_state_dict(state)
+    def _apply_state_dict(self, state: Mapping[str, Any]) -> bool:
+        return self.lifecycle.apply_state_dict(state)
 
-    def load_state(self, state: Dict[str, Any]) -> None:
-        self.lifecycle.load_state(state)
+    def load_state(self, state: Dict[str, Any]) -> bool:
+        return self.lifecycle.load_state(state)
 
     def _restore_loaded_state_snapshot(self) -> None:
         self.lifecycle.restore_loaded_state_snapshot()
 
-    def load_state_file(self, path: str) -> None:
-        self.lifecycle.load_state_file(path)
+    def load_state_file(self, path: str) -> bool:
+        return self.lifecycle.load_state_file(path)
 
     def _band_spread(self, spread_pips: float) -> str:
         bands = self.rcfg.spread_bands

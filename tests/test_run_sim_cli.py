@@ -651,6 +651,63 @@ def test_run_sim_cli_handles_string_bool_flags(tmp_path: Path) -> None:
     assert params.get("aggregate_ev") is False
 
 
+def test_run_sim_cli_omits_loaded_state_on_mismatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest_path = _write_manifest(tmp_path, auto_state=True)
+    state_dir = tmp_path / "state_archive"
+    manifest_text = manifest_path.read_text(encoding="utf-8")
+    manifest_text = manifest_text.replace(
+        "        aggregate_ev: false",
+        f"        aggregate_ev: false\n        state_archive: {state_dir}",
+    )
+    manifest_path.write_text(manifest_text, encoding="utf-8")
+
+    state_dir.mkdir(parents=True, exist_ok=True)
+    mismatched_state = state_dir / "20250101_000000.json"
+    mismatched_state.write_text(
+        json.dumps(
+            {
+                "meta": {
+                    "config_fingerprint": "legacy-fingerprint",
+                    "last_timestamp": "2024-01-01T07:55:00Z",
+                },
+                "metrics": {"trades": 10, "wins": 5, "total_pips": 12.3},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("scripts.run_sim._resolve_state_archive", lambda config: state_dir)
+    monkeypatch.setattr(
+        "scripts.run_sim._latest_state_file", lambda path: mismatched_state
+    )
+
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(CSV_CONTENT, encoding="utf-8")
+    out_dir = tmp_path / "runs"
+
+    rc = run_sim_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--csv",
+            str(csv_path),
+            "--out-dir",
+            str(out_dir),
+        ]
+    )
+
+    assert rc == 0
+    run_dirs = sorted(out_dir.iterdir())
+    assert run_dirs
+    run_path = run_dirs[0]
+    metrics = json.loads((run_path / "metrics.json").read_text(encoding="utf-8"))
+    assert "loaded_state" not in metrics
+    warnings = metrics.get("debug", {}).get("warnings", [])
+    assert any("config_fingerprint mismatch" in msg for msg in warnings)
+
+
 def test_run_sim_timestamps_use_aware_helper(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
