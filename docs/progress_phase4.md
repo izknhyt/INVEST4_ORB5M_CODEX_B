@@ -1,6 +1,7 @@
 # フェーズ4 進捗レポート（検証とリリースゲート）
 
-## ハイライト（2026-08-04 更新）
+## ハイライト（2026-08-05 更新）
+- `reports/diffs/README.md` を新設し、Phase4 ゴールドラン比較用の diff アーティファクト格納規約と `scripts/compare_metrics.py` 実行例を明文化。
 - 自動 state 再開時に設定ハッシュ不一致でも `loaded_state` が出力されてしまう誤報告を解消し、メトリクス JSON が実際に復元した時のみパスを記録するよう `scripts/run_sim.py` / Runner ライフサイクルを修正した（`tests/test_run_sim_cli.py::test_run_sim_cli_omits_loaded_state_on_mismatch` で回帰を追加）。
 - `validated/USDJPY/5m.csv` の指紋を記録（579,578 行 / SHA256=85fa08f2224eb6119878f3689a5af617cb666eaab37c5acb7e3603c4bfda48d4）し、`state.md` と同期した。
 - `docs/progress_phase4.md#バグトラッキング` にバグノートのテーブル雛形を追加し、W0 の共有テンプレート整備を完了した。
@@ -26,6 +27,7 @@
 | TBD-002 | 2026-08-04 | Auto-state fingerprint mismatches still reported `loaded_state` in metrics JSON even when state was skipped | Medium | Resolved | tests/test_run_sim_cli.py::test_run_sim_cli_omits_loaded_state_on_mismatch | - | Backtest WG |
 
 ## 設計・テスト方針ログ
+- 2026-08-05: Phase4 diff ワークフローを `reports/diffs/README.md` にまとめ、W1 Step 4/7 のエビデンス保存手順（メトリクス diff・日次 CSV 変換補助スクリプト・ハッシュ記録フロー）を整理。バックログ/State 連携も更新。
 - 2026-08-03: `scripts/compare_metrics.py` を追加し、`--ignore state_loaded` などのグロブ指定・絶対/相対トレランス・JSON レポート出力に対応させた。`python3 -m pytest tests/test_compare_metrics.py` を実行し、W0 の Diff ツール整備項目を完了。さらに `scripts/manage_task_cycle.py --dry-run start-task --anchor docs/task_backlog.md#p4-01-長期バックテスト改善` を実行し、In Progress 昇格フローを確認。
 - 2026-07-05: `configs/strategies/day_orb_5m.yaml` に Bridge モードを追加し、`scripts/run_sim.py --no-auto-state` で Conservative/Bridge のベースラインを `runs/phase4/backtests/` に保存。最新 `validated/USDJPY/5m.csv` が 2025 年 10 月以降のみであることを確認し、2018–2024 の validated データ再発行を TODO に登録。
 - 2026-07-15: `data/usdjpy_5m_2018-2024_utc.csv` / `data/usdjpy_5m_2025.csv` / 既存の短期スナップショットをマージし、`validated/USDJPY/5m.csv`（ヘッダ無し）と `validated/USDJPY/5m_with_header.csv`（ヘッダ有り）を更新。従来の短期ビューは `validated/USDJPY/5m_recent*.csv` へ退避し、`scripts/check_data_quality.py --calendar-day-summary` 実行でギャップが週末・祝日由来であることを確認（coverage_ratio=0.71）。
