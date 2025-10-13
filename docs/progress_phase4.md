@@ -1,6 +1,7 @@
 # フェーズ4 進捗レポート（検証とリリースゲート）
 
-## ハイライト（2026-08-07 更新）
+## ハイライト（2026-08-11 更新）
+- 2026-08-11: バグノート（W2 スコープ）を再点検し、Blocker / High 優先度の未解決項目が存在しないことを確認。TBD-001〜003 はすべて回帰テスト（`tests/test_runner.py` / `tests/test_run_sim_cli.py`）でカバー済みであり、長期ランの追加再現は不要と判断した。
 - Conservative / Bridge の 2018–2025 ロングランを `validated/USDJPY/5m.csv` で再実行し、`reports/long_{mode}.json` / `_daily.csv` を更新。`runs/phase4/backtests/USDJPY_conservative_20251013_061258` / `USDJPY_bridge_20251013_061509` に `session.log`・`metrics.json`・`daily.csv` を保存し、Sharpe / 最大DD / 勝率が依然として負圧であることを確認（Conservative: Sharpe=-7.79, win_rate=18%、Bridge: Sharpe=-7.17, win_rate≈21.8%）。
 - 2026-08-10: `scripts/run_sim.py` が ランディレクトリ配下へ `checksums.json` を生成し、`metrics.json` / `daily.csv` / `records.csv` / `params.json` の SHA256 を自動記録。`session.log` にもダイジェストを埋め込み、Phase4 計画 W1 Step6 の証跡保存をワンコマンド化した。
 - `scripts/run_sim.py` が `--out-dir` 実行時に `session.log` を自動生成し、コマンドライン・開始/終了時刻・CSVローダ統計・stderr警告を Run ディレクトリへ保存できるようにした。W1 Step5 のログ保全フローをコード化し、`tests/test_run_sim_cli.py::test_run_sim_session_log_records_aggregate_ev_failure` / `::test_run_sim_creates_run_directory` で回帰。
