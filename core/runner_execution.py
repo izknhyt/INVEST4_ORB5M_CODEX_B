@@ -701,6 +701,14 @@ class RunnerExecutionManager:
         runner._increment_daily("pnl_value", pnl_value)
         runner._increment_daily("slip_est", est_slip_used)
         runner._increment_daily("slip_real", slip_actual)
+        runner._daily_trade_count += 1
+        runner._daily_pnl_pips += pnl_pips
+        if pnl_pips <= 0:
+            runner._loss_streak += 1
+            if pnl_pips < 0:
+                runner._daily_loss_pips += pnl_pips
+        else:
+            runner._loss_streak = 0
         default_key = self._default_ev_key(ctx)
         resolved_key = normalize_ev_key(ev_key)
         if resolved_key is None:

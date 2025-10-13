@@ -18,6 +18,9 @@ class DayORB5m(Strategy):
         self.cfg.setdefault("max_atr_pips", 0.0)
         self.cfg.setdefault("max_signals_per_day", 0)
         self.cfg.setdefault("fallback_win_rate", 0.55)
+        self.cfg.setdefault("max_loss_streak", 0)
+        self.cfg.setdefault("max_daily_loss_pips", 0.0)
+        self.cfg.setdefault("max_daily_trade_count", 0)
         self.state = {
             "or_h": None,
             "or_l": None,
@@ -183,6 +186,7 @@ class DayORB5m(Strategy):
             return []
         # Context should include router gates + EV + sizing related configs
         ctx_data = self.resolve_runtime_context(ctx)
+        self._last_gate_reason = None
         # Simple cooldown by bars
         cooldown = int(ctx_data.get("cooldown_bars", self.cfg.get("cooldown_bars", 0)))
         if cooldown > 0 and (self.state["bar_idx"] - self.state["last_signal_bar"] < cooldown):
@@ -194,6 +198,38 @@ class DayORB5m(Strategy):
         signals_today = self.state.get("signals_today", 0)
         max_signals = int(self.cfg.get("max_signals_per_day", 0) or 0)
         if max_signals and signals_today >= max_signals:
+            return []
+
+        loss_streak = int(ctx_data.get("loss_streak", 0) or 0)
+        max_loss_streak = int(self.cfg.get("max_loss_streak", 0) or 0)
+        if max_loss_streak and loss_streak >= max_loss_streak:
+            self._last_gate_reason = {
+                "stage": "loss_streak_guard",
+                "loss_streak": loss_streak,
+                "max_loss_streak": max_loss_streak,
+            }
+            return []
+
+        daily_loss_pips = float(ctx_data.get("daily_loss_pips", 0.0) or 0.0)
+        max_daily_loss = float(self.cfg.get("max_daily_loss_pips", 0.0) or 0.0)
+        if max_daily_loss > 0:
+            cumulative_loss = abs(daily_loss_pips) if daily_loss_pips < 0 else 0.0
+            if cumulative_loss >= max_daily_loss:
+                self._last_gate_reason = {
+                    "stage": "daily_loss_guard",
+                    "daily_loss_pips": daily_loss_pips,
+                    "max_daily_loss_pips": max_daily_loss,
+                }
+                return []
+
+        daily_trade_count = int(ctx_data.get("daily_trade_count", 0) or 0)
+        max_daily_trades = int(self.cfg.get("max_daily_trade_count", 0) or 0)
+        if max_daily_trades and daily_trade_count >= max_daily_trades:
+            self._last_gate_reason = {
+                "stage": "daily_trade_guard",
+                "daily_trade_count": daily_trade_count,
+                "max_daily_trade_count": max_daily_trades,
+            }
             return []
 
         atr_pips = sig.get("atr_pips")

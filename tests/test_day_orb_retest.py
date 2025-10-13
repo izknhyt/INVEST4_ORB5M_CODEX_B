@@ -61,3 +61,118 @@ def test_sell_breakout_waits_for_retest():
     pending = strategy.get_pending_signal()
     assert pending is not None
     assert pending["side"] == "SELL"
+
+
+def _pending_signal():
+    return {
+        "side": "BUY",
+        "tp_pips": 15.0,
+        "sl_pips": 10.0,
+        "trail_pips": 0.0,
+        "entry": 151.25,
+        "atr_pips": 15.0,
+    }
+
+
+def _base_ctx():
+    return {
+        "session": "LDN",
+        "spread_band": "normal",
+        "rv_band": "mid",
+        "slip_cap_pip": 5.0,
+        "threshold_lcb_pip": -10.0,
+        "or_atr_ratio": 0.4,
+        "min_or_atr_ratio": 0.25,
+        "allow_low_rv": True,
+        "warmup_left": 0,
+        "warmup_mult": 0.05,
+        "cooldown_bars": 0,
+        "ev_mode": "off",
+        "size_floor_mult": 0.05,
+        "base_cost_pips": 0.2,
+        "expected_slip_pip": 0.0,
+        "cost_pips": 0.2,
+        "equity": 100000.0,
+        "pip_value": 10.0,
+        "sizing_cfg": {
+            "risk_per_trade_pct": 0.25,
+            "kelly_fraction": 0.25,
+            "units_cap": 5.0,
+            "max_trade_loss_pct": 0.5,
+        },
+        "ev_key": ("LDN", "normal", "mid"),
+        "ev_oco": None,
+        "allowed_sessions": ["LDN"],
+        "loss_streak": 0,
+        "daily_loss_pips": 0.0,
+        "daily_trade_count": 0,
+        "daily_pnl_pips": 0.0,
+    }
+
+
+def _prep_strategy(cfg_overrides=None):
+    strategy = DayORB5m()
+    cfg = {
+        "fallback_win_rate": 0.55,
+        "max_loss_streak": 0,
+        "max_daily_loss_pips": 0.0,
+        "max_daily_trade_count": 0,
+    }
+    if cfg_overrides:
+        cfg.update(cfg_overrides)
+    strategy.on_start(cfg, ["USDJPY"], {})
+    strategy.state["bar_idx"] = 100
+    strategy.state["last_signal_bar"] = 10
+    strategy._pending_signal = _pending_signal()
+    return strategy
+
+
+def test_loss_streak_guard_blocks_and_allows_after_reset():
+    stg = _prep_strategy({"max_loss_streak": 2})
+    ctx = _base_ctx()
+    ctx["loss_streak"] = 2
+    intents = list(stg.signals(ctx))
+    assert intents == []
+    assert stg._last_gate_reason == {
+        "stage": "loss_streak_guard",
+        "loss_streak": 2,
+        "max_loss_streak": 2,
+    }
+
+    ctx["loss_streak"] = 1
+    intents = list(stg.signals(ctx))
+    assert intents, "Expected guard to lift once loss streak drops below threshold"
+
+
+def test_daily_loss_guard_uses_cumulative_negative_pips():
+    stg = _prep_strategy({"max_daily_loss_pips": 120.0})
+    ctx = _base_ctx()
+    ctx["daily_loss_pips"] = -150.0
+    intents = list(stg.signals(ctx))
+    assert intents == []
+    assert stg._last_gate_reason == {
+        "stage": "daily_loss_guard",
+        "daily_loss_pips": -150.0,
+        "max_daily_loss_pips": 120.0,
+    }
+
+    ctx["daily_loss_pips"] = -90.0
+    intents = list(stg.signals(ctx))
+    assert intents, "Daily loss under threshold should allow trading"
+
+
+def test_daily_trade_cap_blocks_after_manifest_limit():
+    stg = _prep_strategy({"max_daily_trade_count": 6})
+    ctx = _base_ctx()
+    ctx["daily_trade_count"] = 6
+    intents = list(stg.signals(ctx))
+    assert intents == []
+    assert stg._last_gate_reason == {
+        "stage": "daily_trade_guard",
+        "daily_trade_count": 6,
+        "max_daily_trade_count": 6,
+    }
+
+    ctx["daily_trade_count"] = 5
+    intents = list(stg.signals(ctx))
+    assert intents, "Trade count below cap should allow execution"

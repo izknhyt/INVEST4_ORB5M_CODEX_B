@@ -304,6 +304,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   1. シグナル生成条件の緩和案を洗い出し、テスト用マニフェストに反映。
   2. シンプルトレードガード（連敗停止、日次DD、ATRバンド等）を Runner レベルで整理。
   3. `docs/progress_phase4.md` にシンプル化リブートの計画・暫定DoD・評価指標を追加。
+- 2026-08-12: Runner コンテキストへ `loss_streak` / `daily_loss_pips` / `daily_trade_count` を露出し、Day ORB シグナルは EV 依存なしで連敗・日次DD・日次本数ガードを評価するよう更新。マニフェストの OR/ATR 閾値と TP/SL 比率を緩和し、EV フラグ（`ev_mode=off` / `auto_state=false` / `aggregate_ev=false` / `use_ev_profile=false`）を維持したままシンプルリブート検証用のしきい値を反映。
 
 ## 継続タスク / 保守
 - データスキーマ検証 (`scripts/check_data_quality.py`) を cron 化し、異常リストを `analysis/data_quality.md` に追記。

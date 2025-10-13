@@ -59,6 +59,10 @@ class EntryContext:
     allowed_sessions: Optional[Tuple[str, ...]] = None
     news_freeze: bool = False
     calibrating: bool = False
+    loss_streak: int = 0
+    daily_loss_pips: float = 0.0
+    daily_trade_count: int = 0
+    daily_pnl_pips: float = 0.0
 
     def _constructor_kwargs(self) -> Dict[str, Any]:
         data = dict(vars(self))
@@ -90,6 +94,10 @@ class EntryContext:
             "sizing_cfg": dict(self.sizing_cfg),
             "ev_key": self.ev_key,
             "ev_oco": self.ev_manager,
+            "loss_streak": self.loss_streak,
+            "daily_loss_pips": self.daily_loss_pips,
+            "daily_trade_count": self.daily_trade_count,
+            "daily_pnl_pips": self.daily_pnl_pips,
         }
         if self.allowed_sessions is not None:
             data["allowed_sessions"] = list(self.allowed_sessions)
@@ -123,6 +131,10 @@ class EntryContext:
         mapping["sizing_cfg"] = self.sizing_cfg
         mapping["ev_key"] = self.ev_key
         mapping["ev_oco"] = self.ev_manager
+        mapping["loss_streak"] = self.loss_streak
+        mapping["daily_loss_pips"] = self.daily_loss_pips
+        mapping["daily_trade_count"] = self.daily_trade_count
+        mapping["daily_pnl_pips"] = self.daily_pnl_pips
         _assign_optional(mapping, "allowed_sessions", self.allowed_sessions)
         _assign_optional(mapping, "ev_profile_stats", self.ev_profile_stats)
         _assign_optional(mapping, "news_freeze", self.news_freeze, include_false=False)
