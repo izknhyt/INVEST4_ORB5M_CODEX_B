@@ -1,6 +1,7 @@
 # フェーズ4 進捗レポート（検証とリリースゲート）
 
-## ハイライト（2026-08-05 更新）
+## ハイライト（2026-08-06 更新）
+- `scripts/run_sim.py` が `--out-dir` 実行時に `session.log` を自動生成し、コマンドライン・開始/終了時刻・CSVローダ統計・stderr警告を Run ディレクトリへ保存できるようにした。W1 Step5 のログ保全フローをコード化し、`tests/test_run_sim_cli.py::test_run_sim_session_log_records_aggregate_ev_failure` / `::test_run_sim_creates_run_directory` で回帰。
 - `reports/diffs/README.md` を新設し、Phase4 ゴールドラン比較用の diff アーティファクト格納規約と `scripts/compare_metrics.py` 実行例を明文化。
 - 自動 state 再開時に設定ハッシュ不一致でも `loaded_state` が出力されてしまう誤報告を解消し、メトリクス JSON が実際に復元した時のみパスを記録するよう `scripts/run_sim.py` / Runner ライフサイクルを修正した（`tests/test_run_sim_cli.py::test_run_sim_cli_omits_loaded_state_on_mismatch` で回帰を追加）。
 - `validated/USDJPY/5m.csv` の指紋を記録（579,578 行 / SHA256=85fa08f2224eb6119878f3689a5af617cb666eaab37c5acb7e3603c4bfda48d4）し、`state.md` と同期した。

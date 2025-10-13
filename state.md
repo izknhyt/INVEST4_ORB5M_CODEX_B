@@ -1,6 +1,7 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-08-06: Implemented Phase4 W1 Step5 automation by emitting `session.log` from `scripts/run_sim.py` runs (command line, runtime window, loader stats, stderr warnings), added regression coverage in `tests/test_run_sim_cli.py`, and updated `docs/progress_phase4.md` / `docs/task_backlog.md` with the new evidence workflow. Executed `python3 -m pytest` を完走（372 passed, 1 skipped）。
 - 2026-08-05: Documented Phase4 diff artefact workflow in `reports/diffs/README.md`, linked the evidence trail across `docs/progress_phase4.md` / `docs/task_backlog.md` / `docs/todo_next.md`, and recorded pytest execution for W1 Step 4/7 readiness. Executed `python3 -m pytest` で全372件パス（skip1件）。
 - 2026-08-05: Persisted runner metrics/daily snapshots in auto-state archives so resume parity no longer zeroes trades, added resume skip guards, refreshed `docs/progress_phase4.md#バグトラッキング`, and landed regression `tests/test_runner.py::test_auto_state_resume_preserves_metrics_and_skips_processed_bars`. Executed `python3 -m pytest tests/test_runner.py` と `python3 -m pytest tests/test_run_sim_cli.py` to validate the fix and confirm CLI parity.
 - 2026-08-05: `scripts/run_sim.py` の EV 集計 CLI に `_strategy_state_key` を適用し、`aggregate_ev.py` が `ops/state_archive/day_orb_5m.DayORB5m/...` を正しく参照するよう修正。`tests/test_run_sim_cli.py::test_run_sim_reports_aggregate_ev_failure` へ `--strategy` 引数検証を追加し、`python3 -m pytest tests/test_run_sim_cli.py tests/test_runner.py tests/test_runner_features.py` を実行して回帰確認。
