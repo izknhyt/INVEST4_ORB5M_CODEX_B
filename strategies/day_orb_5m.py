@@ -190,6 +190,11 @@ class DayORB5m(Strategy):
         # Simple cooldown by bars
         cooldown = int(ctx_data.get("cooldown_bars", self.cfg.get("cooldown_bars", 0)))
         if cooldown > 0 and (self.state["bar_idx"] - self.state["last_signal_bar"] < cooldown):
+            self._last_gate_reason = {
+                "stage": "cooldown_guard",
+                "bars_since": self.state["bar_idx"] - self.state["last_signal_bar"],
+                "cooldown_bars": cooldown,
+            }
             return []
         if not pass_gates(ctx_data):
             return []
@@ -198,6 +203,11 @@ class DayORB5m(Strategy):
         signals_today = self.state.get("signals_today", 0)
         max_signals = int(self.cfg.get("max_signals_per_day", 0) or 0)
         if max_signals and signals_today >= max_signals:
+            self._last_gate_reason = {
+                "stage": "daily_signal_cap",
+                "signals_today": signals_today,
+                "max_signals_per_day": max_signals,
+            }
             return []
 
         loss_streak = int(ctx_data.get("loss_streak", 0) or 0)
@@ -237,16 +247,38 @@ class DayORB5m(Strategy):
         max_atr = float(self.cfg.get("max_atr_pips", 0.0) or 0.0)
         if atr_pips is not None:
             if min_atr and atr_pips < min_atr:
+                self._last_gate_reason = {
+                    "stage": "atr_filter",
+                    "atr_pips": atr_pips,
+                    "min_atr_pips": min_atr,
+                }
                 return []
             if max_atr and atr_pips > max_atr:
+                self._last_gate_reason = {
+                    "stage": "atr_filter",
+                    "atr_pips": atr_pips,
+                    "max_atr_pips": max_atr,
+                }
                 return []
 
         min_micro = float(self.cfg.get("min_micro_trend", 0.0) or 0.0)
         micro_val = sig.get("micro_trend")
         if min_micro > 0 and micro_val is not None:
             if sig["side"] == "BUY" and micro_val < min_micro:
+                self._last_gate_reason = {
+                    "stage": "micro_trend_filter",
+                    "side": sig["side"],
+                    "micro_trend": micro_val,
+                    "min_micro_trend": min_micro,
+                }
                 return []
             if sig["side"] == "SELL" and micro_val > -min_micro:
+                self._last_gate_reason = {
+                    "stage": "micro_trend_filter",
+                    "side": sig["side"],
+                    "micro_trend": micro_val,
+                    "min_micro_trend": min_micro,
+                }
                 return []
 
         # Calibration mode: bypass EV sizing and emit minimal intent for fill simulation
@@ -317,6 +349,12 @@ class DayORB5m(Strategy):
         )
 
         if qty <= 0:
+            self._last_gate_reason = {
+                "stage": "sizing_guard",
+                "qty": qty,
+                "p_lcb": p_lcb,
+                "sl_pips": sig["sl_pips"],
+            }
             return []
 
         tag = f"day_orb5m#{sig['side']}"
