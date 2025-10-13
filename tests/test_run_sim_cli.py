@@ -38,6 +38,8 @@ CSV_MULTI_SYMBOL = """timestamp,symbol,tf,o,h,l,c,v,spread,zscore
 2024-01-01T09:15:00Z,EURUSD,15m,1.1006,1.1016,1.0996,1.1008,0,0.02,0.2
 """
 
+CSV_LOWERCASE_SYMBOL = CSV_CONTENT.replace("USDJPY", "usdjpy")
+
 
 CSV_OHLC_ONLY = textwrap.dedent(
     """\
@@ -220,6 +222,23 @@ def test_load_bars_csv_collects_skip_stats(tmp_path: Path) -> None:
     assert iterator.stats.skipped_rows == 1
 
 
+def test_load_bars_csv_symbol_filter_is_case_insensitive(tmp_path: Path) -> None:
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(CSV_LOWERCASE_SYMBOL, encoding="utf-8")
+
+    bars = list(
+        load_bars_csv(
+            str(csv_path),
+            symbol="USDJPY",
+            default_symbol="USDJPY",
+            default_tf="5m",
+        )
+    )
+
+    assert len(bars) == 5
+    assert all(bar["symbol"] == "usdjpy" for bar in bars)
+
+
 def test_load_bars_csv_strict_raises_on_skip(tmp_path: Path) -> None:
     csv_path = tmp_path / "bars.csv"
     csv_path.write_text(
@@ -256,6 +275,30 @@ def test_load_bars_csv_requires_symbol_when_missing(tmp_path: Path) -> None:
         next(iterator)
 
     assert exc.value.code == "symbol_required"
+
+
+def test_run_sim_handles_lowercase_symbol_feed(tmp_path: Path) -> None:
+    manifest_path = _write_manifest(tmp_path)
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(CSV_LOWERCASE_SYMBOL, encoding="utf-8")
+    json_out = tmp_path / "metrics.json"
+
+    rc = run_sim_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--csv",
+            str(csv_path),
+            "--json-out",
+            str(json_out),
+        ]
+    )
+
+    assert rc == 0
+    data = json.loads(json_out.read_text(encoding="utf-8"))
+    assert data.get("symbol") == "USDJPY"
+    loader_stats = data.get("debug", {}).get("csv_loader", {})
+    assert loader_stats.get("skipped_rows") == 0
 
 
 def test_load_bars_csv_supports_headerless_validated_snapshot(tmp_path: Path) -> None:

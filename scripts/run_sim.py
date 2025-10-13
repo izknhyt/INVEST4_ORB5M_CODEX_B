@@ -204,6 +204,7 @@ def load_bars_csv(
     import csv  # Local import to avoid polluting module namespace unnecessarily
 
     loader_stats = stats or CSVLoaderStats()
+    symbol_filter = symbol.strip().upper() if isinstance(symbol, str) else None
 
     def _format_strict_details(
         reason: str, context: Optional[Dict[str, Any]]
@@ -343,13 +344,15 @@ def load_bars_csv(
                         details="Provide --csv together with --manifest that supplies symbol info.",
                     )
 
+                normalized_row_symbol = row_symbol.strip().upper()
+
                 row_tf: str
                 if tf_key and row_copy.get(tf_key):
                     raw_tf = str(row_copy[tf_key]).strip()
                     row_tf = raw_tf.lower() if raw_tf else default_tf_normalized
                 else:
                     row_tf = default_tf_normalized
-                if symbol and row_symbol != symbol:
+                if symbol_filter and normalized_row_symbol != symbol_filter:
                     continue
 
                 ts_filter_required = start_ts is not None or end_ts is not None
@@ -999,6 +1002,14 @@ def main(argv: Optional[list[str]] = None) -> int:
         strict=config.strict,
         stats=loader_stats,
     )
+    target_symbol = config.symbol.strip().upper()
+
+    def _symbol_matches(bar: Mapping[str, Any]) -> bool:
+        value = bar.get("symbol")
+        if isinstance(value, str):
+            return value.strip().upper() == target_symbol
+        return False
+
     try:
         first_bar = next(bars_iter)
     except StopIteration:
@@ -1006,8 +1017,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 1
 
     bars_for_runner = chain(
-        [first_bar] if first_bar.get("symbol") == config.symbol else [],
-        (bar for bar in bars_iter if bar.get("symbol") == config.symbol),
+        [first_bar] if _symbol_matches(first_bar) else [],
+        (bar for bar in bars_iter if _symbol_matches(bar)),
     )
 
     runner = BacktestRunner(
