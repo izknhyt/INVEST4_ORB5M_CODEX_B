@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 
 import pytest
 
+import scripts.run_sim as run_sim
+
 from scripts.run_sim import (
     CSVFormatError,
     CSVLoaderStats,
@@ -551,7 +553,24 @@ def test_run_sim_creates_run_directory(tmp_path: Path) -> None:
     metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
     assert metrics.get("run_dir") == str(run_path)
     assert metrics.get("dump_daily") == str(run_path / "daily.csv")
+    assert metrics.get("session_log") == str(run_path / "session.log")
     assert (run_path / "daily.csv").exists()
+    session_log_path = run_path / "session.log"
+    assert session_log_path.exists()
+    session_log = json.loads(session_log_path.read_text(encoding="utf-8"))
+    assert session_log["exit_code"] == 0
+    assert session_log["paths"]["run_dir"] == str(run_path)
+    assert session_log["warnings"] == []
+    assert session_log["stdout"] is not None
+    assert session_log["command"] == [
+        "scripts/run_sim.py",
+        "--manifest",
+        str(manifest_path),
+        "--csv",
+        str(csv_path),
+        "--out-dir",
+        str(out_dir),
+    ]
 
 
 def test_run_sim_cli_can_disable_auto_state(tmp_path: Path) -> None:
@@ -936,3 +955,46 @@ def test_run_sim_reports_aggregate_ev_failure(
     assert (
         cmd[strategy_index + 1] == "mean_reversion.MeanReversionStrategy"
     )
+
+
+def test_run_sim_session_log_records_aggregate_ev_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest_path = _write_manifest(tmp_path, auto_state=True, aggregate_ev=True)
+    state_dir = tmp_path / "state_archive"
+    manifest_text = manifest_path.read_text(encoding="utf-8")
+    manifest_text = manifest_text.replace(
+        "        aggregate_ev: true",
+        f"        aggregate_ev: true\n        state_archive: {state_dir}",
+    )
+    manifest_path.write_text(manifest_text, encoding="utf-8")
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(CSV_CONTENT, encoding="utf-8")
+    out_dir = tmp_path / "runs"
+
+    def _failing_aggregate_ev(_namespace_path: Path, _config: Any) -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(run_sim, "_aggregate_ev", _failing_aggregate_ev)
+
+    rc = run_sim_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--csv",
+            str(csv_path),
+            "--out-dir",
+            str(out_dir),
+        ]
+    )
+
+    assert rc == 1
+    run_dirs = sorted(out_dir.iterdir())
+    assert run_dirs
+    run_path = run_dirs[0]
+    session_log_path = run_path / "session.log"
+    assert session_log_path.exists()
+    session_log = json.loads(session_log_path.read_text(encoding="utf-8"))
+    assert session_log["exit_code"] == 1
+    assert any("Failed to aggregate EV: boom" in entry for entry in session_log["warnings"])
+    assert session_log["paths"]["state_saved"] is not None

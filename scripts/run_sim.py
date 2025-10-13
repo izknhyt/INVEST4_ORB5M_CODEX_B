@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from itertools import chain
 from pathlib import Path
-from typing import Any, Dict, Iterator, Mapping, Optional, Sequence
+from typing import Any, Dict, Iterator, Mapping, Optional, Sequence, cast
 
 import os
 import sys
@@ -816,6 +816,7 @@ def _write_run_outputs(
     run_dir.mkdir(parents=True, exist_ok=True)
 
     out["run_dir"] = str(run_dir)
+    out["session_log"] = str(run_dir / "session.log")
 
     params = {
         "manifest": str(config.manifest_path),
@@ -855,6 +856,71 @@ def _write_run_outputs(
                 writer.writerow(record)
 
     return run_dir
+
+
+def _write_session_log(
+    run_dir: Path,
+    *,
+    command: Sequence[str],
+    config: RuntimeConfig,
+    start_time: datetime,
+    end_time: datetime,
+    loader_stats: CSVLoaderStats,
+    warnings: Sequence[str],
+    stdout_text: Optional[str],
+    loaded_state_path: Optional[str],
+    archive_dir: Optional[Path],
+    archive_save_path: Optional[str],
+    exit_code: int,
+) -> None:
+    duration = max((end_time - start_time).total_seconds(), 0.0)
+    start_iso = cast(str, _format_ts(start_time))
+    end_iso = cast(str, _format_ts(end_time))
+
+    payload: Dict[str, Any] = {
+        "command": list(command),
+        "start_time": start_iso,
+        "end_time": end_iso,
+        "duration_seconds": duration,
+        "manifest": {
+            "id": config.manifest.id,
+            "version": getattr(config.manifest, "version", ""),
+            "path": str(config.manifest_path),
+        },
+        "inputs": {
+            "csv": str(config.csv_path),
+            "symbol": config.symbol,
+            "timeframe": config.timeframe,
+            "mode": config.mode,
+            "equity": config.equity,
+            "start_ts": _format_ts(config.start_ts),
+            "end_ts": _format_ts(config.end_ts),
+        },
+        "flags": {
+            "auto_state": config.auto_state,
+            "aggregate_ev": config.aggregate_ev,
+            "use_ev_profile": config.use_ev_profile,
+            "ev_profile": str(config.ev_profile_path) if config.ev_profile_path else None,
+        },
+        "paths": {
+            "run_dir": str(run_dir),
+            "json_out": str(config.json_out) if config.json_out else None,
+            "daily_csv_out": str(config.daily_csv_out) if config.daily_csv_out else None,
+            "loaded_state": loaded_state_path,
+            "state_saved": archive_save_path,
+            "state_archive_dir": str(archive_dir) if archive_dir else None,
+        },
+        "csv_loader": loader_stats.as_dict(),
+        "warnings": list(warnings),
+        "stdout": stdout_text,
+        "exit_code": exit_code,
+    }
+
+    session_path = run_dir / "session.log"
+    session_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -913,6 +979,12 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
 
 def main(argv: Optional[list[str]] = None) -> int:
     args = parse_args(argv)
+    argv_list = list(argv) if argv is not None else list(sys.argv[1:])
+    command_line = ["scripts/run_sim.py", *argv_list]
+    start_time = utcnow_aware()
+    session_warnings: list[str] = []
+    stdout_payload: Optional[str] = None
+
     config = _prepare_runtime_config(args)
 
     csv_path = str(config.csv_path)
@@ -970,10 +1042,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     metrics.debug["csv_loader"] = loader_stats.as_dict()
     if loader_stats.skipped_rows:
         last_error = loader_stats.last_error_code or "unknown"
-        print(
-            f"[run_sim] Skipped {loader_stats.skipped_rows} CSV row(s); last_error={last_error}",
-            file=sys.stderr,
+        warning_msg = (
+            f"[run_sim] Skipped {loader_stats.skipped_rows} CSV row(s); last_error={last_error}"
         )
+        print(warning_msg, file=sys.stderr)
+        session_warnings.append(warning_msg)
         if config.strict:
             raise CSVFormatError(
                 "rows_skipped",
@@ -1015,14 +1088,17 @@ def main(argv: Optional[list[str]] = None) -> int:
         _write_daily_csv(config.daily_csv_out, getattr(metrics, "daily", {}) or {})
         out["dump_daily"] = str(config.daily_csv_out)
 
+    rendered_output = json.dumps(out, ensure_ascii=False, indent=2)
     if config.json_out:
         config.json_out.parent.mkdir(parents=True, exist_ok=True)
         with config.json_out.open("w", encoding="utf-8") as f:
-            json.dump(out, f, ensure_ascii=False, indent=2)
+            f.write(rendered_output)
     else:
-        print(json.dumps(out, ensure_ascii=False, indent=2))
+        stdout_payload = rendered_output
+        print(rendered_output)
 
     archive_save_path: Optional[str] = None
+    exit_code = 0
     if config.auto_state:
         archive_dir = archive_dir or _resolve_state_archive(config)
         archive_dir.mkdir(parents=True, exist_ok=True)
@@ -1040,10 +1116,29 @@ def main(argv: Optional[list[str]] = None) -> int:
         try:
             _aggregate_ev(archive_dir or _resolve_state_archive(config), config)
         except Exception as exc:
-            print(f"[run_sim] Failed to aggregate EV: {exc}", file=sys.stderr)
-            return 1
+            warning_msg = f"[run_sim] Failed to aggregate EV: {exc}"
+            print(warning_msg, file=sys.stderr)
+            session_warnings.append(warning_msg)
+            exit_code = 1
 
-    return 0
+    end_time = utcnow_aware()
+    if run_dir is not None:
+        _write_session_log(
+            run_dir,
+            command=command_line,
+            config=config,
+            start_time=start_time,
+            end_time=end_time,
+            loader_stats=loader_stats,
+            warnings=session_warnings,
+            stdout_text=stdout_payload,
+            loaded_state_path=loaded_state_path,
+            archive_dir=archive_dir,
+            archive_save_path=archive_save_path,
+            exit_code=exit_code,
+        )
+
+    return exit_code
 
 
 if __name__ == "__main__":
