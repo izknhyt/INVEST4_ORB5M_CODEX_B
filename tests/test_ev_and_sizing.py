@@ -57,7 +57,18 @@ class TestStrategyIntegration(unittest.TestCase):
     def test_strategy_emits_order_with_qty(self):
         # Prepare strategy
         stg = DayORB5m()
-        cfg = {"or_n": 6, "k_tp": 1.0, "k_sl": 0.8, "k_tr": 0.0}
+        cfg = {
+            "or_n": 6,
+            "k_tp": 1.0,
+            "k_sl": 0.8,
+            "k_tr": 0.0,
+            "cooldown_bars": 0,
+            "max_signals_per_day": 10,
+            "min_micro_trend": 0.0,
+            "min_atr_pips": 0.0,
+            "max_atr_pips": 0.0,
+            "fallback_win_rate": 0.55,
+        }
         stg.on_start(cfg, ["USDJPY"], {})
 
         # Create OR window bars and a breakout bar
@@ -67,14 +78,16 @@ class TestStrategyIntegration(unittest.TestCase):
             window.append({"o": price, "h": price + 0.10, "l": price - 0.10, "c": price + 0.05})
             price += 0.01
         or_h = max(b["h"] for b in window)
-        breakout_bar = {"o": price, "h": or_h + 0.05, "l": price - 0.05, "c": price, "atr14": 10.0, "window": window}
-
-        # EV estimator with high success probability
-        ev = BetaBinomialEV(conf_level=0.95, decay=0.0)
-        for _ in range(90):
-            ev.update(True)
-        for _ in range(10):
-            ev.update(False)
+        breakout_bar = {
+            "o": price,
+            "h": or_h + 0.05,
+            "l": price - 0.05,
+            "c": price,
+            "atr14": 0.25,
+            "window": window,
+            "micro_trend": 0.5,
+            "new_session": True,
+        }
 
         ctx = {
             "session": "LDN",
@@ -82,9 +95,8 @@ class TestStrategyIntegration(unittest.TestCase):
             "rv_band": "mid",
             "expected_slip_pip": 0.2,
             "slip_cap_pip": 1.5,
-            "ev_oco": ev,
             "cost_pips": 0.1,
-            "threshold_lcb_pip": 0.5,
+            "threshold_lcb_pip": -10.0,
             "equity": 100_000.0,
             "pip_value": 10.0,
             "sizing_cfg": {
@@ -93,6 +105,9 @@ class TestStrategyIntegration(unittest.TestCase):
                 "units_cap": 5.0,
                 "max_trade_loss_pct": 0.5,
             },
+            "ev_mode": "off",
+            "allowed_sessions": ["LDN", "NY"],
+            "cooldown_bars": 0,
         }
 
         # Attach ctx and emit
@@ -108,7 +123,7 @@ class TestStrategyIntegration(unittest.TestCase):
             sigs[0].oco["sl_pips"],
             mode="production",
             tp_pips=sigs[0].oco["tp_pips"],
-            p_lcb=ctx["ev_oco"].p_lcb(),
+            p_lcb=cfg["fallback_win_rate"],
         )
         self.assertAlmostEqual(sigs[0].qty, expected_qty)
 

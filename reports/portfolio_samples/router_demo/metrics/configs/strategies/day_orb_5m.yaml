@@ -6,7 +6,7 @@ meta:
   tags: [orb, breakout]
   description: |
     Opening range breakout strategy for USDJPY 5m bars. Trades LDN/NY sessions
-    with ATR-based exits and EV gating via Beta-Binomial.
+    with ATR-based exits and simple risk filters.
 
 strategy:
   class_path: strategies.day_orb_5m.DayORB5m
@@ -19,12 +19,20 @@ strategy:
       mode: bridge
   parameters:
     or_n: 6
-    k_tp: 1.0
-    k_sl: 0.8
-    k_tr: 0.0
+    k_tp: 1.5
+    k_sl: 0.6
+    k_tr: 0.4
     require_close_breakout: false
-    require_retest: false
+    require_retest: true
+    retest_max_bars: 4
+    retest_tol_k: 0.2
     min_or_atr_ratio: 0.6
+    cooldown_bars: 2
+    min_micro_trend: 0.25
+    min_atr_pips: 3.0
+    max_atr_pips: 35.0
+    max_signals_per_day: 4
+    fallback_win_rate: 0.55
 
 router:
   allowed_sessions: [LDN, NY]
@@ -39,7 +47,7 @@ risk:
   max_daily_dd_pct: 5.0
   notional_cap: 2000000
   max_concurrent_positions: 1
-  warmup_trades: 50
+  warmup_trades: 0
 
 features:
   required: [atr14, adx14, rv12, or_high, or_low, spread_band, session]
@@ -47,19 +55,23 @@ features:
 
 runner:
   runner_config:
-    threshold_lcb_pip: 0.5
+    threshold_lcb_pip: -10.0
     min_or_atr_ratio: 0.6
     allowed_sessions: [LDN, NY]
-    warmup_trades: 50
+    warmup_trades: 0
     include_expected_slip: true
   cli_args:
     equity: 100000
-    threshold_lcb: 0.5
+    threshold_lcb: -10.0
     min_or_atr: 0.6
     allowed_sessions: LDN,NY
+    ev_mode: off
+    auto_state: false
+    aggregate_ev: false
+    use_ev_profile: false
 
 state:
-  ev_profile: configs/ev_profiles/strategies.day_orb_5m.yaml
+  ev_profile: null
 
 notes:
   - Disable during Tokyo session due to low OR quality.

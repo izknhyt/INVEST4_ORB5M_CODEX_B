@@ -11,7 +11,13 @@ from core.pips import pip_size
 class DayORB5m(Strategy):
     api_version = "1.0"
     def on_start(self, cfg: Dict[str,Any], instruments: List[str], state_store: Dict[str,Any]) -> None:
-        self.cfg = cfg
+        self.cfg = dict(cfg)
+        self.cfg.setdefault("cooldown_bars", 0)
+        self.cfg.setdefault("min_micro_trend", 0.0)
+        self.cfg.setdefault("min_atr_pips", 0.0)
+        self.cfg.setdefault("max_atr_pips", 0.0)
+        self.cfg.setdefault("max_signals_per_day", 0)
+        self.cfg.setdefault("fallback_win_rate", 0.55)
         self.state = {
             "or_h": None,
             "or_l": None,
@@ -23,6 +29,7 @@ class DayORB5m(Strategy):
             "retest_seen": False,
             "retest_deadline": 0,
             "retest_direction": None,
+            "signals_today": 0,
         }
         self._pending_signal: Optional[Dict[str,Any]] = None
         self._last_gate_reason: Optional[Dict[str, Any]] = None
@@ -50,6 +57,7 @@ class DayORB5m(Strategy):
             self.state["waiting_retest"] = False
             self.state["retest_seen"] = False
             self.state["retest_direction"] = None
+            self.state["signals_today"] = 0
         self.state["bar_idx"] += 1
         window = bar.get("window", [])
         self._update_or(window, n=self.cfg.get("or_n", 6))
@@ -123,16 +131,48 @@ class DayORB5m(Strategy):
                         # require re-break with optional close filter
                         direction = self.state.get("retest_direction")
                         if direction == "buy" and (bar["h"] >= or_h) and ((not require_close) or (bar["c"] >= or_h)):
-                            self._pending_signal = {"side":"BUY","tp_pips":tp_pips,"sl_pips":sl_pips,"trail_pips":trail_pips,"entry":or_h}
+                            self._pending_signal = {
+                                "side": "BUY",
+                                "tp_pips": tp_pips,
+                                "sl_pips": sl_pips,
+                                "trail_pips": trail_pips,
+                                "entry": or_h,
+                                "atr_pips": atr_pips,
+                                "micro_trend": bar.get("micro_trend"),
+                            }
                             self.state["retest_direction"] = None
                         elif direction == "sell" and (bar["l"] <= or_l) and ((not require_close) or (bar["c"] <= or_l)):
-                            self._pending_signal = {"side":"SELL","tp_pips":tp_pips,"sl_pips":sl_pips,"trail_pips":trail_pips,"entry":or_l}
+                            self._pending_signal = {
+                                "side": "SELL",
+                                "tp_pips": tp_pips,
+                                "sl_pips": sl_pips,
+                                "trail_pips": trail_pips,
+                                "entry": or_l,
+                                "atr_pips": atr_pips,
+                                "micro_trend": bar.get("micro_trend"),
+                            }
                             self.state["retest_direction"] = None
             else:
                 if (bar["h"] >= or_h) and ((not require_close) or (bar["c"] >= or_h)):
-                    self._pending_signal = {"side":"BUY","tp_pips":tp_pips,"sl_pips":sl_pips,"trail_pips":trail_pips,"entry":or_h}
+                    self._pending_signal = {
+                        "side": "BUY",
+                        "tp_pips": tp_pips,
+                        "sl_pips": sl_pips,
+                        "trail_pips": trail_pips,
+                        "entry": or_h,
+                        "atr_pips": atr_pips,
+                        "micro_trend": bar.get("micro_trend"),
+                    }
                 elif (bar["l"] <= or_l) and ((not require_close) or (bar["c"] <= or_l)):
-                    self._pending_signal = {"side":"SELL","tp_pips":tp_pips,"sl_pips":sl_pips,"trail_pips":trail_pips,"entry":or_l}
+                    self._pending_signal = {
+                        "side": "SELL",
+                        "tp_pips": tp_pips,
+                        "sl_pips": sl_pips,
+                        "trail_pips": trail_pips,
+                        "entry": or_l,
+                        "atr_pips": atr_pips,
+                        "micro_trend": bar.get("micro_trend"),
+                    }
 
     def get_pending_signal(self) -> Optional[Dict[str, Any]]:
         return self._pending_signal
@@ -151,12 +191,36 @@ class DayORB5m(Strategy):
             return []
         sig = pending
 
+        signals_today = self.state.get("signals_today", 0)
+        max_signals = int(self.cfg.get("max_signals_per_day", 0) or 0)
+        if max_signals and signals_today >= max_signals:
+            return []
+
+        atr_pips = sig.get("atr_pips")
+        min_atr = float(self.cfg.get("min_atr_pips", 0.0) or 0.0)
+        max_atr = float(self.cfg.get("max_atr_pips", 0.0) or 0.0)
+        if atr_pips is not None:
+            if min_atr and atr_pips < min_atr:
+                return []
+            if max_atr and atr_pips > max_atr:
+                return []
+
+        min_micro = float(self.cfg.get("min_micro_trend", 0.0) or 0.0)
+        micro_val = sig.get("micro_trend")
+        if min_micro > 0 and micro_val is not None:
+            if sig["side"] == "BUY" and micro_val < min_micro:
+                return []
+            if sig["side"] == "SELL" and micro_val > -min_micro:
+                return []
+
         # Calibration mode: bypass EV sizing and emit minimal intent for fill simulation
-        if ctx_data.get("calibrating") or ctx_data.get("ev_mode") == "off":
+        ev_mode = str(ctx_data.get("ev_mode", "lcb")).lower()
+        if ctx_data.get("calibrating"):
             qty = compute_qty_from_ctx(ctx_data, sig["sl_pips"], mode="calibration")
             tag = f"day_orb5m#{sig['side']}#calib"
             self.state["last_signal_bar"] = self.state["bar_idx"]
             self.state["broken"] = True
+            self.state["signals_today"] = signals_today + 1
             return [
                 OrderIntent(
                     sig["side"],
@@ -181,29 +245,31 @@ class DayORB5m(Strategy):
             tag = f"day_orb5m#{sig['side']}#warmup"
             self.state["last_signal_bar"] = self.state["bar_idx"]
             self.state["broken"] = True
+            self.state["signals_today"] = signals_today + 1
             return [OrderIntent(sig["side"], qty=qty, price=sig["entry"], tif="IOC", tag=tag,
                                 oco={"tp_pips":sig["tp_pips"], "sl_pips":sig["sl_pips"], "trail_pips":sig["trail_pips"]})]
 
         # EV gate (Beta-Binomial for OCO)
-        ev = ctx_data.get("ev_oco")  # expected: instance of BetaBinomialEV
         cost_pips = float(ctx_data.get("cost_pips", 0.0))
         threshold = float(ctx_data.get("threshold_lcb_pip", 0.5))
         ev_lcb = None
         p_lcb = None
-        if ev is not None:
-            mode = ctx_data.get("ev_mode", "lcb")
-            if mode == "mean":
-                p_lcb = getattr(ev, 'p_mean')()
-                ev_lcb = p_lcb*sig["tp_pips"] - (1.0-p_lcb)*sig["sl_pips"] - cost_pips
+        if ev_mode != "off":
+            ev = ctx_data.get("ev_oco")
+            if ev is None:
+                return []
+            if ev_mode == "mean":
+                p_lcb = getattr(ev, "p_mean")()
+                ev_lcb = p_lcb * sig["tp_pips"] - (1.0 - p_lcb) * sig["sl_pips"] - cost_pips
             else:
                 ev_lcb = ev.ev_lcb_oco(sig["tp_pips"], sig["sl_pips"], cost_pips)
                 p_lcb = ev.p_lcb()
-        else:
-            # If EV estimator is missing, act conservatively: no trade
-            return []
 
-        if ctx_data.get("ev_mode", "lcb") == "lcb" and (ev_lcb is None or ev_lcb < threshold):
-            return []
+            if ev_mode == "lcb" and (ev_lcb is None or ev_lcb < threshold):
+                return []
+        else:
+            fallback = float(self.cfg.get("fallback_win_rate", 0.5) or 0.0)
+            p_lcb = max(0.0, min(1.0, fallback))
 
         # Position sizing
         qty = compute_qty_from_ctx(
@@ -220,6 +286,7 @@ class DayORB5m(Strategy):
         tag = f"day_orb5m#{sig['side']}"
         self.state["last_signal_bar"] = self.state["bar_idx"]
         self.state["broken"] = True  # block re-entry until next session reset
+        self.state["signals_today"] = signals_today + 1
         return [OrderIntent(sig["side"], qty=qty, price=sig["entry"], tif="IOC", tag=tag,
                             oco={"tp_pips":sig["tp_pips"], "sl_pips":sig["sl_pips"], "trail_pips":sig["trail_pips"]})]
 

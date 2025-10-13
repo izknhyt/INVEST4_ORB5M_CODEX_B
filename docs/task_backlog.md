@@ -289,6 +289,22 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - 2026-06-27: 検証計画でチェック項目を「データ品質 / シミュレーション / 運用準備 / レビュー体制」に分類し、担当者・頻度・証跡リンク欄を `docs/go_nogo_checklist.md` へ追加する更新ステップとモックレビュー記録先（本ドキュメント／`docs/todo_next_archive.md`）を設定。
   - 2025-10-11: Ready へ昇格予定。P4-01 の結果を踏まえて更新範囲を確定する。
 
+### P4-04 Day ORB シンプル化リブート（2025-10-13追加）
+- **目的**: EVゲート凍結後の Day ORB 5m を再構成し、シンプルなフィルタでも一定のトレード頻度・勝率を確保できる状態へ戻す。
+- **スコープ**:
+  - `configs/strategies/day_orb_5m.yaml` / `strategies/day_orb_5m.py` を中心に、EV依存を排しつつ ATR帯・日次本数・連敗ガードなどの軽量フィルタを設計。
+  - `scripts/run_sim.py` 実行フローは `auto_state=false / aggregate_ev=false / use_ev_profile=false / ev_mode="off"` とし、日次ダッシュボードで勝率・PF・連敗数をモニタする運用をまとめる。
+  - 新フィルタで 2018–2025 のロングランにて「トレード数>0」「勝率・DDが暫定閾値を満たす」ことを DoD とする（暫定閾値は設計見直しで再定義）。
+  - EV再導入の判断材料として、日次レポートに期待値推定/ローリング勝率を残すための記録手順を整理。
+- **懸念点 / TODO**:
+  - 現状ロングランはトレード0件。シグナル閾値がなお過剰に厳しいため、発火条件の緩和とリスクガード再調整を最優先で進める。
+  - 日次/週次モニタリングで使うKPI（勝率・PF・連敗数・日次DDなど）と停止条件を具体化し、Codex Cloud セッション開始時に参照できるよう `docs/progress_phase4.md` へ整理する。
+  - Bridgeモード等の派生マニフェストも同方針で更新し、挙動差異を比較レポートに記録する。
+- **初期タスク**:
+  1. シグナル生成条件の緩和案を洗い出し、テスト用マニフェストに反映。
+  2. シンプルトレードガード（連敗停止、日次DD、ATRバンド等）を Runner レベルで整理。
+  3. `docs/progress_phase4.md` にシンプル化リブートの計画・暫定DoD・評価指標を追加。
+
 ## 継続タスク / 保守
 - データスキーマ検証 (`scripts/check_data_quality.py`) を cron 化し、異常リストを `analysis/data_quality.md` に追記。
 - 回帰テストセットを拡充（高スプレッド、欠損バー、レイテンシ障害等）し、CI で常時実行。
