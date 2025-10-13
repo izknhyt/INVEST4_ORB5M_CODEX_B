@@ -25,6 +25,7 @@ class RunnerLifecycleManager:
         self._restore_loaded_state: bool = False
         self._resume_cutoff_dt: Optional[datetime] = None
         self._resume_skipped_bars: int = 0
+        self._pending_state_warnings: list[str] = []
 
     # ----- Initialisation helpers -------------------------------------------------
     def init_ev_state(self) -> None:
@@ -74,6 +75,13 @@ class RunnerLifecycleManager:
         runner._last_timestamp = None
         self._resume_cutoff_dt = None
         self._resume_skipped_bars = 0
+        if self._pending_state_warnings:
+            try:
+                warnings = runner.metrics.debug.setdefault("warnings", [])
+                warnings.extend(self._pending_state_warnings)
+            except Exception:
+                pass
+            self._pending_state_warnings = []
 
     # ----- Persistence ------------------------------------------------------------
     def config_fingerprint(self) -> str:
@@ -283,7 +291,7 @@ class RunnerLifecycleManager:
             ]
         return state
 
-    def apply_state_dict(self, state: Mapping[str, Any]) -> None:
+    def apply_state_dict(self, state: Mapping[str, Any]) -> bool:
         runner = self._runner
         try:
             meta = state.get("meta", {})
@@ -304,12 +312,15 @@ class RunnerLifecycleManager:
                     runner.metrics.debug.setdefault("warnings", []).append(msg)
                 except Exception:
                     pass
+                self._pending_state_warnings.append(msg)
                 skip_state = True
         except Exception:
             pass
 
         if skip_state:
-            return
+            self._resume_cutoff_dt = None
+            self._resume_skipped_bars = 0
+            return False
 
         try:
             runner._last_timestamp = meta.get("last_timestamp", runner._last_timestamp)
@@ -433,8 +444,14 @@ class RunnerLifecycleManager:
         except Exception:
             pass
 
-    def load_state(self, state: Dict[str, Any]) -> None:
-        self.apply_state_dict(state)
+        return True
+
+    def load_state(self, state: Dict[str, Any]) -> bool:
+        applied = self.apply_state_dict(state)
+        if not applied:
+            self._loaded_state_snapshot = None
+            self._restore_loaded_state = False
+            return False
         snapshot: Optional[Dict[str, Any]] = None
         try:
             snapshot = copy.deepcopy(state)
@@ -445,6 +462,7 @@ class RunnerLifecycleManager:
                 snapshot = None
         self._loaded_state_snapshot = snapshot if snapshot is not None else None
         self._restore_loaded_state = self._loaded_state_snapshot is not None
+        return True
 
     def restore_loaded_state_snapshot(self) -> None:
         if not self._restore_loaded_state:
@@ -455,13 +473,13 @@ class RunnerLifecycleManager:
         self.apply_state_dict(self._loaded_state_snapshot)
         self._restore_loaded_state = False
 
-    def load_state_file(self, path: str) -> None:
+    def load_state_file(self, path: str) -> bool:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            self.load_state(data)
         except Exception:
-            pass
+            return False
+        return self.load_state(data)
 
     def should_skip_bar(self, bar: Mapping[str, Any]) -> bool:
         if self._resume_cutoff_dt is None:

@@ -1,6 +1,7 @@
 # フェーズ4 進捗レポート（検証とリリースゲート）
 
-## ハイライト（2026-08-03 更新）
+## ハイライト（2026-08-04 更新）
+- 自動 state 再開時に設定ハッシュ不一致でも `loaded_state` が出力されてしまう誤報告を解消し、メトリクス JSON が実際に復元した時のみパスを記録するよう `scripts/run_sim.py` / Runner ライフサイクルを修正した（`tests/test_run_sim_cli.py::test_run_sim_cli_omits_loaded_state_on_mismatch` で回帰を追加）。
 - `validated/USDJPY/5m.csv` の指紋を記録（579,578 行 / SHA256=85fa08f2224eb6119878f3689a5af617cb666eaab37c5acb7e3603c4bfda48d4）し、`state.md` と同期した。
 - `docs/progress_phase4.md#バグトラッキング` にバグノートのテーブル雛形を追加し、W0 の共有テンプレート整備を完了した。
 - `scripts/compare_metrics.py` を新設し、長期ランの `metrics.json` 差分をトレラントに比較できる CLI / JSON レポート出力を整備。Pytest で回帰を追加し、Diff ツール欠如リスクを解消した。
@@ -22,6 +23,7 @@
 | Bug ID | Date Logged | Symptom Summary | Impact | Status | Regression Test | Artefact Link | Owner |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | TBD-001 | 2026-08-03 | Auto-state resume dropped metrics/EV history causing reruns to report zero trades | High | Resolved | tests/test_runner.py::test_auto_state_resume_preserves_metrics_and_skips_processed_bars | runs/phase4/backtests/resume_q1/USDJPY_conservative_20251013_023742/metrics.json | Backtest WG |
+| TBD-002 | 2026-08-04 | Auto-state fingerprint mismatches still reported `loaded_state` in metrics JSON even when state was skipped | Medium | Resolved | tests/test_run_sim_cli.py::test_run_sim_cli_omits_loaded_state_on_mismatch | - | Backtest WG |
 
 ## 設計・テスト方針ログ
 - 2026-08-03: `scripts/compare_metrics.py` を追加し、`--ignore state_loaded` などのグロブ指定・絶対/相対トレランス・JSON レポート出力に対応させた。`python3 -m pytest tests/test_compare_metrics.py` を実行し、W0 の Diff ツール整備項目を完了。さらに `scripts/manage_task_cycle.py --dry-run start-task --anchor docs/task_backlog.md#p4-01-長期バックテスト改善` を実行し、In Progress 昇格フローを確認。
