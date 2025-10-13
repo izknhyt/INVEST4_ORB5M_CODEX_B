@@ -2317,6 +2317,11 @@ class TestRunner(unittest.TestCase):
                     )
         self.assertEqual(runner._warmup_left, initial_warmup - 1)
         mock_process.assert_called_once()
+        daily_entry = getattr(runner, "_current_daily_entry", None)
+        self.assertIsNotNone(daily_entry)
+        if daily_entry is not None:
+            self.assertEqual(daily_entry["gate_pass"], 1)
+            self.assertEqual(daily_entry["ev_pass"], 1)
 
     def test_maybe_enter_trade_processes_multiple_intents(self):
         runner, pending, breakout, features, calibrating = self._prepare_breakout_environment(

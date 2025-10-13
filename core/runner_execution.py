@@ -367,12 +367,6 @@ class RunnerExecutionManager:
             runner._increment_daily("gate_block")
             return
 
-        additional_intents = len(intents) - 1
-        if additional_intents > 0:
-            runner._increment_daily("gate_pass", additional_intents)
-            if self._should_count_ev_pass(ev_result, calibrating):
-                runner._increment_daily("ev_pass", additional_intents)
-
         fill_engine = (
             runner.fill_engine_c if mode == "conservative" else runner.fill_engine_b
         )
@@ -387,6 +381,8 @@ class RunnerExecutionManager:
 
         current_ev_result = ev_result
         base_sizing_ctx = sizing_ctx
+        gate_pass_count = 0
+        ev_pass_count = 0
 
         for index, intent in enumerate(intents):
             if (
@@ -414,6 +410,10 @@ class RunnerExecutionManager:
                 fresh_sizing_result.apply_to(features.ctx)
                 current_ev_result = fresh_ev_result
                 base_sizing_ctx = fresh_sizing_result.context
+
+            gate_pass_count += 1
+            if self._should_count_ev_pass(current_ev_result, calibrating):
+                ev_pass_count += 1
 
             if index == 0:
                 ctx_for_intent = base_sizing_ctx
@@ -449,6 +449,11 @@ class RunnerExecutionManager:
             )
             if not calibrating and runner._warmup_left > 0:
                 runner._warmup_left -= 1
+
+        if gate_pass_count:
+            runner._increment_daily("gate_pass", gate_pass_count)
+            if ev_pass_count:
+                runner._increment_daily("ev_pass", ev_pass_count)
 
     def process_fill_result(
         self,
