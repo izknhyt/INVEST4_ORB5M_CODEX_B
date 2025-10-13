@@ -27,6 +27,7 @@
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | TBD-001 | 2026-08-03 | Auto-state resume dropped metrics/EV history causing reruns to report zero trades | High | Resolved | tests/test_runner.py::test_auto_state_resume_preserves_metrics_and_skips_processed_bars | runs/phase4/backtests/resume_q1/USDJPY_conservative_20251013_023742/metrics.json | Backtest WG |
 | TBD-002 | 2026-08-04 | Auto-state fingerprint mismatches still reported `loaded_state` in metrics JSON even when state was skipped | Medium | Resolved | tests/test_run_sim_cli.py::test_run_sim_cli_omits_loaded_state_on_mismatch | - | Backtest WG |
+| TBD-003 | 2026-08-09 | Lowercase CSV symbols were filtered out, leaving manifests with empty runs | Medium | Resolved | tests/test_run_sim_cli.py::test_run_sim_handles_lowercase_symbol_feed | - | Backtest WG |
 
 ## 設計・テスト方針ログ
 - 2026-08-08: `scripts/compare_metrics.py` に webhook 通知オプション（`--webhook-url` / `--webhook-url-env` / `--webhook-timeout` / `--dry-run-webhook` / `--fail-on-webhook-error`）を追加し、差分検出時に自動アラートが飛ばせるようにした。`tests/test_compare_metrics.py` へ webhook 配信と設定解決の回帰を追加し、`python3 -m pytest tests/test_compare_metrics.py` を実行してガードを確認。プラン §5.5 と Open Question #4 を更新。
