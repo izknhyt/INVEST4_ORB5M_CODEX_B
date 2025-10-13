@@ -187,6 +187,28 @@ def test_load_bars_csv_normalizes_timeframe(tmp_path: Path) -> None:
     assert [bar["tf"] for bar in bars] == ["5m", "5m"]
 
 
+def test_load_bars_csv_matches_symbol_case_insensitively(tmp_path: Path) -> None:
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(
+        "timestamp,symbol,tf,o,h,l,c,v,spread\n"
+        "2024-01-01T09:00:00Z,usdjpy,5m,150.10,150.20,150.00,150.12,0,0.01\n"
+        "2024-01-01T09:05:00Z,UsDjPy,5m,150.11,150.21,150.01,150.13,0,0.02\n",
+        encoding="utf-8",
+    )
+
+    bars = list(
+        load_bars_csv(
+            str(csv_path),
+            symbol="USDJPY",
+            default_symbol="USDJPY",
+            default_tf="5m",
+        )
+    )
+
+    assert len(bars) == 2
+    assert {bar["symbol"] for bar in bars} == {"USDJPY"}
+
+
 def test_load_bars_csv_collects_skip_stats(tmp_path: Path) -> None:
     csv_path = tmp_path / "bars.csv"
     csv_path.write_text(
