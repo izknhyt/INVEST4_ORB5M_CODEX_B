@@ -71,6 +71,7 @@ def _pending_signal():
         "trail_pips": 0.0,
         "entry": 151.25,
         "atr_pips": 15.0,
+        "micro_trend": 0.0,
     }
 
 
@@ -176,3 +177,82 @@ def test_daily_trade_cap_blocks_after_manifest_limit():
     ctx["daily_trade_count"] = 5
     intents = list(stg.signals(ctx))
     assert intents, "Trade count below cap should allow execution"
+
+
+def test_daily_signal_cap_records_reason():
+    stg = _prep_strategy({"max_signals_per_day": 4})
+    stg.state["signals_today"] = 4
+    ctx = _base_ctx()
+    intents = list(stg.signals(ctx))
+    assert intents == []
+    assert stg._last_gate_reason == {
+        "stage": "daily_signal_cap",
+        "signals_today": 4,
+        "max_signals_per_day": 4,
+    }
+
+
+def test_cooldown_guard_records_reason():
+    stg = _prep_strategy({"cooldown_bars": 3})
+    stg.state["last_signal_bar"] = stg.state["bar_idx"] - 1
+    ctx = _base_ctx()
+    ctx["cooldown_bars"] = 3
+    intents = list(stg.signals(ctx))
+    assert intents == []
+    assert stg._last_gate_reason == {
+        "stage": "cooldown_guard",
+        "bars_since": 1,
+        "cooldown_bars": 3,
+    }
+
+
+def test_atr_filter_records_min_and_max_rejections():
+    stg = _prep_strategy({"min_atr_pips": 20.0})
+    ctx = _base_ctx()
+    stg._pending_signal["atr_pips"] = 15.0
+    intents = list(stg.signals(ctx))
+    assert intents == []
+    assert stg._last_gate_reason == {
+        "stage": "atr_filter",
+        "atr_pips": 15.0,
+        "min_atr_pips": 20.0,
+    }
+
+    stg = _prep_strategy({"max_atr_pips": 10.0})
+    ctx = _base_ctx()
+    stg._pending_signal["atr_pips"] = 15.0
+    intents = list(stg.signals(ctx))
+    assert intents == []
+    assert stg._last_gate_reason == {
+        "stage": "atr_filter",
+        "atr_pips": 15.0,
+        "max_atr_pips": 10.0,
+    }
+
+
+def test_micro_trend_filter_records_reason():
+    stg = _prep_strategy({"min_micro_trend": 0.2})
+    stg._pending_signal["micro_trend"] = 0.05
+    ctx = _base_ctx()
+    intents = list(stg.signals(ctx))
+    assert intents == []
+    assert stg._last_gate_reason == {
+        "stage": "micro_trend_filter",
+        "side": "BUY",
+        "micro_trend": 0.05,
+        "min_micro_trend": 0.2,
+    }
+
+
+def test_zero_qty_sets_sizing_guard_reason():
+    stg = _prep_strategy()
+    ctx = _base_ctx()
+    ctx["equity"] = 0.0
+    intents = list(stg.signals(ctx))
+    assert intents == []
+    assert stg._last_gate_reason == {
+        "stage": "sizing_guard",
+        "qty": 0.0,
+        "p_lcb": stg.cfg["fallback_win_rate"],
+        "sl_pips": 10.0,
+    }
