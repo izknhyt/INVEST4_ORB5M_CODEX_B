@@ -154,6 +154,7 @@ Run shortened windows (e.g., 2024 Q1) during development to validate performance
 
 ### 5.5 Compare-metrics Automation
 Adopt `python3 scripts/compare_metrics.py --left runs/phase4/backtests/<prev>/metrics.json --right runs/phase4/backtests/<curr>/metrics.json` to automate numerical comparisons; the CLI now supports glob ignores and tolerance flags (2026-08-03) so resume artefact paths can be filtered without custom tooling.
+- 2026-08-08: Added webhook delivery options (`--webhook-url`, `--webhook-url-env`, `--webhook-timeout`, `--dry-run-webhook`, `--fail-on-webhook-error`) so significant metric drift can trigger alerting without manual review. Payloads summarise significant differences (top 20 keys by default) and note missing keys to align with W3 observability guardrails.
 - If the helper script has not landed yet, reference backlog `P4-04` in the run log and capture a manual diff workflow (e.g., `jq` + spreadsheet steps) so auditors understand the temporary process.
 
 ### 5.6 Continuous Integration
@@ -215,5 +216,5 @@ Maintain a checklist of unconverted manual repro steps; escalate any open items 
 1. Should we introduce additional manifests (e.g., alternative symbols or shorter look-back windows) to verify generalisation before Phase 4 sign-off? → Proposal: pilot with a 2022-focused USDJPY slice under `runs/phase4/validation/` and record outcomes before expanding scope. **Owner**: Backtest WG (Due: end of Week 1).
 2. Where should exploratory parameter sweeps live (`runs/phase4/experiments/` vs dedicated archive) to preserve auditability without cluttering the baseline directory? → Recommend `runs/phase4/experiments/<ticket-id>/` with an index CSV and README linking to the bug notebook. **Owner**: Tech Lead to ratify naming convention during Week 0 retro.
 3. Which subset of the long-run commands can run nightly within Codex Cloud resource constraints? Do we need a shortened scenario for daily health checks? → Action: benchmark a 2019–2020 conservative slice (<30 min target) and document results to decide if nightly cadence is feasible. **Owner**: Ops, coordinate with Backtest WG before Week 2.
-4. Do we need an automated alert when baseline metrics drift beyond tolerance? → Consider extending `scripts/compare_metrics.py` to emit Slack/webhook notifications for off-nominal diffs. **Owner**: Platform to spike during W3, with go/no-go at the Week 3 review.
+4. Do we need an automated alert when baseline metrics drift beyond tolerance? → Resolved 2026-08-08 by extending `scripts/compare_metrics.py` with webhook alert options (`--webhook-url`, `--fail-on-webhook-error`, etc.) so drift detection can page reviewers automatically. Documented in §5.5. **Owner**: Platform (closed).
 

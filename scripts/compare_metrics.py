@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from dataclasses import dataclass, field
 from fnmatch import fnmatch
@@ -20,6 +21,8 @@ from typing import Any, Mapping, Sequence
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+from scripts._webhook import deliver_webhook
 
 
 @dataclass(slots=True)
@@ -77,6 +80,20 @@ class ComparisonResult:
         }
 
 
+@dataclass(frozen=True)
+class WebhookConfig:
+    """Resolved webhook delivery options."""
+
+    urls: tuple[str, ...]
+    timeout: float
+    secret: str | None
+    dry_run: bool
+    fail_on_error: bool
+
+
+MAX_WEBHOOK_DIFFS = 20
+
+
 def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
@@ -100,6 +117,132 @@ def _flatten(prefix: str, payload: Any) -> dict[str, Any]:
 
 def _should_ignore(key: str, patterns: Sequence[str]) -> bool:
     return any(fnmatch(key, pattern) for pattern in patterns)
+
+
+def _split_urls(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    return [url.strip() for url in raw.split(",") if url and url.strip()]
+
+
+def _deduplicate_preserving_order(urls: Sequence[str]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for url in urls:
+        if url not in seen:
+            seen.add(url)
+            ordered.append(url)
+    return ordered
+
+
+def _has_significant_issues(result: ComparisonResult) -> bool:
+    return bool(result.significant_differences or result.missing_in_left or result.missing_in_right)
+
+
+def _resolve_webhook_config(args: argparse.Namespace) -> WebhookConfig | None:
+    raw_urls: list[str] = []
+    if args.webhook_url:
+        for value in args.webhook_url:
+            raw_urls.extend(_split_urls(value))
+    if getattr(args, "webhook_url_env", None):
+        env_value = os.getenv(args.webhook_url_env)
+        raw_urls.extend(_split_urls(env_value))
+
+    urls = _deduplicate_preserving_order(raw_urls)
+    if not urls:
+        return None
+
+    timeout = float(args.webhook_timeout)
+    if timeout <= 0.0:
+        raise ValueError("--webhook-timeout must be positive")
+
+    secret: str | None = None
+    if getattr(args, "webhook_secret_env", None):
+        env_secret = os.getenv(args.webhook_secret_env)
+        if env_secret:
+            trimmed = env_secret.strip()
+            if trimmed:
+                secret = trimmed
+
+    return WebhookConfig(
+        urls=tuple(urls),
+        timeout=timeout,
+        secret=secret,
+        dry_run=bool(getattr(args, "dry_run_webhook", False)),
+        fail_on_error=bool(getattr(args, "fail_on_webhook_error", False)),
+    )
+
+
+def _build_webhook_payload(result: ComparisonResult) -> dict[str, Any]:
+    summary = {
+        "matched": len(result.matched_keys),
+        "ignored": len(result.ignored_keys),
+        "missing_in_left": len(result.missing_in_left),
+        "missing_in_right": len(result.missing_in_right),
+        "differences": len(result.differences),
+        "significant_differences": len(result.significant_differences),
+    }
+    payload: dict[str, Any] = {
+        "type": "compare_metrics.diff",
+        "status": "diff_detected" if _has_significant_issues(result) else "ok",
+        "left": str(result.left_path),
+        "right": str(result.right_path),
+        "summary": summary,
+        "missing_in_left": result.missing_in_left,
+        "missing_in_right": result.missing_in_right,
+    }
+
+    if result.significant_differences:
+        truncated = max(len(result.significant_differences) - MAX_WEBHOOK_DIFFS, 0)
+        payload["significant_differences"] = [
+            {
+                "key": diff.key,
+                "left": diff.left,
+                "right": diff.right,
+                "abs_delta": diff.abs_delta,
+                "rel_delta": diff.rel_delta,
+                "reason": diff.reason,
+            }
+            for diff in result.significant_differences[:MAX_WEBHOOK_DIFFS]
+        ]
+        if truncated:
+            payload["significant_differences_truncated"] = truncated
+
+    return payload
+
+
+def dispatch_diff_webhooks(result: ComparisonResult, config: WebhookConfig) -> list[dict[str, Any]]:
+    payload = _build_webhook_payload(result)
+    deliveries: list[dict[str, Any]] = []
+
+    for url in config.urls:
+        if config.dry_run:
+            print(f"[compare_metrics] Dry-run webhook -> {url}")
+            deliveries.append({"url": url, "status": "dry_run"})
+            continue
+
+        delivery = deliver_webhook(url, payload, timeout=config.timeout, secret=config.secret)
+        record = {
+            "url": url,
+            "status": delivery.status,
+            "attempts": delivery.attempts,
+            "status_code": delivery.status_code,
+            "response_ms": delivery.response_ms,
+            "error": delivery.error,
+        }
+        deliveries.append(record)
+
+        if delivery.status == "ok":
+            latency = f"{delivery.response_ms:.1f} ms" if delivery.response_ms is not None else "n/a"
+            print(
+                f"[compare_metrics] webhook {url} delivered (attempts={delivery.attempts}, "
+                f"status_code={delivery.status_code}, latency={latency})"
+            )
+        else:
+            message = delivery.error or f"HTTP {delivery.status_code or 'unknown'}"
+            print(f"[compare_metrics] webhook {url} failed: {message}", file=sys.stderr)
+
+    return deliveries
 
 
 def _load_json(path: Path) -> Any:
@@ -261,6 +404,35 @@ def build_parser() -> argparse.ArgumentParser:
         "--out-json",
         help="Optional path to write the comparison result as JSON",
     )
+    parser.add_argument(
+        "--webhook-url",
+        action="append",
+        help="Webhook URL(s) for diff alerts. Can be provided multiple times or as comma-separated values.",
+    )
+    parser.add_argument(
+        "--webhook-url-env",
+        help="Environment variable containing additional webhook URL(s).",
+    )
+    parser.add_argument(
+        "--webhook-timeout",
+        type=float,
+        default=5.0,
+        help="Timeout in seconds when delivering webhook payloads.",
+    )
+    parser.add_argument(
+        "--webhook-secret-env",
+        help="Environment variable containing an optional webhook signing secret.",
+    )
+    parser.add_argument(
+        "--dry-run-webhook",
+        action="store_true",
+        help="Log the webhook payload without sending it.",
+    )
+    parser.add_argument(
+        "--fail-on-webhook-error",
+        action="store_true",
+        help="Exit non-zero when webhook delivery fails (default: continue).",
+    )
     return parser
 
 
@@ -289,10 +461,36 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     _print_summary(result)
 
+    webhook_results: list[dict[str, Any]] | None = None
+    try:
+        webhook_config = _resolve_webhook_config(args)
+    except ValueError as exc:
+        parser.error(str(exc))
+        return 2  # pragma: no cover - parser.error raises SystemExit
+    if webhook_config:
+        if _has_significant_issues(result):
+            webhook_results = dispatch_diff_webhooks(result, webhook_config)
+            if webhook_config.fail_on_error:
+                has_failure = any(
+                    entry.get("status") not in {"ok", "dry_run"} for entry in webhook_results
+                )
+                if has_failure:
+                    print(
+                        "[compare_metrics] Aborting due to webhook delivery failure (see stderr above).",
+                        file=sys.stderr,
+                    )
+                    return 2
+        else:
+            print("[compare_metrics] No significant differences detected; skipping webhook delivery.")
+            webhook_results = []
+
     if args.out_json:
         out_path = Path(args.out_json)
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(json.dumps(result.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
+        payload = result.to_dict()
+        if webhook_results is not None:
+            payload["webhook_delivery"] = webhook_results
+        out_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
         print(f"\nWrote diff report to {out_path}")
 
     return 0 if not result.significant_differences and not result.missing_in_left and not result.missing_in_right else 1

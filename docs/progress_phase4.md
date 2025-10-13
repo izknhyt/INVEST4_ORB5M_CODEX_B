@@ -29,6 +29,7 @@
 | TBD-002 | 2026-08-04 | Auto-state fingerprint mismatches still reported `loaded_state` in metrics JSON even when state was skipped | Medium | Resolved | tests/test_run_sim_cli.py::test_run_sim_cli_omits_loaded_state_on_mismatch | - | Backtest WG |
 
 ## 設計・テスト方針ログ
+- 2026-08-08: `scripts/compare_metrics.py` に webhook 通知オプション（`--webhook-url` / `--webhook-url-env` / `--webhook-timeout` / `--dry-run-webhook` / `--fail-on-webhook-error`）を追加し、差分検出時に自動アラートが飛ばせるようにした。`tests/test_compare_metrics.py` へ webhook 配信と設定解決の回帰を追加し、`python3 -m pytest tests/test_compare_metrics.py` を実行してガードを確認。プラン §5.5 と Open Question #4 を更新。
 - 2026-08-05: Phase4 diff ワークフローを `reports/diffs/README.md` にまとめ、W1 Step 4/7 のエビデンス保存手順（メトリクス diff・日次 CSV 変換補助スクリプト・ハッシュ記録フロー）を整理。バックログ/State 連携も更新。
 - 2026-08-03: `scripts/compare_metrics.py` を追加し、`--ignore state_loaded` などのグロブ指定・絶対/相対トレランス・JSON レポート出力に対応させた。`python3 -m pytest tests/test_compare_metrics.py` を実行し、W0 の Diff ツール整備項目を完了。さらに `scripts/manage_task_cycle.py --dry-run start-task --anchor docs/task_backlog.md#p4-01-長期バックテスト改善` を実行し、In Progress 昇格フローを確認。
 - 2026-07-05: `configs/strategies/day_orb_5m.yaml` に Bridge モードを追加し、`scripts/run_sim.py --no-auto-state` で Conservative/Bridge のベースラインを `runs/phase4/backtests/` に保存。最新 `validated/USDJPY/5m.csv` が 2025 年 10 月以降のみであることを確認し、2018–2024 の validated データ再発行を TODO に登録。
