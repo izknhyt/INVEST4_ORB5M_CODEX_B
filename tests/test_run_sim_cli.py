@@ -6,6 +6,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from datetime import datetime, timezone
+
 import pytest
 
 from scripts.run_sim import (
@@ -647,6 +649,55 @@ def test_run_sim_cli_handles_string_bool_flags(tmp_path: Path) -> None:
     params = json.loads((run_path / "params.json").read_text(encoding="utf-8"))
     assert params.get("auto_state") is False
     assert params.get("aggregate_ev") is False
+
+
+def test_run_sim_timestamps_use_aware_helper(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest_path = _write_manifest(tmp_path, auto_state=True)
+    state_dir = tmp_path / "state_archive"
+
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(CSV_CONTENT, encoding="utf-8")
+    out_dir = tmp_path / "runs"
+
+    frozen_now = datetime(2025, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+    call_count = 0
+
+    def _fake_utcnow_aware(*, dt_cls=None):  # type: ignore[override]
+        nonlocal call_count
+        call_count += 1
+        return frozen_now
+
+    monkeypatch.setattr("scripts.run_sim.utcnow_aware", _fake_utcnow_aware)
+    monkeypatch.setattr("scripts.run_sim._resolve_state_archive", lambda config: state_dir)
+    monkeypatch.setattr("scripts.run_sim._latest_state_file", lambda path: None)
+
+    rc = run_sim_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--csv",
+            str(csv_path),
+            "--out-dir",
+            str(out_dir),
+        ]
+    )
+
+    assert rc == 0
+    # `_write_run_outputs` and the auto-state block should both rely on the helper.
+    assert call_count >= 2
+
+    run_dirs = sorted(out_dir.iterdir())
+    assert run_dirs
+    run_path = run_dirs[0]
+    expected_suffix = frozen_now.strftime("%Y%m%d_%H%M%S")
+    assert run_path.name.endswith(expected_suffix)
+
+    state_files = sorted(state_dir.glob("*.json"))
+    assert state_files
+    for state_file in state_files:
+        assert state_file.stem == expected_suffix
 
 
 def test_run_sim_uses_custom_archive_namespace_with_custom_root(tmp_path: Path) -> None:
