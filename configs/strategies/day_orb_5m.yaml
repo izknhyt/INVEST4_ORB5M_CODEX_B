@@ -19,20 +19,23 @@ strategy:
       mode: bridge
   parameters:
     or_n: 6
-    k_tp: 1.5
-    k_sl: 0.6
-    k_tr: 0.4
+    k_tp: 1.4
+    k_sl: 0.7
+    k_tr: 0.3
     require_close_breakout: false
     require_retest: false
     retest_max_bars: 4
     retest_tol_k: 0.2
-    min_or_atr_ratio: 0.3
-    cooldown_bars: 2
+    min_or_atr_ratio: 0.25
+    cooldown_bars: 1
     min_micro_trend: 0.0
     min_atr_pips: 0.0
     max_atr_pips: 40.0
-    max_signals_per_day: 6
+    max_signals_per_day: 4
     fallback_win_rate: 0.55
+    max_loss_streak: 3
+    max_daily_loss_pips: 120.0
+    max_daily_trade_count: 6
 
 router:
   allowed_sessions: [LDN, NY]
@@ -56,7 +59,7 @@ features:
 runner:
   runner_config:
     threshold_lcb_pip: -10.0
-    min_or_atr_ratio: 0.3
+    min_or_atr_ratio: 0.25
     allowed_sessions: [LDN, NY]
     warmup_trades: 0
     include_expected_slip: true
@@ -66,7 +69,7 @@ runner:
   cli_args:
     equity: 100000
     threshold_lcb: -10.0
-    min_or_atr: 0.6
+    min_or_atr: 0.5
     allowed_sessions: LDN,NY
     ev_mode: off
     auto_state: false

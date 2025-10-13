@@ -936,6 +936,9 @@ class BacktestRunner:
             self._current_date = date_str
             if new_day:
                 self._day_count += 1
+                self._daily_loss_pips = 0.0
+                self._daily_trade_count = 0
+                self._daily_pnl_pips = 0.0
             self._current_daily_entry = self._ensure_daily_entry(date_str)
             if new_day and self.rcfg.rv_qcalib_enabled:
                 self._update_rv_thresholds()
@@ -1334,6 +1337,10 @@ class BacktestRunner:
             ev_manager=ev_manager,
             ev_profile_stats=ev_profile_stats,
             allowed_sessions=allowed_sessions,
+            loss_streak=self._loss_streak,
+            daily_loss_pips=self._daily_loss_pips,
+            daily_trade_count=self._daily_trade_count,
+            daily_pnl_pips=self._daily_pnl_pips,
         )
 
     def _parse_session_timestamp(self, ts: str) -> Optional[datetime]:

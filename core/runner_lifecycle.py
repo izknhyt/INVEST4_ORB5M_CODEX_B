@@ -73,6 +73,10 @@ class RunnerLifecycleManager:
         runner._current_date = None
         runner._day_count = 0
         runner._last_timestamp = None
+        runner._loss_streak = 0
+        runner._daily_loss_pips = 0.0
+        runner._daily_trade_count = 0
+        runner._daily_pnl_pips = 0.0
         self._resume_cutoff_dt = None
         self._resume_skipped_bars = 0
         if self._pending_state_warnings:
