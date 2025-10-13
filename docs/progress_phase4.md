@@ -30,6 +30,8 @@
 | TBD-002 | 2026-08-04 | Auto-state fingerprint mismatches still reported `loaded_state` in metrics JSON even when state was skipped | Medium | Resolved | tests/test_run_sim_cli.py::test_run_sim_cli_omits_loaded_state_on_mismatch | - | Backtest WG |
 | TBD-003 | 2026-08-09 | Lowercase CSV symbols were filtered out, leaving manifests with empty runs | Medium | Resolved | tests/test_run_sim_cli.py::test_run_sim_handles_lowercase_symbol_feed | - | Backtest WG |
 
+_2026-08-12 review_: Confirmed W2 バグ掃討後のノートを再確認し、High インパクトの未解決項目は存在しない。`TBD-001`〜`TBD-003` はいずれも回帰テストでガードされ、長期ランの再実行でも再発していないことを `session.log` / diff アーティファクトで確認済み。
+
 ## 設計・テスト方針ログ
 - 2026-08-08: `scripts/compare_metrics.py` に webhook 通知オプション（`--webhook-url` / `--webhook-url-env` / `--webhook-timeout` / `--dry-run-webhook` / `--fail-on-webhook-error`）を追加し、差分検出時に自動アラートが飛ばせるようにした。`tests/test_compare_metrics.py` へ webhook 配信と設定解決の回帰を追加し、`python3 -m pytest tests/test_compare_metrics.py` を実行してガードを確認。プラン §5.5 と Open Question #4 を更新。
 - 2026-08-05: Phase4 diff ワークフローを `reports/diffs/README.md` にまとめ、W1 Step 4/7 のエビデンス保存手順（メトリクス diff・日次 CSV 変換補助スクリプト・ハッシュ記録フロー）を整理。バックログ/State 連携も更新。
