@@ -44,6 +44,7 @@ from core.runner_lifecycle import RunnerLifecycleManager
 from core.router_pipeline import PortfolioTelemetry, build_portfolio_state
 from core.utils import yaml_compat as yaml
 from router.router_v1 import select_candidates
+from scripts._time_utils import utcnow_aware
 
 
 class CSVFormatError(Exception):
@@ -809,7 +810,7 @@ def _write_run_outputs(
     if not config.run_base_dir:
         return None
 
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = utcnow_aware().strftime("%Y%m%d_%H%M%S")
     run_dir = config.run_base_dir / f"{config.symbol}_{config.mode}_{timestamp}"
     run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1022,7 +1023,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     if config.auto_state:
         archive_dir = archive_dir or _resolve_state_archive(config)
         archive_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = utcnow_aware().strftime("%Y%m%d_%H%M%S")
         archive_path = archive_dir / f"{timestamp}.json"
         state_payload = runner.export_state()
         with archive_path.open("w", encoding="utf-8") as f:

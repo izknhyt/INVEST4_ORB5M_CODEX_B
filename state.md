@@ -1,6 +1,7 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-08-01: `scripts/run_sim.py` の run ディレクトリ／自動 state 保存タイムスタンプ生成を `scripts._time_utils.utcnow_aware` に統一し、`datetime.utcnow()` 依存による DeprecationWarning を解消。回帰テスト `tests/test_run_sim_cli.py::test_run_sim_timestamps_use_aware_helper` を追加し、`python3 -m pytest` を実行して Phase4 バグフィックス計画の W2 ガードレールに沿って挙動を確認。
 - 2026-07-31: Hardened `scripts/run_sim.py` boolean coercion so manifest `runner.cli_args.auto_state` / `aggregate_ev` handle quoted strings and no longer force unintended state archive saves per Phase 4 bugfix plan guardrails. Added regression `tests/test_run_sim_cli.py::test_run_sim_cli_handles_string_bool_flags` and executed `python3 -m pytest tests/test_run_sim_cli.py` to confirm the fix.
 - 2026-07-31: Added the validated USDJPY dataset flag to the Phase 4 resume smoke command in `docs/plans/phase4_sim_bugfix_plan.md` §5.3 so operators consistently reference `validated/USDJPY/5m.csv` when verifying state persistence. ドキュメント更新のみのためテスト実行は不要と判断。
 - 2026-07-31: Updated `docs/plans/phase4_sim_bugfix_plan.md` W0 Step 5 to reference the full `docs/task_backlog.md#p4-01-長期バックテスト改善` anchor in the `manage_task_cycle` dry-run examples so backlog-aligned invocations remain reproducible. ドキュメント更新のみのためテスト実行は不要と判断。
