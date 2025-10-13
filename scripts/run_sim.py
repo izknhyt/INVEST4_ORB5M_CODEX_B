@@ -27,6 +27,7 @@ from itertools import chain
 from pathlib import Path
 from typing import Any, Dict, Iterator, Mapping, Optional, Sequence, cast
 
+import hashlib
 import os
 import sys
 
@@ -188,6 +189,14 @@ def _float_or_zero(value: Any) -> float:
             return 0.0
         value = value.strip()
     return float(value)
+
+
+def _sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(chunk_size), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def load_bars_csv(
@@ -820,6 +829,7 @@ def _write_run_outputs(
 
     out["run_dir"] = str(run_dir)
     out["session_log"] = str(run_dir / "session.log")
+    out["checksums"] = str(run_dir / "checksums.json")
 
     params = {
         "manifest": str(config.manifest_path),
@@ -861,6 +871,47 @@ def _write_run_outputs(
     return run_dir
 
 
+def _write_checksums(run_dir: Path) -> Dict[str, Any]:
+    files: Dict[str, Path] = {
+        "params.json": run_dir / "params.json",
+        "metrics.json": run_dir / "metrics.json",
+    }
+    optional = {
+        "daily.csv": run_dir / "daily.csv",
+        "records.csv": run_dir / "records.csv",
+        "state.json": run_dir / "state.json",
+    }
+    for name, path in optional.items():
+        if path.exists():
+            files[name] = path
+
+    checksums: Dict[str, str] = {}
+    for name, path in files.items():
+        if path.exists() and path.is_file():
+            checksums[name] = _sha256_file(path)
+
+    if not checksums:
+        return {}
+
+    generated_at = _format_ts(utcnow_aware())
+    if generated_at is None:
+        generated_at = (
+            datetime.utcnow()
+            .replace(tzinfo=timezone.utc)
+            .isoformat()
+            .replace("+00:00", "Z")
+        )
+
+    payload: Dict[str, Any] = {
+        "generated_at": generated_at,
+        "files": checksums,
+    }
+    with (run_dir / "checksums.json").open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, ensure_ascii=False, indent=2)
+        handle.write("\n")
+    return payload
+
+
 def _write_session_log(
     run_dir: Path,
     *,
@@ -875,6 +926,7 @@ def _write_session_log(
     archive_dir: Optional[Path],
     archive_save_path: Optional[str],
     exit_code: int,
+    checksums: Optional[Mapping[str, Any]] = None,
 ) -> None:
     duration = max((end_time - start_time).total_seconds(), 0.0)
     start_iso = cast(str, _format_ts(start_time))
@@ -918,6 +970,9 @@ def _write_session_log(
         "stdout": stdout_text,
         "exit_code": exit_code,
     }
+
+    if checksums:
+        payload["hashes"] = checksums
 
     session_path = run_dir / "session.log"
     session_path.write_text(
@@ -1133,6 +1188,10 @@ def main(argv: Optional[list[str]] = None) -> int:
             exit_code = 1
 
     end_time = utcnow_aware()
+    checksum_payload: Optional[Dict[str, Any]] = None
+    if run_dir is not None:
+        checksum_payload = _write_checksums(run_dir)
+
     if run_dir is not None:
         _write_session_log(
             run_dir,
@@ -1147,6 +1206,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             archive_dir=archive_dir,
             archive_save_path=archive_save_path,
             exit_code=exit_code,
+            checksums=checksum_payload,
         )
 
     return exit_code
