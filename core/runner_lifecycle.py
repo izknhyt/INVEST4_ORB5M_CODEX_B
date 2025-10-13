@@ -1,6 +1,7 @@
 from __future__ import annotations
 import copy
 import json
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Mapping, Optional, TYPE_CHECKING
 
 from core.ev_gate import BetaBinomialEV, TLowerEV
@@ -22,6 +23,8 @@ class RunnerLifecycleManager:
         self._runner = runner
         self._loaded_state_snapshot: Optional[Dict[str, Any]] = None
         self._restore_loaded_state: bool = False
+        self._resume_cutoff_dt: Optional[datetime] = None
+        self._resume_skipped_bars: int = 0
 
     # ----- Initialisation helpers -------------------------------------------------
     def init_ev_state(self) -> None:
@@ -69,6 +72,8 @@ class RunnerLifecycleManager:
         runner._current_date = None
         runner._day_count = 0
         runner._last_timestamp = None
+        self._resume_cutoff_dt = None
+        self._resume_skipped_bars = 0
 
     # ----- Persistence ------------------------------------------------------------
     def config_fingerprint(self) -> str:
@@ -84,6 +89,118 @@ class RunnerLifecycleManager:
         }
         payload = json.dumps(cfg, sort_keys=True)
         return runner._hash_payload(payload)
+
+    def _parse_resume_timestamp(self, value: Any) -> Optional[datetime]:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            dt_value = value
+        else:
+            try:
+                text = str(value).strip()
+            except Exception:
+                return None
+            if not text:
+                return None
+            if text.endswith("Z"):
+                text = text[:-1] + "+00:00"
+            try:
+                dt_value = datetime.fromisoformat(text)
+            except ValueError:
+                return None
+        if dt_value.tzinfo is None:
+            dt_value = dt_value.replace(tzinfo=timezone.utc)
+        else:
+            dt_value = dt_value.astimezone(timezone.utc)
+        return dt_value
+
+    def _restore_metrics_snapshot(self, payload: Mapping[str, Any]) -> None:
+        runner = self._runner
+        metrics = runner.metrics
+
+        try:
+            metrics.trades = int(payload.get("trades", metrics.trades))
+        except Exception:
+            pass
+        try:
+            metrics.wins = float(payload.get("wins", metrics.wins))
+        except Exception:
+            pass
+        try:
+            metrics.total_pips = float(payload.get("total_pips", metrics.total_pips))
+        except Exception:
+            pass
+        try:
+            metrics.total_pnl_value = float(
+                payload.get("total_pnl_value", metrics.total_pnl_value)
+            )
+        except Exception:
+            pass
+
+        trade_returns = []
+        for value in payload.get("trade_returns", []) or []:
+            try:
+                trade_returns.append(float(value))
+            except (TypeError, ValueError):
+                continue
+        if trade_returns:
+            metrics.trade_returns = trade_returns
+        else:
+            metrics.trade_returns = []
+
+        equity_curve: List[tuple[str, float]] = []
+        for entry in payload.get("equity_curve", []) or []:
+            if not isinstance(entry, (list, tuple)) or len(entry) != 2:
+                continue
+            ts_value = str(entry[0])
+            try:
+                equity_value = float(entry[1])
+            except (TypeError, ValueError):
+                continue
+            equity_curve.append((ts_value, equity_value))
+        metrics.equity_curve = equity_curve
+
+        equity_seed = payload.get("equity_seed")
+        if isinstance(equity_seed, (list, tuple)) and len(equity_seed) == 2:
+            seed_ts = str(equity_seed[0])
+            try:
+                seed_equity = float(equity_seed[1])
+            except (TypeError, ValueError):
+                seed_equity = metrics.starting_equity
+            metrics._equity_seed = (seed_ts, seed_equity)
+        elif equity_seed is None:
+            metrics._equity_seed = None
+
+        runtime_payload = payload.get("runtime")
+        if isinstance(runtime_payload, Mapping):
+            metrics.runtime = dict(runtime_payload)
+            resume_count = runtime_payload.get("resume_skipped_bars")
+            try:
+                self._resume_skipped_bars = int(resume_count)
+            except (TypeError, ValueError):
+                self._resume_skipped_bars = 0
+
+        daily_payload = payload.get("daily")
+        restored_daily: Dict[str, Dict[str, Any]] = {}
+        if isinstance(daily_payload, Mapping):
+            for day, values in daily_payload.items():
+                try:
+                    day_key = str(day)
+                except Exception:
+                    continue
+                if not isinstance(values, Mapping):
+                    continue
+                restored_daily[day_key] = dict(values)
+        runner.daily = restored_daily
+        if runner.daily:
+            last_day = sorted(runner.daily.keys())[-1]
+            runner._current_daily_entry = runner.daily.get(last_day)
+        else:
+            runner._current_daily_entry = None
+        if runner.daily:
+            metrics.daily = {day: dict(values) for day, values in runner.daily.items()}
+        else:
+            metrics.daily = {}
 
     def export_state(self) -> Dict[str, Any]:
         runner = self._runner
@@ -133,6 +250,30 @@ class RunnerLifecycleManager:
                 "_equity_live": runner._equity_live,
             },
         }
+        metrics_state: Dict[str, Any] = {
+            "trades": runner.metrics.trades,
+            "wins": runner.metrics.wins,
+            "total_pips": runner.metrics.total_pips,
+            "total_pnl_value": runner.metrics.total_pnl_value,
+            "trade_returns": list(runner.metrics.trade_returns),
+            "equity_curve": [
+                [ts, equity] for ts, equity in list(runner.metrics.equity_curve)
+            ],
+        }
+        if runner.metrics._equity_seed is not None:
+            metrics_state["equity_seed"] = list(runner.metrics._equity_seed)
+        if runner.metrics.runtime:
+            runtime_snapshot = dict(runner.metrics.runtime)
+            if self._resume_skipped_bars:
+                runtime_snapshot.setdefault(
+                    "resume_skipped_bars", self._resume_skipped_bars
+                )
+            metrics_state["runtime"] = runtime_snapshot
+        if runner.daily:
+            metrics_state["daily"] = {
+                day: dict(values) for day, values in runner.daily.items()
+            }
+        state["metrics"] = metrics_state
         if runner.pos is not None:
             state["position"] = serialize_position_state(runner.pos)
         if runner.calib_positions:
@@ -150,6 +291,7 @@ class RunnerLifecycleManager:
             meta = {}
 
         skip_state = False
+        self._resume_cutoff_dt = None
         try:
             fp_state = meta.get("config_fingerprint")
             fp_now = self.config_fingerprint()
@@ -171,6 +313,7 @@ class RunnerLifecycleManager:
 
         try:
             runner._last_timestamp = meta.get("last_timestamp", runner._last_timestamp)
+            self._resume_cutoff_dt = self._parse_resume_timestamp(meta.get("last_timestamp"))
 
             ev_global = state.get("ev_global", {})
             try:
@@ -283,6 +426,10 @@ class RunnerLifecycleManager:
                 except Exception:
                     continue
             runner.calib_positions = restored_calib
+
+            metrics_payload = state.get("metrics")
+            if isinstance(metrics_payload, Mapping):
+                self._restore_metrics_snapshot(metrics_payload)
         except Exception:
             pass
 
@@ -315,4 +462,25 @@ class RunnerLifecycleManager:
             self.load_state(data)
         except Exception:
             pass
+
+    def should_skip_bar(self, bar: Mapping[str, Any]) -> bool:
+        if self._resume_cutoff_dt is None:
+            return False
+        ts_value: Any
+        try:
+            ts_value = bar.get("timestamp")
+        except Exception:
+            ts_value = None
+        dt_value = self._parse_resume_timestamp(ts_value)
+        if dt_value is None:
+            return False
+        if dt_value <= self._resume_cutoff_dt:
+            self._resume_skipped_bars += 1
+            return True
+        self._resume_cutoff_dt = None
+        return False
+
+    @property
+    def resume_skipped_bars(self) -> int:
+        return max(0, int(self._resume_skipped_bars))
 

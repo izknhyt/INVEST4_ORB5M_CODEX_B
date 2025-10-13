@@ -1,6 +1,7 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-08-05: Persisted runner metrics/daily snapshots in auto-state archives so resume parity no longer zeroes trades, added resume skip guards, refreshed `docs/progress_phase4.md#バグトラッキング`, and landed regression `tests/test_runner.py::test_auto_state_resume_preserves_metrics_and_skips_processed_bars`. Executed `python3 -m pytest tests/test_runner.py` と `python3 -m pytest tests/test_run_sim_cli.py` to validate the fix and confirm CLI parity.
 - 2026-08-03: Implemented `scripts/compare_metrics.py` with glob ignores, tolerance controls, and JSON diff export for Phase 4 parity checks; added regression coverage in `tests/test_compare_metrics.py`, executed `python3 -m pytest tests/test_compare_metrics.py` then `python3 -m pytest`, and recorded the USDJPY validated dataset fingerprint (579,578 rows / SHA256=85fa08f2224eb6119878f3689a5af617cb666eaab37c5acb7e3603c4bfda48d4) alongside the bug notebook skeleton in `docs/progress_phase4.md`. Verified `scripts/manage_task_cycle.py --dry-run start-task --anchor docs/task_backlog.md#p4-01-長期バックテスト改善` for W0 alignment and reserved `runs/phase4/backtests/index.csv` as the baseline artefact reference path once gold runs are published.
 - 2026-08-02: Updated `RunnerExecutionManager.maybe_enter_trade` to aggregate gate/EV daily counters per intent (including the first)
 so bypassed calibration paths honour `_should_count_ev_pass`, removed legacy gate/EV increments from `core/runner_entry`, and extended

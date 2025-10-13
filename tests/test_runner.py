@@ -792,6 +792,90 @@ class TestRunner(unittest.TestCase):
         self.assertIn(("LDN", "normal", "mid"), captured_keys)
         self.assertIn(("TOK", "narrow", "low"), captured_keys)
 
+    def test_auto_state_resume_preserves_metrics_and_skips_processed_bars(self):
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
+        runner.metrics.trades = 3
+        runner.metrics.wins = 1.5
+        runner.metrics.total_pips = 12.0
+        runner.metrics.total_pnl_value = 120.0
+        runner.metrics.trade_returns = [5.0, -2.0, 9.0]
+        runner.metrics.equity_curve = [
+            ("2024-01-02T09:00:00Z", 100005.0),
+            ("2024-01-02T09:10:00Z", 100010.0),
+            ("2024-01-02T09:20:00Z", 100012.0),
+        ]
+        runner.metrics._equity_seed = ("2024-01-02T08:59:59.999999Z", 100000.0)
+
+        daily_entry = {
+            "breakouts": 3,
+            "gate_pass": 3,
+            "gate_block": 1,
+            "ev_pass": 3,
+            "ev_reject": 1,
+            "fills": 3,
+            "wins": 1.5,
+            "pnl_pips": 12.0,
+            "pnl_value": 120.0,
+            "slip_est": 0.0,
+            "slip_real": 0.3,
+        }
+        runner.daily = {"2024-01-02": dict(daily_entry)}
+        runner._current_daily_entry = runner.daily["2024-01-02"]
+        runner.metrics.daily = {"2024-01-02": dict(daily_entry)}
+        runner.metrics.runtime = runner._build_runtime_snapshot()
+        runner._equity_live = 100120.0
+        runner._warmup_left = 0
+        runner._day_count = 1
+        runner._current_date = "2024-01-02"
+        runner._last_session = "LDN"
+        runner._last_timestamp = "2024-01-02T09:30:00Z"
+
+        state = runner.export_state()
+
+        resumed = BacktestRunner(equity=100_000.0, symbol="USDJPY")
+        resumed.load_state(state)
+
+        base_ts = datetime(2024, 1, 2, 9, 20, tzinfo=timezone.utc)
+        bars = [
+            make_bar(base_ts, "USDJPY", 150.0, 150.2, 149.8, 150.05, spread=0.02),
+            make_bar(
+                base_ts + timedelta(minutes=5),
+                "USDJPY",
+                150.05,
+                150.25,
+                149.85,
+                150.10,
+                spread=0.02,
+            ),
+            make_bar(
+                base_ts + timedelta(minutes=10),
+                "USDJPY",
+                150.10,
+                150.30,
+                149.90,
+                150.15,
+                spread=0.02,
+            ),
+        ]
+
+        metrics_resumed = resumed.run(list(bars), mode="conservative")
+
+        self.assertEqual(resumed.lifecycle.resume_skipped_bars, len(bars))
+        self.assertEqual(metrics_resumed.trades, runner.metrics.trades)
+        self.assertAlmostEqual(metrics_resumed.wins, runner.metrics.wins)
+        self.assertAlmostEqual(metrics_resumed.total_pips, runner.metrics.total_pips)
+        self.assertAlmostEqual(
+            metrics_resumed.total_pnl_value, runner.metrics.total_pnl_value
+        )
+        self.assertEqual(metrics_resumed.trade_returns, runner.metrics.trade_returns)
+        self.assertEqual(metrics_resumed.equity_curve, runner.metrics.equity_curve)
+        self.assertEqual(resumed.daily, runner.daily)
+        runtime = metrics_resumed.runtime
+        self.assertIn("resume_skipped_bars", runtime)
+        self.assertEqual(runtime["resume_skipped_bars"], len(bars))
+        self.assertEqual(runtime["ev_pass"], runner.metrics.runtime["ev_pass"])
+        self.assertEqual(runtime["ev_reject"], runner.metrics.runtime["ev_reject"])
+
     def test_build_ctx_casts_risk_per_trade_pct_from_string(self):
         cfg = RunnerConfig(risk_per_trade_pct="1.2")
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY", runner_cfg=cfg)
