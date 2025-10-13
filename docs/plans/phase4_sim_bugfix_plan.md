@@ -85,6 +85,7 @@ Workstreams overlap by at most two days—changes only graduate downstream once 
   - Use `python3 scripts/compare_metrics.py --left <gold>/metrics.json --right <candidate>/metrics.json --ignore state_loaded --ignore state_saved --out-json reports/diffs/<mode>_metrics.json` to capture deterministic diff artefacts (available since 2026-08-03). Attach the JSON report path in the log entry so reviewers can trace tolerances without rerunning the CLI. If the helper script fails, note the manual fallback workflow and flag the regression under Section 0.3.
 5. Snapshot CLI stdout/stderr and key log excerpts into `runs/phase4/backtests/<timestamp>/session.log` for reproducibility.
 6. Store SHA256 hashes for each artefact (`metrics.json`, `daily.csv`, `records.csv`) and reference them in `docs/progress_phase4.md`.
+   - _2026-08-10 update_: `scripts/run_sim.py` now emits `checksums.json` with SHA256 digests for run artefacts and records the payload inside `session.log`, so W1 evidence capture no longer requires manual hashing.
 7. Set up `reports/diffs/README.md` summarising how to interpret diff outputs to avoid misclassification of expected vs unexpected deltas.
 8. Record runtime envelope (start/end timestamps, CPU utilisation snapshot) alongside metrics so later optimisations can be validated without rerunning full histories.
 

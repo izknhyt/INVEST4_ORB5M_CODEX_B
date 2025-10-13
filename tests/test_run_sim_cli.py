@@ -597,7 +597,14 @@ def test_run_sim_creates_run_directory(tmp_path: Path) -> None:
     assert metrics.get("run_dir") == str(run_path)
     assert metrics.get("dump_daily") == str(run_path / "daily.csv")
     assert metrics.get("session_log") == str(run_path / "session.log")
+    assert metrics.get("checksums") == str(run_path / "checksums.json")
     assert (run_path / "daily.csv").exists()
+    checksums_path = run_path / "checksums.json"
+    assert checksums_path.exists()
+    checksums_payload = json.loads(checksums_path.read_text(encoding="utf-8"))
+    assert set(checksums_payload["files"].keys()) >= {"params.json", "metrics.json", "daily.csv"}
+    session_files = checksums_payload["files"]
+    assert all(len(value) == 64 for value in session_files.values())
     session_log_path = run_path / "session.log"
     assert session_log_path.exists()
     session_log = json.loads(session_log_path.read_text(encoding="utf-8"))
@@ -614,6 +621,7 @@ def test_run_sim_creates_run_directory(tmp_path: Path) -> None:
         "--out-dir",
         str(out_dir),
     ]
+    assert session_log["hashes"]["files"] == session_files
 
 
 def test_run_sim_cli_can_disable_auto_state(tmp_path: Path) -> None:
@@ -1041,3 +1049,5 @@ def test_run_sim_session_log_records_aggregate_ev_failure(
     assert session_log["exit_code"] == 1
     assert any("Failed to aggregate EV: boom" in entry for entry in session_log["warnings"])
     assert session_log["paths"]["state_saved"] is not None
+    assert "hashes" in session_log
+    assert "files" in session_log["hashes"]
