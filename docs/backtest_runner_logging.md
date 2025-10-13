@@ -49,7 +49,7 @@ debug カウンタが正しく記録されることを確認しています。
 | Stage | Fields |
 | --- | --- |
 | `no_breakout` | `ts` |
-| `strategy_gate` | `ts`, `side`, `reason_stage`, `or_atr_ratio`, `min_or_atr_ratio`, `rv_band`, `allow_low_rv` |
+| `strategy_gate` | `ts`, `side`, `reason_stage`, `or_atr_ratio`, `min_or_atr_ratio`, `rv_band`, `allow_low_rv`, `cooldown_bars`, `bars_since`, `signals_today`, `max_signals_per_day`, `loss_streak`, `max_loss_streak`, `daily_loss_pips`, `max_daily_loss_pips`, `daily_trade_count`, `max_daily_trade_count`, `atr_pips`, `min_atr_pips`, `max_atr_pips`, `micro_trend`, `min_micro_trend`, `qty`, `p_lcb`, `sl_pips` |
 | `strategy_gate_error` | `ts`, `side`, `error` |
 | `gate_block` | `ts`, `side`, `rv_band`, `spread_band`, `or_atr_ratio`, `reason` |
 | `slip_cap` | `ts`, `side`, `expected_slip_pip`, `slip_cap_pip` |
@@ -58,6 +58,8 @@ debug カウンタが正しく記録されることを確認しています。
 | `ev_threshold_error` | `ts`, `side`, `base_threshold`, `error` |
 | `trade` | `ts`, `side`, `tp_pips`, `sl_pips`, `cost_pips`, `slip_est`, `slip_real`, `exit`, `pnl_pips` |
 | `trade_exit` | `ts`, `side`, `cost_pips`, `slip_est`, `slip_real`, `exit`, `pnl_pips` |
+
+2026-08-14 アップデート: Day ORB シンプル化リブートの監視強化として、`strategy_gate` レコードは連敗ガード (`loss_streak` / `max_loss_streak`)、日次損失・本数ガード、ATR 帯、マイクロトレンド、サイズ算出 (`qty` / `p_lcb` / `sl_pips`) など `_last_gate_reason` のサマリをすべて含むよう拡張した。EV を無効化したままでもブロック理由を `records.csv` から直接追跡できる。
 
 Example: `runs/USDJPY_conservative_20250922_175708/records.csv` contains the appended debug rows that match the table above, starting with `no_breakout` entries for the Tokyo session.【F:runs/USDJPY_conservative_20250922_175708/records.csv†L1-L4】
 
