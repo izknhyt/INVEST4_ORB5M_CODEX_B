@@ -259,6 +259,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - 改善後のメトリクスと再現コマンドを `docs/progress_phase4.md`・`state.md`・PR 説明に記録し、`reports/long_{mode}.json` / `reports/long_{mode}_daily.csv` を更新する。
   - Paper 判定に向けたエビデンスを `docs/go_nogo_checklist.md`・`docs/progress_phase4.md#運用チェックリスト` に保存し、承認ログのリンクとともに共有する。
 - **Notes**:
+- 2026-08-07: Re-ran the 2018–2025 long-run baselines for Conservative / Bridge using the refreshed validated dataset, updated `reports/long_{mode}.json` / `_daily.csv`, and archived run artifacts under `runs/phase4/backtests/USDJPY_conservative_20251013_061258` / `USDJPY_bridge_20251013_061509`. Logged metrics and evidence in `docs/progress_phase4.md` and `state.md` per the Phase 4 plan.
 - 2026-08-06: `scripts/run_sim.py` に `session.log` 自動出力を組み込み、Run ディレクトリへ CLI コマンド・開始/終了タイムスタンプ・CSV ローダ統計・stderr 警告を保存するよう更新。W1 Step5 のエビデンス確保を自動化し、`tests/test_run_sim_cli.py` にセッションログ検証を追加。
 - 2026-08-05: `reports/diffs/README.md` で W1 diff アーティファクト保管手順と `scripts/compare_metrics.py` 実行例を明文化し、長期ラン比較結果を `docs/progress_phase4.md` / `state.md` へ連携する際の証跡テンプレを整備。
 - 2026-07-15: `data/usdjpy_5m_2018-2024_utc.csv` / `data/usdjpy_5m_2025.csv` / 既存短期スナップショットをマージし、`validated/USDJPY/5m.csv` / `_with_header.csv` を2018–2025通しに更新。短期ビューは `validated/USDJPY/5m_recent*.csv` へ退避し、`scripts/check_data_quality.py --calendar-day-summary` でギャップが週末由来であることを確認（coverage_ratio=0.71）。長期ランは新ファイルで再実行予定。

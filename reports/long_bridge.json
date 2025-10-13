@@ -4,7 +4,7 @@
   "win_rate": 0.21795246219767317,
   "total_pips": -59.60293129703129,
   "total_pnl_value": -596.0293129703127,
-  "sharpe": -7.168703684052098,
+  "sharpe": -7.168703684052099,
   "max_drawdown": -596.029312970335,
   "equity_curve": [
     [
@@ -247,6 +247,7 @@
       ]
     }
   ],
-  "run_dir": "/Users/izumimotohayato/development/invest3_orb5m_codex/runs/phase4/backtests/USDJPY_bridge_20251012_131603",
-  "dump_daily": "/Users/izumimotohayato/development/invest3_orb5m_codex/reports/long_bridge_daily.csv"
+  "run_dir": "/workspace/INVEST4_ORB5M_CODEX_B/runs/phase4/backtests/USDJPY_bridge_20251013_061509",
+  "session_log": "/workspace/INVEST4_ORB5M_CODEX_B/runs/phase4/backtests/USDJPY_bridge_20251013_061509/session.log",
+  "dump_daily": "/workspace/INVEST4_ORB5M_CODEX_B/reports/long_bridge_daily.csv"
 }

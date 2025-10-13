@@ -1,6 +1,7 @@
 # フェーズ4 進捗レポート（検証とリリースゲート）
 
-## ハイライト（2026-08-06 更新）
+## ハイライト（2026-08-07 更新）
+- Conservative / Bridge の 2018–2025 ロングランを `validated/USDJPY/5m.csv` で再実行し、`reports/long_{mode}.json` / `_daily.csv` を更新。`runs/phase4/backtests/USDJPY_conservative_20251013_061258` / `USDJPY_bridge_20251013_061509` に `session.log`・`metrics.json`・`daily.csv` を保存し、Sharpe / 最大DD / 勝率が依然として負圧であることを確認（Conservative: Sharpe=-7.79, win_rate=18%、Bridge: Sharpe=-7.17, win_rate≈21.8%）。
 - `scripts/run_sim.py` が `--out-dir` 実行時に `session.log` を自動生成し、コマンドライン・開始/終了時刻・CSVローダ統計・stderr警告を Run ディレクトリへ保存できるようにした。W1 Step5 のログ保全フローをコード化し、`tests/test_run_sim_cli.py::test_run_sim_session_log_records_aggregate_ev_failure` / `::test_run_sim_creates_run_directory` で回帰。
 - `reports/diffs/README.md` を新設し、Phase4 ゴールドラン比較用の diff アーティファクト格納規約と `scripts/compare_metrics.py` 実行例を明文化。
 - 自動 state 再開時に設定ハッシュ不一致でも `loaded_state` が出力されてしまう誤報告を解消し、メトリクス JSON が実際に復元した時のみパスを記録するよう `scripts/run_sim.py` / Runner ライフサイクルを修正した（`tests/test_run_sim_cli.py::test_run_sim_cli_omits_loaded_state_on_mismatch` で回帰を追加）。
@@ -52,12 +53,17 @@
 - フェーズ4長期ラン（state 自動ロード無効化）: `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode <mode> --start-ts 2018-01-01T00:00:00Z --end-ts 2025-12-31T23:55:00Z --out-json reports/long_<mode>.json --out-daily-csv reports/long_<mode>_daily.csv --out-dir runs/phase4/backtests --no-auto-state`
 
 ## 長期バックテスト
-### 現状サマリ（2026-07-15 更新）
-- Conservative (`--mode conservative --no-auto-state`) / Bridge の旧ベースラインは短期データのみで 1 トレード・`total_pips=-1.498` に留まっている。2018–2025 通しデータへの置き換えが完了したため、次回ランで長期指標を再集計する。
-- 直近データだけの分析用途は `validated/USDJPY/5m_recent*.csv`（91 行）へ切り出し済み。長期検証は `validated/USDJPY/5m*.csv` を使用する。
+### 現状サマリ（2026-08-07 更新）
+- 2018-01-01T00:00:00Z〜2025-12-31T23:55:00Z のロングランを Conservative / Bridge の両モードで再取得した結果、Sharpe・勝率ともに依然としてマイナス圏であり調整余地が大きい。
+- 直近データだけの分析用途は `validated/USDJPY/5m_recent*.csv`（91 行）へ切り出し済み。長期検証は `validated/USDJPY/5m.csv` を使用する。
 - `scripts/check_data_quality.py --csv validated/USDJPY/5m.csv --calendar-day-summary` の結果、週末・祝日ギャップのみ検出（coverage_ratio=0.71, duplicates=0）。必要に応じて日次しきい値を調整して監視する。
 
-### 改善計画（2026-07-05 更新）
+| Mode | Trades | Wins | Win Rate | Sharpe | Max Drawdown | Run Dir |
+| --- | --- | --- | --- | --- | --- | --- |
+| Conservative | 50 | 9.00 | 0.18 | -7.79 | -649.07 | `runs/phase4/backtests/USDJPY_conservative_20251013_061258` |
+| Bridge | 50 | 10.90 | 0.218 | -7.17 | -596.03 | `runs/phase4/backtests/USDJPY_bridge_20251013_061509` |
+
+### 改善計画（2026-08-07 更新）
 - 日次 Sharpe ≥ 0.15 / 最大DD ≥ -8% / 年間勝率 ≥ 52% を暫定目標とし、Bridge/Conservative 双方で達成する。
 - `threshold_lcb_pip`・`alpha_prior`・`or_n` を中心にパラメータ探索し、各トライアルを `runs/phase4/backtests/<timestamp>_<mode>_<paramset>/` に保存して比較。
 - ベースコマンド：

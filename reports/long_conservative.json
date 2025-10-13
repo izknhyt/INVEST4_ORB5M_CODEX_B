@@ -4,7 +4,7 @@
   "win_rate": 0.18,
   "total_pips": -64.90702600037616,
   "total_pnl_value": -649.0702600037616,
-  "sharpe": -7.791050861767887,
+  "sharpe": -7.791050861767888,
   "max_drawdown": -649.0702600037912,
   "equity_curve": [
     [
@@ -247,6 +247,7 @@
       ]
     }
   ],
-  "run_dir": "/Users/izumimotohayato/development/invest3_orb5m_codex/runs/phase4/backtests/USDJPY_conservative_20251012_142622",
-  "dump_daily": "/Users/izumimotohayato/development/invest3_orb5m_codex/reports/long_conservative_daily.csv"
+  "run_dir": "/workspace/INVEST4_ORB5M_CODEX_B/runs/phase4/backtests/USDJPY_conservative_20251013_061258",
+  "session_log": "/workspace/INVEST4_ORB5M_CODEX_B/runs/phase4/backtests/USDJPY_conservative_20251013_061258/session.log",
+  "dump_daily": "/workspace/INVEST4_ORB5M_CODEX_B/reports/long_conservative_daily.csv"
 }
