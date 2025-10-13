@@ -326,22 +326,41 @@ class EntryGate:
             self._runner.debug_counts["gate_block"] += 1
             self._runner._increment_daily("gate_block")
             metadata: Dict[str, Any] = {}
+            reason_stage: Optional[str] = None
             if isinstance(gate_reason, Mapping):
-                metadata = {
-                    "reason_stage": gate_reason.get("stage"),
-                    "or_atr_ratio": gate_reason.get("or_atr_ratio"),
-                    "min_or_atr_ratio": gate_reason.get("min_or_atr_ratio"),
-                    "rv_band": gate_reason.get("rv_band"),
-                }
+                try:
+                    reason_stage = gate_reason.get("stage")  # type: ignore[assignment]
+                except AttributeError:
+                    reason_stage = None
+                for key, value in gate_reason.items():
+                    if key == "stage":
+                        continue
+                    if isinstance(value, (str, int, float, bool)):
+                        metadata[key] = value
+            if entry_ctx.or_atr_ratio is not None and "or_atr_ratio" not in metadata:
+                metadata["or_atr_ratio"] = entry_ctx.or_atr_ratio
+            if (
+                entry_ctx.min_or_atr_ratio is not None
+                and "min_or_atr_ratio" not in metadata
+            ):
+                metadata["min_or_atr_ratio"] = entry_ctx.min_or_atr_ratio
+            if entry_ctx.rv_band is not None and "rv_band" not in metadata:
+                metadata["rv_band"] = entry_ctx.rv_band
+            if reason_stage is not None:
+                metadata.setdefault("stage", reason_stage)
+                metadata.setdefault("reason_stage", reason_stage)
+            debug_payload = {
+                key: value
+                for key, value in metadata.items()
+                if value is not None and key != "stage"
+            }
+            debug_payload["reason_stage"] = reason_stage
+            debug_payload["allow_low_rv"] = entry_ctx.allow_low_rv
             self._runner._append_debug_record(
                 "strategy_gate",
                 ts=self._runner._last_timestamp,
                 side=resolved_side,
-                reason_stage=metadata.get("reason_stage"),
-                or_atr_ratio=metadata.get("or_atr_ratio"),
-                min_or_atr_ratio=metadata.get("min_or_atr_ratio"),
-                rv_band=metadata.get("rv_band"),
-                allow_low_rv=entry_ctx.allow_low_rv,
+                **debug_payload,
             )
             return EntryEvaluation(
                 outcome=GateCheckOutcome(

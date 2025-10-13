@@ -1926,6 +1926,55 @@ class TestRunner(unittest.TestCase):
         )
         self.assertTrue(sizing_result.outcome.passed)
 
+    def test_strategy_gate_metadata_includes_day_orb_guards(self):
+        runner, pending, breakout, features, calibrating = self._prepare_breakout_environment(
+            warmup_left=0,
+            debug=True,
+            debug_sample_limit=5,
+        )
+        reason = {
+            "stage": "loss_streak_guard",
+            "loss_streak": 4,
+            "max_loss_streak": 3,
+            "daily_loss_pips": -60.0,
+            "max_daily_loss_pips": 120.0,
+            "signals_today": 6,
+            "max_signals_per_day": 4,
+        }
+        with patch.object(runner, "_call_strategy_gate", return_value=(False, reason)):
+            entry_result = EntryGate(runner).evaluate(
+                pending=pending,
+                features=features,
+            )
+        self.assertFalse(entry_result.outcome.passed)
+        self.assertEqual(entry_result.outcome.reason, "strategy_gate")
+        metadata = entry_result.outcome.metadata
+        self.assertEqual(metadata["stage"], "loss_streak_guard")
+        self.assertEqual(metadata["reason_stage"], "loss_streak_guard")
+        self.assertEqual(metadata["loss_streak"], 4)
+        self.assertEqual(metadata["max_loss_streak"], 3)
+        self.assertEqual(metadata["daily_loss_pips"], -60.0)
+        self.assertEqual(metadata["max_daily_loss_pips"], 120.0)
+        self.assertEqual(metadata["signals_today"], 6)
+        self.assertEqual(metadata["max_signals_per_day"], 4)
+        self.assertEqual(metadata["rv_band"], features.entry_ctx.rv_band)
+        self.assertEqual(metadata["or_atr_ratio"], features.entry_ctx.or_atr_ratio)
+        self.assertEqual(metadata["min_or_atr_ratio"], features.entry_ctx.min_or_atr_ratio)
+        self.assertGreaterEqual(runner.debug_counts["gate_block"], 1)
+        gate_records = [
+            rec for rec in runner.debug_records if rec.get("stage") == "strategy_gate"
+        ]
+        self.assertEqual(len(gate_records), 1)
+        record = gate_records[0]
+        self.assertEqual(record["reason_stage"], "loss_streak_guard")
+        self.assertEqual(record["loss_streak"], 4)
+        self.assertEqual(record["max_loss_streak"], 3)
+        self.assertEqual(record["daily_loss_pips"], -60.0)
+        self.assertEqual(record["max_daily_loss_pips"], 120.0)
+        self.assertEqual(record["signals_today"], 6)
+        self.assertEqual(record["max_signals_per_day"], 4)
+        self.assertEqual(record["allow_low_rv"], features.entry_ctx.allow_low_rv)
+
     def test_evaluate_ev_threshold_rejects_when_ev_below_threshold(self):
         runner, pending, breakout, features, calibrating = self._prepare_breakout_environment(
             warmup_left=0
