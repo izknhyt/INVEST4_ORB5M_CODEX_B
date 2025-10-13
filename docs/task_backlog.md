@@ -259,6 +259,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - 改善後のメトリクスと再現コマンドを `docs/progress_phase4.md`・`state.md`・PR 説明に記録し、`reports/long_{mode}.json` / `reports/long_{mode}_daily.csv` を更新する。
   - Paper 判定に向けたエビデンスを `docs/go_nogo_checklist.md`・`docs/progress_phase4.md#運用チェックリスト` に保存し、承認ログのリンクとともに共有する。
 - **Notes**:
+  - 2026-08-05: `reports/diffs/README.md` で W1 diff アーティファクト保管手順と `scripts/compare_metrics.py` 実行例を明文化し、長期ラン比較結果を `docs/progress_phase4.md` / `state.md` へ連携する際の証跡テンプレを整備。
   - 2026-07-15: `data/usdjpy_5m_2018-2024_utc.csv` / `data/usdjpy_5m_2025.csv` / 既存短期スナップショットをマージし、`validated/USDJPY/5m.csv` / `_with_header.csv` を2018–2025通しに更新。短期ビューは `validated/USDJPY/5m_recent*.csv` へ退避し、`scripts/check_data_quality.py --calendar-day-summary` でギャップが週末由来であることを確認（coverage_ratio=0.71）。長期ランは新ファイルで再実行予定。
   - 2026-07-15: `docs/progress_phase4.md` のハイライトを刷新し、Go/No-Go チェックリストに担当者・頻度・証跡列を追加。次回ランからメトリクスと証跡リンクを `docs/progress_phase4.md#運用チェックリスト` に記録する準備を整えた。
   - 2026-07-05: `scripts/run_sim.py --no-auto-state` で Conservative/Bridge ベースラインを再取得したところ、`validated/USDJPY/5m.csv` が 2025-10-02 以降のみであることが判明。2018–2024 の validated スナップショット再構築と `runs/phase4/backtests/` パラメータ探索ディレクトリ整備を優先 TODO として記録。
