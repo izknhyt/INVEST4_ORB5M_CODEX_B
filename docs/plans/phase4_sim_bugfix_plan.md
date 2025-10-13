@@ -21,9 +21,9 @@
 - **Ops tooling**: `scripts/manage_task_cycle.py` remains the gatekeeper for doc/state synchronisation. W0 must validate the dry-run flows so later stages do not drift from operational guardrails.
 
 ## 0.3 Review Follow-ups
-- [ ] **Bug notebook template landed** — Publish the table skeleton described in W0.6 directly inside `docs/progress_phase4.md#bug-tracking` and link to the owning backlog ticket before declaring W0 complete. Owner: Tech Lead (Due: W0 end-of-week).
-- [ ] **Baseline evidence cross-links** — Once dataset hashes and baseline commands are logged, ensure `docs/progress_phase4.md` and `state.md` share the same SHA256 / row-count tuples and include a permalink to `runs/phase4/backtests/index.csv`. Owner: Ops (Due: first W1 sync).
-- [ ] **Compare-metrics automation** — If `scripts/compare_metrics.py` does not yet exist, open backlog item `P4-04` during W1 kickoff to track delivery and reference it from Section 5.5 so diff automation is not forgotten. Owner: Backtest WG (Due: W1 day 2).
+- [x] **Bug notebook template landed** — Publish the table skeleton described in W0.6 directly inside `docs/progress_phase4.md#bug-tracking` and link to the owning backlog ticket before declaring W0 complete. Owner: Tech Lead (Due: W0 end-of-week).
+- [x] **Baseline evidence cross-links** — Once dataset hashes and baseline commands are logged, ensure `docs/progress_phase4.md` and `state.md` share the same SHA256 / row-count tuples and include a permalink to `runs/phase4/backtests/index.csv`. Owner: Ops (Due: first W1 sync).
+- [x] **Compare-metrics automation** — If `scripts/compare_metrics.py` does not yet exist, open backlog item `P4-04` during W1 kickoff to track delivery and reference it from Section 5.5 so diff automation is not forgotten. Owner: Backtest WG (Due: W1 day 2).
 
 ## 1. Objectives & Success Criteria
 - **Stability**: Conservative and Bridge runs across the confirmed 2018-01-01T00:00:00Z–2025-10-02T22:15:00Z window complete without crashes, non-deterministic fills, or missing artefacts. Runs seeded from clean state must match reruns that resume from persisted state snapshots. When validated coverage extends beyond 2025-10-02T22:15:00Z, repeat the stability validation on the new range per [state.md#next-task](../../state.md#next-task) before updating baseline artefacts.¹
@@ -82,7 +82,7 @@ Workstreams overlap by at most two days—changes only graduate downstream once 
    - First pass (state creation): `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs/phase4/backtests/resume_check --auto-state`
    - Second pass (state reuse): re-run the command above and diff `metrics.json`/`records.csv`; log the fingerprint + diff outcome in `docs/progress_phase4.md`.
 4. Diff `metrics.json` and `daily.csv` against archived runs; record deltas (expected vs unexpected) in `docs/progress_phase4.md` with direct file links.
-   - Use `python3 scripts/compare_metrics.py --left <gold>/metrics.json --right <candidate>/metrics.json` (once implemented) and note the diff artefact path. If the script is still pending, log the backlog ticket opened in Section 0.3 inside the doc entry so reviewers can trace accountability.
+  - Use `python3 scripts/compare_metrics.py --left <gold>/metrics.json --right <candidate>/metrics.json --ignore state_loaded --ignore state_saved --out-json reports/diffs/<mode>_metrics.json` to capture deterministic diff artefacts (available since 2026-08-03). Attach the JSON report path in the log entry so reviewers can trace tolerances without rerunning the CLI. If the helper script fails, note the manual fallback workflow and flag the regression under Section 0.3.
 5. Snapshot CLI stdout/stderr and key log excerpts into `runs/phase4/backtests/<timestamp>/session.log` for reproducibility.
 6. Store SHA256 hashes for each artefact (`metrics.json`, `daily.csv`, `records.csv`) and reference them in `docs/progress_phase4.md`.
 7. Set up `reports/diffs/README.md` summarising how to interpret diff outputs to avoid misclassification of expected vs unexpected deltas.
@@ -153,7 +153,7 @@ Run a shortened resume scenario (`python3 scripts/run_sim.py --manifest configs/
 Run shortened windows (e.g., 2024 Q1) during development to validate performance quickly before launching the full 2018–2025 backtest.
 
 ### 5.5 Compare-metrics Automation
-Adopt `python3 scripts/compare_metrics.py --left runs/phase4/backtests/<prev>/metrics.json --right runs/phase4/backtests/<curr>/metrics.json` (script to add if missing) to automate numerical comparisons.
+Adopt `python3 scripts/compare_metrics.py --left runs/phase4/backtests/<prev>/metrics.json --right runs/phase4/backtests/<curr>/metrics.json` to automate numerical comparisons; the CLI now supports glob ignores and tolerance flags (2026-08-03) so resume artefact paths can be filtered without custom tooling.
 - If the helper script has not landed yet, reference backlog `P4-04` in the run log and capture a manual diff workflow (e.g., `jq` + spreadsheet steps) so auditors understand the temporary process.
 
 ### 5.6 Continuous Integration
