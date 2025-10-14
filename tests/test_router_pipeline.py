@@ -1,3 +1,4 @@
+import csv
 import json
 from pathlib import Path
 
@@ -10,6 +11,27 @@ from core.router_pipeline import (
 )
 from configs.strategies.loader import load_manifest
 from router.router_v1 import select_candidates
+from scripts.build_router_snapshot import _load_runs_index
+
+
+def test_load_runs_index_prefers_newest_run(tmp_path: Path) -> None:
+    index_path = tmp_path / "index.csv"
+    runs = [
+        {"manifest_id": "strategy_a", "run_dir": str(tmp_path / "runs" / "old"), "timestamp": "20240101_010101"},
+        {"manifest_id": "strategy_a", "run_dir": str(tmp_path / "runs" / "new"), "timestamp": "20240202_020202"},
+        {"manifest_id": "strategy_b", "run_dir": str(tmp_path / "runs" / "other"), "timestamp": "20240303_030303"},
+    ]
+    with index_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["manifest_id", "run_dir", "timestamp"])
+        writer.writeheader()
+        for row in runs:
+            writer.writerow(row)
+
+    mapping = _load_runs_index(index_path)
+
+    assert len(mapping) == 2
+    assert mapping["strategy_a"] == Path(runs[1]["run_dir"])
+    assert mapping["strategy_b"] == Path(runs[2]["run_dir"])
 
 
 def test_router_pipeline_merges_limits_and_execution_health():

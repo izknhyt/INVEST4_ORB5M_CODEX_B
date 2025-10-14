@@ -1,6 +1,11 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-08-20: Exposed manifest-to-run mapping in `runs/index.csv` by updating `scripts/rebuild_runs_index.py` and
+  `scripts/utils_runs.RunRecord` to capture optional `manifest_id` values, refreshed router snapshot regression coverage
+  (`tests/test_router_pipeline.py::test_load_runs_index_prefers_newest_run`), and ensured rebuild tests assert the new column
+  plus fallback behaviour. Executed `python3 -m pytest tests/test_rebuild_runs_index.py tests/test_router_pipeline.py` to
+  validate the additions.
 - 2026-08-19: Executed guard-relaxed 2018–2025 long runs for Conservative / Bridge via
   `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml --csv validated/USDJPY/5m.csv --symbol USDJPY --mode conservative --out-dir runs/phase4/backtests_guard_relaxed --no-auto-state --debug --debug-sample-limit 600000`
   and the bridge variant (`--mode bridge --out-dir runs/phase4/backtests_guard_relaxed --no-auto-state --debug --debug-sample-limit 600000`),

@@ -35,6 +35,7 @@ def sample_run_dir(tmp_path: Path) -> Path:
         "size_floor": 0.05,
     }
     metrics = {
+        "manifest_id": "day_orb_5m_v1",
         "trades": 5,
         "wins": 3,
         "total_pips": 25.0,
@@ -69,6 +70,7 @@ def test_rebuild_runs_index_preserves_columns(sample_run_dir: Path, tmp_path: Pa
     assert row["gate_block"] == 2
     assert row["ev_reject"] == 1
     assert row["ev_bypass"] == 4
+    assert row["manifest_id"] == "day_orb_5m_v1"
     assert row["k_tr"] == 0.5
     assert row["dump_rows"] == 50
     assert row["prior_alpha"] == 2.0
@@ -97,3 +99,15 @@ def test_rebuild_runs_index_preserves_columns(sample_run_dir: Path, tmp_path: Pa
             expected[col] = str(value)
 
     assert csv_row == expected
+
+
+def test_gather_rows_falls_back_when_manifest_missing(tmp_path: Path) -> None:
+    runs_dir = tmp_path / "runs"
+    run_dir = runs_dir / "demo_20240101_010101"
+    run_dir.mkdir(parents=True)
+    params = {"symbol": "USDJPY", "mode": "conservative", "equity": 100000.0}
+    metrics = {"trades": 1, "wins": 1, "total_pips": 5.0}
+    (run_dir / "params.json").write_text(json.dumps(params))
+    (run_dir / "metrics.json").write_text(json.dumps(metrics))
+    rows = gather_rows(runs_dir)
+    assert rows[0]["manifest_id"] == ""
