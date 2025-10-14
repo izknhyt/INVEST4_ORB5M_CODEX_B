@@ -48,6 +48,7 @@
 ## 最適化・分析
 - `scripts/optimize_params.py` + `scripts/utils_runs.py` + `analysis/param_surface.ipynb` でパラメータヒートマップを可視化。
 - `scripts/summarize_runs.py` で `runs/index.csv` のトレード数・勝率・総pipsなどを集計。
+  - `latest_runs` セクションで manifest ごとの最新 `run_id` を引けるようになり、`--latest-only` を付ければ manifest / `symbol:mode` 単位の直近ランだけを一覧表示できる。
 - `scripts/auto_optimize.py` は最適化レポートと通知自動化の雛形。
 - `scripts/run_walk_forward.py` で学習→検証窓の最適化ログを取得。
 - `scripts/run_optuna_search.py` と `scripts/run_target_loop.py` でベイズ最適化・目標達成ループの基盤を提供。
