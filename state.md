@@ -1,6 +1,18 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-08-19: Executed guard-relaxed 2018–2025 long runs for Conservative / Bridge via
+  `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml --csv validated/USDJPY/5m.csv --symbol USDJPY --mode conservative --out-dir runs/phase4/backtests_guard_relaxed --no-auto-state --debug --debug-sample-limit 600000`
+  and the bridge variant (`--mode bridge --out-dir runs/phase4/backtests_guard_relaxed --no-auto-state --debug --debug-sample-limit 600000`),
+  capturing artefacts under `runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251014_051935` /
+  `runs/phase4/backtests_guard_relaxed/USDJPY_bridge_20251014_052447`.
+  Summarised Day ORB gate fallout with
+  `python3 scripts/summarize_strategy_gate.py --run-dir runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251014_051935 --json > reports/diffs/conservative_guard_relaxed_strategy_gate.json`
+  (bridge variant mirrored) showing 449 `or_filter` blocks (rv_band high 246 / mid 162 / low 41),
+  and recorded metric deltas via
+  `python3 scripts/compare_metrics.py --left reports/long_conservative.json --right runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251014_051935/metrics.json --ignore state_loaded --ignore state_saved --out-json reports/diffs/conservative_guard_relaxed_metrics.json`
+  plus the bridge comparison. Updated `docs/progress_phase4.md` (ハイライト / 現状サマリ), `docs/task_backlog.md#p4-01-長期バックテスト改善`,
+  and `docs/todo_next.md` (In Progress step 4→完了 + step 5) with the new evidence trail and follow-up analysis plan.
 - 2026-08-18: Introduced the guard-relaxed Day ORB manifest (`configs/strategies/day_orb_5m_guard_relaxed.yaml`) with `or_n=4` /
   `min_or_atr_ratio=0.18` and TOK/LDN/NY session access so Phase4 fallback sizing can be validated under softer guards while EV
   remains disabled. Updated `docs/progress_phase4.md` (ハイライト / 現状サマリ), `docs/task_backlog.md#p4-01-長期バックテスト改善`, and
@@ -630,8 +642,7 @@ so bypassed calibration paths honour `_should_count_ev_pass`, removed legacy gat
   - When new validated bars arrive beyond 2025-10-02T22:15:00Z, stage them under `validated/USDJPY/5m.csv`, then run `python3 scripts/check_data_quality.py --csv validated/USDJPY/5m.csv --calendar-day-summary --fail-under-coverage 0.995 --fail-on-duplicate-groups 5` to confirm integrity. Archive the JSON/CSV outputs and log SHA256, row count, and new end timestamp in both this block and `docs/progress_phase4.md`.
   - Re-run the W1 baseline commands (`python3 scripts/run_sim.py ... --mode conservative/bridge ... --end-ts <new_end_ts> --no-auto-state`) after audits pass, attach diff reports if metrics shift, and update `docs/plans/phase4_sim_bugfix_plan.md` + `docs/progress_phase4.md` with the refreshed coverage notes.
   - Record the verification command used to confirm the terminal bar (e.g., `tail -n 1 validated/USDJPY/5m.csv`) each time the range changes so future sessions can prove parity quickly.
-- Follow up on P4-01 guard tuning by executing comparative runs with the new `configs/strategies/day_orb_5m_guard_relaxed.yaml` manifest (`or_n=4`, `min_or_atr_ratio=0.18`, `allowed_sessions=[TOK,LDN,NY]`) while EV stays disabled. Use `scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml` for both Conservative / Bridge, then `scripts/summarize_strategy_gate.py` to quantify session-level block rates and `scripts/compare_metrics.py` to store diff artefacts under `reports/diffs/`.
-  - Capture the exact commands / run directories in `docs/progress_phase4.md#現状サマリ` and sync summaries back to `docs/todo_next.md` / `docs/task_backlog.md#p4-01-長期バックテスト改善` before adjusting further guards.
+- Follow up on P4-01 guard tuning by analysing `reports/diffs/conservative_guard_relaxed_strategy_gate.json` / `bridge_guard_relaxed_strategy_gate.json` to segment `or_filter` 449 blocks across `rv_band` と `min_or_atr_ratio` bins, then draft the next threshold adjustment (ATR floor, loss-streak / daily-loss guard tweaks) before launching another long run. Update the proposal in `docs/progress_phase4.md#現状サマリ` and sync the action plan back to `docs/todo_next.md` / `docs/task_backlog.md#p4-01-長期バックテスト改善` prior to coding.
 - Advance P4-04 Day ORB シンプル化リブート without reactivating EV: keep `ev_mode=off` / `auto_state=false` / `aggregate_ev=false` / `use_ev_profile=false`, review `_last_gate_reason` telemetry after sandbox runs, and plan the next round of threshold tuning before touching EV プロファイル復旧案。
   - Capture evidence (session.log, metrics diff) for any parameter trial and log outcomes in `docs/progress_phase4.md` while maintaining EV 無効化のまま比較できる状態を継続する。
   - `runs/*/records.csv` の `strategy_gate` 行に連敗・日次損失・ATR帯・サイズ情報が記録されるため、新しいガード挙動はここを併読して `_last_gate_reason` と突き合わせる。

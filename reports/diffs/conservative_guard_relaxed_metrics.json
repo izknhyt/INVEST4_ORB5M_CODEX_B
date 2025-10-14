@@ -1,0 +1,165 @@
+{
+  "differences": [
+    {
+      "abs_delta": null,
+      "key": "checksums",
+      "left": "/Users/izumimotohayato/development/invest3_orb5m_codex/runs/phase4/backtests/USDJPY_conservative_20251013_132143/checksums.json",
+      "reason": "value_mismatch",
+      "rel_delta": null,
+      "right": "/workspace/INVEST4_ORB5M_CODEX_B/runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251014_051935/checksums.json",
+      "within_tolerance": false
+    },
+    {
+      "abs_delta": null,
+      "key": "dump_daily",
+      "left": "/Users/izumimotohayato/development/invest3_orb5m_codex/reports/long_conservative_daily.csv",
+      "reason": "value_mismatch",
+      "rel_delta": null,
+      "right": "/workspace/INVEST4_ORB5M_CODEX_B/runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251014_051935/daily.csv",
+      "within_tolerance": false
+    },
+    {
+      "abs_delta": null,
+      "key": "manifest_id",
+      "left": "day_orb_5m_v1",
+      "reason": "value_mismatch",
+      "rel_delta": null,
+      "right": "day_orb_5m_v1_guard_relaxed",
+      "within_tolerance": false
+    },
+    {
+      "abs_delta": null,
+      "key": "max_drawdown",
+      "left": null,
+      "reason": "type_mismatch",
+      "rel_delta": null,
+      "right": -49.067421027313685,
+      "within_tolerance": false
+    },
+    {
+      "abs_delta": null,
+      "key": "router.[0].manifest_id",
+      "left": "day_orb_5m_v1",
+      "reason": "value_mismatch",
+      "rel_delta": null,
+      "right": "day_orb_5m_v1_guard_relaxed",
+      "within_tolerance": false
+    },
+    {
+      "abs_delta": null,
+      "key": "run_dir",
+      "left": "/Users/izumimotohayato/development/invest3_orb5m_codex/runs/phase4/backtests/USDJPY_conservative_20251013_132143",
+      "reason": "value_mismatch",
+      "rel_delta": null,
+      "right": "/workspace/INVEST4_ORB5M_CODEX_B/runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251014_051935",
+      "within_tolerance": false
+    },
+    {
+      "abs_delta": 3.0,
+      "key": "runtime.ev_pass",
+      "left": 0,
+      "reason": "value_mismatch",
+      "rel_delta": 1.0,
+      "right": 3,
+      "within_tolerance": false
+    },
+    {
+      "abs_delta": 3.0,
+      "key": "runtime.fills",
+      "left": 0,
+      "reason": "value_mismatch",
+      "rel_delta": 1.0,
+      "right": 3,
+      "within_tolerance": false
+    },
+    {
+      "abs_delta": null,
+      "key": "session_log",
+      "left": "/Users/izumimotohayato/development/invest3_orb5m_codex/runs/phase4/backtests/USDJPY_conservative_20251013_132143/session.log",
+      "reason": "value_mismatch",
+      "rel_delta": null,
+      "right": "/workspace/INVEST4_ORB5M_CODEX_B/runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251014_051935/session.log",
+      "within_tolerance": false
+    },
+    {
+      "abs_delta": null,
+      "key": "sharpe",
+      "left": null,
+      "reason": "type_mismatch",
+      "rel_delta": null,
+      "right": -5.545957850566354,
+      "within_tolerance": false
+    },
+    {
+      "abs_delta": -4.906742102732714,
+      "key": "total_pips",
+      "left": 0.0,
+      "reason": "value_mismatch",
+      "rel_delta": -1.0,
+      "right": -4.906742102732714,
+      "within_tolerance": false
+    },
+    {
+      "abs_delta": -49.06742102732714,
+      "key": "total_pnl_value",
+      "left": 0.0,
+      "reason": "value_mismatch",
+      "rel_delta": -1.0,
+      "right": -49.06742102732714,
+      "within_tolerance": false
+    },
+    {
+      "abs_delta": 3.0,
+      "key": "trades",
+      "left": 0,
+      "reason": "value_mismatch",
+      "rel_delta": 1.0,
+      "right": 3,
+      "within_tolerance": false
+    },
+    {
+      "abs_delta": null,
+      "key": "win_rate",
+      "left": null,
+      "reason": "type_mismatch",
+      "rel_delta": null,
+      "right": 0.0,
+      "within_tolerance": false
+    }
+  ],
+  "ignored": [],
+  "left": "reports/long_conservative.json",
+  "missing_in_left": [
+    "debug.ev_bypass",
+    "debug.ev_reject",
+    "debug.ev_threshold_error",
+    "debug.gate_block",
+    "debug.no_breakout",
+    "debug.session_parse_error",
+    "debug.strategy_gate_error",
+    "debug.zero_qty",
+    "equity_curve.[0].[0]",
+    "equity_curve.[0].[1]",
+    "equity_curve.[1].[0]",
+    "equity_curve.[1].[1]",
+    "equity_curve.[2].[0]",
+    "equity_curve.[2].[1]",
+    "equity_curve.[3].[0]",
+    "equity_curve.[3].[1]",
+    "router.[0].tags.[2]",
+    "runtime.execution_health.reject_rate",
+    "runtime.execution_health.slippage_bps"
+  ],
+  "missing_in_right": [
+    "equity_curve"
+  ],
+  "right": "runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251014_051935/metrics.json",
+  "summary": {
+    "differences": 14,
+    "ignored": 0,
+    "matched": 19,
+    "missing_in_left": 19,
+    "missing_in_right": 1,
+    "significant_differences": 14
+  }
+}

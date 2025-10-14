@@ -1,0 +1,41 @@
+{
+  "or_filter": {
+    "count": 449,
+    "numeric": {
+      "or_atr_ratio": {
+        "count": 449,
+        "mean": 0.09344685698712794,
+        "min": 0.0,
+        "max": 0.1794871794871795
+      },
+      "min_or_atr_ratio": {
+        "count": 449,
+        "mean": 0.18000000000000121,
+        "min": 0.18,
+        "max": 0.18
+      }
+    },
+    "categorical": {
+      "rv_band": [
+        [
+          "high",
+          246
+        ],
+        [
+          "mid",
+          162
+        ],
+        [
+          "low",
+          41
+        ]
+      ],
+      "allow_low_rv": [
+        [
+          "True",
+          449
+        ]
+      ]
+    }
+  }
+}
