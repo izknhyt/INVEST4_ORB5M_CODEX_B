@@ -27,6 +27,7 @@ class RunRecord:
     sharpe: float | None = None
     max_drawdown: float | None = None
     pnl_per_trade: float | None = None
+    manifest_id: str | None = None
 
     @property
     def win_rate(self) -> float:
@@ -62,6 +63,7 @@ def load_runs_index(path: Path = Path("runs/index.csv")) -> List[RunRecord]:
                     sharpe=float(row.get("sharpe")) if row.get("sharpe") else None,
                     max_drawdown=float(row.get("max_drawdown")) if row.get("max_drawdown") else None,
                     pnl_per_trade=float(row.get("pnl_per_trade")) if row.get("pnl_per_trade") else None,
+                    manifest_id=row.get("manifest_id") or None,
                 )
             except Exception:
                 continue

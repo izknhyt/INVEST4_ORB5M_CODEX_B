@@ -10,6 +10,7 @@ from typing import List, Dict, Any
 DEFAULT_COLUMNS = [
     "run_id",
     "run_dir",
+    "manifest_id",
     "timestamp",
     "symbol",
     "mode",
@@ -95,6 +96,12 @@ def gather_rows(runs_dir: Path) -> List[Dict[str, Any]]:
         run_id = run_dir.name
         row["run_id"] = run_id
         row["run_dir"] = str(run_dir)
+        manifest_id = metrics.get("manifest_id")
+        if manifest_id is None:
+            manifest_id = ""
+        else:
+            manifest_id = str(manifest_id)
+        row["manifest_id"] = manifest_id
         row["timestamp"] = extract_timestamp(run_id)
         row["symbol"] = params.get("symbol")
         row["mode"] = params.get("mode")
