@@ -259,6 +259,8 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - 改善後のメトリクスと再現コマンドを `docs/progress_phase4.md`・`state.md`・PR 説明に記録し、`reports/long_{mode}.json` / `reports/long_{mode}_daily.csv` を更新する。
   - Paper 判定に向けたエビデンスを `docs/go_nogo_checklist.md`・`docs/progress_phase4.md#運用チェックリスト` に保存し、承認ログのリンクとともに共有する。
 - **Notes**:
+- 2026-08-16: Conservative / Bridge のデバッグ run（2025-01-01〜2025-10-13）を解析し、`router_gate` が Tokyo セッションの完全拒否、`or_filter` が `min_or_atr_ratio` 未満、`zero_qty` が EV オフ時の Kelly サイジング起因であることを特定。[reports/simulations/day_orb5m_20251013_summary.md](../reports/simulations/day_orb5m_20251013_summary.md) に改善案（Runner フォールバック導入 / セッション緩和 / ATR 閾値調整）と根拠 JSON を追記し、次の実装タスクを `docs/todo_next.md` に展開した。
+- 2025-10-13: Manifest 既定条件（EV 無効・auto_state=false）で Conservative / Bridge 長期ランを実行したが、`gate_block` 196,554 件 / `zero_qty` 248,230 件でトレード 0 件。`reports/simulations/day_orb5m_20251013_summary.md` に結果を整理し、ガード解析のフォローアップを `docs/todo_next.md` へ記録。
 - 2026-08-07: Re-ran the 2018–2025 long-run baselines for Conservative / Bridge using the refreshed validated dataset, updated `reports/long_{mode}.json` / `_daily.csv`, and archived run artifacts under `runs/phase4/backtests/USDJPY_conservative_20251013_061258` / `USDJPY_bridge_20251013_061509`. Logged metrics and evidence in `docs/progress_phase4.md` and `state.md` per the Phase 4 plan.
 - 2026-08-06: `scripts/run_sim.py` に `session.log` 自動出力を組み込み、Run ディレクトリへ CLI コマンド・開始/終了タイムスタンプ・CSV ローダ統計・stderr 警告を保存するよう更新。W1 Step5 のエビデンス確保を自動化し、`tests/test_run_sim_cli.py` にセッションログ検証を追加。
 - 2026-08-05: `reports/diffs/README.md` で W1 diff アーティファクト保管手順と `scripts/compare_metrics.py` 実行例を明文化し、長期ラン比較結果を `docs/progress_phase4.md` / `state.md` へ連携する際の証跡テンプレを整備。
