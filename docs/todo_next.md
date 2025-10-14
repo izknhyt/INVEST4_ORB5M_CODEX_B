@@ -21,7 +21,8 @@
   1. **完了 (2026-08-17)** Runner 側に EV オフ時のフォールバック（`fallback_win_rate` / `size_floor_mult`）を実装し、`tests/test_runner.py::test_sizing_gate_ev_off_uses_fallback_quantity` でゼロサイズを防止する回帰を追加。`core/runner_entry.SizingGate` が EV バイパス時にも数量を算出できることを確認した。
   2. **完了 (2026-08-18)** LDN/NY 偏重だったセッション設定を見直し、`configs/strategies/day_orb_5m_guard_relaxed.yaml` で `allowed_sessions=[TOK,LDN,NY]` / `or_n=4` を採用した緩和マニフェストを追加。`scripts/summarize_strategy_gate.py` でのブロック分布比較を準備済み。
   3. **完了 (2026-08-18)** `min_or_atr_ratio=0.18` へ暫定緩和した同マニフェストを Conservative / Bridge 共通で利用し、`runner_config` / CLI 引数も同期。フォールバックサイジングを維持したまま ATR 閾値変更の影響を観測できる状態。
-  4. `scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml ...` を Conservative / Bridge 両モードで実行し、`scripts/summarize_strategy_gate.py` でセッション別ブロック割合、`scripts/compare_metrics.py` でメトリクス差分を取得して `reports/diffs/` へ保存。`docs/progress_phase4.md#現状サマリ` に比較結果を追記する。
+  4. **完了 (2026-08-19)** `scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml --csv validated/USDJPY/5m.csv --symbol USDJPY --mode <mode> --out-dir runs/phase4/backtests_guard_relaxed --no-auto-state --debug --debug-sample-limit 600000` を Conservative / Bridge 両モードで実行し、`reports/diffs/conservative_guard_relaxed_metrics.json` / `reports/diffs/bridge_guard_relaxed_metrics.json` にメトリクス差分、`reports/diffs/conservative_guard_relaxed_strategy_gate.json` に `or_filter` 449 件（rv_band high 246 / mid 162 / low 41）を記録。`docs/progress_phase4.md#現状サマリ` を更新済み。
+  5. `reports/diffs/conservative_guard_relaxed_strategy_gate.json` を基に `min_or_atr_ratio` 帯のヒット率と `rv_band` 分布を整理し、追加の ATR 閾値緩和案と連敗・日次損失ガード調整案を次イテレーション用にまとめる。
 
 ### On Hold
 

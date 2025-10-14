@@ -1,6 +1,13 @@
 # フェーズ4 進捗レポート（検証とリリースゲート）
 
-## ハイライト（2026-08-18 更新）
+-## ハイライト（2026-08-19 更新）
+- 2026-08-19: Guard-relaxed Day ORB を 2018–2025 全期間で Conservative / Bridge 両モードに走らせ、
+  `runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251014_051935` と
+  `runs/phase4/backtests_guard_relaxed/USDJPY_bridge_20251014_052447` に成果物を保存。
+  いずれも 3 トレード・勝率0%・総損益 -4.91 pips（Sharpe≈-5.55）と引き続き負圧であるものの、
+  `reports/diffs/conservative_guard_relaxed_metrics.json` /
+  `reports/diffs/bridge_guard_relaxed_metrics.json` で基準ランとの差分を確保し、
+  `reports/diffs/*_strategy_gate.json` には `or_filter` が 449 回（rv_band: high 246 / mid 162 / low 41）発生したことを記録した。
 - 2026-08-18: Phase4 ガード調整用に `configs/strategies/day_orb_5m_guard_relaxed.yaml` を作成。`or_n=4` / `min_or_atr_ratio=0.18`
   / `allowed_sessions=[TOK,LDN,NY]` の試験マニフェストでフォールバックサイジングの挙動を保ったままセッション・ATR
   緩和の影響を計測できるようにした。`docs/todo_next.md` / `docs/task_backlog.md` / `state.md` と連携し、`scripts/summarize_strategy_gate.py`
@@ -66,7 +73,13 @@ _2026-08-12 review_: Confirmed W2 バグ掃討後のノートを再確認し、H
 - フェーズ4長期ラン（state 自動ロード無効化）: `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode <mode> --start-ts 2018-01-01T00:00:00Z --end-ts 2025-12-31T23:55:00Z --out-json reports/long_<mode>.json --out-daily-csv reports/long_<mode>_daily.csv --out-dir runs/phase4/backtests --no-auto-state`
 
 ## 長期バックテスト
-### 現状サマリ（2026-08-18 更新）
+### 現状サマリ（2026-08-19 更新）
+- 2026-08-19: Guard-relaxed マニフェストでのロングランは Conservative / Bridge とも 3 トレード発生したが、
+  `total_pips=-4.91`・`win_rate=0`・`sharpe=-5.55` と依然赤字。
+  `reports/diffs/conservative_guard_relaxed_metrics.json` と `reports/diffs/bridge_guard_relaxed_metrics.json` にメトリクス差分を保存し、
+  `reports/diffs/conservative_guard_relaxed_strategy_gate.json` では `or_filter` が 449 回（平均 `or_atr_ratio` ≈0.093、最大 0.179）発生、
+  Router 側ブロックは確認されなかった。
+  次フェーズでは `min_or_atr_ratio` 帯ごとのヒット率を分析し、追加緩和と代替ガード（連敗・日次損失）調整案を策定する。
 - 2026-08-18: セッション緩和 + ATR 閾値緩和の比較用に `day_orb_5m_guard_relaxed.yaml` を追加。`or_n=4` / `min_or_atr_ratio=0.18`
   / `allowed_sessions=[TOK,LDN,NY]` を採用し、EV 無効 + フォールバックサイジング状態で Conservative / Bridge 両モードのロングラン
   差分を取得できるよう整備。次手順として `scripts/summarize_strategy_gate.py` で Tokyo/LDN/NY 別ブロック割合を比較し、`reports/diffs/`

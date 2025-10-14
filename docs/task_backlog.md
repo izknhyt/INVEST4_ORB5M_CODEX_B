@@ -259,6 +259,12 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - 改善後のメトリクスと再現コマンドを `docs/progress_phase4.md`・`state.md`・PR 説明に記録し、`reports/long_{mode}.json` / `reports/long_{mode}_daily.csv` を更新する。
   - Paper 判定に向けたエビデンスを `docs/go_nogo_checklist.md`・`docs/progress_phase4.md#運用チェックリスト` に保存し、承認ログのリンクとともに共有する。
 - **Notes**:
+- 2026-08-19: Guard-relaxed manifest (`configs/strategies/day_orb_5m_guard_relaxed.yaml`) long-runs executed for Conservative / Bridge
+  (`runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251014_051935` /
+  `runs/phase4/backtests_guard_relaxed/USDJPY_bridge_20251014_052447`).
+  Captured metric diffs under `reports/diffs/conservative_guard_relaxed_metrics.json` / `reports/diffs/bridge_guard_relaxed_metrics.json`
+  and strategy gate summaries (`reports/diffs/*_strategy_gate.json`) showing 449 `or_filter` blocks concentrated near `min_or_atr_ratio=0.18`.
+  Next action is to segment these blocks by ATR band to propose the next threshold adjustments.
 - 2026-08-17: Runner 側に EV オフ時のサイジングフォールバックを実装し、`core/runner_entry.SizingGate` が `fallback_win_rate` / `size_floor_mult` を利用してゼロ数量を回避できるよう更新。`tests/test_runner.py::test_sizing_gate_ev_off_uses_fallback_quantity` を追加し、Phase4 シンプル化リブート検証で EV 無効のまま数量が算出されることを確認。`docs/todo_next.md`・`docs/progress_phase4.md`・`state.md` を同期。
 - 2026-08-18: Phase4 ガード緩和の試験マニフェスト `configs/strategies/day_orb_5m_guard_relaxed.yaml` を追加。`or_n=4` / `min_or_atr_ratio=0.18` / `allowed_sessions=[TOK,LDN,NY]` を設定し、EV 無効 + フォールバックサイジング構成で Conservative / Bridge の比較ランを取得できる体制を整備。`docs/progress_phase4.md` にハイライトと現状サマリを追記し、`docs/todo_next.md` / `state.md` の次ステップをセッション・ATR 差分計測タスクへ更新。
 - 2026-08-16: Conservative / Bridge のデバッグ run（2025-01-01〜2025-10-13）を解析し、`router_gate` が Tokyo セッションの完全拒否、`or_filter` が `min_or_atr_ratio` 未満、`zero_qty` が EV オフ時の Kelly サイジング起因であることを特定。[reports/simulations/day_orb5m_20251013_summary.md](../reports/simulations/day_orb5m_20251013_summary.md) に改善案（Runner フォールバック導入 / セッション緩和 / ATR 閾値調整）と根拠 JSON を追記し、次の実装タスクを `docs/todo_next.md` に展開した。
