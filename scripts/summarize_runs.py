@@ -74,6 +74,22 @@ def _load_json(path: Path) -> Any:
         return json.load(f)
 
 
+def _parse_run_timestamp(value: Optional[str]) -> datetime:
+    if not value:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    text = str(value).strip()
+    for fmt in ("%Y%m%d_%H%M%S", "%Y%m%d%H%M%S"):
+        try:
+            parsed = datetime.strptime(text, fmt)
+            return parsed.replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+    parsed = _safe_parse_dt(text)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
 def _summarize_run_records(records: Sequence[RunRecord]) -> Dict[str, Any]:
     totals = {
         "trades": 0,
@@ -81,6 +97,7 @@ def _summarize_run_records(records: Sequence[RunRecord]) -> Dict[str, Any]:
         "total_pips": 0.0,
     }
     groups: Dict[tuple[str, str], Dict[str, Any]] = {}
+    latest_by_group: Dict[tuple[str, str], tuple[RunRecord, datetime]] = {}
     for record in records:
         totals["trades"] += record.trades
         totals["wins"] += record.wins
@@ -101,6 +118,16 @@ def _summarize_run_records(records: Sequence[RunRecord]) -> Dict[str, Any]:
         bucket["trades"] += record.trades
         bucket["wins"] += record.wins
         bucket["total_pips"] += record.total_pips
+        group_type = "manifest" if record.manifest_id else "symbol_mode"
+        group_key = record.manifest_id or f"{record.symbol}:{record.mode}"
+        timestamp = _parse_run_timestamp(record.timestamp)
+        latest = latest_by_group.get((group_type, group_key))
+        if latest is None:
+            latest_by_group[(group_type, group_key)] = (record, timestamp)
+        else:
+            existing_record, existing_ts = latest
+            if (timestamp, record.run_id) > (existing_ts, existing_record.run_id):
+                latest_by_group[(group_type, group_key)] = (record, timestamp)
     win_rate = (totals["wins"] / totals["trades"]) if totals["trades"] else 0.0
     for bucket in groups.values():
         trades = bucket["trades"]
@@ -118,6 +145,20 @@ def _summarize_run_records(records: Sequence[RunRecord]) -> Dict[str, Any]:
         }
         for r in top_runs
     ]
+    latest_runs_payload = []
+    for (group_type, group_key), (record, _) in sorted(latest_by_group.items(), key=lambda item: item[0]):
+        payload = {
+            "group": group_type,
+            "key": group_key,
+            "run_id": record.run_id,
+            "timestamp": record.timestamp,
+            "symbol": record.symbol,
+            "mode": record.mode,
+            "run_dir": record.run_dir,
+        }
+        if record.manifest_id:
+            payload["manifest_id"] = record.manifest_id
+        latest_runs_payload.append(payload)
     return {
         "total_runs": len(records),
         "totals": {
@@ -126,6 +167,7 @@ def _summarize_run_records(records: Sequence[RunRecord]) -> Dict[str, Any]:
         },
         "by_symbol_mode": sorted(groups.values(), key=lambda b: (b["symbol"], b["mode"])),
         "top_runs": top_payload,
+        "latest_runs": latest_runs_payload,
     }
 
 
@@ -135,6 +177,7 @@ def summarize_runs(index_path: Path) -> Dict[str, Any]:
             "source": str(index_path),
             "available": False,
             "reason": "index.csv not found",
+            "latest_runs": [],
         }
     records = load_runs_index(index_path)
     summary = _summarize_run_records(records)
@@ -862,6 +905,11 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         help="Override the payload type identifier.",
     )
     parser.add_argument(
+        "--latest-only",
+        action="store_true",
+        help="Print only the latest run per manifest (or symbol/mode fallback) and exit.",
+    )
+    parser.add_argument(
         "--weekly-payload",
         action="store_true",
         help="Generate the weekly observability payload instead of the legacy summary.",
@@ -917,6 +965,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
+    if args.latest_only and args.weekly_payload:
+        print("error: --latest-only cannot be combined with --weekly-payload", file=sys.stderr)
+        return 1
+
     if args.weekly_payload:
         return _run_weekly_payload(args, config, argv)
 
@@ -927,6 +979,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         portfolio_summary=_resolve_rooted_path(args.portfolio_summary),
         health_checks=_resolve_rooted_path(args.health_checks),
     )
+
+    if args.latest_only:
+        runs_summary = summarize_runs(paths.runs_index)
+        latest_payload: Dict[str, Any] = {
+            "source": runs_summary.get("source"),
+            "available": runs_summary.get("available"),
+            "latest_runs": runs_summary.get("latest_runs", []),
+        }
+        if runs_summary.get("available"):
+            latest_payload["total_runs"] = runs_summary.get("total_runs", 0)
+        if not runs_summary.get("available") and runs_summary.get("reason"):
+            latest_payload["reason"] = runs_summary.get("reason")
+        if args.json_out:
+            Path(args.json_out).write_text(json.dumps(latest_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(json.dumps(latest_payload, ensure_ascii=False, indent=2))
+        return 0 if runs_summary.get("available") else 1
 
     payload = build_summary(paths, includes)
     payload["type"] = args.payload_type

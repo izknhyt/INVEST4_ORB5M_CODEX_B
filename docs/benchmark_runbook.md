@@ -51,8 +51,10 @@
 ## 週次サマリー通知フロー
 
 - `scripts/summarize_runs.py` を使うと、`runs/index.csv` の集計、`reports/benchmark_summary.json` のベースライン/ローリング指標、`reports/portfolio_summary.json` のカテゴリ利用率、`ops/health/state_checks.json` のヘルスチェック履歴を 1 つの JSON に束ねて Webhook へ送信できる。
+- `runs` コンポーネントには manifest 優先の `latest_runs` が含まれるため、どの manifest (`symbol:mode` フォールバック含む) が最新でどの `run_id` に紐付くかを JSON 一覧で確認できる。
 - デフォルトで全コンポーネントを収集するが、`--include runs --include benchmarks` のように明示すれば必要なブロックだけを対象にできる。YAML 設定ファイル（`--config ops/summarize.yml`）に `include:` と `destinations.webhooks:` を定義しておけば、Cron からは `--config` のみで再利用できる。
 - Webhook が利用できない環境では `--dry-run-webhook` を付けるとネットワーク送信をスキップしつつ JSON を生成できる。失敗時に即座にエラーへ落としたい場合は `--fail-on-webhook-error` を追加する。
+- manifest 単位の最新 run だけを確認したい場合は `--latest-only` を追加する。Webhook 配信や他コンポーネントの読込は行われず、`latest_runs` 配列だけを含む JSON が標準出力 / `--json-out` に書き出される。
 
 ### 実行例
 

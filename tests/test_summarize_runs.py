@@ -30,6 +30,7 @@ def _write_runs_index(path: Path, rows: List[Dict[str, Any]]) -> None:
         "trades",
         "wins",
         "total_pips",
+        "manifest_id",
     ]
     lines = [",".join(headers)]
     for row in rows:
@@ -70,6 +71,7 @@ def sample_environment(tmp_path: Path) -> summarize_runs.SummaryPaths:
                 "trades": 120,
                 "wins": 70,
                 "total_pips": 180.5,
+                "manifest_id": "day_orb_5m_v1",
             },
             {
                 "run_id": "run_b",
@@ -87,6 +89,7 @@ def sample_environment(tmp_path: Path) -> summarize_runs.SummaryPaths:
                 "trades": 80,
                 "wins": 45,
                 "total_pips": 92.0,
+                "manifest_id": "day_orb_5m_v1",
             },
             {
                 "run_id": "run_c",
@@ -104,6 +107,7 @@ def sample_environment(tmp_path: Path) -> summarize_runs.SummaryPaths:
                 "trades": 60,
                 "wins": 32,
                 "total_pips": -35.0,
+                "manifest_id": "",
             },
         ],
     )
@@ -245,6 +249,16 @@ def test_build_summary_with_all_components(sample_environment: summarize_runs.Su
     assert runs_component["totals"]["wins"] == 147
     assert pytest.approx(runs_component["totals"]["win_rate"], rel=1e-9) == 147 / 260
     assert runs_component["top_runs"][0]["run_id"] == "run_a"
+    latest_runs = runs_component["latest_runs"]
+    manifest_entry = next(
+        entry for entry in latest_runs if entry["group"] == "manifest" and entry["key"] == "day_orb_5m_v1"
+    )
+    assert manifest_entry["run_id"] == "run_b"
+    assert manifest_entry["manifest_id"] == "day_orb_5m_v1"
+    fallback_entry = next(
+        entry for entry in latest_runs if entry["group"] == "symbol_mode" and entry["key"] == "EURUSD:bridge"
+    )
+    assert fallback_entry["run_id"] == "run_c"
 
     benchmark_component = payload["components"][summarize_runs.COMPONENT_BENCHMARKS]
     assert benchmark_component["status"] == "warning"
@@ -271,6 +285,38 @@ def test_build_summary_respects_includes(sample_environment: summarize_runs.Summ
     assert summarize_runs.COMPONENT_PORTFOLIO not in payload["components"]
     assert summarize_runs.COMPONENT_BENCHMARKS in payload["components"]
     assert summarize_runs.COMPONENT_HEALTH in payload["components"]
+
+
+def test_latest_only_cli(sample_environment: summarize_runs.SummaryPaths, capsys: pytest.CaptureFixture[str]) -> None:
+    exit_code = summarize_runs.main(
+        [
+            "--runs-root",
+            str(sample_environment.runs_root),
+            "--benchmark-summary",
+            str(sample_environment.benchmark_summary),
+            "--portfolio-summary",
+            str(sample_environment.portfolio_summary),
+            "--health-checks",
+            str(sample_environment.health_checks),
+            "--latest-only",
+        ]
+    )
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["available"] is True
+    manifest_entry = next(
+        entry
+        for entry in payload["latest_runs"]
+        if entry["group"] == "manifest" and entry["key"] == "day_orb_5m_v1"
+    )
+    assert manifest_entry["run_id"] == "run_b"
+    fallback_entry = next(
+        entry
+        for entry in payload["latest_runs"]
+        if entry["group"] == "symbol_mode" and entry["key"] == "EURUSD:bridge"
+    )
+    assert fallback_entry["run_id"] == "run_c"
 
 
 def test_dispatch_webhooks_posts_payload(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -349,6 +395,7 @@ def test_weekly_payload_cli_success(
                 "trades": 120,
                 "wins": 70,
                 "total_pips": 150.5,
+                "manifest_id": "weekly_manifest",
             }
         ],
     )

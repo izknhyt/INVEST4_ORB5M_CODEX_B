@@ -1,6 +1,7 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-08-21: Added manifest-first `latest_runs` summaries plus a `--latest-only` CLI to `scripts/summarize_runs.py`, updated docs/runbooks (`docs/logic_overview.md`, `docs/benchmark_runbook.md`, `docs/state_runbook.md`) and backlog notes, and verified coverage via `python3 -m pytest tests/test_summarize_runs.py`.
 - 2026-08-20: Exposed manifest-to-run mapping in `runs/index.csv` by updating `scripts/rebuild_runs_index.py` and
   `scripts/utils_runs.RunRecord` to capture optional `manifest_id` values, refreshed router snapshot regression coverage
   (`tests/test_router_pipeline.py::test_load_runs_index_prefers_newest_run`), and ensured rebuild tests assert the new column

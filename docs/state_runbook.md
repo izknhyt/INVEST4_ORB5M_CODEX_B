@@ -106,6 +106,7 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
   ```
   - `--dataset` 未指定時は `ev_history` / `slippage` / `turnover` / `latency` の 4 データセットをすべて生成する。
   - `--upload-command` を併用する場合は戻り値を summary JSON で確認し、失敗時は `ops/dashboard_export_heartbeat.json.last_failure` を参照する。
+  - 直近の実行対象 manifest を確認したい場合は `python3 scripts/summarize_runs.py --runs-root runs --latest-only` を別途実行し、`latest_runs` の `run_id` が想定どおり更新されているかチェックする。
 
 ### 成果物レビュー
 - `out/dashboard/manifest.json` — `sequence` が単調増加しているか、`datasets[].checksum_sha256` が最新 `out/dashboard/<dataset>.json` と一致しているか確認する。検証には `python3 -m json.tool out/dashboard/manifest.json` を利用しても良い。
