@@ -1,6 +1,10 @@
 # フェーズ4 進捗レポート（検証とリリースゲート）
 
-## ハイライト（2026-08-07 更新）
+## ハイライト（2026-08-18 更新）
+- 2026-08-18: Phase4 ガード調整用に `configs/strategies/day_orb_5m_guard_relaxed.yaml` を作成。`or_n=4` / `min_or_atr_ratio=0.18`
+  / `allowed_sessions=[TOK,LDN,NY]` の試験マニフェストでフォールバックサイジングの挙動を保ったままセッション・ATR
+  緩和の影響を計測できるようにした。`docs/todo_next.md` / `docs/task_backlog.md` / `state.md` と連携し、`scripts/summarize_strategy_gate.py`
+  を用いたブロック理由比較と `scripts/compare_metrics.py` での Conservative / Bridge 差分取得を次ステップとして準備。
 - Conservative / Bridge の 2018–2025 ロングランを `validated/USDJPY/5m.csv` で再実行し、`reports/long_{mode}.json` / `_daily.csv` を更新。`runs/phase4/backtests/USDJPY_conservative_20251013_061258` / `USDJPY_bridge_20251013_061509` に `session.log`・`metrics.json`・`daily.csv` を保存し、Sharpe / 最大DD / 勝率が依然として負圧であることを確認（Conservative: Sharpe=-7.79, win_rate=18%、Bridge: Sharpe=-7.17, win_rate≈21.8%）。
 - 2026-08-10: `scripts/run_sim.py` が ランディレクトリ配下へ `checksums.json` を生成し、`metrics.json` / `daily.csv` / `records.csv` / `params.json` の SHA256 を自動記録。`session.log` にもダイジェストを埋め込み、Phase4 計画 W1 Step6 の証跡保存をワンコマンド化した。
 - `scripts/run_sim.py` が `--out-dir` 実行時に `session.log` を自動生成し、コマンドライン・開始/終了時刻・CSVローダ統計・stderr警告を Run ディレクトリへ保存できるようにした。W1 Step5 のログ保全フローをコード化し、`tests/test_run_sim_cli.py::test_run_sim_session_log_records_aggregate_ev_failure` / `::test_run_sim_creates_run_directory` で回帰。
@@ -62,7 +66,11 @@ _2026-08-12 review_: Confirmed W2 バグ掃討後のノートを再確認し、H
 - フェーズ4長期ラン（state 自動ロード無効化）: `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode <mode> --start-ts 2018-01-01T00:00:00Z --end-ts 2025-12-31T23:55:00Z --out-json reports/long_<mode>.json --out-daily-csv reports/long_<mode>_daily.csv --out-dir runs/phase4/backtests --no-auto-state`
 
 ## 長期バックテスト
-### 現状サマリ（2026-08-17 更新）
+### 現状サマリ（2026-08-18 更新）
+- 2026-08-18: セッション緩和 + ATR 閾値緩和の比較用に `day_orb_5m_guard_relaxed.yaml` を追加。`or_n=4` / `min_or_atr_ratio=0.18`
+  / `allowed_sessions=[TOK,LDN,NY]` を採用し、EV 無効 + フォールバックサイジング状態で Conservative / Bridge 両モードのロングラン
+  差分を取得できるよう整備。次手順として `scripts/summarize_strategy_gate.py` で Tokyo/LDN/NY 別ブロック割合を比較し、`reports/diffs/`
+  に `scripts/compare_metrics.py` 出力を保存する準備を完了。
 - 2026-08-17: Runner サイジングゲートへ EV オフ時のフォールバック（`fallback_win_rate` / `size_floor_mult`）を実装し、`tests/test_runner.py::test_sizing_gate_ev_off_uses_fallback_quantity` でゼロ数量を防止する回帰を追加。Phase4 シンプル化リブート検証でも EV 無効のままロットが算出できる状態を確認し、`docs/todo_next.md`・`docs/task_backlog.md`・`state.md` を同期。
 - 2026-08-16: 2025-01-01〜2025-10-13 のデバッグ run を `scripts/summarize_strategy_gate.py` で解析し、`gate_block=19,091` 件が Tokyo セッション由来の `router_gate`、`strategy_gate=41` 件が `min_or_atr_ratio` 超過、`zero_qty=248,230` 件が EV オフ時の Kelly サイジング失敗であることを確認。改善案（セッション緩和 / ATR 閾値調整 / Runner 側フォールバック導入）を [reports/simulations/day_orb5m_20251013_summary.md](../reports/simulations/day_orb5m_20251013_summary.md) に追記し、次ステップを `docs/todo_next.md`・`docs/task_backlog.md` へ連携した。
 - 2025-10-13: Manifest 既定条件（EV 無効・auto_state=false）で再実行したところ、Conservative / Bridge ともに `gate_block` 196,554 件・`zero_qty` 248,230 件によりトレード 0 件となった。詳細は [reports/simulations/day_orb5m_20251013_summary.md](../reports/simulations/day_orb5m_20251013_summary.md) を参照。
