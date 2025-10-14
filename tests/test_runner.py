@@ -1593,6 +1593,62 @@ class TestRunner(unittest.TestCase):
         )
         self.assertEqual(qty_helper, 0.0)
 
+    def test_sizing_gate_ev_off_uses_fallback_quantity(self):
+        runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
+        runner.rcfg.ev_mode = "off"
+        runner.rcfg.risk_per_trade_pct = 0.25
+        runner.rcfg.size_floor_mult = 0.05
+        runner.rcfg.strategy.extra_params["fallback_win_rate"] = 0.55
+
+        pending = {"side": "BUY", "tp_pips": 2.0, "sl_pips": 1.0}
+        sizing_gate = SizingGate(runner)
+        bar = make_bar(
+            datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc),
+            "USDJPY",
+            150.0,
+            150.2,
+            149.8,
+            150.1,
+            spread=0.02,
+        )
+
+        entry_ctx = runner._build_ctx(
+            bar=bar,
+            session="LDN",
+            atr14=0.5,
+            or_h=150.2,
+            or_l=149.8,
+            realized_vol_value=0.01,
+        )
+        ev_ctx = EVContext.from_entry(entry_ctx)
+        ev_ctx.ev_lcb = 0.0
+        ev_ctx.threshold_lcb = float("-inf")
+        ev_ctx.ev_pass = True
+        ev_ctx.bypass = False
+
+        ev_result = EVEvaluation(
+            outcome=GateCheckOutcome(passed=True),
+            manager=None,
+            context=ev_ctx,
+            ev_lcb=0.0,
+            threshold_lcb=float("-inf"),
+            bypass=False,
+            pending_side=pending["side"],
+            tp_pips=pending["tp_pips"],
+            sl_pips=pending["sl_pips"],
+        )
+
+        result = sizing_gate.evaluate(
+            ctx=ev_ctx,
+            ev_result=ev_result,
+            calibrating=False,
+            timestamp="2024-01-01T00:00:00Z",
+        )
+
+        self.assertTrue(result.outcome.passed)
+        self.assertGreater(result.context.qty or 0.0, 0.0)
+        self.assertEqual(runner.debug_counts["zero_qty"], 0)
+
     def test_check_slip_and_sizing_slip_guard_blocks(self):
         runner = BacktestRunner(equity=100_000.0, symbol="USDJPY")
         pending = {"side": "SELL", "tp_pips": 2.0, "sl_pips": 1.0}

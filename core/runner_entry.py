@@ -63,6 +63,7 @@ class EntryContext:
     daily_loss_pips: float = 0.0
     daily_trade_count: int = 0
     daily_pnl_pips: float = 0.0
+    fallback_win_rate: Optional[float] = None
 
     def _constructor_kwargs(self) -> Dict[str, Any]:
         data = dict(vars(self))
@@ -99,6 +100,8 @@ class EntryContext:
             "daily_trade_count": self.daily_trade_count,
             "daily_pnl_pips": self.daily_pnl_pips,
         }
+        if self.fallback_win_rate is not None:
+            data["fallback_win_rate"] = self.fallback_win_rate
         if self.allowed_sessions is not None:
             data["allowed_sessions"] = list(self.allowed_sessions)
         if self.ev_profile_stats is not None:
@@ -135,6 +138,7 @@ class EntryContext:
         mapping["daily_loss_pips"] = self.daily_loss_pips
         mapping["daily_trade_count"] = self.daily_trade_count
         mapping["daily_pnl_pips"] = self.daily_pnl_pips
+        _assign_optional(mapping, "fallback_win_rate", self.fallback_win_rate)
         _assign_optional(mapping, "allowed_sessions", self.allowed_sessions)
         _assign_optional(mapping, "ev_profile_stats", self.ev_profile_stats)
         _assign_optional(mapping, "news_freeze", self.news_freeze, include_false=False)
@@ -533,6 +537,45 @@ class SizingGate:
     def __init__(self, runner: "BacktestRunner") -> None:
         self._runner = runner
 
+    @staticmethod
+    def _to_float(value: Any) -> Optional[float]:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _compute_fallback_quantity(
+        self,
+        ctx: Mapping[str, Any],
+        *,
+        sl_pips: float,
+        tp_pips: float,
+    ) -> Tuple[float, Dict[str, Any]]:
+        metadata: Dict[str, Any] = {"sizing_mode": "fallback"}
+        qty = 0.0
+        fallback_value = self._to_float(ctx.get("fallback_win_rate"))
+        if fallback_value is not None and fallback_value > 0.0:
+            qty = compute_qty_from_ctx(
+                ctx,
+                sl_pips,
+                mode="production",
+                tp_pips=tp_pips,
+                p_lcb=fallback_value,
+            )
+            metadata["fallback_win_rate"] = fallback_value
+        if qty <= 0.0:
+            floor_mult = self._to_float(ctx.get("size_floor_mult"))
+            if floor_mult is not None and floor_mult > 0.0:
+                qty = compute_qty_from_ctx(
+                    ctx,
+                    sl_pips,
+                    mode="calibration",
+                    multiplier=floor_mult,
+                )
+                metadata["size_floor_mult"] = floor_mult
+        metadata["qty"] = qty
+        return qty, metadata
+
     def evaluate(
         self,
         *,
@@ -574,6 +617,7 @@ class SizingGate:
             and not calibrating
             and tp_pips is not None
             and sl_pips is not None
+            and str(sizing_ctx.ev_mode).lower() != "off"
         ):
             ctx_for_sizing = sizing_ctx.to_mapping()
             ctx_for_sizing.setdefault("equity", self._runner._equity_live)
@@ -595,6 +639,29 @@ class SizingGate:
                         passed=False,
                         reason="zero_qty",
                         metadata={"qty": qty_dbg},
+                    ),
+                    context=sizing_ctx,
+                )
+        elif (
+            not calibrating
+            and tp_pips is not None
+            and sl_pips is not None
+        ):
+            ctx_for_sizing = sizing_ctx.to_mapping()
+            ctx_for_sizing.setdefault("equity", self._runner._equity_live)
+            qty_dbg, metadata = self._compute_fallback_quantity(
+                ctx_for_sizing,
+                sl_pips=float(sl_pips),
+                tp_pips=float(tp_pips),
+            )
+            sizing_ctx.qty = qty_dbg
+            if qty_dbg <= 0:
+                self._runner.debug_counts["zero_qty"] += 1
+                return SizingEvaluation(
+                    outcome=GateCheckOutcome(
+                        passed=False,
+                        reason="zero_qty",
+                        metadata=metadata,
                     ),
                     context=sizing_ctx,
                 )
