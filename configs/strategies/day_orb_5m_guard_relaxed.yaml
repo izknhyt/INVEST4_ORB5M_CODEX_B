@@ -1,0 +1,86 @@
+meta:
+  id: day_orb_5m_v1_guard_relaxed
+  name: Day ORB 5m (USDJPY, guard-relaxed trial)
+  version: "1.0"
+  category: day
+  tags: [orb, breakout, trial]
+  description: |
+    Guard-relaxed variant of the USDJPY 5m Opening Range Breakout manifest.
+    Extends router session access to TOK/LDN/NY and softens the ATR gate so
+    Phase 4 fallback sizing remains active while EV stays disabled.
+
+strategy:
+  class_path: strategies.day_orb_5m.DayORB5m
+  instruments:
+    - symbol: USDJPY
+      timeframe: 5m
+      mode: conservative
+    - symbol: USDJPY
+      timeframe: 5m
+      mode: bridge
+  parameters:
+    or_n: 4
+    k_tp: 1.4
+    k_sl: 0.7
+    k_tr: 0.3
+    require_close_breakout: false
+    require_retest: false
+    retest_max_bars: 4
+    retest_tol_k: 0.2
+    min_or_atr_ratio: 0.18
+    cooldown_bars: 1
+    min_micro_trend: 0.0
+    min_atr_pips: 0.0
+    max_atr_pips: 40.0
+    max_signals_per_day: 4
+    fallback_win_rate: 0.55
+    max_loss_streak: 3
+    max_daily_loss_pips: 120.0
+    max_daily_trade_count: 6
+
+router:
+  allowed_sessions: [TOK, LDN, NY]
+  allow_spread_bands: [narrow, normal]
+  allow_rv_bands: [mid, high]
+  max_latency_ms: 80
+  category_cap_pct: 40
+  tags: [breakout, usd, jpy, trial]
+
+risk:
+  risk_per_trade_pct: 0.25
+  max_daily_dd_pct: 5.0
+  notional_cap: 2000000
+  max_concurrent_positions: 1
+  warmup_trades: 0
+
+features:
+  required: [atr14, adx14, rv12, or_high, or_low, spread_band, session]
+  optional: [regime_flag]
+
+runner:
+  runner_config:
+    threshold_lcb_pip: -10.0
+    min_or_atr_ratio: 0.18
+    allowed_sessions: [TOK, LDN, NY]
+    warmup_trades: 0
+    include_expected_slip: true
+    ev_mode: off
+    size_floor_mult: 0.05
+    allow_low_rv: true
+  cli_args:
+    equity: 100000
+    threshold_lcb: -10.0
+    min_or_atr: 0.18
+    allowed_sessions: TOK,LDN,NY
+    ev_mode: off
+    auto_state: false
+    aggregate_ev: false
+    use_ev_profile: false
+
+state:
+  ev_profile: null
+
+notes:
+  - Trial manifest for Phase4 guard tuning with EV disabled and fallback sizing enabled.
+  - Router sessions expanded to TOK/LDN/NY for comparison against LDN+NY baseline.
+  - ATR gate relaxed to min_or_atr_ratio=0.18; monitor strategy_gate fallout via summarize_strategy_gate.
