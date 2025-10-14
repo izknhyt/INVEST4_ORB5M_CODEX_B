@@ -17,7 +17,11 @@
 
 ### In Progress
 
-- [P4-01 長期バックテスト改善](./task_backlog.md#p4-01-長期バックテスト改善) — [検証計画](plans/phase4_validation_plan.md) と進捗ログを同期済み。2018–2025通しの `validated/USDJPY/5m*.csv` を再構築し、短期ビューは `validated/USDJPY/5m_recent*.csv` へ退避。次ステップ: 新データで Conservative/Bridge の長期ランを再実行し、`docs/progress_phase4.md#運用チェックリスト` にメトリクス/証跡リンクを追記する。 Diff アーティファクトの保存ルールを `reports/diffs/README.md` で定義済み。
+- [P4-01 長期バックテスト改善](./task_backlog.md#p4-01-長期バックテスト改善) — [検証計画](plans/phase4_validation_plan.md) と進捗ログを同期済み。`scripts/summarize_strategy_gate.py` で Conservative / Bridge のデバッグ run（2025-01-01〜2025-10-13）を解析した結果、(1) Tokyo セッションでの `router_gate`、(2) `min_or_atr_ratio=0.25` による `or_filter`、(3) EV オフ時の Kelly サイジングが `zero_qty` を生む構造を特定済み。[reports/simulations/day_orb5m_20251013_summary.md](../reports/simulations/day_orb5m_20251013_summary.md) に根拠と改善案を追記。**次ステップ:**
+  1. Runner 側で EV オフ時に `fallback_win_rate` / `size_floor_mult` を適用するフォールバックを設計し、`tests/test_runner.py` にゼロサイズ防止の回帰テストを追加する。
+  2. OR 窓・セッション設定を見直し、LDN/NY 時間でシグナルが立つようにマニフェスト案（例: `allowed_sessions` の段階的緩和）を作成。調整後は `scripts/summarize_strategy_gate.py` でセッション別分布を再確認する。
+  3. `min_or_atr_ratio` を 0.15–0.20 へ暫定緩和した試験マニフェストを作成し、勝率・DD への影響を `reports/diffs/` に保存した差分レポートで評価する。
+  4. 上記 1〜3 のパラメータトライアルを自動化する比較スクリプト（`scripts/compare_metrics.py` の利用）を走らせ、`docs/progress_phase4.md#現状サマリ` に結果を追記する。
 
 ### On Hold
 
