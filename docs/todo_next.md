@@ -19,9 +19,9 @@
 
 - [P4-01 長期バックテスト改善](./task_backlog.md#p4-01-長期バックテスト改善) — [検証計画](plans/phase4_validation_plan.md) と進捗ログを同期済み。`scripts/summarize_strategy_gate.py` で Conservative / Bridge のデバッグ run（2025-01-01〜2025-10-13）を解析した結果、(1) Tokyo セッションでの `router_gate`、(2) `min_or_atr_ratio=0.25` による `or_filter`、(3) EV オフ時の Kelly サイジングが `zero_qty` を生む構造を特定済み。[reports/simulations/day_orb5m_20251013_summary.md](../reports/simulations/day_orb5m_20251013_summary.md) に根拠と改善案を追記。**次ステップ:**
   1. **完了 (2026-08-17)** Runner 側に EV オフ時のフォールバック（`fallback_win_rate` / `size_floor_mult`）を実装し、`tests/test_runner.py::test_sizing_gate_ev_off_uses_fallback_quantity` でゼロサイズを防止する回帰を追加。`core/runner_entry.SizingGate` が EV バイパス時にも数量を算出できることを確認した。
-  2. OR 窓・セッション設定を見直し、LDN/NY 時間でシグナルが立つようにマニフェスト案（例: `allowed_sessions` の段階的緩和）を作成。調整後は `scripts/summarize_strategy_gate.py` でセッション別分布を再確認する。
-  3. `min_or_atr_ratio` を 0.15–0.20 へ暫定緩和した試験マニフェストを作成し、勝率・DD への影響を `reports/diffs/` に保存した差分レポートで評価する。
-  4. 上記 2〜3 のパラメータトライアルを自動化する比較スクリプト（`scripts/compare_metrics.py` の利用）を走らせ、`docs/progress_phase4.md#現状サマリ` に結果を追記する。
+  2. **完了 (2026-08-18)** LDN/NY 偏重だったセッション設定を見直し、`configs/strategies/day_orb_5m_guard_relaxed.yaml` で `allowed_sessions=[TOK,LDN,NY]` / `or_n=4` を採用した緩和マニフェストを追加。`scripts/summarize_strategy_gate.py` でのブロック分布比較を準備済み。
+  3. **完了 (2026-08-18)** `min_or_atr_ratio=0.18` へ暫定緩和した同マニフェストを Conservative / Bridge 共通で利用し、`runner_config` / CLI 引数も同期。フォールバックサイジングを維持したまま ATR 閾値変更の影響を観測できる状態。
+  4. `scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml ...` を Conservative / Bridge 両モードで実行し、`scripts/summarize_strategy_gate.py` でセッション別ブロック割合、`scripts/compare_metrics.py` でメトリクス差分を取得して `reports/diffs/` へ保存。`docs/progress_phase4.md#現状サマリ` に比較結果を追記する。
 
 ### On Hold
 
