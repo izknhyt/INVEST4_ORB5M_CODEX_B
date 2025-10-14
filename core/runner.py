@@ -1325,6 +1325,15 @@ class BacktestRunner:
         key = self._ev_key(session, spread_band, rv_band)
         ev_manager = self._get_ev_manager(key)
         ev_profile_stats = self._ev_profile_lookup.get(key)
+        fallback_win_rate: Optional[float] = None
+        extra_params = getattr(self.rcfg.strategy, "extra_params", {})
+        if isinstance(extra_params, Mapping):
+            fallback_raw = extra_params.get("fallback_win_rate")
+            try:
+                if fallback_raw is not None:
+                    fallback_win_rate = float(fallback_raw)
+            except (TypeError, ValueError):
+                fallback_win_rate = None
         # Expected slip cost derived from learnt coefficients (per spread band)
         expected_slip = 0.0
         if getattr(self.rcfg, "include_expected_slip", False):
@@ -1362,6 +1371,7 @@ class BacktestRunner:
             ev_key=key,
             ev_manager=ev_manager,
             ev_profile_stats=ev_profile_stats,
+            fallback_win_rate=fallback_win_rate,
             allowed_sessions=allowed_sessions,
             loss_streak=self._loss_streak,
             daily_loss_pips=self._daily_loss_pips,
