@@ -1,6 +1,15 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-10-15: Ensured manifest overrides (`ev_mode` / `allow_low_rv` / `threshold_lcb`) persist into `params.json` / `runs/index.csv`
+  by extending `scripts/run_sim.py` to snapshot RunnerConfig values, added regression coverage in
+  `tests/test_run_sim_cli.py::test_run_sim_cli_serializes_runner_config_overrides`, and reran
+  `python3 -m pytest tests/test_run_sim_cli.py`. Rebuilt the EV-off Day ORB baseline with
+  `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs/tmp/day_orb5m_ev_guard --json-out runs/tmp/day_orb5m_ev_guard/metrics.json --out-daily-csv runs/tmp/day_orb5m_ev_guard/daily.csv --no-auto-state`,
+  confirming `runtime.ev_reject=0` / `allow_low_rv=true` / `ev_mode="off"` in
+  `runs/USDJPY_conservative_20251015_035143`, then refreshed `runs/index.csv` via
+  `python3 scripts/rebuild_runs_index.py --runs-dir runs --out runs/index.csv` and logged the outcome in
+  `docs/progress_phase4.md` / `docs/task_backlog.md`.
 - 2026-08-21: Added manifest-first `latest_runs` summaries plus a `--latest-only` CLI to `scripts/summarize_runs.py`, updated docs/runbooks (`docs/logic_overview.md`, `docs/benchmark_runbook.md`, `docs/state_runbook.md`) and backlog notes, and verified coverage via `python3 -m pytest tests/test_summarize_runs.py`.
 - 2026-08-20: Exposed manifest-to-run mapping in `runs/index.csv` by updating `scripts/rebuild_runs_index.py` and
   `scripts/utils_runs.RunRecord` to capture optional `manifest_id` values, refreshed router snapshot regression coverage
