@@ -820,6 +820,45 @@ def test_run_sim_cli_handles_string_bool_flags(tmp_path: Path) -> None:
     assert params.get("aggregate_ev") is False
 
 
+def test_run_sim_cli_serializes_runner_config_overrides(tmp_path: Path) -> None:
+    manifest_path = _write_manifest(tmp_path)
+    manifest_text = manifest_path.read_text(encoding="utf-8")
+    manifest_text = manifest_text.replace("threshold_lcb_pip: 0.0", "threshold_lcb_pip: -3.5")
+    manifest_text = manifest_text.replace("min_or_atr_ratio: 0.0", "min_or_atr_ratio: 0.42")
+    manifest_text = manifest_text.replace(
+        "    warmup_trades: 0\n  cli_args:",
+        "    warmup_trades: 7\n    ev_mode: off\n    size_floor_mult: 0.2\n  cli_args:",
+    )
+    manifest_path.write_text(manifest_text, encoding="utf-8")
+
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text(CSV_CONTENT, encoding="utf-8")
+    out_dir = tmp_path / "runs"
+
+    rc = run_sim_main(
+        [
+            "--manifest",
+            str(manifest_path),
+            "--csv",
+            str(csv_path),
+            "--out-dir",
+            str(out_dir),
+        ]
+    )
+
+    assert rc == 0
+    run_dirs = sorted(out_dir.iterdir())
+    assert run_dirs
+    params = json.loads((run_dirs[0] / "params.json").read_text(encoding="utf-8"))
+
+    assert params.get("threshold_lcb") == pytest.approx(-3.5)
+    assert params.get("min_or_atr") == pytest.approx(0.42)
+    assert params.get("allow_low_rv") is True
+    assert params.get("allowed_sessions") == "LDN,NY"
+    assert params.get("ev_mode") == "off"
+    assert params.get("size_floor") == pytest.approx(0.2)
+
+
 def test_run_sim_cli_omits_loaded_state_on_mismatch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

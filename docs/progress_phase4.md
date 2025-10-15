@@ -1,5 +1,15 @@
 # フェーズ4 進捗レポート（検証とリリースゲート）
 
+- 2026-10-15: `scripts/run_sim.py` が manifest 由来の RunnerConfig を `params.json` へ反映するよう調整し、`allow_low_rv` / `ev_mode` /
+  `threshold_lcb` などのフィールドが `runs/index.csv` に正しく残ることを確認。再実行コマンドは以下の通り。
+
+  `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs/tmp/day_orb5m_ev_guard --json-out runs/tmp/day_orb5m_ev_guard/metrics.json --out-daily-csv runs/tmp/day_orb5m_ev_guard/daily.csv --no-auto-state`
+
+  出力された `runs/tmp/day_orb5m_ev_guard/USDJPY_conservative_20251015_035143/params.json` では `allow_low_rv=true` / `ev_mode="off"`
+  / `threshold_lcb=-10.0` を記録し、`runs/index.csv` 上でも `ev_mode=off` / `allow_low_rv=True` が反映された。メトリクスは 3 トレード・総損益
+  -6.92 pips・Sharpe=-9.83 で、`metrics.json` の `runtime.ev_reject=0` と `daily.csv` の `ev_reject` 列がゼロで収束していることから EV ブロックが
+  抑止されている。`python3 scripts/rebuild_runs_index.py --runs-dir runs --out runs/index.csv` で索引を更新し、構成差分と検証ログを
+  `docs/task_backlog.md#p4-04-day-orb-シンプル化リブート` と本ドキュメントに追記。
 -## ハイライト（2026-08-19 更新）
 - 2026-08-19: Guard-relaxed Day ORB を 2018–2025 全期間で Conservative / Bridge 両モードに走らせ、
   `runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251014_051935` と

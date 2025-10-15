@@ -834,7 +834,59 @@ def _write_daily_csv(path: Path, daily: Mapping[str, Mapping[str, Any]]) -> None
                     wins_value,
                     float(entry.get("pnl_pips", 0.0)),
                 ]
-            )
+        )
+
+
+def _format_allowed_sessions(sessions: Optional[Sequence[Any]]) -> Optional[str]:
+    if not sessions:
+        return None
+    cleaned: list[str] = []
+    for session in sessions:
+        text = str(session).strip()
+        if text:
+            cleaned.append(text.upper())
+    return ",".join(cleaned) if cleaned else None
+
+
+def _format_rv_cuts(cuts: Optional[Sequence[Any]]) -> Optional[str]:
+    if not cuts:
+        return None
+    formatted: list[str] = []
+    for cut in cuts:
+        try:
+            formatted.append(f"{float(cut):g}")
+        except (TypeError, ValueError):
+            continue
+    return ",".join(formatted) if formatted else None
+
+
+def _runner_config_snapshot(rcfg: RunnerConfig) -> Dict[str, Any]:
+    allowed_sessions = _format_allowed_sessions(getattr(rcfg, "allowed_sessions", None))
+    rv_cuts = _format_rv_cuts(getattr(rcfg, "rv_band_cuts", None))
+    ev_mode_raw = getattr(rcfg, "ev_mode", None)
+    ev_mode = str(ev_mode_raw).strip().lower() if ev_mode_raw is not None else None
+
+    snapshot: Dict[str, Any] = {
+        "or_n": getattr(rcfg, "or_n", None),
+        "k_tp": getattr(rcfg, "k_tp", None),
+        "k_sl": getattr(rcfg, "k_sl", None),
+        "k_tr": getattr(rcfg, "k_tr", None),
+        "threshold_lcb": getattr(rcfg, "threshold_lcb_pip", None),
+        "min_or_atr": getattr(rcfg, "min_or_atr_ratio", None),
+        "rv_cuts": rv_cuts,
+        "allow_low_rv": bool(getattr(rcfg, "allow_low_rv", False)),
+        "allowed_sessions": allowed_sessions,
+        "warmup": getattr(rcfg, "warmup_trades", None),
+        "prior_alpha": getattr(rcfg, "prior_alpha", None),
+        "prior_beta": getattr(rcfg, "prior_beta", None),
+        "include_expected_slip": bool(getattr(rcfg, "include_expected_slip", False)),
+        "rv_quantile": bool(getattr(rcfg, "rv_qcalib_enabled", False)),
+        "calibrate_days": getattr(rcfg, "calibrate_days", None),
+        "ev_mode": ev_mode,
+        "size_floor": getattr(rcfg, "size_floor_mult", None),
+    }
+
+    return snapshot
 
 
 def _write_run_outputs(
@@ -866,6 +918,8 @@ def _write_run_outputs(
         "aggregate_ev": config.aggregate_ev,
         "ev_profile": str(config.ev_profile_path) if config.ev_profile_path else None,
     }
+
+    params.update(_runner_config_snapshot(config.runner_config))
 
     daily = getattr(metrics, "daily", None)
     if daily:
