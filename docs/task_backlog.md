@@ -159,6 +159,29 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - Backlog and progress docs log the update so future sessions can follow the remediation playbook without rediscovery.
 - 2026-07-21: Reauthored the plan with an executive summary, objectives, workstreams, test/tooling strategy, timeline, and open questions to guide Phase 4 simulation bugfix and refactor execution; aligned references for Codex Cloud hand-offs.
 
+### P0-20 Day ORB experiment history bootstrap (Open)
+- **DoD**:
+  - Stand up `experiments/history/records.parquet` and per-run JSON under `experiments/history/runs/`, seeded with legacy Day ORB runs and annotated with dataset SHA256/row count, CLI command, and git commit.
+  - Deliver `scripts/log_experiment.py` + `scripts/recover_experiment_history.py` with pytest coverage ensuring dual-write integrity and recovery from JSON.
+  - Record migration notes and verification commands in `docs/progress_phase4.md` and link the design doc (`docs/plans/day_orb_optimization.md`).
+- **Notes**: Blockers must stop downstream automation; capture any missing artefacts in `docs/todo_next.md` before closing.
+
+### P0-21 Day ORB optimisation engine bring-up (Open)
+- **DoD**:
+  - Add `configs/experiments/day_orb_core.yaml` and implement `scripts/run_param_sweep.py` with grid/random search + hard constraints (drawdown, trades/month).
+  - Ship `scripts/select_best_params.py` that emits ranked candidates to `reports/simulations/day_orb_core/best_params.json` and logs provenance to the experiment history.
+  - Update `docs/progress_phase4.md` with executed commands (sweep, selection) and refresh backlog anchors (`state.md`, `docs/todo_next.md`).
+- **Notes**: Initial delivery may skip Bayesian optimisation; flag the follow-up in P1 if deferred.
+
+### P0-22 Pseudo-live adaptive guardrails (Open)
+- **DoD**:
+  - Extend `scripts/update_state.py --simulate-live` with bounded parameter deltas (`--max-delta`), VAR/liquidity caps, and archival diffs in `ops/state_archive/`.
+  - Implement automatic rollback + alert hooks via `notifications/emit_signal.py` when drift or anomaly thresholds trigger.
+  - Document operations + disable/enable procedures in `docs/state_runbook.md` and cross-link from `docs/progress_phase4.md` with dry-run logs.
+- **Notes**: Coordinate with risk_manager owners; include reproduction commands (`python3 scripts/update_state.py --simulate-live --dry-run --max-delta 0.2 --var-cap 0.04`).
+
+
+
 <a id="p0-07"></a>
 ### P0-07 runs/index 再構築スクリプト整備 (完了)
 
