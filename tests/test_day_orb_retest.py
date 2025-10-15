@@ -256,3 +256,29 @@ def test_zero_qty_sets_sizing_guard_reason():
         "p_lcb": stg.cfg["fallback_win_rate"],
         "sl_pips": 10.0,
     }
+
+
+def test_ny_high_rv_guard_strengthens_or_ratio():
+    stg = _prep_strategy({
+        "min_or_atr_ratio": 0.25,
+        "ny_high_rv_min_or_atr_ratio": 0.34,
+    })
+    ctx = _base_ctx()
+    ctx["session"] = "NY"
+    ctx["rv_band"] = "high"
+    ctx["or_atr_ratio"] = 0.3
+
+    allowed = stg.strategy_gate(ctx, stg._pending_signal)
+    assert allowed is False
+    assert stg._last_gate_reason == {
+        "stage": "ny_high_rv_or_filter",
+        "session": "NY",
+        "rv_band": "high",
+        "or_atr_ratio": 0.3,
+        "ny_high_rv_min_or_atr_ratio": 0.34,
+        "min_or_atr_ratio": 0.25,
+    }
+
+    ctx["or_atr_ratio"] = 0.36
+    allowed = stg.strategy_gate(ctx, stg._pending_signal)
+    assert allowed is True, "Expected trade to pass once NY/high RV OR ratio clears override"

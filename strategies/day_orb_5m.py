@@ -379,12 +379,69 @@ class DayORB5m(Strategy):
 
         allow_low = ctx.get("allow_low_rv", False)
         rv_band = ctx.get("rv_band")
+        session = ctx.get("session")
         if not allow_low and rv_band not in ("mid", "high"):
             self._last_gate_reason = {
                 "stage": "rv_filter",
                 "rv_band": rv_band,
             }
             return False
+
+        if session == "NY" and rv_band == "high":
+            # Optional hard block for scenarios where high RV moves during NY session
+            # have proven too volatile for the OR breakout.
+            ny_high_block = ctx.get("ny_high_rv_block")
+            if ny_high_block is None:
+                ny_high_block = self.cfg.get("ny_high_rv_block", False)
+            if bool(ny_high_block):
+                self._last_gate_reason = {
+                    "stage": "ny_high_rv_block",
+                    "session": session,
+                    "rv_band": rv_band,
+                }
+                return False
+
+            # Strengthen the OR/ATR requirement when NY volatility is elevated.
+            override_min = ctx.get("ny_high_rv_min_or_atr_ratio")
+            if override_min is None:
+                override_min = self.cfg.get("ny_high_rv_min_or_atr_ratio")
+            multiplier = ctx.get("ny_high_rv_or_multiplier")
+            if multiplier is None:
+                multiplier = self.cfg.get("ny_high_rv_or_multiplier", 1.0)
+
+            ny_min: Optional[float] = None
+            try:
+                if override_min is not None:
+                    ny_min = float(override_min)
+            except (TypeError, ValueError):
+                ny_min = None
+
+            if ny_min is None and min_or:
+                try:
+                    mult = float(multiplier)
+                except (TypeError, ValueError):
+                    mult = 1.0
+                if mult > 0:
+                    ny_min = min_or * mult
+
+            if ny_min and or_ratio < ny_min:
+                reason = {
+                    "stage": "ny_high_rv_or_filter",
+                    "session": session,
+                    "rv_band": rv_band,
+                    "or_atr_ratio": or_ratio,
+                    "ny_high_rv_min_or_atr_ratio": ny_min,
+                }
+                if min_or:
+                    reason["min_or_atr_ratio"] = min_or
+                try:
+                    mult_val = float(multiplier)
+                except (TypeError, ValueError):
+                    mult_val = None
+                if mult_val not in (None, 0.0, 1.0):
+                    reason["ny_high_rv_or_multiplier"] = mult_val
+                self._last_gate_reason = reason
+                return False
 
         return True
 

@@ -1,6 +1,13 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-10-15: Introduced an NY 高RVガード by wiring `ny_high_rv_min_or_atr_ratio=0.34` into
+  `strategies/day_orb_5m.DayORB5m.strategy_gate`, added `tests/test_day_orb_retest.py::test_ny_high_rv_guard_strengthens_or_ratio`
+  for regression coverage, and ran `python3 -m pytest tests/test_day_orb_retest.py`.
+  Executed `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs/tmp/day_orb5m_ny_filter --json-out runs/tmp/day_orb5m_ny_filter/metrics.json --out-daily-csv runs/tmp/day_orb5m_ny_filter/daily.csv --no-auto-state`
+  and a guard無効版 (`--manifest tmp/day_orb_5m_baseline.yaml`) to confirm `NY:narrow:high` trades drop to zero in
+  both `records.csv` snapshots (Python集計スクリプトログ参照)。`analysis/ev_profile_summary.csv` / `analysis/hybrid_ev_stats.csv`
+  を無取引扱いへ更新し、`docs/progress_phase4.md` / `docs/todo_next.md` にパラメータ推奨と次の分析フローを記録。
 - 2026-10-15: Ensured manifest overrides (`ev_mode` / `allow_low_rv` / `threshold_lcb`) persist into `params.json` / `runs/index.csv`
   by extending `scripts/run_sim.py` to snapshot RunnerConfig values, added regression coverage in
   `tests/test_run_sim_cli.py::test_run_sim_cli_serializes_runner_config_overrides`, and reran
