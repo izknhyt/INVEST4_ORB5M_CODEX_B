@@ -11,7 +11,7 @@
 - **Constraints**: keep Python ≥3.10 compatibility, no schema changes without migration notes, prefer append-only artefacts (Parquet + JSON) for review, honour existing CI/pytest command bundle (`python3 -m pytest`).
 
 ## 1. Architecture Overview
-1. **Data & Experiment Layer** – normalise every backtest result into Parquet (`experiments/history/records.parquet`) plus per-run JSON (`experiments/history/runs/<run_id>.json`), storing metrics, risk stats, gate counts, parameters, data fingerprints.
+1. **Data & Experiment Layer** – normalise every backtest result into Parquet (`experiments/history/records.parquet`, regenerated locally) plus per-run JSON (`experiments/history/runs/<run_id>.json`), storing metrics, risk stats, gate counts, parameters, data fingerprints.
 2. **Optimisation Layer** – run grid/random/Bayesian sweeps via `scripts/run_param_sweep.py`, enforce hard risk constraints, compute Pareto fronts, and emit best candidates.
 3. **Diagnostics Layer** – quantify gate-block EV loss with `scripts/summarize_strategy_gate.py` extensions and publish Markdown diagnostics.
 4. **Adaptive Layer** – pseudo-live updater (`scripts/update_state.py --simulate-live`) adjusts thresholds within bounded deltas, integrates risk limits, and supports auto rollback.

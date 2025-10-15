@@ -161,10 +161,11 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 
 ### P0-20 Day ORB experiment history bootstrap (Open)
 - **DoD**:
-  - Stand up `experiments/history/records.parquet` and per-run JSON under `experiments/history/runs/`, seeded with legacy Day ORB runs and annotated with dataset SHA256/row count, CLI command, and git commit.
+  - Stand up per-run JSON under `experiments/history/runs/`, seeded with legacy Day ORB runs and annotated with dataset SHA256/row count, CLI command, and git commit. Parquet snapshots are regenerated locally via `scripts/recover_experiment_history.py` instead of being checked into the repo.
   - Deliver `scripts/log_experiment.py` + `scripts/recover_experiment_history.py` with pytest coverage ensuring dual-write integrity and recovery from JSON.
   - Record migration notes and verification commands in `docs/progress_phase4.md` and link the design doc (`docs/plans/day_orb_optimization.md`).
 - **Notes**: Blockers must stop downstream automation; capture any missing artefacts in `docs/todo_next.md` before closing.
+- 2026-10-16: Experiments history populated with 12 legacy Day ORB runs via the new logging CLI, dataset fingerprint (`data/usdjpy_5m_2018-2024_utc.csv` rows=523,743 / SHA256=e8155a79cab613b9a9d9c72b994328b114f32e4d4b7f354c106e55ab711e4dd1) recorded, recovery flow validated (`python3 scripts/recover_experiment_history.py --from-json ...`). See [docs/progress_phase4.md](progress_phase4.md).
 
 ### P0-21 Day ORB optimisation engine bring-up (Open)
 - **DoD**:

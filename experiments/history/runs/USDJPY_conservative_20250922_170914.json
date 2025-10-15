@@ -1,0 +1,74 @@
+{
+  "artefacts": [
+    {
+      "path": "runs/USDJPY_conservative_20250922_170914/metrics.json",
+      "type": "metrics"
+    },
+    {
+      "path": "runs/USDJPY_conservative_20250922_170914/daily.csv",
+      "type": "daily"
+    },
+    {
+      "path": "runs/USDJPY_conservative_20250922_170914/records.csv",
+      "type": "records"
+    },
+    {
+      "path": "runs/USDJPY_conservative_20250922_170914/params.json",
+      "type": "params"
+    }
+  ],
+  "command": "python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv data/usdjpy_5m_2018-2024_utc.csv --symbol USDJPY --mode conservative --out-dir runs",
+  "commit_sha": "935fe6d89a21c3a7ffb64832b3278153013432ab",
+  "daily_path": "runs/USDJPY_conservative_20250922_170914/daily.csv",
+  "dataset_path": "data/usdjpy_5m_2018-2024_utc.csv",
+  "dataset_rows": 523743,
+  "dataset_sha256": "e8155a79cab613b9a9d9c72b994328b114f32e4d4b7f354c106e55ab711e4dd1",
+  "equity": 100000.0,
+  "ev_gap": null,
+  "gate_block_count": 202052,
+  "gate_report_path": null,
+  "manifest_id": "day_orb_5m_v1",
+  "max_drawdown": null,
+  "metrics": {
+    "debug": {
+      "ev_bypass": 25,
+      "ev_reject": 165516,
+      "gate_block": 202052,
+      "no_breakout": 155160,
+      "zero_qty": 0
+    },
+    "ev_profile_path": "configs/ev_profiles/day_orb_5m.yaml",
+    "state_loaded": "ops/state_archive/day_orb_5m.DayORB5m/USDJPY/conservative/20250922_063303_USDJPY_conservative_20250922_153303.json",
+    "total_pips": 361.09571428579625,
+    "trades": 536,
+    "wins": 347
+  },
+  "metrics_path": "runs/USDJPY_conservative_20250922_170914/metrics.json",
+  "mode": "conservative",
+  "notes": null,
+  "params": {
+    "allow_low_rv": false,
+    "allowed_sessions": "LDN,NY",
+    "csv": "data/usdjpy_5m_2018-2024_utc.csv",
+    "dump_max": 200,
+    "equity": 100000.0,
+    "k_sl": null,
+    "k_tp": null,
+    "k_tr": null,
+    "min_or_atr": null,
+    "mode": "conservative",
+    "or_n": null,
+    "rv_cuts": null,
+    "symbol": "USDJPY",
+    "threshold_lcb": null,
+    "warmup": null
+  },
+  "records_path": "runs/USDJPY_conservative_20250922_170914/records.csv",
+  "router_gate_count": null,
+  "run_id": "USDJPY_conservative_20250922_170914",
+  "runtime": {},
+  "sharpe": null,
+  "timestamp_utc": "2025-09-22T17:09:14Z",
+  "trades": 536,
+  "win_rate": 0.6473880597014925
+}

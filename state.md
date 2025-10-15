@@ -1,6 +1,12 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-10-17: Updated the experiment history workflow so Parquet snapshots remain local artefacts (GitHub Web UI rejects binary uploads).
+  Removed `experiments/history/records.parquet` from version control, documented the regeneration flow in `docs/progress_phase4.md`
+  / `docs/task_backlog.md` / `docs/plans/day_orb_optimization.md` / `docs/day_orb_optimization_detailed_design.md`, tightened
+  `.gitignore` guidance, and ensured per-run JSON stays authoritative. Tests unchanged; `python3 -m pytest tests/test_log_experiment.py tests/test_recover_experiment_history.py`
+  remains the verification bundle.
+- 2026-10-16: Implemented Day ORB experiment history bootstrap (P0-20). Added `scripts/log_experiment.py` / `scripts/recover_experiment_history.py`, migrated 12 legacy runs into `experiments/history/records.parquet` + per-run JSON (dataset rows=523,743 / SHA256=e8155a79cab613b9a9d9c72b994328b114f32e4d4b7f354c106e55ab711e4dd1), updated `docs/progress_phase4.md` / `docs/task_backlog.md`, and ran `python3 -m pytest tests/test_log_experiment.py tests/test_recover_experiment_history.py`.
 - 2026-10-15: Regenerated `runs/USDJPY_conservative_20251002_214013` with full debug sampling
   (`python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs --debug --debug-sample-limit 500000 --no-auto-state`),
   exported strategy/router gate distributions via

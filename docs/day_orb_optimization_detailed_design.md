@@ -67,13 +67,14 @@
 ### 4.1 Experiment History Repository (`experiments/history/*`)
 - **DoD link**: [P0-20](task_backlog.md#p0-20-day-orb-experiment-history-bootstrap-open).
 - **Responsibilities**
-  - Persist every run with metadata + checksums (Parquet + JSON).
+  - Persist every run with metadata + checksums (Parquet generated locally + tracked JSON).
   - Allow reconstruction of Parquet from JSON when corruption is detected.
   - Provide query helpers for sweeps, diagnostics, and reporting.
 - **Files & Structures**
-  - `experiments/history/records.parquet`
+- `experiments/history/records.parquet`
     - Columns: `run_id`, `manifest_id`, `mode`, `timestamp_utc`, `commit_sha`, `dataset_sha256`, `dataset_rows`, `command`, `metrics_path`, `gate_report_path`, `equity`, `sharpe`, `max_drawdown`, `trades`, `win_rate`, `ev_gap`, `gate_block_count`, `router_gate_count`, `notes`.
     - Partition: none initially; future extension may use `manifest_id`.
+    - Git tracking: excluded from commits; recreate via `scripts/recover_experiment_history.py --from-json` when needed.
   - `experiments/history/runs/<run_id>.json`
     - Schema mirrors Parquet + `artefacts` array (relative paths) + `runtime` block (duration_ms, debug flags).
 - **CLI**
