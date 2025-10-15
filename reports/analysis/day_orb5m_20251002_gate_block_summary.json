@@ -1,0 +1,31 @@
+{
+  "router_gate": {
+    "count": 182198,
+    "numeric": {
+      "or_atr_ratio": {
+        "count": 182198,
+        "mean": 2.2281086262433982,
+        "min": 0.2501861504095159,
+        "max": 43.6666666666671
+      }
+    },
+    "categorical": {
+      "rv_band": [
+        [
+          "mid",
+          113902
+        ],
+        [
+          "high",
+          68296
+        ]
+      ],
+      "spread_band": [
+        [
+          "narrow",
+          182198
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "stage_counts": {
+    "trade": 6,
+    "no_breakout": 134984,
+    "strategy_gate": 28623,
+    "gate_block": 182198
+  },
+  "reason_counts": {
+    "trade": [
+      [
+        "unknown",
+        6
+      ]
+    ],
+    "no_breakout": [
+      [
+        "unknown",
+        134984
+      ]
+    ],
+    "strategy_gate": [
+      [
+        "rv_filter",
+        28240
+      ],
+      [
+        "or_filter",
+        331
+      ],
+      [
+        "ny_high_rv_or_filter",
+        52
+      ]
+    ],
+    "gate_block": [
+      [
+        "router_gate",
+        182198
+      ]
+    ]
+  }
+}

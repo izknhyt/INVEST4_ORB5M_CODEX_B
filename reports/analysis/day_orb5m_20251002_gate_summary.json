@@ -1,0 +1,99 @@
+{
+  "rv_filter": {
+    "count": 28240,
+    "numeric": {
+      "or_atr_ratio": {
+        "count": 28240,
+        "mean": 4.734083995275386,
+        "min": 0.312267657992554,
+        "max": 52.17417417418391
+      },
+      "min_or_atr_ratio": {
+        "count": 28240,
+        "mean": 0.25,
+        "min": 0.25,
+        "max": 0.25
+      }
+    },
+    "categorical": {
+      "rv_band": [
+        [
+          "low",
+          28240
+        ]
+      ],
+      "allow_low_rv": [
+        [
+          "False",
+          28240
+        ]
+      ]
+    }
+  },
+  "or_filter": {
+    "count": 331,
+    "numeric": {
+      "or_atr_ratio": {
+        "count": 331,
+        "mean": 0.2115853213787893,
+        "min": 0.0,
+        "max": 0.2498687664042436
+      },
+      "min_or_atr_ratio": {
+        "count": 331,
+        "mean": 0.25,
+        "min": 0.25,
+        "max": 0.25
+      }
+    },
+    "categorical": {
+      "rv_band": [
+        [
+          "high",
+          279
+        ],
+        [
+          "mid",
+          52
+        ]
+      ],
+      "allow_low_rv": [
+        [
+          "False",
+          331
+        ]
+      ]
+    }
+  },
+  "ny_high_rv_or_filter": {
+    "count": 52,
+    "numeric": {
+      "or_atr_ratio": {
+        "count": 52,
+        "mean": 0.30397832174404305,
+        "min": 0.2565892825972863,
+        "max": 0.33918837068448454
+      },
+      "min_or_atr_ratio": {
+        "count": 52,
+        "mean": 0.25,
+        "min": 0.25,
+        "max": 0.25
+      }
+    },
+    "categorical": {
+      "rv_band": [
+        [
+          "high",
+          52
+        ]
+      ],
+      "allow_low_rv": [
+        [
+          "False",
+          52
+        ]
+      ]
+    }
+  }
+}
