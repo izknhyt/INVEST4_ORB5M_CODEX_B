@@ -10,6 +10,14 @@
   -6.92 pips・Sharpe=-9.83 で、`metrics.json` の `runtime.ev_reject=0` と `daily.csv` の `ev_reject` 列がゼロで収束していることから EV ブロックが
   抑止されている。`python3 scripts/rebuild_runs_index.py --runs-dir runs --out runs/index.csv` で索引を更新し、構成差分と検証ログを
   `docs/task_backlog.md#p4-04-day-orb-シンプル化リブート` と本ドキュメントに追記。
+- 2026-10-15: NY セッション高 RV の暴走を抑止するため `ny_high_rv_min_or_atr_ratio=0.34` を導入し、
+  `runs/tmp/day_orb5m_ny_filter/USDJPY_conservative_20251015_041253` とガード無効版
+  `runs/tmp/day_orb5m_baseline/USDJPY_conservative_20251015_041634` を比較。
+  双方とも `records.csv` における `NY:narrow:high` バケットのトレード件数が 0 件であることを確認し
+  （`python3 - <<'PY'` 集計ログ参照）、損失源だった高 RV バケットを完全に遮断できた。
+  `analysis/ev_profile_summary.csv` / `analysis/hybrid_ev_stats.csv` の同バケット値を
+  `alpha_avg=beta_avg=1.0`・`p_mean=0.5`・`observations=0` に更新し、将来の EV 再集計時に
+  無取引扱いとして扱えるよう整備した。推奨パラメータは manifest / runner_config 双方に反映済み。
 -## ハイライト（2026-08-19 更新）
 - 2026-08-19: Guard-relaxed Day ORB を 2018–2025 全期間で Conservative / Bridge 両モードに走らせ、
   `runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251014_051935` と

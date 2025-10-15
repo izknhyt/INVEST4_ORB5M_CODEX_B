@@ -23,6 +23,7 @@
   3. **完了 (2026-08-18)** `min_or_atr_ratio=0.18` へ暫定緩和した同マニフェストを Conservative / Bridge 共通で利用し、`runner_config` / CLI 引数も同期。フォールバックサイジングを維持したまま ATR 閾値変更の影響を観測できる状態。
   4. **完了 (2026-08-19)** `scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml --csv validated/USDJPY/5m.csv --symbol USDJPY --mode <mode> --out-dir runs/phase4/backtests_guard_relaxed --no-auto-state --debug --debug-sample-limit 600000` を Conservative / Bridge 両モードで実行し、`reports/diffs/conservative_guard_relaxed_metrics.json` / `reports/diffs/bridge_guard_relaxed_metrics.json` にメトリクス差分、`reports/diffs/conservative_guard_relaxed_strategy_gate.json` に `or_filter` 449 件（rv_band high 246 / mid 162 / low 41）を記録。`docs/progress_phase4.md#現状サマリ` を更新済み。
   5. `reports/diffs/conservative_guard_relaxed_strategy_gate.json` を基に `min_or_atr_ratio` 帯のヒット率と `rv_band` 分布を整理し、追加の ATR 閾値緩和案と連敗・日次損失ガード調整案を次イテレーション用にまとめる。
+     - **進捗 (2026-10-15)**: `ny_high_rv_min_or_atr_ratio=0.34` を試験導入し、`runs/tmp/day_orb5m_ny_filter/USDJPY_conservative_20251015_041253` の `records.csv` で `NY:narrow:high` バケットが 0 件となることを確認。`analysis/ev_profile_summary.csv` / `analysis/hybrid_ev_stats.csv` を無取引扱いへ更新済み。次ステップは RV 高止まり時の OR 分布を追加採取し、抑制しすぎていないかを `scripts/summarize_strategy_gate.py` で評価する。
 
 ### On Hold
 
