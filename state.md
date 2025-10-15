@@ -1,6 +1,14 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-10-15: Regenerated `runs/USDJPY_conservative_20251002_214013` with full debug sampling
+  (`python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs --debug --debug-sample-limit 500000 --no-auto-state`),
+  exported strategy/router gate distributions via
+  `python3 scripts/summarize_strategy_gate.py --run-dir runs/USDJPY_conservative_20251002_214013 --json > reports/analysis/day_orb5m_20251002_gate_summary.json`
+  と `--stage gate_block` 版、さらに Python 集計で `reports/analysis/day_orb5m_20251002_stage_counts.json` を生成。
+  Router gate=182,198（86.4%）がすべて LDN/NY 以外の時間帯、strategy gate=28,623 の 98.7% が `rv_filter`（`allow_low_rv=False` 起因）
+  であることを確認し、`docs/progress_phase4.md` へセッション緩和・OR 閾値調整・DayORB ロジック拡張案と再検証コマンド
+  (`python3 scripts/run_sim.py ...`, `python3 scripts/summarize_strategy_gate.py ...`, `python3 -m pytest`) を追記。
 - 2026-10-15: Introduced an NY 高RVガード by wiring `ny_high_rv_min_or_atr_ratio=0.34` into
   `strategies/day_orb_5m.DayORB5m.strategy_gate`, added `tests/test_day_orb_retest.py::test_ny_high_rv_guard_strengthens_or_ratio`
   for regression coverage, and ran `python3 -m pytest tests/test_day_orb_retest.py`.

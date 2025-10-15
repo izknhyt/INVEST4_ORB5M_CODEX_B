@@ -18,6 +18,24 @@
   `analysis/ev_profile_summary.csv` / `analysis/hybrid_ev_stats.csv` の同バケット値を
   `alpha_avg=beta_avg=1.0`・`p_mean=0.5`・`observations=0` に更新し、将来の EV 再集計時に
   無取引扱いとして扱えるよう整備した。推奨パラメータは manifest / runner_config 双方に反映済み。
+- 2026-10-15: `runs/USDJPY_conservative_20251002_214013` を再生成して `scripts/summarize_strategy_gate.py` の JSON 集計を
+  `reports/analysis/day_orb5m_20251002_gate_summary.json` / `reports/analysis/day_orb5m_20251002_gate_block_summary.json` に保存。
+  `records.csv` ベースの件数は `router_gate=182,198`（86.4%）/`strategy_gate=28,623`（13.6%）で、
+  ルーター拒否は全件が LDN/NY 以外の時間帯（UTC 08:00〜21:59 を除外）で発生、セッションガードが主因であることを確認した。
+  `strategy_gate` 側は 28,240 件が `rv_filter`（`rv_band=low`・`allow_low_rv=False`）、331 件が `or_filter`
+  （`or_atr_ratio` 平均 0.212、上限 0.2499）で、`min_or_atr_ratio=0.25` の閾値ぎりぎりで除外されている。
+  `params.json` には `allow_low_rv=false` が残っており（manifest の `runner.allow_low_rv` が `runner_config` に連動していない）、
+  低 RV 帯が意図せず遮断されていることも判明した。【F:reports/analysis/day_orb5m_20251002_stage_counts.json†L1-L16】【F:reports/analysis/day_orb5m_20251002_gate_summary.json†L1-L24】【F:runs/USDJPY_conservative_20251002_214013/params.json†L18-L24】
+  次ステップでは以下を実施する：
+  - Manifest を調整して `runner.runner_config.allow_low_rv=true` / `size_floor_mult=0.05` を反映し、低 RV 帯の拒否を解消する。
+  - `min_or_atr_ratio` を 0.20（NY 高 RV 用は 0.30 相当）へ一旦引き下げ、`scripts/summarize_strategy_gate.py` で OR 閾値
+    切り下げ後の分布を比較する。
+  - ルーターの `allowed_sessions` に TOK を含めるトライアルを行い、`strategies/day_orb_5m.DayORB5m` へ
+    「Tokyo 時間のみ低 RV を許容し、`micro_trend` ≥ 0.1 を要求する」仮ロジックを追加してセッション別の挙動を分岐させる。
+  - 検証コマンド：`python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs --debug --debug-sample-limit 500000 --no-auto-state`
+    の再実行と、`python3 scripts/summarize_strategy_gate.py --run-dir runs/<new_run_id> --json` による再集計、
+    `python3 -m pytest` の回帰確認。
+  - 変更内容は `docs/task_backlog.md#p4-04-day-orb-シンプル化リブート` に紐付け、次セッションでパラメータ変更とロジック更新を実装する。
 -## ハイライト（2026-08-19 更新）
 - 2026-08-19: Guard-relaxed Day ORB を 2018–2025 全期間で Conservative / Bridge 両モードに走らせ、
   `runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251014_051935` と
