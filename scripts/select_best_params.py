@@ -81,6 +81,8 @@ def _build_candidate(
         "history": payload.get("history"),
         "result_path": _relative(result_path),
     }
+    if payload.get("search_metadata") is not None:
+        candidate["search_metadata"] = payload.get("search_metadata")
     metrics_path = payload.get("metrics_path")
     if not metrics_path and payload.get("run_dir"):
         metrics_path = Path(payload["run_dir"]) / "metrics.json"

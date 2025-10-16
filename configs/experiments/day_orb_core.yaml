@@ -280,3 +280,34 @@ scoring:
 history:
   enabled: true
   notes: Append successful runs to experiments/history via log_experiment.
+bayes:
+  enabled: true
+  seed: 20240731
+  acquisition:
+    name: expected_improvement
+    parameters:
+      xi: 0.015
+  exploration_upper_bound: 120
+  initial_random_trials: 16
+  constraint_retry_limit: 2
+  transforms:
+    k_tp:
+      mode: continuous
+      transform: identity
+    k_sl:
+      mode: continuous
+      transform: identity
+    min_or_atr_ratio:
+      mode: continuous
+      transform: log
+      bounds: [0.15, 0.40]
+    ny_high_rv_min_or_atr_ratio:
+      mode: continuous
+      transform: log
+      bounds: [0.25, 0.45]
+    cooldown_bars:
+      mode: discrete
+      transform: identity
+    max_loss_streak:
+      mode: categorical
+      transform: identity

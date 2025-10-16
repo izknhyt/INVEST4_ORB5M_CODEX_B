@@ -5,15 +5,16 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import math
 import random
 import shlex
 import subprocess
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 try:
     import pandas as pd
@@ -27,6 +28,7 @@ if str(ROOT) not in sys.path:
 from core.utils import yaml_compat as yaml  # noqa: E402
 from experiments.history.utils import compute_dataset_fingerprint  # noqa: E402
 from scripts._param_sweep import (  # noqa: E402
+    BayesConfig,
     ExperimentConfig,
     evaluate_constraints,
     load_experiment_config,
@@ -40,6 +42,7 @@ class TrialSpec:
     params: Dict[str, Any]
     seed: int
     token: str
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -47,6 +50,7 @@ class TrialResult:
     spec: TrialSpec
     status: str
     result_path: Path
+    payload: Optional[Dict[str, Any]] = None
 
 
 def _require_pandas() -> None:
@@ -344,12 +348,14 @@ class SweepRunner:
             "timestamp": self.timestamp,
             "status": "planned",
         }
+        if spec.metadata:
+            metadata["search_metadata"] = copy.deepcopy(spec.metadata)
         if self.dataset_fingerprint:
             metadata["dataset"] = self.dataset_fingerprint
         if self.args.dry_run:
             metadata.update({"status": "dry_run", "duration_seconds": 0.0})
             _write_json(result_path, metadata)
-            return TrialResult(spec=spec, status="dry_run", result_path=result_path)
+            return TrialResult(spec=spec, status="dry_run", result_path=result_path, payload=metadata)
         process = subprocess.run(
             command,
             cwd=self.repo_root,
@@ -371,12 +377,12 @@ class SweepRunner:
         if process.returncode != 0:
             metadata.update({"status": "failed"})
             _write_json(result_path, metadata)
-            return TrialResult(spec=spec, status="failed", result_path=result_path)
+            return TrialResult(spec=spec, status="failed", result_path=result_path, payload=metadata)
         run_dir = _discover_run_dir(trial_dir)
         if not run_dir:
             metadata.update({"status": "error", "error": "run directory not created"})
             _write_json(result_path, metadata)
-            return TrialResult(spec=spec, status="error", result_path=result_path)
+            return TrialResult(spec=spec, status="error", result_path=result_path, payload=metadata)
         metrics_path = run_dir / "metrics.json"
         daily_path = run_dir / "daily.csv"
         try:
@@ -385,7 +391,7 @@ class SweepRunner:
         except FileNotFoundError:
             metadata.update({"status": "error", "error": "missing metrics or daily outputs"})
             _write_json(result_path, metadata)
-            return TrialResult(spec=spec, status="error", result_path=result_path)
+            return TrialResult(spec=spec, status="error", result_path=result_path, payload=metadata)
         summary = _compute_summary(
             metrics_data,
             daily_frame,
@@ -419,7 +425,7 @@ class SweepRunner:
         if history_info:
             metadata["history"] = history_info
         _write_json(result_path, metadata)
-        return TrialResult(spec=spec, status="completed", result_path=result_path)
+        return TrialResult(spec=spec, status="completed", result_path=result_path, payload=metadata)
 
     def run_trials(self, plans: Sequence[TrialSpec], out_dir: Path) -> List[TrialResult]:
         results: List[TrialResult] = []
@@ -437,12 +443,322 @@ class SweepRunner:
         return results
 
 
+class BayesSearchRunner:
+    """Sequential Bayesian-style search helper with optional Optuna integration."""
+
+    def __init__(
+        self,
+        runner: SweepRunner,
+        *,
+        output_dir: Path,
+        timestamp: str,
+    ) -> None:
+        self.runner = runner
+        self.output_dir = output_dir
+        self.timestamp = timestamp
+        self.config = runner.config
+        self.args = runner.args
+        base_bayes = self.config.bayes
+        if base_bayes is not None:
+            self.bayes_config = base_bayes
+        else:
+            self.bayes_config = BayesConfig(
+                enabled=False,
+                seed=None,
+                acquisition=None,
+                exploration_upper_bound=None,
+                initial_random_trials=3,
+                constraint_retry_limit=0,
+                transforms={},
+            )
+        if getattr(self.args, "seed", None) is not None:
+            self.master_seed = int(self.args.seed)
+        elif self.bayes_config.seed is not None:
+            self.master_seed = int(self.bayes_config.seed)
+        else:
+            self.master_seed = int(time.time())
+        self.rng = random.Random(self.master_seed)
+        self.suggestion_total = 0
+        self.retry_total = 0
+        self.history: List[TrialResult] = []
+        self._seen_params: set[Tuple[Tuple[str, Any], ...]] = set()
+        self.fallback_message: Optional[str] = None
+        self._optuna = None
+        self.optuna_available = self._check_optuna()
+        self.optimizer_name = "optuna" if self.optuna_available else "heuristic"
+
+    def _check_optuna(self) -> bool:
+        try:
+            import optuna  # type: ignore import
+        except ModuleNotFoundError:
+            self.fallback_message = (
+                "Optuna is not installed; falling back to heuristic sampler for Bayesian search."
+            )
+            self._optuna = None
+            return False
+        self._optuna = optuna
+        return True
+
+    def _dimension_bounds(self, dimension, hint) -> Tuple[Optional[float], Optional[float]]:
+        if hint and hint.bounds:
+            return hint.bounds
+        if dimension.kind in {"float_range", "range"}:
+            minimum = dimension.minimum
+            maximum = dimension.maximum
+            if minimum is None or maximum is None:
+                return None, None
+            return float(minimum), float(maximum)
+        return None, None
+
+    def _sample_continuous(self, dimension, hint, lower: float, upper: float) -> float:
+        if lower >= upper:
+            value = lower
+        else:
+            if hint and hint.transform == "log":
+                low = max(lower, 1e-9)
+                high = max(upper, low * (1.0 + 1e-9))
+                value = math.exp(self.rng.uniform(math.log(low), math.log(high)))
+            else:
+                value = self.rng.uniform(lower, upper)
+        if dimension.kind == "float_range":
+            precision = dimension.precision if dimension.precision is not None else 3
+            return round(value, precision)
+        if dimension.kind == "range":
+            step = int(dimension.step or 1)
+            return int(round(value / step) * step)
+        return value
+
+    def _sample_dimension(self, dimension, hint) -> Any:
+        mode = hint.mode if hint else "auto"
+        if mode == "auto":
+            if dimension.kind == "float_range":
+                mode = "continuous"
+            elif dimension.kind == "range":
+                mode = "discrete"
+            else:
+                mode = "categorical"
+        if mode == "continuous":
+            lower, upper = self._dimension_bounds(dimension, hint)
+            if lower is None or upper is None:
+                return dimension.sample(self.rng)
+            return self._sample_continuous(dimension, hint, lower, upper)
+        if mode == "discrete" and dimension.kind == "range":
+            lower, upper = self._dimension_bounds(dimension, hint)
+            if lower is None or upper is None:
+                return dimension.sample(self.rng)
+            step = int(dimension.step or 1)
+            count = max(0, int((upper - lower) / step))
+            return int(lower + step * self.rng.randint(0, count))
+        return dimension.sample(self.rng)
+
+    def _sample_random_params(self) -> Dict[str, Any]:
+        params: Dict[str, Any] = {}
+        for dimension in self.config.dimensions:
+            hint = self.bayes_config.transforms.get(dimension.name)
+            params[dimension.name] = self._sample_dimension(dimension, hint)
+        return params
+
+    def _mutate_choice(self, dimension, current: Any) -> Any:
+        values = dimension.discrete_values()
+        if not values:
+            return current
+        alternatives = [candidate for candidate in values if candidate != current]
+        if not alternatives:
+            return current if current is not None else values[0]
+        if current is not None and self.rng.random() < 0.5:
+            return current
+        return self.rng.choice(alternatives)
+
+    def _mutate_integer(self, dimension, current: Any) -> Any:
+        if current is None:
+            return self._sample_dimension(dimension, self.bayes_config.transforms.get(dimension.name))
+        step = int(dimension.step or 1)
+        lower = int(dimension.minimum) if dimension.minimum is not None else current
+        upper = int(dimension.maximum) if dimension.maximum is not None else current
+        delta = step if self.rng.random() < 0.5 else -step
+        candidate = current + delta
+        if candidate < lower or candidate > upper:
+            candidate = current
+        return candidate
+
+    def _mutate_continuous(self, dimension, hint, current: Any) -> Any:
+        lower, upper = self._dimension_bounds(dimension, hint)
+        if lower is None or upper is None:
+            return self._sample_dimension(dimension, hint)
+        if current is None:
+            base = (lower + upper) / 2.0
+        else:
+            try:
+                base = float(current)
+            except (TypeError, ValueError):
+                base = (lower + upper) / 2.0
+        span = max(upper - lower, 1e-9)
+        sigma = span / 6.0
+        candidate = base + self.rng.gauss(0.0, sigma)
+        candidate = min(max(candidate, lower), upper)
+        return self._sample_continuous(dimension, hint, candidate, candidate)
+
+    def _mutate_params(self, payload: Mapping[str, Any]) -> Dict[str, Any]:
+        params: Dict[str, Any] = {}
+        base_params = dict(payload.get("params") or {})
+        for dimension in self.config.dimensions:
+            hint = self.bayes_config.transforms.get(dimension.name)
+            current = base_params.get(dimension.name)
+            mode = hint.mode if hint else "auto"
+            if mode == "auto":
+                if dimension.kind == "float_range":
+                    mode = "continuous"
+                elif dimension.kind == "range":
+                    mode = "discrete"
+                else:
+                    mode = "categorical"
+            if mode == "continuous":
+                params[dimension.name] = self._mutate_continuous(dimension, hint, current)
+            elif mode == "discrete" and dimension.kind == "range":
+                params[dimension.name] = self._mutate_integer(dimension, current)
+            else:
+                params[dimension.name] = self._mutate_choice(dimension, current)
+        return params
+
+    def _best_payload(self) -> Optional[Dict[str, Any]]:
+        completed = [item for item in self.history if item.status == "completed"]
+        feasible = [item for item in completed if bool((item.payload or {}).get("feasible"))]
+        candidates = feasible or completed
+        if not candidates:
+            return None
+
+        def score_key(item: TrialResult) -> float:
+            payload = item.payload or {}
+            score = payload.get("score")
+            try:
+                return float(score)
+            except (TypeError, ValueError):
+                return float("-inf")
+
+        return max(candidates, key=score_key).payload
+
+    def _propose_params(self, suggestion_index: int, attempt_index: int) -> Dict[str, Any]:
+        phase = "explore" if suggestion_index <= self.bayes_config.initial_random_trials else "exploit"
+        if phase == "explore" or not self.history:
+            return self._sample_random_params()
+        base_payload = self._best_payload()
+        if not base_payload:
+            return self._sample_random_params()
+        params = self._mutate_params(base_payload)
+        if attempt_index > 1 and self.rng.random() < 0.5:
+            return self._sample_random_params()
+        return params
+
+    def _build_search_metadata(
+        self,
+        *,
+        suggestion_index: int,
+        attempt_index: int,
+        seed: int,
+    ) -> Dict[str, Any]:
+        phase = "explore" if suggestion_index <= self.bayes_config.initial_random_trials else "exploit"
+        metadata: Dict[str, Any] = {
+            "strategy": "bayes",
+            "suggestion_index": suggestion_index,
+            "retry": max(0, attempt_index - 1),
+            "phase": phase,
+            "seed": seed,
+            "optimizer": self.optimizer_name,
+            "optuna_available": self.optuna_available,
+        }
+        if self.bayes_config.acquisition:
+            metadata["acquisition"] = {
+                "name": self.bayes_config.acquisition.name,
+                "parameters": dict(self.bayes_config.acquisition.parameters),
+            }
+        if self.bayes_config.exploration_upper_bound is not None:
+            metadata["exploration_upper_bound"] = self.bayes_config.exploration_upper_bound
+        if self.fallback_message:
+            metadata["fallback"] = self.fallback_message
+        return metadata
+
+    def run(self, max_trials: int) -> Tuple[List[TrialResult], Dict[str, Any]]:
+        results: List[TrialResult] = []
+        evaluation_limit = max_trials if max_trials and max_trials > 0 else None
+        suggestion_limit = self.bayes_config.exploration_upper_bound
+        break_outer = False
+        while True:
+            if evaluation_limit is not None and len(results) >= evaluation_limit:
+                break
+            if suggestion_limit is not None and self.suggestion_total >= suggestion_limit:
+                break
+            suggestion_index = self.suggestion_total + 1
+            attempts_for_suggestion = 0
+            while True:
+                if evaluation_limit is not None and len(results) >= evaluation_limit:
+                    break_outer = True
+                    break
+                attempts_for_suggestion += 1
+                params = self._propose_params(suggestion_index, attempts_for_suggestion)
+                key = tuple(sorted(params.items()))
+                dedupe_attempts = 0
+                while key in self._seen_params and dedupe_attempts < 10:
+                    params = self._sample_random_params()
+                    key = tuple(sorted(params.items()))
+                    dedupe_attempts += 1
+                self._seen_params.add(key)
+                seed = self.rng.randrange(1, 2**32 - 1)
+                metadata = self._build_search_metadata(
+                    suggestion_index=suggestion_index,
+                    attempt_index=attempts_for_suggestion,
+                    seed=seed,
+                )
+                spec = TrialSpec(
+                    index=len(results),
+                    params=params,
+                    seed=seed,
+                    token=_build_trial_token(self.timestamp, seed),
+                    metadata=metadata,
+                )
+                trial_dir = self.output_dir / spec.token
+                result = self.runner._run_single(spec, trial_dir)
+                results.append(result)
+                self.history.append(result)
+                payload = result.payload or {}
+                feasible = bool(payload.get("feasible")) if result.status == "completed" else False
+                if result.status != "completed":
+                    break
+                if feasible:
+                    break
+                if attempts_for_suggestion > self.bayes_config.constraint_retry_limit:
+                    break
+            self.suggestion_total += 1
+            self.retry_total += max(0, attempts_for_suggestion - 1)
+            if break_outer:
+                break
+        meta: Dict[str, Any] = {
+            "enabled": bool(self.config.bayes and self.config.bayes.enabled),
+            "seed": self.master_seed,
+            "initial_random_trials": self.bayes_config.initial_random_trials,
+            "suggestions": self.suggestion_total,
+            "evaluations": len(results),
+            "constraint_retries": self.retry_total,
+            "optimizer": self.optimizer_name,
+            "optuna_available": self.optuna_available,
+        }
+        if self.bayes_config.acquisition:
+            meta["acquisition"] = {
+                "name": self.bayes_config.acquisition.name,
+                "parameters": dict(self.bayes_config.acquisition.parameters),
+            }
+        if self.bayes_config.exploration_upper_bound is not None:
+            meta["exploration_upper_bound"] = self.bayes_config.exploration_upper_bound
+        if self.fallback_message:
+            meta["fallback_message"] = self.fallback_message
+        return results, meta
+
+
 def _prepare_trials(config: ExperimentConfig, args: argparse.Namespace, timestamp: str) -> List[TrialSpec]:
     plans: List[TrialSpec] = []
     space_size = config.search_space_size()
     limit = args.max_trials if args.max_trials and args.max_trials > 0 else space_size
     if args.search == "bayes":
-        raise NotImplementedError("Bayesian optimisation integration is pending implementation")
+        raise NotImplementedError("Bayesian search plans are generated by BayesSearchRunner")
     if args.search == "grid":
         if not config.dimensions:
             limit = 0
@@ -576,13 +892,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     output_dir = Path(args.out).resolve() if args.out else config.base_output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = utcnow_aware().strftime("%Y%m%d_%H%M%S")
-    try:
-        plans = _prepare_trials(config, args, timestamp)
-    except NotImplementedError as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
     runner = SweepRunner(config, args, timestamp=timestamp)
-    results = runner.run_trials(plans, output_dir)
+    bayes_meta: Optional[Dict[str, Any]] = None
+    plans: List[TrialSpec] = []
+    results: List[TrialResult] = []
+    if args.search == "bayes":
+        bayes_runner = BayesSearchRunner(runner, output_dir=output_dir, timestamp=timestamp)
+        results, bayes_meta = bayes_runner.run(args.max_trials)
+        total_trials = bayes_meta.get("evaluations", len(results)) if bayes_meta else len(results)
+    else:
+        try:
+            plans = _prepare_trials(config, args, timestamp)
+        except NotImplementedError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        results = runner.run_trials(plans, output_dir)
+        total_trials = len(plans)
     completed = sum(1 for item in results if item.status == "completed")
     failures = sum(1 for item in results if item.status not in {"completed", "dry_run"})
     summary = {
@@ -590,11 +915,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "config_path": _relative_path(config.path),
         "timestamp": utcnow_iso(),
         "search": args.search,
-        "total_trials": len(plans),
+        "total_trials": total_trials,
         "completed": completed,
         "failures": failures,
         "dry_run": args.dry_run,
     }
+    if bayes_meta:
+        summary["bayes"] = bayes_meta
     _write_json(output_dir / "sweep_summary.json", summary)
     _write_sweep_log(config, output_dir)
     print(json.dumps(summary, ensure_ascii=False, indent=2))

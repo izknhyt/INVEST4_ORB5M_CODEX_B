@@ -2,6 +2,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, Dict, Optional
 
 from core.utils import yaml_compat as yaml
 
@@ -46,7 +47,15 @@ def _write_test_config(path: Path, *, base_output: Path) -> None:
     path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
 
 
-def _write_trial(directory: Path, trial_id: str, sharpe: float, total_pips: float, trades_per_month: float) -> None:
+def _write_trial(
+    directory: Path,
+    trial_id: str,
+    sharpe: float,
+    total_pips: float,
+    trades_per_month: float,
+    *,
+    extra: Optional[Dict[str, Any]] = None,
+) -> None:
     directory.mkdir()
     payload = {
         "trial_id": trial_id,
@@ -61,6 +70,8 @@ def _write_trial(directory: Path, trial_id: str, sharpe: float, total_pips: floa
         "metrics_path": f"runs/{trial_id}/metrics.json",
         "dataset": {"path": "validated/USDJPY/5m.csv", "sha256": "abc", "rows": 579578},
     }
+    if extra:
+        payload.update(extra)
     (directory / "result.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
@@ -102,3 +113,53 @@ def test_select_best_params_pareto_filter(tmp_path):
         assert entry["metrics_path"].endswith("metrics.json")
         assert entry["dataset_fingerprint"]["path"] == "validated/USDJPY/5m.csv"
     assert "trial_c" not in ranking_ids
+
+
+def test_select_best_params_preserves_bayes_metadata(tmp_path):
+    config_path = tmp_path / "experiment.yaml"
+    runs_dir = tmp_path / "runs"
+    out_path = tmp_path / "best.json"
+    runs_dir.mkdir()
+    _write_test_config(config_path, base_output=runs_dir)
+
+    bayes_extra = {
+        "search_metadata": {
+            "strategy": "bayes",
+            "suggestion_index": 2,
+            "retry": 1,
+            "optimizer": "heuristic",
+        },
+        "history": {"logged": True, "command": ["python", "scripts/run_sim.py"]},
+    }
+    _write_trial(
+        runs_dir / "bayes_trial",
+        "bayes_trial",
+        sharpe=1.2,
+        total_pips=50.0,
+        trades_per_month=19.0,
+        extra=bayes_extra,
+    )
+
+    cmd = [
+        sys.executable,
+        "scripts/select_best_params.py",
+        "--experiment",
+        str(config_path),
+        "--runs-dir",
+        str(runs_dir),
+        "--top-k",
+        "1",
+        "--out",
+        str(out_path),
+    ]
+    result = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+
+    payload = json.loads(out_path.read_text(encoding="utf-8"))
+    assert payload["ranking"]
+    entry = payload["ranking"][0]
+    assert entry["trial_id"] == "bayes_trial"
+    assert entry["params"]["or_n"] == 4
+    assert entry["search_metadata"]["strategy"] == "bayes"
+    assert entry["search_metadata"]["retry"] == 1
+    assert entry["history"]["logged"] is True
