@@ -1,5 +1,15 @@
 # フェーズ4 進捗レポート（検証とリリースゲート）
 
+- 2026-10-18: 擬似ライブ更新ガード（[設計 §2.4](plans/day_orb_optimization.md#24-adaptive-update--rollback)）を実装し、`scripts/update_state.py --simulate-live` に VAR / 流動性 / パラメータ差分の制限とロールバック通知を統合。`docs/state_runbook.md` のフローを更新し、オーバーライド/通知ハンドオフ手順を追記した。
+
+  代表コマンド:
+
+  `python3 scripts/update_state.py --simulate-live --dry-run --max-delta 0.2 --var-cap 0.04 --liquidity-cap 5.0 --alert-mode auto --json-out out/state_update_preview.json`
+
+  `python3 scripts/update_state.py --override-action disable --override-reason "phase4_maintenance" --dry-run`
+
+  ドライランは `risk.var` / `risk.liquidity_usage` / `diff.updated` を含む JSON を出力し、`ops/state_archive/<strategy>/<symbol>/<mode>/<ts>_diff.json` に適用結果（`status=applied|blocked`）を残す。オーバーライド状態は `ops/state_archive/auto_adjust_override.json` で管理し、異常時は `notifications/emit_signal.py` 経由の `state_update_rollback` 通知が `ops/state_alert_latency.csv` / `ops/state_alerts.log` に記録される。証跡リンクと運用フローは [docs/state_runbook.md#擬似ライブ更新フロー（scriptsupdate_statepy---simulate-live）](state_runbook.md#擬似ライブ更新フローscriptsupdate_statepy---simulate-live) を参照。
+
 - 2026-10-17: Day ORB パラメータ最適化ループの初期版を整備。`configs/experiments/day_orb_core.yaml` を新設し、
   `python3 scripts/run_param_sweep.py --experiment configs/experiments/day_orb_core.yaml --search grid --max-trials 2 --dry-run --out runs/sweeps/day_orb_core_smoke`
   でマニフェスト差し替え・制約評価・季節性メトリクス出力を検証。続いて
