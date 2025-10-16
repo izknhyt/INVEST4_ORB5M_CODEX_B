@@ -1,4 +1,5 @@
 import json
+import json
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
@@ -179,6 +180,134 @@ def test_check_benchmark_freshness_defaults_pipeline_threshold(monkeypatch):
     assert "--benchmark-freshness-base-max-age-hours" not in cmd
     assert "--max-age-hours" in cmd
     assert float(cmd[cmd.index("--max-age-hours") + 1]) == pytest.approx(6.0)
+
+
+def test_day_orb_bundle_executes_and_writes_summary(tmp_path, monkeypatch, capsys):
+    summary_path = tmp_path / "bundle_summary.json"
+    status_first = tmp_path / "first.json"
+    status_second = tmp_path / "second.json"
+    status_first.write_text(json.dumps({"ok": True}), encoding="utf-8")
+    status_second.write_text(json.dumps({"metrics": {"pass": True}}), encoding="utf-8")
+
+    config_path = tmp_path / "bundle.yaml"
+    config_payload = {
+        "bundle_id": "test_bundle",
+        "summary_output": str(tmp_path / "config_summary.json"),
+        "steps": {
+            "first": {
+                "description": "first",
+                "command": ["{PYTHON}", "-c", "print('first')"],
+                "status_path": str(status_first),
+                "go_criteria": [{"path": "ok", "equals": True}],
+            },
+            "second": {
+                "description": "second",
+                "command": ["{PYTHON}", "-c", "print('second')"],
+                "status_path": str(status_second),
+                "go_criteria": [{"path": "metrics.pass", "equals": True}],
+            },
+        },
+    }
+    config_path.write_text(yaml_compat.safe_dump(config_payload), encoding="utf-8")
+
+    captured: list[list[str]] = []
+
+    def fake_run_cmd(cmd):
+        captured.append(cmd)
+        return 0
+
+    monkeypatch.setattr(run_daily_workflow, "run_cmd", fake_run_cmd)
+
+    exit_code = run_daily_workflow.main(
+        [
+            "--day-orb-optimization",
+            "--day-orb-config",
+            str(config_path),
+            "--day-orb-output",
+            str(summary_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured
+    assert captured[0][0] == sys.executable
+
+    stdout = capsys.readouterr().out
+    printed = json.loads(stdout)
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert printed["overall"]["go"] is True
+    assert summary["overall"]["go"] is True
+    assert all(step["go"] is True for step in summary["steps"])
+    assert summary["steps"][0]["status"]["ok"] is True
+
+
+def test_day_orb_bundle_dry_run_skips_execution(tmp_path, monkeypatch, capsys):
+    summary_path = tmp_path / "dry_run_summary.json"
+    status_first = tmp_path / "first.json"
+    status_first.write_text(json.dumps({"ready": True}), encoding="utf-8")
+
+    config_path = tmp_path / "bundle.yaml"
+    config_payload = {
+        "steps": {
+            "only": {
+                "description": "only",
+                "command": ["{PYTHON}", "-c", "print('only')"],
+                "status_path": str(status_first),
+                "go_criteria": [{"path": "ready", "equals": True}],
+            }
+        }
+    }
+    config_path.write_text(yaml_compat.safe_dump(config_payload), encoding="utf-8")
+
+    def fail_run_cmd(_):  # pragma: no cover - defensive
+        raise AssertionError("run_cmd should not be called in dry-run mode")
+
+    monkeypatch.setattr(run_daily_workflow, "run_cmd", fail_run_cmd)
+
+    exit_code = run_daily_workflow.main(
+        [
+            "--day-orb-optimization",
+            "--day-orb-config",
+            str(config_path),
+            "--day-orb-output",
+            str(summary_path),
+            "--day-orb-dry-run",
+        ]
+    )
+
+    assert exit_code == 0
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["steps"][0]["executed"] is False
+    assert summary["steps"][0]["go"] is True
+    assert summary["overall"]["go"] is True
+    capsys.readouterr()
+
+
+def test_day_orb_bundle_reports_failures(tmp_path, monkeypatch, capsys):
+    config_path = tmp_path / "bundle.yaml"
+    missing_status = tmp_path / "missing.json"
+    config_payload = {
+        "steps": {
+            "broken": {
+                "description": "broken",
+                "command": ["{PYTHON}", "-c", "print('broken')"],
+                "status_path": str(missing_status),
+            }
+        }
+    }
+    config_path.write_text(yaml_compat.safe_dump(config_payload), encoding="utf-8")
+
+    monkeypatch.setattr(run_daily_workflow, "run_cmd", lambda cmd: 0)
+
+    exit_code = run_daily_workflow.main(
+        ["--day-orb-optimization", "--day-orb-config", str(config_path)]
+    )
+
+    assert exit_code == 1
+    stdout = capsys.readouterr().out
+    summary = json.loads(stdout)
+    assert summary["overall"]["go"] is False
+    assert summary["overall"]["failed_steps"] == ["broken"]
 
 
 def test_check_data_quality_command_defaults(monkeypatch):

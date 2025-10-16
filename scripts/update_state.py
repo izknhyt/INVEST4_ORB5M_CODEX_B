@@ -9,7 +9,7 @@ import os
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 import csv
 import sys
@@ -110,6 +110,48 @@ def _compute_liquidity(records: Iterable[Dict[str, Any]]) -> float:
         except (TypeError, ValueError):
             continue
     return usage
+
+
+def _build_paper_validation_summary(
+    *,
+    decision_status: str,
+    anomalies: Sequence[Mapping[str, Any]],
+    dry_run: bool,
+    total_processed: int,
+    risk_summary: Mapping[str, Any],
+) -> Dict[str, Any]:
+    """Summarise pseudo-live guardrail evaluation for downstream reports."""
+
+    summary: Dict[str, Any] = {
+        "status": "go",
+        "decision": decision_status,
+        "bars_processed": total_processed,
+        "anomaly_count": len(anomalies),
+        "anomaly_types": [
+            str(item.get("type"))
+            for item in anomalies
+            if isinstance(item, Mapping) and item.get("type")
+        ],
+        "risk": risk_summary,
+        "reasons": [],
+    }
+
+    reasons: List[str] = []
+    if decision_status != "applied":
+        summary["status"] = "no-go"
+        reasons.append(f"decision:{decision_status}")
+    if anomalies:
+        summary["status"] = "no-go"
+        reasons.append("anomalies_detected")
+    if dry_run:
+        reasons.append("dry_run")
+
+    deduped: List[str] = []
+    for reason in reasons:
+        if reason and reason not in deduped:
+            deduped.append(reason)
+    summary["reasons"] = deduped
+    return summary
 
 
 def _load_json(path: Path) -> Dict[str, Any]:
@@ -640,6 +682,14 @@ def main(argv=None) -> int:
         "status": decision_status,
         "reasons": decision_reasons,
     }
+    if args.simulate_live:
+        result["paper_validation"] = _build_paper_validation_summary(
+            decision_status=decision_status,
+            anomalies=anomalies,
+            dry_run=bool(args.dry_run),
+            total_processed=total_processed,
+            risk_summary=risk_summary,
+        )
     if archive_meta:
         result.update(archive_meta)
 

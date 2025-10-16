@@ -3,6 +3,7 @@
 from __future__ import annotations
 import argparse
 import csv
+import json
 import math
 import subprocess
 import sys
@@ -44,6 +45,346 @@ _OBSERVABILITY_DRY_RUN_FLAGS: Dict[str, List[str]] = {
     "dashboard": [],
 }
 _OBSERVABILITY_DASHBOARD_SUMMARY = ROOT / "reports/dashboard_export_summary.json"
+
+_DAY_ORB_BUNDLE_CONFIG = ROOT / "configs/day_orb/optimization_bundle.yaml"
+
+
+@dataclass
+class DayOrbStepResult:
+    """Execution metadata for a Day ORB optimisation bundle step."""
+
+    name: str
+    description: str
+    command: List[str]
+    status_path: Optional[Path]
+    executed: bool = False
+    exit_code: Optional[int] = None
+    go: Optional[bool] = None
+    errors: List[str] = field(default_factory=list)
+    status: Any = None
+    go_reasons: List[str] = field(default_factory=list)
+
+
+def _normalise_day_orb_token(value: Any) -> str:
+    """Convert config tokens into CLI-ready strings with placeholder expansion."""
+
+    if isinstance(value, bool):
+        token = str(value).lower()
+    elif isinstance(value, (int, float)):
+        token = str(value)
+    elif isinstance(value, Path):
+        token = value.as_posix()
+    else:
+        token = str(value)
+
+    token = token.replace("{ROOT}", str(ROOT))
+    token = token.replace("{PYTHON}", sys.executable)
+    return token
+
+
+def _expand_day_orb_command(tokens: Sequence[Any]) -> List[str]:
+    """Return a command list suitable for :func:`subprocess.run`."""
+
+    expanded: List[str] = []
+    for token in tokens:
+        if token is None:
+            continue
+        expanded.append(_normalise_day_orb_token(token))
+    return expanded
+
+
+def _resolve_day_orb_path(raw: Any) -> Optional[Path]:
+    """Resolve a config-provided path relative to the repository root."""
+
+    if raw is None:
+        return None
+    token = _normalise_day_orb_token(raw)
+    return _resolve_path_argument(token)
+
+
+def _load_day_orb_bundle_config(path: Path) -> Mapping[str, Any]:
+    """Load the optimisation bundle config, raising on parsing errors."""
+
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:  # pragma: no cover - defensive guard
+        raise FileNotFoundError(f"Day ORB bundle config not found: {path}") from exc
+
+    try:
+        data = yaml.safe_load(text) or {}
+    except Exception as exc:  # pragma: no cover - unexpected parse failure
+        raise RuntimeError(f"Failed to parse Day ORB bundle config {path}: {exc}") from exc
+
+    if not isinstance(data, Mapping):
+        raise ValueError(f"Day ORB bundle config must be a mapping object: {path}")
+    return data
+
+
+def _iter_path_tokens(path: str) -> Iterable[Any]:
+    token = ""
+    index_buf = ""
+    in_index = False
+    for char in path:
+        if in_index:
+            if char == "]":
+                if index_buf:
+                    yield int(index_buf)
+                index_buf = ""
+                in_index = False
+            else:
+                index_buf += char
+            continue
+        if char == ".":
+            if token:
+                yield token
+                token = ""
+            continue
+        if char == "[":
+            if token:
+                yield token
+                token = ""
+            in_index = True
+            continue
+        token += char
+    if in_index and index_buf:
+        yield int(index_buf)
+    elif in_index and not index_buf:
+        return
+    if token:
+        yield token
+
+
+def _extract_json_field(payload: Any, path: str) -> Any:
+    """Return the value referenced by ``path`` within ``payload``."""
+
+    if not path:
+        return payload
+
+    current: Any = payload
+    for token in _iter_path_tokens(path):
+        if isinstance(token, int):
+            if isinstance(current, Sequence) and not isinstance(current, (str, bytes)):
+                if 0 <= token < len(current):
+                    current = current[token]
+                else:
+                    return None
+            else:
+                return None
+        else:
+            if isinstance(current, Mapping):
+                current = current.get(token)
+            else:
+                return None
+        if current is None:
+            return None
+    return current
+
+
+def _evaluate_go_criteria(status: Any, criteria: Sequence[Mapping[str, Any]]) -> tuple[bool, List[str]]:
+    """Evaluate configured Go/No-Go checks against *status*."""
+
+    if not criteria:
+        return True, []
+    if status is None:
+        return False, ["status_missing"]
+
+    ok = True
+    reasons: List[str] = []
+    for entry in criteria:
+        if not isinstance(entry, Mapping):
+            continue
+        path = str(entry.get("path", "")).strip()
+        value = _extract_json_field(status, path) if path else status
+        label = path or "value"
+
+        if "equals" in entry and value != entry.get("equals"):
+            ok = False
+            reasons.append(f"{label} != {entry['equals']!r}")
+        if "not_equals" in entry and value == entry.get("not_equals"):
+            ok = False
+            reasons.append(f"{label} == {entry['not_equals']!r}")
+        if "min" in entry:
+            try:
+                threshold = float(entry["min"])
+                if value is None or float(value) < threshold:
+                    ok = False
+                    reasons.append(f"{label}_lt_{threshold}")
+            except (TypeError, ValueError):
+                ok = False
+                reasons.append(f"{label}_min_invalid")
+        if "max" in entry:
+            try:
+                threshold = float(entry["max"])
+                if value is None or float(value) > threshold:
+                    ok = False
+                    reasons.append(f"{label}_gt_{threshold}")
+            except (TypeError, ValueError):
+                ok = False
+                reasons.append(f"{label}_max_invalid")
+        if entry.get("empty") is True:
+            if value not in (None, "", [], {}):
+                ok = False
+                reasons.append(f"{label}_not_empty")
+        if entry.get("not_empty"):
+            if value in (None, "", [], {}):
+                ok = False
+                reasons.append(f"{label}_empty")
+        if entry.get("truthy") and not value:
+            ok = False
+            reasons.append(f"{label}_not_truthy")
+        if entry.get("falsey") and value:
+            ok = False
+            reasons.append(f"{label}_not_falsey")
+        if "min_length" in entry:
+            try:
+                if len(value or []) < int(entry["min_length"]):
+                    ok = False
+                    reasons.append(f"{label}_len_lt_{entry['min_length']}")
+            except TypeError:
+                ok = False
+                reasons.append(f"{label}_len_invalid")
+        if "max_length" in entry:
+            try:
+                if len(value or []) > int(entry["max_length"]):
+                    ok = False
+                    reasons.append(f"{label}_len_gt_{entry['max_length']}")
+            except TypeError:
+                ok = False
+                reasons.append(f"{label}_len_invalid")
+
+    return ok, reasons
+
+
+def _run_day_orb_bundle(args: argparse.Namespace) -> int:
+    """Execute the configured Day ORB optimisation bundle."""
+
+    config_override = getattr(args, "day_orb_config", None)
+    config_path = _resolve_day_orb_path(config_override) or _DAY_ORB_BUNDLE_CONFIG
+
+    try:
+        config = _load_day_orb_bundle_config(config_path)
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
+        print(f"[day_orb] {exc}")
+        return 1
+
+    steps_cfg = config.get("steps")
+    if not isinstance(steps_cfg, Mapping) or not steps_cfg:
+        print("[day_orb] bundle configuration does not define any steps")
+        return 1
+
+    dry_run = bool(getattr(args, "day_orb_dry_run", False))
+    bundle_id = str(config.get("bundle_id") or "day_orb")
+
+    summary_override = getattr(args, "day_orb_output", None)
+    summary_path = _resolve_day_orb_path(summary_override) or _resolve_day_orb_path(
+        config.get("summary_output")
+    )
+
+    results: List[DayOrbStepResult] = []
+    failures: List[str] = []
+
+    for step_name, step_cfg in steps_cfg.items():
+        if not isinstance(step_cfg, Mapping):
+            continue
+
+        description = str(step_cfg.get("description") or step_name)
+        raw_command = step_cfg.get("command")
+        if not isinstance(raw_command, Sequence):
+            print(f"[day_orb] step '{step_name}' is missing a command list")
+            return 1
+
+        command = _expand_day_orb_command(raw_command)
+        status_path = _resolve_day_orb_path(step_cfg.get("status_path"))
+        go_criteria = step_cfg.get("go_criteria") if isinstance(step_cfg, Mapping) else None
+
+        result = DayOrbStepResult(
+            name=str(step_name),
+            description=description,
+            command=command,
+            status_path=status_path,
+        )
+        results.append(result)
+
+        if dry_run:
+            result.executed = False
+            exit_code = 0
+        else:
+            result.executed = True
+            exit_code = run_cmd(command)
+        result.exit_code = exit_code
+
+        if not dry_run and exit_code:
+            result.go = False
+            result.errors.append(f"exit_code:{exit_code}")
+            failures.append(result.name)
+            continue
+
+        if status_path is None:
+            result.go = True if dry_run or exit_code == 0 else False
+            if result.go is False:
+                failures.append(result.name)
+            continue
+
+        status_payload: Any = None
+        try:
+            status_payload = json.loads(status_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            result.errors.append(f"status_missing:{status_path}")
+        except json.JSONDecodeError as exc:
+            result.errors.append(f"status_invalid_json:{status_path}:{exc}")
+        else:
+            result.status = status_payload
+
+        if status_payload is None:
+            result.go = False
+            failures.append(result.name)
+            continue
+
+        if isinstance(go_criteria, Sequence) and go_criteria:
+            ok, reasons = _evaluate_go_criteria(status_payload, go_criteria)
+            result.go_reasons = reasons
+            result.go = ok
+            if not ok:
+                result.errors.extend(reasons)
+                failures.append(result.name)
+        else:
+            result.go = True
+
+    overall_go = all(step.go is True for step in results)
+
+    summary_payload = {
+        "bundle_id": bundle_id,
+        "config_path": str(config_path),
+        "generated_at": _format_utc_iso(datetime.now(timezone.utc)),
+        "dry_run": dry_run,
+        "steps": [
+            {
+                "name": step.name,
+                "description": step.description,
+                "command": step.command,
+                "status_path": str(step.status_path) if step.status_path else None,
+                "executed": step.executed,
+                "exit_code": step.exit_code,
+                "go": step.go,
+                "errors": step.errors,
+                "go_reasons": step.go_reasons,
+                "status": step.status,
+            }
+            for step in results
+        ],
+        "overall": {
+            "go": overall_go,
+            "failed_steps": failures,
+        },
+    }
+
+    print(json.dumps(summary_payload, ensure_ascii=False, indent=2))
+
+    if summary_path is not None:
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(json.dumps(summary_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    return 0 if overall_go else 1
 
 
 def _load_dukascopy_fetch() -> Callable[..., object]:
@@ -1834,6 +2175,28 @@ def main(argv=None) -> int:
             "so external webhooks are skipped."
         ),
     )
+    parser.add_argument(
+        "--day-orb-optimization",
+        action="store_true",
+        help=(
+            "Run the Day ORB optimisation bundle defined in configs/day_orb/optimization_bundle.yaml"
+        ),
+    )
+    parser.add_argument(
+        "--day-orb-config",
+        default=None,
+        help="Override path to the Day ORB bundle configuration",
+    )
+    parser.add_argument(
+        "--day-orb-output",
+        default=None,
+        help="Optional JSON summary output path for the Day ORB bundle",
+    )
+    parser.add_argument(
+        "--day-orb-dry-run",
+        action="store_true",
+        help="Resolve commands and evaluate existing artefacts without executing the bundle",
+    )
     parser.add_argument("--archive-state", action="store_true", help="Archive state.json files")
     parser.add_argument("--bars", default=None, help="Override bars CSV path (default: validated/<symbol>/5m.csv)")
     parser.add_argument("--webhook", default=None)
@@ -1905,6 +2268,11 @@ def main(argv=None) -> int:
             "--data-quality-duplicate-occurrences-threshold must be at least 0"
         )
 
+
+    if args.day_orb_optimization:
+        exit_code = _run_day_orb_bundle(args)
+        if exit_code:
+            return exit_code
 
     if args.ingest:
         exit_code = _dispatch_ingest(
