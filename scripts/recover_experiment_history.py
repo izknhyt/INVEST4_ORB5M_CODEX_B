@@ -56,12 +56,22 @@ def _rebuild_from_json(parquet_path: Path, json_dir: Path, dry_run: bool) -> int
     if not json_paths:
         raise ExperimentRecoveryError(f"No JSON entries found under {json_dir}")
     rows = _rows_from_json(json_paths)
-    table = rows_to_table(rows)
+    try:
+        table = rows_to_table(rows)
+    except ModuleNotFoundError as exc:
+        raise ExperimentRecoveryError(
+            "PyArrow is required to rebuild the experiment history Parquet file. Install it via `pip install pyarrow`."
+        ) from exc
     if dry_run:
         print(json.dumps({"rows": len(rows)}, indent=2))
         return len(rows)
-    write_parquet(table, parquet_path)
-    reloaded = read_parquet(parquet_path)
+    try:
+        write_parquet(table, parquet_path)
+        reloaded = read_parquet(parquet_path)
+    except ModuleNotFoundError as exc:
+        raise ExperimentRecoveryError(
+            "PyArrow is required to persist and verify the experiment history Parquet file. Install it via `pip install pyarrow`."
+        ) from exc
     if reloaded is None:
         raise ExperimentRecoveryError(f"Failed to read back parquet {parquet_path}")
     if reloaded.num_rows != len(rows):

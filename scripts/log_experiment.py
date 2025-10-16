@@ -8,8 +8,6 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-import pyarrow as pa
-
 from experiments.history import (
     REPO_ROOT,
     PARQUET_PATH,
@@ -213,13 +211,32 @@ def _build_row(
 
 
 def _append_to_parquet(parquet_path: Path, row: Dict[str, Any]) -> None:
-    current_table = read_parquet(parquet_path)
-    new_table = rows_to_table([row])
+    try:
+        import pyarrow as pa  # type: ignore[import-not-found]
+    except ModuleNotFoundError as exc:  # pragma: no cover - dependency guard
+        raise ExperimentLoggingError(
+            "PyArrow is required to append experiment history rows. Install it via `pip install pyarrow`."
+        ) from exc
+
+    try:
+        current_table = read_parquet(parquet_path)
+        new_table = rows_to_table([row])
+    except ModuleNotFoundError as exc:
+        raise ExperimentLoggingError(
+            "PyArrow is required to manage experiment history Parquet files. Install it via `pip install pyarrow`."
+        ) from exc
+
     if current_table is not None:
         combined = pa.concat_tables([current_table, new_table])
     else:
         combined = new_table
-    write_parquet(combined, parquet_path)
+
+    try:
+        write_parquet(combined, parquet_path)
+    except ModuleNotFoundError as exc:
+        raise ExperimentLoggingError(
+            "PyArrow is required to persist experiment history Parquet files. Install it via `pip install pyarrow`."
+        ) from exc
 
 
 def _check_duplicate(parquet_path: Path, json_path: Path, run_id: str) -> None:

@@ -3,8 +3,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pyarrow.parquet as pq
 import pytest
+
+pyarrow = pytest.importorskip(
+    "pyarrow", reason="PyArrow is required to validate experiment history logging."
+)
+pq = pyarrow.parquet
 
 from experiments.history.utils import compute_dataset_fingerprint, relative_to_repo
 from scripts.log_experiment import ExperimentLoggingError, log_experiment
