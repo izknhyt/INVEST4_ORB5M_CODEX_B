@@ -202,6 +202,13 @@ _2026-08-12 review_: Confirmed W2 バグ掃討後のノートを再確認し、H
   - データ品質・通知SLO・stateバックアップ・最適化結果レビューなどを含む。
 - 2026-06-27: フェーズ4検証計画に沿って、チェック項目を「データ品質 / シミュレーション / 運用準備 / レビュー体制」に分類し、担当者・頻度・証跡リンク欄を追加予定。モックレビュー結果は本節でログ化する。
 - 2026-07-15: チェックリストを担当者・実行頻度・証跡列付きテーブルへ更新。次の判定では各列を埋め、証跡リンクを記録すること。
+- 2026-10-16: 運用チームで Paper Go/No-Go 再監査を実施。
+  - データ品質監査：`python3 scripts/check_data_quality.py --csv validated/USDJPY/5m.csv ...` の結果、coverage_ratio=0.7108 と 0.995 の閾値を大幅に下回り NG（ログ: [paper_gate.log](../reports/data_quality/paper_gate.log)、サマリ: [paper_gate.json](../reports/data_quality/paper_gate.json)）。
+  - Conservative / Bridge 再シミュレーション：両モードとも Sharpe=-9.83・MaxDD=-69.20 と判定基準未達（証跡: [Conservative session.log](../runs/go_nogo/conservative/USDJPY_conservative_20251016_095757/session.log)、[Bridge session.log](../runs/go_nogo/bridge/USDJPY_bridge_20251016_100035/session.log)、各 JSON: [go_nogo_conservative.json](../reports/go_nogo_conservative.json), [go_nogo_bridge.json](../reports/go_nogo_bridge.json)）。
+  - 通知レイテンシ分析：`PYTHONPATH=. python3 scripts/analyze_signal_latency.py ... --rollup-output reports/latency_summary.csv` を実行し、p95=2100ms / failure_rate=0% と SLO 内（ログ: [analyze_signal_latency.log](../reports/analyze_signal_latency.log)、集計: [latency_summary.json](../reports/latency_summary.json)）。
+  - 日次ワークフロー dry-run：`python3 scripts/run_daily_workflow.py --optimize --analyze-latency --archive-state --dry-run` は `auto_optimize.py` の JSONDecodeError で途中失敗（ログ: [daily_workflow_dry_run.log](../reports/daily_workflow_dry_run.log)）。`reports/auto_optimize.json` は未更新。
+  - State アーカイブ確認：`python3 scripts/prune_state_archive.py --dry-run --keep 5` で Conservative 最新 5 件（20251002_214016.json〜20251005_132519.json）維持、63 件削除候補を確認（ログ: [state_archive_prune_dry_run.log](../reports/state_archive_prune_dry_run.log)）。Bridge 側は 20251004_104302.json のみ保管。
+- 承認コメント: データ coverage と Sharpe/最大DD が閾値未達のため **No-Go** 判定。`auto_optimize.py` の JSON 出力異常も解消が必要。
 
 ## TODO (フェーズ4 継続)
 - 長期バックテスト結果を改善するためのパラメータ再検討（Bridge/Conservativeともにマイナスのため）。
