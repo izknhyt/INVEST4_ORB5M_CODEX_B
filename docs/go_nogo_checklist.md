@@ -25,6 +25,7 @@
 | 最新の `python3 scripts/auto_optimize.py --config configs/strategies/day_orb_5m.yaml --out reports/optimization/day_orb_5m.json` をレビューし、採用パラメータを決定 | リサーチチーム | パラメータ更新毎 |  |
 | `analysis/param_surface.ipynb` 最新版を確認し、極端なオーバーフィット兆候がないかチェック | リサーチチーム | 週次レビュー |  |
 | `docs/broker_oco_matrix.md` と `analysis/broker_fills.ipynb` で Fill モデル差分を確認し、期待滑り/Fill精度が許容範囲内であることを記録 | リサーチチーム | 月次 / ブローカー設定変更時 |  |
+| `python3 scripts/generate_experiment_report.py --best <reports/.../best_params.json> --gate-json <reports/.../gate.json> --portfolio <runs/.../telemetry.json> --out reports/experiments/<experiment>.md --json-out reports/experiments/<experiment>.json` を実行し、Summary/Metrics/Constraint/Gate/Risk/Next Steps をレビュー | リサーチチーム | パラメータ更新毎 | [Markdown](../reports/experiments/<experiment>.md)<br>[JSON](../reports/experiments/<experiment>.json) |
 
 ## 4. ガバナンス
 
@@ -33,5 +34,6 @@
 | 本チェックリストを更新し、承認者/判定コメントを `docs/progress_phase4.md`「運用チェックリスト」に記録 | 運用チーム | 判定毎 |  |
 | `state.json`, `reports/*`, `analysis/*` をバックアップし、`ops/state_archive/` の世代保持ルールを確認 | 運用チーム | 週次 / Paper判定前 |  |
 | `README.md`・関連ランブックに最新運用手順を反映し、差分を PR サマリへ記載 | 運用チーム | ドキュメント更新毎 |  |
+| `python3 scripts/propose_param_update.py --best <reports/.../best_params.json> --report-json <reports/experiments/<experiment>.json> --state-archive <ops/state_archive/..._diff.json> --out docs/proposals/<experiment>_proposal.md --json-out docs/proposals/<experiment>_proposal.json` で PR 下書き・レビュー対象ドキュメント・state差分を整備 | 運用チーム | パラメータ更新毎 | [Proposal](../docs/proposals/<experiment>_proposal.md)（雛形） |
 
 完了後、Paper トレード移行判定を行う。

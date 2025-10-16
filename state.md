@@ -604,6 +604,8 @@ so bypassed calibration paths honour `_should_count_ev_pass`, removed legacy gat
   - 2025-10-16: 最新バーの供給が途絶しているため、P1-04 で API インジェスト基盤を設計・整備し、鮮度チェックのブロッカーを解消する計画。
 
 ## Log
+- 2026-10-24: Automatised the Day ORB parameter approval packet (`scripts/generate_experiment_report.py`, `scripts/propose_param_update.py`), added pytest coverage, and documented the workflow updates across Go/No-Go / state runbook / progress log.
+  - Executed `python3 -m pytest tests/test_generate_experiment_report.py tests/test_propose_param_update.py` to validate the new automation bundle.
 - 2025-10-11: Closed Phase 3 observability automation DoD (dry-run chain, verify CLI, dashboard bundle) and pivoted to Phase 4 readiness. Refreshed EV profiles via `scripts/aggregate_ev.py` for Conservative/Bridge, analysed `reports/long_*_daily.csv` year-over-year drift, and updated Phase4 backlog/todo anchors. Sandbox制約で長期シム再実行は未完（後続で分割ランを検討）。
 - [P0-14] 2026-05-22: Added `--min-gap-minutes` filtering and `--out-gap-json` export to `scripts/check_data_quality.py` so auditors can ignore noise while tracking skipped totals, synced README/backlog guidance, and ran `python3 -m pytest` to confirm the suite stays green.
 - [P0-14] 2026-05-15: Extended `scripts/check_data_quality.py` with missing-row estimates, aggregate gap metrics, configurable reporting limits, and `--out-gap-csv`; updated README usage guidance, refreshed the DoD checklist, and ran `python3 -m pytest` to confirm the suite stays green.

@@ -1,5 +1,15 @@
 # フェーズ4 進捗レポート（検証とリリースゲート）
 
+- 2026-10-24: 最適化レビューの承認パケットを自動化。`scripts/generate_experiment_report.py` で best params / gate diagnostics / ポートフォリオテレメトリを Markdown+JSON へ整形し、`scripts/propose_param_update.py` で PR タイトル・本文・レビュー対象ドキュメント・state差分をまとめる CLI を実装。`tests/test_generate_experiment_report.py` / `tests/test_propose_param_update.py` を追加し、Go/No-Go チェックリスト / `docs/state_runbook.md` に作業手順を反映した。
+
+  代表コマンド:
+
+  `python3 scripts/generate_experiment_report.py --best reports/simulations/day_orb_core/best_params.json --gate-json reports/day_orb_core/gate_breakdown.json --portfolio runs/router_pipeline/day_orb_core/telemetry.json --out reports/experiments/day_orb_core_review.md --json-out reports/experiments/day_orb_core_review.json`
+
+  `python3 scripts/propose_param_update.py --best reports/simulations/day_orb_core/best_params.json --report-json reports/experiments/day_orb_core_review.json --state-archive ops/state_archive/day_orb_core/USDJPY_conservative/proposal_20261024_diff.json --out docs/proposals/day_orb_core_20261024.md --json-out docs/proposals/day_orb_core_20261024.json`
+
+  `python3 -m pytest tests/test_generate_experiment_report.py tests/test_propose_param_update.py`
+
 - 2026-10-23: Day ORB パラメータスイープへポートフォリオ評価を統合。`scripts/run_param_sweep.py` の `--portfolio-config` と実験 YAML の `portfolio:` ブロックを解釈し、各トライアルの `result.json` にカテゴリ利用率 / VaR / 相関メトリクスを保存するよう更新。`scripts/select_best_params.py` はランキング JSON へポートフォリオ指標を残しつつ `reports/day_orb/<experiment>/portfolio_candidates.json` を自動生成し、下流の承認レポートで制約状況を確認できるようにした。`tests/test_run_param_sweep.py` / `tests/test_select_best_params.py` / `tests/test_router_pipeline.py` を拡張し、モックされた制約で VaR しきい値やカテゴリ予算が検証されることを確認。関連ドキュメント（`docs/plans/day_orb_optimization.md`, `docs/progress_phase4.md`）へ再現コマンドと指標読み取り手順を追記。
 
   代表コマンド:
