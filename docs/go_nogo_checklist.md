@@ -24,6 +24,8 @@
 | --- | --- | --- | --- |
 | 最新の `python3 scripts/auto_optimize.py --config configs/strategies/day_orb_5m.yaml --out reports/optimization/day_orb_5m.json` をレビューし、採用パラメータを決定 | リサーチチーム | パラメータ更新毎 |  |
 | `analysis/param_surface.ipynb` 最新版を確認し、極端なオーバーフィット兆候がないかチェック | リサーチチーム | 週次レビュー |  |
+| `python3 scripts/run_daily_workflow.py --day-orb-optimization --day-orb-config configs/day_orb/optimization_bundle.yaml` を dry-run/本番で実行し、`reports/day_orb/automation/*.json` の Go/No-Go 判定をレビュー | 運用チーム | 週次 / Paper 判定前 | [Dry-run](../reports/day_orb/automation/day_orb_bundle_dry_run.json)<br>[本番](../reports/day_orb/automation/day_orb_bundle_live.json) |
+| `python3 scripts/generate_paper_validation.py --config configs/day_orb/paper_validation.yaml --out reports/day_orb/paper_validation.json` で Paper リハーサル / ドリフト監視メトリクスを確認し、ガードレール基準の更新要否を記録 | リサーチチーム | 週次 / パラメータ更新前 | [JSON](../reports/day_orb/paper_validation.json) |
 | `docs/broker_oco_matrix.md` と `analysis/broker_fills.ipynb` で Fill モデル差分を確認し、期待滑り/Fill精度が許容範囲内であることを記録 | リサーチチーム | 月次 / ブローカー設定変更時 |  |
 | `python3 scripts/generate_experiment_report.py --best <reports/.../best_params.json> --gate-json <reports/.../gate.json> --portfolio <runs/.../telemetry.json> --out reports/experiments/<experiment>.md --json-out reports/experiments/<experiment>.json` を実行し、Summary/Metrics/Constraint/Gate/Risk/Next Steps をレビュー | リサーチチーム | パラメータ更新毎 | [Markdown](../reports/experiments/<experiment>.md)<br>[JSON](../reports/experiments/<experiment>.json) |
 

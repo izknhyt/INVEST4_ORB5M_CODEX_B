@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../../schemas/cron_schedule.schema.json
+schedule:
+  dry_run:
+    cron: "0 5 * * 1-5"
+    description: Weekday paper rehearsal verification (dry-run, no artefact mutation)
+    command: >-
+      python3 scripts/run_daily_workflow.py
+      --day-orb-optimization
+      --day-orb-config configs/day_orb/optimization_bundle.yaml
+      --day-orb-dry-run
+      --day-orb-output reports/day_orb/automation/day_orb_bundle_dry_run.json
+  production:
+    cron: "30 6 * * 1"
+    description: Weekly Day ORB optimisation bundle with artefact refresh
+    command: >-
+      python3 scripts/run_daily_workflow.py
+      --day-orb-optimization
+      --day-orb-config configs/day_orb/optimization_bundle.yaml
+      --day-orb-output reports/day_orb/automation/day_orb_bundle_live.json
+      --symbol USDJPY
+metadata:
+  last_reviewed: 2026-10-25
+  owners:
+    - research
+    - operations
+  notes:
+    - Dry-run job fails when Go/No-Go criteria are violated by existing artefacts.
+    - Production run emits bundle summary JSON that must be archived in state.md.

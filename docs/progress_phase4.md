@@ -1,5 +1,17 @@
 # フェーズ4 進捗レポート（検証とリリースゲート）
 
+- 2026-10-25: Day ORB 最適化バンドルを `scripts/run_daily_workflow.py` に統合し、データ監査→スイープ→Router構築→Paperリハーサル→承認レポートまでの自動判定を JSON へ記録できるよう整備。`configs/day_orb/optimization_bundle.yaml` / `configs/day_orb/paper_validation.yaml` を新設し、`scripts/generate_paper_validation.py` で `update_state --simulate-live` と `compare_metrics` の結果を集約。CI では `.github/workflows/day_orb_bundle.yml` と `ops/cron/day_orb_weekly.yaml` で dry-run/本番スケジュールを登録し、Go/No-Go 基準違反で失敗するよう更新。回帰として `tests/test_run_daily_workflow.py::test_day_orb_bundle_*` と `tests/test_update_state.py` に Paper リハーサル分岐の検証を追加した。
+
+  代表コマンド:
+
+  `python3 scripts/run_daily_workflow.py --day-orb-optimization --day-orb-config configs/day_orb/optimization_bundle.yaml --day-orb-dry-run --day-orb-output reports/day_orb/automation/day_orb_bundle_dry_run.json`
+
+  `python3 scripts/run_daily_workflow.py --day-orb-optimization --day-orb-config configs/day_orb/optimization_bundle.yaml --day-orb-output reports/day_orb/automation/day_orb_bundle_live.json`
+
+  `python3 scripts/generate_paper_validation.py --config configs/day_orb/paper_validation.yaml --out reports/day_orb/paper_validation.json`
+
+  `python3 -m pytest tests/test_run_daily_workflow.py tests/test_update_state.py tests/test_generate_paper_validation.py`
+
 - 2026-10-24: 最適化レビューの承認パケットを自動化。`scripts/generate_experiment_report.py` で best params / gate diagnostics / ポートフォリオテレメトリを Markdown+JSON へ整形し、`scripts/propose_param_update.py` で PR タイトル・本文・レビュー対象ドキュメント・state差分をまとめる CLI を実装。`tests/test_generate_experiment_report.py` / `tests/test_propose_param_update.py` を追加し、Go/No-Go チェックリスト / `docs/state_runbook.md` に作業手順を反映した。
 
   代表コマンド:

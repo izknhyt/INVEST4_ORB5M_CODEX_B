@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=../../schemas/day_orb_paper_validation.schema.json
+update_state:
+  args:
+    - --bars
+    - validated/USDJPY/5m.csv
+    - --symbol
+    - USDJPY
+    - --mode
+    - conservative
+    - --snapshot
+    - ops/runtime_snapshot.json
+    - --state-in
+    - runs/active/state.json
+    - --state-out
+    - runs/paper_validation/state.json
+    - --archive-dir
+    - ops/state_archive/day_orb_core/paper_validation
+    - --chunk-size
+    - "20000"
+    - --simulate-live
+    - --dry-run
+    - --max-delta
+    - "0.25"
+    - --var-cap
+    - "0.04"
+    - --liquidity-cap
+    - "6"
+    - --json-out
+    - reports/day_orb/update_state_simulation.json
+compare_metrics:
+  left: reports/metrics_conservative.json
+  right: reports/go_nogo_conservative.json
+  ignore:
+    - "*.generated_at"
+    - "records[*].timestamp"
+  abs_tol: 0.0
+  rel_tol: 0.01
+  out_json: reports/day_orb/paper_validation_metrics_diff.json
+report:
+  path: reports/day_orb/paper_validation.json

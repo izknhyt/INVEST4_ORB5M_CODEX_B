@@ -1,0 +1,162 @@
+# yaml-language-server: $schema=../../schemas/day_orb_optimization_bundle.schema.json
+bundle_id: day_orb_core
+summary_output: reports/day_orb/day_orb_core/bundle_summary.json
+steps:
+  data_quality_audit:
+    description: Validate the USDJPY 5m validated snapshot before optimisation tasks.
+    command:
+      - "{PYTHON}"
+      - scripts/check_data_quality.py
+      - --csv
+      - validated/USDJPY/5m.csv
+      - --symbol
+      - USDJPY
+      - --calendar-day-summary
+      - --fail-under-coverage
+      - "0.995"
+      - --fail-on-duplicate-groups
+      - "5"
+      - --fail-on-duplicate-occurrences
+      - "3"
+      - --out-json
+      - reports/day_orb/day_orb_core/data_quality_summary.json
+      - --out-gap-json
+      - reports/day_orb/day_orb_core/data_quality_gaps.json
+    status_path: reports/day_orb/day_orb_core/data_quality_summary.json
+    go_criteria:
+      - path: missing_cols
+        equals: 0
+      - path: bad_rows
+        equals: 0
+      - path: duplicates
+        equals: 0
+      - path: duplicate_groups
+        max: 4
+  param_sweep:
+    description: Run the Day ORB core sweep to refresh optimisation candidates.
+    command:
+      - "{PYTHON}"
+      - scripts/run_param_sweep.py
+      - --experiment
+      - configs/experiments/day_orb_core.yaml
+      - --out
+      - runs/sweeps/day_orb_core
+      - --max-trials
+      - "64"
+      - --search
+      - bayes
+      - --workers
+      - "4"
+      - --portfolio-config
+      - configs/experiments/day_orb_core.yaml
+    status_path: runs/sweeps/day_orb_core/sweep_summary.json
+  select_best_params:
+    description: Rank the latest sweep results and export best parameters + portfolio metrics.
+    command:
+      - "{PYTHON}"
+      - scripts/select_best_params.py
+      - --experiment
+      - configs/experiments/day_orb_core.yaml
+      - --runs-dir
+      - runs/sweeps/day_orb_core
+      - --out
+      - reports/simulations/day_orb_core/best_params.json
+      - --portfolio-out
+      - reports/day_orb/day_orb_core
+    status_path: reports/simulations/day_orb_core/best_params.json
+    go_criteria:
+      - path: trials.completed
+        min: 1
+      - path: ranking
+        min_length: 1
+  build_router_snapshot:
+    description: Compile router telemetry with the latest Day ORB metrics and partner manifests.
+    command:
+      - "{PYTHON}"
+      - scripts/build_router_snapshot.py
+      - --manifest
+      - configs/strategies/day_orb_5m.yaml
+      - --manifest
+      - configs/strategies/tokyo_micro_mean_reversion.yaml
+      - --manifest-run
+      - day_orb_5m_v1=runs/sweeps/day_orb_core/latest/best/metrics.json
+      - --manifest-run
+      - tokyo_micro_mean_reversion_v0=reports/portfolio_samples/router_demo/metrics/tokyo_micro_mean_reversion_v0.json
+      - --positions
+      - day_orb_5m_v1=1
+      - --positions
+      - tokyo_micro_mean_reversion_v0=2
+      - --correlation-window-minutes
+      - "240"
+      - --output
+      - runs/router_pipeline/day_orb_core
+      - --indent
+      - "2"
+    status_path: runs/router_pipeline/day_orb_core/telemetry.json
+  report_portfolio_summary:
+    description: Summarise router telemetry for Go/No-Go review.
+    command:
+      - "{PYTHON}"
+      - scripts/report_portfolio_summary.py
+      - --input
+      - runs/router_pipeline/day_orb_core
+      - --output
+      - reports/day_orb/day_orb_core/portfolio_summary.json
+      - --indent
+      - "2"
+    status_path: reports/day_orb/day_orb_core/portfolio_summary.json
+  paper_validation:
+    description: Combine pseudo-live state replay and metrics diff checks for paper rehearsal sign-off.
+    command:
+      - "{PYTHON}"
+      - scripts/generate_paper_validation.py
+      - --config
+      - configs/day_orb/paper_validation.yaml
+      - --out
+      - reports/day_orb/paper_validation.json
+    status_path: reports/day_orb/paper_validation.json
+    go_criteria:
+      - path: paper_rehearsal.status
+        equals: go
+  experiment_report:
+    description: Build the reviewer packet that documents best parameters and gate diagnostics.
+    command:
+      - "{PYTHON}"
+      - scripts/generate_experiment_report.py
+      - --best
+      - reports/simulations/day_orb_core/best_params.json
+      - --gate-json
+      - reports/day_orb/gate_breakdown_latest.json
+      - --portfolio
+      - runs/router_pipeline/day_orb_core/telemetry.json
+      - --out
+      - reports/day_orb/day_orb_core_review.md
+      - --json-out
+      - reports/day_orb/day_orb_core_review.json
+    status_path: reports/day_orb/day_orb_core_review.json
+  propose_param_update:
+    description: Draft the proposal package for governance review.
+    command:
+      - "{PYTHON}"
+      - scripts/propose_param_update.py
+      - --best
+      - reports/simulations/day_orb_core/best_params.json
+      - --report-json
+      - reports/day_orb/day_orb_core_review.json
+      - --state-archive
+      - ops/state_archive/day_orb_core/USDJPY_conservative/latest_diff.json
+      - --out
+      - docs/proposals/day_orb_core_proposal.md
+      - --json-out
+      - docs/proposals/day_orb_core_proposal.json
+      - --doc
+      - docs/go_nogo_checklist.md
+      - --doc
+      - docs/progress_phase4.md
+      - --doc
+      - docs/state_runbook.md
+      - --force
+    status_path: docs/proposals/day_orb_core_proposal.json
+    go_criteria:
+      - path: pull_request.title
+        not_empty: true

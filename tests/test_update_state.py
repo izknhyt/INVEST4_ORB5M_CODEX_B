@@ -108,6 +108,7 @@ def test_update_state_normalizes_and_tracks_latest_timestamp(tmp_path, monkeypat
         "USDJPY",
         "--mode",
         "conservative",
+        "--simulate-live",
         "--snapshot",
         str(snapshot_path),
         "--state-out",
@@ -125,6 +126,14 @@ def test_update_state_normalizes_and_tracks_latest_timestamp(tmp_path, monkeypat
     assert result["bars_processed"] == 2
     assert result["decision"]["status"] == "applied"
     assert result["decision"]["reasons"] == ["conditions_met"]
+
+    paper = result.get("paper_validation")
+    assert paper
+    assert paper["status"] == "go"
+    assert paper["decision"] == "applied"
+    assert paper["anomaly_count"] == 0
+    assert paper["bars_processed"] == 2
+    assert paper["reasons"] == []
 
     assert processed_timestamps == [
         "2024-01-01T00:10:00",
@@ -206,6 +215,17 @@ def test_update_state_records_anomalies_in_dry_run(tmp_path, monkeypatch, capsys
         "anomaly:var_cap_exceeded",
         "anomaly:liquidity_cap_exceeded",
     }
+
+    paper = result.get("paper_validation")
+    assert paper
+    assert paper["status"] == "no-go"
+    assert paper["decision"] == "preview"
+    assert paper["anomaly_count"] == 3
+    assert set(paper["reasons"]) == {
+        "decision:preview",
+        "anomalies_detected",
+        "dry_run",
+    }
     assert pytest.approx(result["risk"]["var"], rel=1e-6) == 0.08
     assert result["risk"]["liquidity_usage"] == 5.0
     anomaly_types = {item["type"] for item in result["anomalies"]}
@@ -285,6 +305,13 @@ def test_update_state_var_cap_blocks_and_logs_fallback(tmp_path, monkeypatch, ca
     assert "anomaly:var_cap_exceeded" in result["decision"]["reasons"]
     assert result["rollback_triggered"] is True
     assert result["alert"]["detail"] == "no_webhook_configured"
+
+    paper = result.get("paper_validation")
+    assert paper
+    assert paper["status"] == "no-go"
+    assert paper["decision"] == "blocked"
+    assert "decision:blocked" in paper["reasons"]
+    assert "anomalies_detected" in paper["reasons"]
 
     diff_files = list((tmp_path / "archive").rglob("*_diff.json"))
     assert diff_files
