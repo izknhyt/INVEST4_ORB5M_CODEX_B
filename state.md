@@ -1,6 +1,12 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-10-18: Hardened the pseudo-live state update loop (P0-22). Extended `scripts/update_state.py --simulate-live` with
+  bounded delta enforcement, VAR/liquidity caps, diff archival, override management, and alert routing via
+  `notifications/emit_signal.py`. Updated `docs/state_runbook.md#擬似ライブ更新フロー（scriptsupdate_statepy---simulate-live）`,
+  `docs/progress_phase4.md`, and `docs/task_backlog.md#p0-22-pseudo-live-adaptive-guardrails-open` with the new
+  operations flow and evidence links. Validated by running `python3 -m pytest` and a dry-run sanity check
+  (`python3 scripts/update_state.py --simulate-live --dry-run --max-delta 0.2 --var-cap 0.04 --liquidity-cap 5 --alert-mode disable`).
 - 2026-10-17: Updated the experiment history workflow so Parquet snapshots remain local artefacts (GitHub Web UI rejects binary uploads).
   Removed `experiments/history/records.parquet` from version control, documented the regeneration flow in `docs/progress_phase4.md`
   / `docs/task_backlog.md` / `docs/plans/day_orb_optimization.md` / `docs/day_orb_optimization_detailed_design.md`, tightened

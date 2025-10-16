@@ -11,6 +11,34 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
 - [ ] 保存後に `scripts/aggregate_ev.py` が走行したかログを確認し、必要に応じて `configs/ev_profiles/` を更新した。
 - [ ] README / [docs/documentation_portal.md](documentation_portal.md) の該当テーブルに state アーカイブ関連の手順が反映されているか確認した。
 
+## 擬似ライブ更新フロー（`scripts/update_state.py --simulate-live`）
+- 日次の状態調整は必ずドライランから開始する。
+  ```bash
+  python3 scripts/update_state.py \
+      --simulate-live \
+      --dry-run \
+      --max-delta 0.2 \
+      --var-cap 0.04 \
+      --liquidity-cap 5.0 \
+      --alert-mode auto \
+      --json-out out/state_update_preview.json
+  ```
+  - `stdout` / `--json-out` には `risk.var`（5% VaR）、`risk.liquidity_usage`、`diff.updated`（上位 20 件の差分）、`anomalies[]` が表示される。
+  - 擬似ライブモードでは `ops/state_archive/<strategy_key>/<symbol>/<mode>/<ts>_diff.json` が生成され、`status=applied|preview|blocked` と判定理由を記録する。ドライラン時はファイルを書き出さず JSON のみ確認する。
+- リスクガード
+  - `--max-delta` を超えるパラメータは `max_delta_exceeded` として `anomalies` に列挙される。
+  - `--var-cap` 超過（pips 単位の 5% 分位）、`--liquidity-cap` 超過（新規トレードの絶対数量合計）も同様に記録され、適用が拒否される。
+  - `override.status="disabled"` の場合は実行が常にプレビュー扱いとなり、`reason` に `override_disabled` が付与される。
+- オーバーライドの管理
+  - 停止: `python3 scripts/update_state.py --override-action disable --override-reason "maintenance"`（`--dry-run` でプレビュー可）。
+  - 再開: `python3 scripts/update_state.py --override-action enable --override-reason "resumed"`。
+  - 状態確認: `python3 scripts/update_state.py --override-action status`。フラグは `ops/state_archive/auto_adjust_override.json` に保存される。
+  - オーバーライドが無効状態のまま `--simulate-live` を流すと、`ops/state_archive/.../<ts>_diff.json` が `status=blocked` で更新案のみ残し、`state.json` は更新されない。
+- アラート
+  - 異常発生時は `notifications/emit_signal.py` を介して `signal_id=state_update_rollback` を送信する。Webhook は `SIGNAL_WEBHOOK_URLS` または `--alert-webhook` で指定し、ログは `ops/state_alert_latency.csv` / `ops/state_alerts.log` に追記される。
+  - `--alert-mode disable` で通知停止、`--alert-mode force` で異常が無くても送信を強制（`--dry-run` 時は `status=preview` のみ出力）。
+  - 差戻しトリガーが発火した場合、出力 JSON に `rollback_triggered=true` とアラート送信結果が含まれるので、`docs/progress_phase4.md` の該当週に証跡リンクを追記する。
+
 ## ロードチェックリスト
 - [ ] 自動ロードを有効化する manifest では、`ops/state_archive/...` の最新ファイルが参照されることを CLI ログで確認した。
 - [ ] 自動ロードを避けたいテストは manifest を複製し `auto_state: false` を明示した。
