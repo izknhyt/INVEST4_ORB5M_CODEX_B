@@ -1,5 +1,21 @@
 # フェーズ4 進捗レポート（検証とリリースゲート）
 
+- 2026-10-19: Day ORB 実験履歴 JSON 12 件を `python3 -m json.tool` で形式検証し、`run_id` / `dataset_sha256` / `dataset_rows` / `command` の必須フィールドが揃っていることを確認。`scripts/log_experiment.py` の dry-run で JSON 生成内容と指紋（rows=523,743 / SHA256=e8155a79cab613b9a9d9c72b994328b114f32e4d4b7f354c106e55ab711e4dd1）を再確認し、`metrics.json` 欠損時と既存 JSON への二重投入時に stderr へ警告が出ることを観測した（`Missing metrics.json` / `Run JSON already exists`）。`scripts/recover_experiment_history.py --from-json` で Parquet を再生成し、12 行・SHA256=b82357608b887c9131889e5bb4a9fbbc9e36d201847a71f9e569853a5414f56c を記録。検証として `python3 -m pytest tests/test_log_experiment.py tests/test_recover_experiment_history.py` を CI コマンドセットへ追加。
+
+  代表コマンド:
+
+  `for f in experiments/history/runs/*.json; do python3 -m json.tool "$f"; done`
+
+  `PYTHONPATH=. python3 scripts/log_experiment.py --run-dir runs/USDJPY_conservative_20250922_143631 --manifest-id day_orb_5m_v1 --mode conservative --commit-sha $(git rev-parse HEAD) --dry-run`
+
+  `PYTHONPATH=. python3 scripts/log_experiment.py --run-dir runs/USDJPY_conservative_20250922_143631 --manifest-id day_orb_5m_v1 --mode conservative --commit-sha $(git rev-parse HEAD)`
+
+  `PYTHONPATH=. python3 scripts/recover_experiment_history.py --from-json --parquet experiments/history/records.parquet`
+
+  `sha256sum experiments/history/records.parquet`
+
+  `PYTHONPATH=. python3 -m pytest tests/test_log_experiment.py tests/test_recover_experiment_history.py`
+
 - 2026-10-18: 擬似ライブ更新ガード（[設計 §2.4](plans/day_orb_optimization.md#24-adaptive-update--rollback)）を実装し、`scripts/update_state.py --simulate-live` に VAR / 流動性 / パラメータ差分の制限とロールバック通知を統合。`docs/state_runbook.md` のフローを更新し、オーバーライド/通知ハンドオフ手順を追記した。
 
   代表コマンド:
