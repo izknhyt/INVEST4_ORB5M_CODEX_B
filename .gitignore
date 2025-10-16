@@ -3,10 +3,14 @@ __pycache__/
 *.pyc
 *.log
 runs/
+!experiments/history/runs/
+!experiments/history/runs/*.json
 tests/runs_*/
 # 必要なら生データ
 *.csv
 *.parquet
+# Experiment history Parquet snapshots are generated via scripts/recover_experiment_history.py
+# and should not be committed (per-run JSON under experiments/history/runs/ remains tracked).
 *.feather
 !tests/data/
 !tests/data/*.csv

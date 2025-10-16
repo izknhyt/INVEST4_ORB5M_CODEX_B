@@ -1,5 +1,21 @@
 # フェーズ4 進捗レポート（検証とリリースゲート）
 
+- 2026-10-16: 実験履歴リポジトリ（[設計計画](plans/day_orb_optimization.md) §4.1）を立ち上げ、既存 Day ORB ラン 12 件を
+  `experiments/history/runs/*.json` へ移行（バイナリアーカイブは GitHub Web UI で拒否されるため、Parquet は生成物扱いに変更）。
+  `data/usdjpy_5m_2018-2024_utc.csv` の指紋は rows=523,743 /
+  SHA256=e8155a79cab613b9a9d9c72b994328b114f32e4d4b7f354c106e55ab711e4dd1。
+
+  代表コマンド:
+
+  `python3 scripts/log_experiment.py --run-dir runs/USDJPY_conservative_20250922_143631 --manifest-id day_orb_5m_v1 --mode conservative --commit-sha $(git rev-parse HEAD) --dataset-sha256 e8155a79cab613b9a9d9c72b994328b114f32e4d4b7f354c106e55ab711e4dd1 --dataset-rows 523743 --command "python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv data/usdjpy_5m_2018-2024_utc.csv --symbol USDJPY --mode conservative --out-dir runs"`
+
+  `python3 scripts/recover_experiment_history.py --from-json --json-dir experiments/history/runs --parquet experiments/history/records.parquet`
+
+  ローカルで履歴 Parquet が必要になった場合は上記 `recover_experiment_history.py` を実行して再生成する。生成物は
+  `.gitignore` により除外されるため、コミットするのは `runs/*.json` のみとする。
+
+  検証: `python3 -m pytest tests/test_log_experiment.py tests/test_recover_experiment_history.py`
+
 - 2026-10-15: `scripts/run_sim.py` が manifest 由来の RunnerConfig を `params.json` へ反映するよう調整し、`allow_low_rv` / `ev_mode` /
   `threshold_lcb` などのフィールドが `runs/index.csv` に正しく残ることを確認。再実行コマンドは以下の通り。
 
