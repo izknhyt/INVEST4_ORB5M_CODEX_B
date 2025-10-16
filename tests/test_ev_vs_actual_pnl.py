@@ -1,32 +1,12 @@
 from __future__ import annotations
 
-import sys
 import types
-from datetime import datetime
 from pathlib import Path
 
-
-class _DummyFrame:
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def to_dict(self, *args, **kwargs):
-        return {}
-
-    def to_csv(self, *args, **kwargs):
-        return None
+import pytest
 
 
-pd_stub = types.ModuleType("pandas")
-pd_stub.DataFrame = _DummyFrame
-pd_stub.Series = _DummyFrame
-pd_stub.Timestamp = datetime
-pd_stub.read_csv = lambda *args, **kwargs: _DummyFrame()
-pd_stub.to_datetime = lambda *args, **kwargs: None
-pd_stub.concat = lambda *args, **kwargs: _DummyFrame()
-pd_stub.isna = lambda value: value is None
-
-sys.modules.setdefault("pandas", pd_stub)
+pytest.importorskip("pandas")
 
 import scripts.ev_vs_actual_pnl as module
 

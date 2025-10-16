@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=../../schemas/day_orb_experiment.schema.json
+
 name: Day ORB Core Sweep
 summary: Parameter sweep configuration for the Day ORB 5m conservative baseline with risk and seasonal guardrails.
 manifest_path: configs/strategies/day_orb_5m.yaml
@@ -56,11 +58,21 @@ search_space:
     max: 0.40
     step: 0.05
     precision: 3
+  require_close_breakout:
+    path: strategy.parameters.require_close_breakout
+    type: choice
+    values: [false, true]
   cooldown_bars:
     path: strategy.parameters.cooldown_bars
     type: range
     min: 0
     max: 2
+    step: 1
+  retest_max_bars:
+    path: strategy.parameters.retest_max_bars
+    type: range
+    min: 2
+    max: 6
     step: 1
   max_loss_streak:
     path: strategy.parameters.max_loss_streak
@@ -70,6 +82,12 @@ search_space:
     path: strategy.parameters.max_daily_loss_pips
     type: choice
     values: [100.0, 120.0, 150.0]
+  max_daily_trade_count:
+    path: strategy.parameters.max_daily_trade_count
+    type: range
+    min: 4
+    max: 8
+    step: 1
   fallback_win_rate:
     path: strategy.parameters.fallback_win_rate
     type: choice
@@ -78,6 +96,23 @@ search_space:
     path: strategy.parameters.min_atr_pips
     type: choice
     values: [0.0, 2.0, 4.0]
+  max_atr_pips:
+    path: strategy.parameters.max_atr_pips
+    type: choice
+    values: [30.0, 40.0, 50.0]
+  min_micro_trend:
+    path: strategy.parameters.min_micro_trend
+    type: float_range
+    min: 0.00
+    max: 0.20
+    step: 0.05
+    precision: 2
+  max_signals_per_day:
+    path: strategy.parameters.max_signals_per_day
+    type: range
+    min: 2
+    max: 6
+    step: 1
   require_retest:
     path: strategy.parameters.require_retest
     type: choice
@@ -89,6 +124,17 @@ search_space:
     max: 0.30
     step: 0.05
     precision: 2
+  allow_low_rv:
+    path: runner.allow_low_rv
+    type: choice
+    values: [false, true]
+  size_floor_mult:
+    path: runner.size_floor_mult
+    type: float_range
+    min: 0.03
+    max: 0.08
+    step: 0.01
+    precision: 3
 constraints:
   - id: max_drawdown_limit
     metric: metrics.max_drawdown
@@ -100,11 +146,30 @@ constraints:
     op: ">="
     threshold: 0.20
     description: Overall Sharpe must be non-negative with margin for noise.
+  - id: win_rate_floor
+    metric: metrics.win_rate
+    op: ">="
+    threshold: 0.35
+    description: Ensure win rate stays above the historical break-even band.
+  - id: profit_factor_floor
+    metric: metrics.profit_factor
+    op: ">="
+    threshold: 0.90
+    description: Keep profit factor within acceptable drawdown risk tolerance.
   - id: trades_per_month_floor
     metric: metrics.trades_per_month
     op: ">="
     threshold: 18.0
     description: Average fills per month must sustain liquidity needs.
+  - id: seasonal_2019_h1
+    metric: seasonal.2019_h1.sharpe
+    op: ">="
+    threshold: -0.25
+    description: Pre-COVID seasonality must remain stable.
+  - id: seasonal_2019_h2
+    metric: seasonal.2019_h2.sharpe
+    op: ">="
+    threshold: -0.25
   - id: seasonal_2020_q1
     metric: seasonal.2020_q1.sharpe
     op: ">="
@@ -117,15 +182,45 @@ constraints:
     metric: seasonal.2021_h1.sharpe
     op: ">="
     threshold: 0.0
+  - id: seasonal_2021_h2
+    metric: seasonal.2021_h2.sharpe
+    op: ">="
+    threshold: 0.0
   - id: seasonal_2022_h1
     metric: seasonal.2022_h1.sharpe
     op: ">="
     threshold: 0.0
+  - id: seasonal_2022_h2
+    metric: seasonal.2022_h2.sharpe
+    op: ">="
+    threshold: -0.10
   - id: seasonal_2023_h1
     metric: seasonal.2023_h1.sharpe
     op: ">="
     threshold: 0.0
+  - id: seasonal_2023_h2
+    metric: seasonal.2023_h2.sharpe
+    op: ">="
+    threshold: -0.10
+  - id: seasonal_2024_h1
+    metric: seasonal.2024_h1.sharpe
+    op: ">="
+    threshold: -0.05
+  - id: seasonal_2024_h2
+    metric: seasonal.2024_h2.sharpe
+    op: ">="
+    threshold: -0.05
+  - id: seasonal_2025_ytd
+    metric: seasonal.2025_ytd.sharpe
+    op: ">="
+    threshold: -0.10
 seasonal_slices:
+  - id: 2019_h1
+    start: 2019-01-01
+    end: 2019-06-30
+  - id: 2019_h2
+    start: 2019-07-01
+    end: 2019-12-31
   - id: 2020_q1
     start: 2020-01-01
     end: 2020-03-31
@@ -135,12 +230,30 @@ seasonal_slices:
   - id: 2021_h1
     start: 2021-01-01
     end: 2021-06-30
+  - id: 2021_h2
+    start: 2021-07-01
+    end: 2021-12-31
   - id: 2022_h1
     start: 2022-01-01
     end: 2022-06-30
+  - id: 2022_h2
+    start: 2022-07-01
+    end: 2022-12-31
   - id: 2023_h1
     start: 2023-01-01
     end: 2023-06-30
+  - id: 2023_h2
+    start: 2023-07-01
+    end: 2023-12-31
+  - id: 2024_h1
+    start: 2024-01-01
+    end: 2024-06-30
+  - id: 2024_h2
+    start: 2024-07-01
+    end: 2024-12-31
+  - id: 2025_ytd
+    start: 2025-01-01
+    end: 2025-10-02
 scoring:
   objectives:
     - metric: metrics.sharpe

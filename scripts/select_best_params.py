@@ -81,6 +81,14 @@ def _build_candidate(
         "history": payload.get("history"),
         "result_path": _relative(result_path),
     }
+    metrics_path = payload.get("metrics_path")
+    if not metrics_path and payload.get("run_dir"):
+        metrics_path = Path(payload["run_dir"]) / "metrics.json"
+    if metrics_path:
+        candidate["metrics_path"] = _relative(Path(metrics_path))
+    dataset = payload.get("dataset")
+    if dataset:
+        candidate["dataset_fingerprint"] = dataset
     return candidate
 
 
@@ -100,6 +108,62 @@ def _summarise_constraints(candidate: Dict[str, Any]) -> Dict[str, Any]:
     return {"passed": len(constraints) - len(failed), "failed": failed}
 
 
+def _objective_vector(config: ExperimentConfig, candidate: Dict[str, Any]) -> Optional[List[float]]:
+    if not config.scoring.objectives:
+        return []
+    context = config.make_context(
+        params=candidate.get("params"),
+        metrics=candidate.get("metrics"),
+        seasonal=candidate.get("seasonal"),
+    )
+    values: List[float] = []
+    for term in config.scoring.objectives:
+        value = config.scoring._resolve_metric(context, term.metric)
+        if value is None:
+            return None
+        values.append(config.scoring._apply_goal(value, term.goal))
+    return values
+
+
+def _dominates(candidate_a: List[float], candidate_b: List[float]) -> bool:
+    better = False
+    for value_a, value_b in zip(candidate_a, candidate_b):
+        if value_a < value_b:
+            return False
+        if value_a > value_b:
+            better = True
+    return better
+
+
+def _pareto_front(config: ExperimentConfig, candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if not config.scoring.objectives:
+        return list(candidates)
+    vectors: Dict[int, List[float]] = {}
+    for item in candidates:
+        vector = _objective_vector(config, item)
+        if vector is None:
+            continue
+        vectors[id(item)] = vector
+    frontier: List[Dict[str, Any]] = []
+    for item in candidates:
+        vector = vectors.get(id(item))
+        if vector is None:
+            continue
+        dominated = False
+        for other in candidates:
+            if other is item:
+                continue
+            other_vector = vectors.get(id(other))
+            if other_vector is None:
+                continue
+            if _dominates(other_vector, vector):
+                dominated = True
+                break
+        if not dominated:
+            frontier.append(item)
+    return frontier
+
+
 def _build_payload(
     config: ExperimentConfig,
     runs_dir: Path,
@@ -110,10 +174,17 @@ def _build_payload(
 ) -> Dict[str, Any]:
     completed = [item for item in candidates if item.get("status") == "completed"]
     feasible = [item for item in completed if item.get("feasible")]
-    ranking = feasible[:top_k]
+    pareto_candidates = _pareto_front(config, feasible)
+    if pareto_candidates:
+        ordering_source = pareto_candidates
+    else:
+        ordering_source = feasible
+    ranking = _sort_candidates(ordering_source)[:top_k]
+    pareto_ids = {id(item) for item in pareto_candidates}
     for idx, item in enumerate(ranking, start=1):
         item["rank"] = idx
         item["constraints_summary"] = _summarise_constraints(item)
+        item["pareto_optimal"] = id(item) in pareto_ids
     payload: Dict[str, Any] = {
         "experiment": config.identifier,
         "config_path": _relative(config.path),
@@ -124,6 +195,7 @@ def _build_payload(
             "total": len(candidates),
             "completed": len(completed),
             "feasible": len(feasible),
+            "pareto": len(pareto_candidates),
         },
         "ranking": ranking,
     }
@@ -131,6 +203,7 @@ def _build_payload(
         infeasible = [item for item in completed if not item.get("feasible")]
         for entry in infeasible:
             entry["constraints_summary"] = _summarise_constraints(entry)
+            entry["pareto_optimal"] = False
         payload["infeasible"] = infeasible
     if config.history_notes:
         payload["notes"] = config.history_notes

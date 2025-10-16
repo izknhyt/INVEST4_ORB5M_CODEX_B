@@ -1,14 +1,301 @@
 {
   "experiment": "day_orb_core",
   "config_path": "configs/experiments/day_orb_core.yaml",
-  "generated_at": "2025-10-16T03:37:19Z",
-  "runs_dir": "runs/sweeps/day_orb_core_smoke",
-  "top_k": 3,
+  "generated_at": "2025-10-16T08:23:12Z",
+  "runs_dir": "runs/sweeps/day_orb_core",
+  "top_k": 5,
   "trials": {
-    "total": 2,
-    "completed": 0,
-    "feasible": 0
+    "total": 52,
+    "completed": 2,
+    "feasible": 1,
+    "pareto": 1
   },
-  "ranking": [],
+  "ranking": [
+    {
+      "trial_id": "manual_pass",
+      "seed": null,
+      "status": "completed",
+      "feasible": true,
+      "score": -42.06,
+      "score_breakdown": [
+        {
+          "metric": "metrics.sharpe",
+          "goal": "max",
+          "weight": 1.0,
+          "value": 0.42,
+          "contribution": 0.42,
+          "category": "objective",
+          "missing": false
+        },
+        {
+          "metric": "metrics.total_pips",
+          "goal": "max",
+          "weight": 0.01,
+          "value": 120.0,
+          "contribution": 1.2,
+          "category": "objective",
+          "missing": false
+        },
+        {
+          "metric": "metrics.trades_per_month",
+          "goal": "max",
+          "weight": 0.05,
+          "value": 22.0,
+          "contribution": 1.1,
+          "category": "objective",
+          "missing": false
+        },
+        {
+          "metric": "metrics.max_drawdown",
+          "goal": "max",
+          "weight": 0.5,
+          "value": -90.0,
+          "contribution": -45.0,
+          "category": "penalty",
+          "missing": false
+        },
+        {
+          "metric": "metrics.profit_factor",
+          "goal": "max",
+          "weight": 0.2,
+          "value": 1.1,
+          "contribution": 0.22000000000000003,
+          "category": "penalty",
+          "missing": false
+        }
+      ],
+      "tie_breaker_key": [
+        -90.0,
+        0.48
+      ],
+      "tie_breakers": [
+        {
+          "metric": "metrics.max_drawdown",
+          "goal": "max",
+          "value": -90.0
+        },
+        {
+          "metric": "metrics.win_rate",
+          "goal": "max",
+          "value": 0.48
+        }
+      ],
+      "constraints": {
+        "max_drawdown_limit": {
+          "metric": "metrics.max_drawdown",
+          "op": ">=",
+          "threshold": -120.0,
+          "value": -90.0,
+          "status": "pass",
+          "description": "Max drawdown (pips) must stay within the 120 pip guardrail."
+        },
+        "sharpe_floor": {
+          "metric": "metrics.sharpe",
+          "op": ">=",
+          "threshold": 0.2,
+          "value": 0.42,
+          "status": "pass",
+          "description": "Overall Sharpe must be non-negative with margin for noise."
+        },
+        "win_rate_floor": {
+          "metric": "metrics.win_rate",
+          "op": ">=",
+          "threshold": 0.35,
+          "value": 0.48,
+          "status": "pass",
+          "description": "Ensure win rate stays above the historical break-even band."
+        },
+        "profit_factor_floor": {
+          "metric": "metrics.profit_factor",
+          "op": ">=",
+          "threshold": 0.9,
+          "value": 1.1,
+          "status": "pass",
+          "description": "Keep profit factor within acceptable drawdown risk tolerance."
+        },
+        "trades_per_month_floor": {
+          "metric": "metrics.trades_per_month",
+          "op": ">=",
+          "threshold": 18.0,
+          "value": 22.0,
+          "status": "pass",
+          "description": "Average fills per month must sustain liquidity needs."
+        },
+        "seasonal_2019_h1": {
+          "metric": "seasonal.2019_h1.sharpe",
+          "op": ">=",
+          "threshold": -0.25,
+          "value": 0.15,
+          "status": "pass",
+          "description": "Pre-COVID seasonality must remain stable."
+        },
+        "seasonal_2019_h2": {
+          "metric": "seasonal.2019_h2.sharpe",
+          "op": ">=",
+          "threshold": -0.25,
+          "value": 0.15,
+          "status": "pass",
+          "description": null
+        },
+        "seasonal_2020_q1": {
+          "metric": "seasonal.2020_q1.sharpe",
+          "op": ">=",
+          "threshold": 0.0,
+          "value": 0.15,
+          "status": "pass",
+          "description": null
+        },
+        "seasonal_2020_q2": {
+          "metric": "seasonal.2020_q2.sharpe",
+          "op": ">=",
+          "threshold": 0.0,
+          "value": 0.15,
+          "status": "pass",
+          "description": null
+        },
+        "seasonal_2021_h1": {
+          "metric": "seasonal.2021_h1.sharpe",
+          "op": ">=",
+          "threshold": 0.0,
+          "value": 0.15,
+          "status": "pass",
+          "description": null
+        },
+        "seasonal_2021_h2": {
+          "metric": "seasonal.2021_h2.sharpe",
+          "op": ">=",
+          "threshold": 0.0,
+          "value": 0.15,
+          "status": "pass",
+          "description": null
+        },
+        "seasonal_2022_h1": {
+          "metric": "seasonal.2022_h1.sharpe",
+          "op": ">=",
+          "threshold": 0.0,
+          "value": 0.15,
+          "status": "pass",
+          "description": null
+        },
+        "seasonal_2022_h2": {
+          "metric": "seasonal.2022_h2.sharpe",
+          "op": ">=",
+          "threshold": -0.1,
+          "value": 0.15,
+          "status": "pass",
+          "description": null
+        },
+        "seasonal_2023_h1": {
+          "metric": "seasonal.2023_h1.sharpe",
+          "op": ">=",
+          "threshold": 0.0,
+          "value": 0.15,
+          "status": "pass",
+          "description": null
+        },
+        "seasonal_2023_h2": {
+          "metric": "seasonal.2023_h2.sharpe",
+          "op": ">=",
+          "threshold": -0.1,
+          "value": 0.15,
+          "status": "pass",
+          "description": null
+        },
+        "seasonal_2024_h1": {
+          "metric": "seasonal.2024_h1.sharpe",
+          "op": ">=",
+          "threshold": -0.05,
+          "value": 0.15,
+          "status": "pass",
+          "description": null
+        },
+        "seasonal_2024_h2": {
+          "metric": "seasonal.2024_h2.sharpe",
+          "op": ">=",
+          "threshold": -0.05,
+          "value": 0.15,
+          "status": "pass",
+          "description": null
+        },
+        "seasonal_2025_ytd": {
+          "metric": "seasonal.2025_ytd.sharpe",
+          "op": ">=",
+          "threshold": -0.1,
+          "value": 0.15,
+          "status": "pass",
+          "description": null
+        }
+      },
+      "params": {
+        "or_n": 6,
+        "k_tp": 1.4
+      },
+      "metrics": {
+        "sharpe": 0.42,
+        "total_pips": 120.0,
+        "trades_per_month": 22.0,
+        "max_drawdown": -90.0,
+        "win_rate": 0.48,
+        "profit_factor": 1.1
+      },
+      "seasonal": {
+        "2019_h1": {
+          "sharpe": 0.15
+        },
+        "2019_h2": {
+          "sharpe": 0.15
+        },
+        "2020_q1": {
+          "sharpe": 0.15
+        },
+        "2020_q2": {
+          "sharpe": 0.15
+        },
+        "2021_h1": {
+          "sharpe": 0.15
+        },
+        "2021_h2": {
+          "sharpe": 0.15
+        },
+        "2022_h1": {
+          "sharpe": 0.15
+        },
+        "2022_h2": {
+          "sharpe": 0.15
+        },
+        "2023_h1": {
+          "sharpe": 0.15
+        },
+        "2023_h2": {
+          "sharpe": 0.15
+        },
+        "2024_h1": {
+          "sharpe": 0.15
+        },
+        "2024_h2": {
+          "sharpe": 0.15
+        },
+        "2025_ytd": {
+          "sharpe": 0.15
+        }
+      },
+      "run_dir": "runs/manual_pass_run",
+      "command": null,
+      "history": null,
+      "result_path": "runs/sweeps/day_orb_core/manual_pass/result.json",
+      "metrics_path": "/workspace/INVEST4_ORB5M_CODEX_B/runs/manual_pass_run/metrics.json",
+      "dataset_fingerprint": {
+        "path": "validated/USDJPY/5m.csv",
+        "sha256": "85fa08f2224eb6119878f3689a5af617cb666eaab37c5acb7e3603c4bfda48d4",
+        "rows": 579578
+      },
+      "rank": 1,
+      "constraints_summary": {
+        "passed": 18,
+        "failed": []
+      },
+      "pareto_optimal": true
+    }
+  ],
   "notes": "Append successful runs to experiments/history via log_experiment."
 }
