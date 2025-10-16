@@ -166,6 +166,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - Record migration notes and verification commands in `docs/progress_phase4.md` and link the design doc (`docs/plans/day_orb_optimization.md`).
 - **Notes**: Blockers must stop downstream automation; capture any missing artefacts in `docs/todo_next.md` before closing.
 - 2026-10-16: Experiments history populated with 12 legacy Day ORB runs via the new logging CLI, dataset fingerprint (`data/usdjpy_5m_2018-2024_utc.csv` rows=523,743 / SHA256=e8155a79cab613b9a9d9c72b994328b114f32e4d4b7f354c106e55ab711e4dd1) recorded, recovery flow validated (`python3 scripts/recover_experiment_history.py --from-json ...`). See [docs/progress_phase4.md](progress_phase4.md).
+- 2026-10-19: JSON 監査で 12 件すべての `run_id` / `dataset_sha256` / `dataset_rows` / `command` が揃っていること、`python3 scripts/log_experiment.py` の dry-run 出力が既知の指紋（rows=523,743 / SHA256=e8155a79cab613b9a9d9c72b994328b114f32e4d4b7f354c106e55ab711e4dd1）を維持することを確認。`metrics.json` 欠損・既存 JSON への再投入で stderr に警告が出る挙動をキャプチャし、`python3 scripts/recover_experiment_history.py --from-json --parquet experiments/history/records.parquet` の結果（12 行・SHA256=b82357608b887c9131889e5bb4a9fbbc9e36d201847a71f9e569853a5414f56c）と pytest コマンドを DoD チェックリストへ追記した。詳細は [docs/progress_phase4.md](progress_phase4.md#フェーズ4-進捗レポート検証とリリースゲート) を参照。
 
 ### P0-21 Day ORB optimisation engine bring-up (Open)
 - **DoD**:
