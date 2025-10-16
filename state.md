@@ -1,6 +1,13 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-10-19: Audited the Day ORB experiment history bootstrap (P0-20) to keep JSON + Parquet assets consistent. Validated 12
+  JSON entries via `python3 -m json.tool`, confirmed `run_id` / `dataset_sha256` / `dataset_rows` / `command` coverage, and
+  inspected `scripts/log_experiment.py` behaviour: dry-run replay of `runs/USDJPY_conservative_20250922_143631`, missing
+  `metrics.json` raises `error: Missing metrics.json`, duplicate detection prints `error: Run JSON already exists`. Regenerated
+  `experiments/history/records.parquet` (`python3 scripts/recover_experiment_history.py --from-json --parquet
+  experiments/history/records.parquet`) observing 12 rows with SHA256=b82357608b887c9131889e5bb4a9fbbc9e36d201847a71f9e569853a5414f56c,
+  and added `python3 -m pytest tests/test_log_experiment.py tests/test_recover_experiment_history.py` to the CI command bundle.
 - 2026-10-18: Hardened the pseudo-live state update loop (P0-22). Extended `scripts/update_state.py --simulate-live` with
   bounded delta enforcement, VAR/liquidity caps, diff archival, override management, and alert routing via
   `notifications/emit_signal.py`. Updated `docs/state_runbook.md#擬似ライブ更新フロー（scriptsupdate_statepy---simulate-live）`,
