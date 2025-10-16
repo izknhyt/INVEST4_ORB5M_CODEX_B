@@ -1,5 +1,7 @@
 # Work State Log
 
+- 2026-10-22: Reset Day ORB simulation artefacts on user request by clearing `runs/*` and rebuilding the run index so fresh simulations start from a clean slate. Commands: `rm -rf runs/*`, `python3 scripts/rebuild_runs_index.py --runs-dir runs --out runs/index.csv`. Updated `docs/task_backlog.md` / `docs/todo_next.md` to reflect the temporary P0-23 task slot and removed it after completion. No code changes, so pytest was not re-run.
+
 ## Workflow Rule
 - 2026-10-22: Reconstructed the Day ORB optimisation detailed design sections (4.2–4.6) by diffing prior commits/tests for `run_param_sweep.py`, `select_best_params.py`, `summarize_strategy_gate.py`, `update_state.py`, and router portfolio tooling. Documented CLI contracts, JSON schemas, error handling, and regression suites, then linked the backlog plan anchors and added an explicit HTML anchor for `P4-04`. Commands: `rg 'day_orb_optimization_detailed_design' docs -n`, `markdownlint docs/day_orb_optimization_detailed_design.md docs/task_backlog.md` (tool missing in sandbox), `python3 -m pytest --maxfail=1 --disable-warnings -q`.
 - 2026-10-22: Integrated Bayes search into `scripts/run_param_sweep.py`, added the `bayes` schema example to `configs/experiments/day_orb_core.yaml`, preserved `search_metadata` in `scripts/select_best_params.py`, and executed `python3 -m pytest tests/test_run_param_sweep.py tests/test_select_best_params.py` to validate sequential retries, sweep summaries, and ranking retention.

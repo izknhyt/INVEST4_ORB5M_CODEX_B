@@ -1,5 +1,13 @@
 # フェーズ4 進捗レポート（検証とリリースゲート）
 
+- 2026-10-22: ユーザーのリセット要望に従い `runs/` 配下のシミュレーション成果物を全削除し、新規検証のための空インデックスを再生成。`rm -rf runs/*` 実行後に `python3 scripts/rebuild_runs_index.py --runs-dir runs --out runs/index.csv` を走らせ、ヘッダーのみの `runs/index.csv` を確認。`docs/task_backlog.md` と `state.md` にリセットログを追記し、次回以降のシミュレーションが新しい成果物パスを前提にするよう整理した。
+
+  代表コマンド:
+
+  `rm -rf runs/*`
+
+  `python3 scripts/rebuild_runs_index.py --runs-dir runs --out runs/index.csv`
+
 - 2026-10-20: Day ORB コア実験の探索パラメータと評価ハーネスを拡張。`configs/experiments/day_orb_core.yaml` に季節性スライスの全面展開と win rate / profit factor などの追加ガードを定義し、`schemas/day_orb_experiment.schema.json` を新設してスキーマコメントを更新した。`scripts/run_param_sweep.py` では per-trial `log.json` を集約し、成功と制約違反を同時に記録する dry-run を `runs/sweeps/day_orb_core` で再実行。`scripts/select_best_params.py` は Pareto front フィルタと `metrics_path` / `dataset_fingerprint` を含むランキング出力へ刷新し、モックテスト (`tests/test_run_param_sweep.py`, `tests/test_select_best_params.py`) で季節性フィルタと制約評価を検証した。
 
   代表コマンド:

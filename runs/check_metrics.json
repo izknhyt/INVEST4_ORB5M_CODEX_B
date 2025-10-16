@@ -1,1 +1,0 @@
-{"trades": 155, "wins": 89, "total_pips": -323.7901471899547, "debug": {"no_breakout": 125946, "gate_block": 177517, "ev_reject": 220098, "zero_qty": 0, "ev_bypass": 7}, "dump_csv": "runs/check_records.csv", "dump_rows": 500, "dump_daily": "runs/check_daily.csv"}

@@ -1,2 +1,0 @@
-csv,symbol,mode,equity,threshold_lcb,min_or_atr,rv_cuts,allow_low_rv,allowed_sessions,or_n,k_tp,k_sl,k_tr,warmup,dump_max
-data/usdjpy_5m_2018-2024_utc.csv,USDJPY,conservative,100000.0,,,,False,"LDN,NY",,,,,,200

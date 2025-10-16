@@ -26,6 +26,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 ## P0: 即着手（オンデマンドインジェスト + 基盤整備）
 
 **Status Update (2026-06-15)**: Live `data_quality_failure` alert validation remains on hold until production emits the first alert. Operational bandwidth is redirected toward P2 portfolio reporting deliverables and P3 observability automation planning.
+- 2026-10-22: Cleared archived Day ORB simulation artefacts (`runs/*`), rebuilt `runs/index.csv`, and synced the reset with `state.md` / `docs/todo_next.md` so new simulations start from a clean slate.
 - 2026-08-04: Hardened the Phase 4 auto-state resume flow so fingerprint mismatches no longer report `loaded_state` in metrics JSON, updated runner lifecycle APIs to surface load success, and captured regression coverage (`tests/test_run_sim_cli.py::test_run_sim_cli_omits_loaded_state_on_mismatch`).
 - 2026-08-03: Landed `scripts/compare_metrics.py` for Phase 4 diff automation, added pytest coverage, and logged the USDJPY validated dataset fingerprint + bug notebook template in `docs/progress_phase4.md` / `state.md` per W0 guardrails.
 - 2026-08-06: Extended `scripts/summarize_runs.py` with manifest-first `latest_runs` summaries and a `--latest-only` shortcut so ops can confirm the newest `run_id` per manifest from JSON; refreshed `docs/logic_overview.md`, `docs/benchmark_runbook.md`, and `docs/state_runbook.md` accordingly.
