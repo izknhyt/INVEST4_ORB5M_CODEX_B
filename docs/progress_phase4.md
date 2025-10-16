@@ -1,5 +1,15 @@
 # フェーズ4 進捗レポート（検証とリリースゲート）
 
+- 2026-10-20: Day ORB コア実験の探索パラメータと評価ハーネスを拡張。`configs/experiments/day_orb_core.yaml` に季節性スライスの全面展開と win rate / profit factor などの追加ガードを定義し、`schemas/day_orb_experiment.schema.json` を新設してスキーマコメントを更新した。`scripts/run_param_sweep.py` では per-trial `log.json` を集約し、成功と制約違反を同時に記録する dry-run を `runs/sweeps/day_orb_core` で再実行。`scripts/select_best_params.py` は Pareto front フィルタと `metrics_path` / `dataset_fingerprint` を含むランキング出力へ刷新し、モックテスト (`tests/test_run_param_sweep.py`, `tests/test_select_best_params.py`) で季節性フィルタと制約評価を検証した。
+
+  代表コマンド:
+
+  `python3 scripts/run_param_sweep.py --experiment configs/experiments/day_orb_core.yaml --search random --max-trials 50 --workers 4 --out runs/sweeps/day_orb_core --log-history --dry-run`
+
+  `python3 scripts/select_best_params.py --experiment day_orb_core --runs-dir runs/sweeps/day_orb_core --top-k 5 --out reports/simulations/day_orb_core/best_params.json`
+
+  `python3 -m pytest`
+
 - 2026-10-19: Day ORB 実験履歴 JSON 12 件を `python3 -m json.tool` で形式検証し、`run_id` / `dataset_sha256` / `dataset_rows` / `command` の必須フィールドが揃っていることを確認。`scripts/log_experiment.py` の dry-run で JSON 生成内容と指紋（rows=523,743 / SHA256=e8155a79cab613b9a9d9c72b994328b114f32e4d4b7f354c106e55ab711e4dd1）を再確認し、`metrics.json` 欠損時と既存 JSON への二重投入時に stderr へ警告が出ることを観測した（`Missing metrics.json` / `Run JSON already exists`）。`scripts/recover_experiment_history.py --from-json` で Parquet を再生成し、12 行・SHA256=b82357608b887c9131889e5bb4a9fbbc9e36d201847a71f9e569853a5414f56c を記録。検証として `python3 -m pytest tests/test_log_experiment.py tests/test_recover_experiment_history.py` を CI コマンドセットへ追加。
 
   代表コマンド:

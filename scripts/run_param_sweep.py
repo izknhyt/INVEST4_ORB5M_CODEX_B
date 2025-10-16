@@ -25,6 +25,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.utils import yaml_compat as yaml  # noqa: E402
+from experiments.history.utils import compute_dataset_fingerprint  # noqa: E402
 from scripts._param_sweep import (  # noqa: E402
     ExperimentConfig,
     evaluate_constraints,
@@ -230,6 +231,8 @@ class SweepRunner:
         self.base_manifest_data = yaml.safe_load(manifest_text)
         self.commit_sha: Optional[str] = None
         self.repo_root = ROOT
+        self.dataset_path = self._discover_dataset_path()
+        self.dataset_fingerprint = self._compute_dataset_fingerprint()
 
     def _apply_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         manifest_data = copy.deepcopy(self.base_manifest_data)
@@ -262,6 +265,33 @@ class SweepRunner:
         ], cwd=self.repo_root, check=True, capture_output=True, text=True)
         self.commit_sha = result.stdout.strip()
         return self.commit_sha
+
+    def _discover_dataset_path(self) -> Optional[Path]:
+        tokens = list(self.config.runner_cli)
+        for index, token in enumerate(tokens):
+            if token == "--csv" and index + 1 < len(tokens):
+                candidate = Path(tokens[index + 1])
+                if not candidate.is_absolute():
+                    candidate = (ROOT / candidate).resolve()
+                return candidate
+        return None
+
+    def _compute_dataset_fingerprint(self) -> Optional[Dict[str, Any]]:
+        if not self.dataset_path:
+            return None
+        try:
+            sha_value, rows = compute_dataset_fingerprint(self.dataset_path)
+        except FileNotFoundError:
+            return {
+                "path": _relative_path(self.dataset_path),
+                "sha256": None,
+                "rows": None,
+            }
+        return {
+            "path": _relative_path(self.dataset_path),
+            "sha256": sha_value,
+            "rows": rows,
+        }
 
     def _log_history(self, run_dir: Path, command: str) -> Dict[str, Any]:
         details: Dict[str, Any] = {"logged": False}
@@ -314,6 +344,8 @@ class SweepRunner:
             "timestamp": self.timestamp,
             "status": "planned",
         }
+        if self.dataset_fingerprint:
+            metadata["dataset"] = self.dataset_fingerprint
         if self.args.dry_run:
             metadata.update({"status": "dry_run", "duration_seconds": 0.0})
             _write_json(result_path, metadata)
@@ -373,6 +405,7 @@ class SweepRunner:
             {
                 "status": "completed",
                 "run_dir": _relative_path(run_dir),
+                "metrics_path": _relative_path(metrics_path),
                 "metrics": summary,
                 "seasonal": seasonal,
                 "constraints": constraints,
@@ -468,6 +501,75 @@ def _iter_grid(dimensions: Sequence) -> Iterable[Dict[str, Any]]:
         yield {key: value for key, value in zip(keys, combo)}
 
 
+def _build_log_entry(result_path: Path) -> Optional[Dict[str, Any]]:
+    if not result_path.exists():
+        return None
+    try:
+        payload = json.loads(result_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:  # pragma: no cover - defensive guard
+        return None
+    status = str(payload.get("status", "unknown"))
+    constraints = payload.get("constraints") or {}
+    failed = [cid for cid, entry in constraints.items() if (entry or {}).get("status") == "fail"]
+    feasible_value = payload.get("feasible")
+    if status == "completed":
+        if isinstance(feasible_value, bool):
+            feasible = feasible_value
+        else:
+            feasible = not failed
+    else:
+        feasible = bool(feasible_value)
+    entry = {
+        "trial_id": payload.get("trial_id"),
+        "status": status,
+        "feasible": feasible,
+        "constraints": constraints,
+        "failed_constraints": failed,
+        "score": payload.get("score"),
+        "result_path": _relative_path(result_path),
+        "run_dir": payload.get("run_dir"),
+        "metrics_path": payload.get("metrics_path"),
+    }
+    dataset = payload.get("dataset")
+    if dataset:
+        entry["dataset"] = dataset
+    return entry
+
+
+def _write_sweep_log(config: ExperimentConfig, output_dir: Path) -> None:
+    entries: List[Dict[str, Any]] = []
+    if not output_dir.exists():
+        return
+    for trial_dir in sorted([item for item in output_dir.iterdir() if item.is_dir()], key=lambda item: item.name):
+        result_path = trial_dir / "result.json"
+        entry = _build_log_entry(result_path)
+        if entry:
+            entries.append(entry)
+    summary = {
+        "total": len(entries),
+        "completed": sum(1 for item in entries if item.get("status") == "completed"),
+        "success": sum(
+            1
+            for item in entries
+            if item.get("status") == "completed" and bool(item.get("feasible"))
+        ),
+        "violations": sum(
+            1
+            for item in entries
+            if item.get("status") == "completed" and not bool(item.get("feasible"))
+        ),
+        "dry_run": sum(1 for item in entries if item.get("status") == "dry_run"),
+    }
+    payload = {
+        "experiment": config.identifier,
+        "config_path": _relative_path(config.path),
+        "generated_at": utcnow_iso(),
+        "entries": entries,
+        "summary": summary,
+    }
+    _write_json(output_dir / "log.json", payload)
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = _parse_args(argv)
     config = load_experiment_config(args.experiment)
@@ -494,6 +596,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "dry_run": args.dry_run,
     }
     _write_json(output_dir / "sweep_summary.json", summary)
+    _write_sweep_log(config, output_dir)
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0 if failures == 0 else 1
 

@@ -1,6 +1,7 @@
 # Work State Log
 
 ## Workflow Rule
+- 2026-10-20: Expanded the Day ORB optimisation sweep (P0-21). Broadened `configs/experiments/day_orb_core.yaml` with seasonal slices covering 2019–2025, win-rate/profit-factor guardrails, and linked the new `schemas/day_orb_experiment.schema.json` for editor validation. Updated `scripts/run_param_sweep.py` to emit consolidated `log.json` summaries (recording the manual success + violation fixtures alongside 50 dry-run plans) and enhanced `scripts/select_best_params.py` with Pareto-front filtering plus `metrics_path` / `dataset_fingerprint` metadata. Added mock-driven coverage in `tests/test_run_param_sweep.py` and `tests/test_select_best_params.py`, refreshed `docs/progress_phase4.md`, and executed `python3 scripts/run_param_sweep.py --experiment configs/experiments/day_orb_core.yaml --search random --max-trials 50 --workers 4 --out runs/sweeps/day_orb_core --log-history --dry-run`, `python3 scripts/select_best_params.py --experiment day_orb_core --runs-dir runs/sweeps/day_orb_core --top-k 5 --out reports/simulations/day_orb_core/best_params.json`, and `python3 -m pytest` to confirm the pipeline.
 - 2026-10-19: Audited the Day ORB experiment history bootstrap (P0-20) to keep JSON + Parquet assets consistent. Validated 12
   JSON entries via `python3 -m json.tool`, confirmed `run_id` / `dataset_sha256` / `dataset_rows` / `command` coverage, and
   inspected `scripts/log_experiment.py` behaviour: dry-run replay of `runs/USDJPY_conservative_20250922_143631`, missing
