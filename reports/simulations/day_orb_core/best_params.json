@@ -1,0 +1,14 @@
+{
+  "experiment": "day_orb_core",
+  "config_path": "configs/experiments/day_orb_core.yaml",
+  "generated_at": "2025-10-16T03:37:19Z",
+  "runs_dir": "runs/sweeps/day_orb_core_smoke",
+  "top_k": 3,
+  "trials": {
+    "total": 2,
+    "completed": 0,
+    "feasible": 0
+  },
+  "ranking": [],
+  "notes": "Append successful runs to experiments/history via log_experiment."
+}
