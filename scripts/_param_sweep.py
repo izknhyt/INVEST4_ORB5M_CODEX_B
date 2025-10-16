@@ -105,6 +105,115 @@ class SearchDimension:
 
 
 @dataclass(frozen=True)
+class BayesDimensionHint:
+    """Hints describing how a dimension should be interpreted by Bayes search."""
+
+    name: str
+    mode: str
+    transform: str = "identity"
+    bounds: Optional[Tuple[float, float]] = None
+
+    @classmethod
+    def from_dict(cls, name: str, data: Mapping[str, Any]) -> "BayesDimensionHint":
+        if not isinstance(data, Mapping):
+            raise ValueError(f"bayes dimension hint '{name}' must be a mapping")
+        mode = str(data.get("mode", "auto")).strip().lower()
+        if mode not in {"auto", "continuous", "discrete", "categorical"}:
+            raise ValueError(
+                f"bayes dimension hint '{name}' mode must be one of auto/continuous/discrete/categorical"
+            )
+        transform = str(data.get("transform", "identity")).strip().lower()
+        bounds_raw = data.get("bounds")
+        bounds: Optional[Tuple[float, float]] = None
+        if bounds_raw is not None:
+            if (
+                isinstance(bounds_raw, Sequence)
+                and len(bounds_raw) == 2
+                and all(isinstance(value, (int, float)) for value in bounds_raw)
+            ):
+                lower = float(bounds_raw[0])
+                upper = float(bounds_raw[1])
+                if upper <= lower:
+                    raise ValueError(
+                        f"bayes dimension hint '{name}' bounds must be strictly increasing"
+                    )
+                bounds = (lower, upper)
+            else:
+                raise ValueError(
+                    f"bayes dimension hint '{name}' bounds must be a sequence of two numbers"
+                )
+        return cls(name=name, mode=mode, transform=transform, bounds=bounds)
+
+
+@dataclass(frozen=True)
+class BayesAcquisitionConfig:
+    name: str
+    parameters: Dict[str, Any]
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "BayesAcquisitionConfig":
+        if not isinstance(data, Mapping):
+            raise ValueError("bayes acquisition configuration must be a mapping")
+        name_raw = data.get("name")
+        if not name_raw:
+            raise ValueError("bayes acquisition requires a name")
+        name = str(name_raw)
+        params = data.get("parameters") or {}
+        if not isinstance(params, Mapping):
+            raise ValueError("bayes acquisition parameters must be a mapping")
+        return cls(name=name, parameters=dict(params))
+
+
+@dataclass(frozen=True)
+class BayesConfig:
+    enabled: bool
+    seed: Optional[int]
+    acquisition: Optional[BayesAcquisitionConfig]
+    exploration_upper_bound: Optional[int]
+    initial_random_trials: int
+    constraint_retry_limit: int
+    transforms: Dict[str, BayesDimensionHint]
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "BayesConfig":
+        if not isinstance(data, Mapping):
+            raise ValueError("bayes configuration must be a mapping")
+        enabled = bool(data.get("enabled", True))
+        seed_raw = data.get("seed")
+        seed = int(seed_raw) if seed_raw is not None else None
+        acquisition_block = data.get("acquisition")
+        acquisition = (
+            BayesAcquisitionConfig.from_dict(acquisition_block)
+            if acquisition_block
+            else None
+        )
+        exploration_upper = data.get("exploration_upper_bound")
+        exploration_upper_bound = int(exploration_upper) if exploration_upper is not None else None
+        initial_random = int(data.get("initial_random_trials", 5))
+        if initial_random < 0:
+            raise ValueError("bayes.initial_random_trials must be >= 0")
+        retry_limit = int(data.get("constraint_retry_limit", 0))
+        if retry_limit < 0:
+            raise ValueError("bayes.constraint_retry_limit must be >= 0")
+        transforms_block = data.get("transforms") or {}
+        if not isinstance(transforms_block, Mapping):
+            raise ValueError("bayes.transforms must be a mapping")
+        transforms = {
+            name: BayesDimensionHint.from_dict(name, spec)
+            for name, spec in transforms_block.items()
+        }
+        return cls(
+            enabled=enabled,
+            seed=seed,
+            acquisition=acquisition,
+            exploration_upper_bound=exploration_upper_bound,
+            initial_random_trials=initial_random,
+            constraint_retry_limit=retry_limit,
+            transforms=transforms,
+        )
+
+
+@dataclass(frozen=True)
 class SeasonalSlice:
     """Defines a seasonal evaluation window."""
 
@@ -272,6 +381,7 @@ class ExperimentConfig:
     scoring: ScoreConfig
     history_enabled: bool
     history_notes: Optional[str]
+    bayes: Optional[BayesConfig]
 
     def __post_init__(self) -> None:
         self._dimension_map: Dict[str, SearchDimension] = {dim.name: dim for dim in self.dimensions}
@@ -306,6 +416,8 @@ class ExperimentConfig:
         history_block = data.get("history") or {}
         history_enabled = bool(history_block.get("enabled", False))
         history_notes = history_block.get("notes")
+        bayes_block = data.get("bayes")
+        bayes = BayesConfig.from_dict(bayes_block) if bayes_block else None
         return cls(
             path=path,
             identifier=identifier,
@@ -323,6 +435,7 @@ class ExperimentConfig:
             scoring=scoring,
             history_enabled=history_enabled,
             history_notes=str(history_notes) if history_notes else None,
+            bayes=bayes,
         )
 
     @property
@@ -432,6 +545,9 @@ def load_experiment_config(identifier: str | Path) -> ExperimentConfig:
 
 
 __all__ = [
+    "BayesAcquisitionConfig",
+    "BayesConfig",
+    "BayesDimensionHint",
     "ConstraintConfig",
     "ExperimentConfig",
     "ScoreConfig",
