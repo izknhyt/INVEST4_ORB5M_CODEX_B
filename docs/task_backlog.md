@@ -173,6 +173,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - Ship `scripts/select_best_params.py` that emits ranked candidates to `reports/simulations/day_orb_core/best_params.json` and logs provenance to the experiment history.
   - Update `docs/progress_phase4.md` with executed commands (sweep, selection) and refresh backlog anchors (`state.md`, `docs/todo_next.md`).
 - **Notes**: Initial delivery may skip Bayesian optimisation; flag the follow-up in P1 if deferred.
+- 2026-10-17: Delivered the core sweep loop by adding `configs/experiments/day_orb_core.yaml`, implementing `scripts/run_param_sweep.py` (grid/random search, seasonal metrics, constraint logging), and `scripts/select_best_params.py` (Pareto filter + JSON emitter). Logged the dry-run commands and outcomes in `docs/progress_phase4.md` and recorded the sweep footprint in `state.md`.
 
 ### P0-22 Pseudo-live adaptive guardrails (Open)
 - **DoD**:
