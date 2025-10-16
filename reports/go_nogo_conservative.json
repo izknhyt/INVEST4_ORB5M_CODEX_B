@@ -1,0 +1,66 @@
+{
+  "trades": 3,
+  "wins": 0.0,
+  "win_rate": 0.0,
+  "total_pips": -6.919889879343025,
+  "total_pnl_value": -69.19889879343025,
+  "sharpe": -9.826880762334284,
+  "max_drawdown": -69.19889879344555,
+  "equity_curve": [
+    [
+      "2018-01-02T08:24:59.999999Z",
+      100000.0
+    ],
+    [
+      "2018-01-02T08:25:00Z",
+      99974.71946362103
+    ],
+    [
+      "2018-01-02T13:30:00Z",
+      99957.35553198443
+    ],
+    [
+      "2018-01-03T08:25:00Z",
+      99930.80110120655
+    ]
+  ],
+  "runtime": {
+    "ev_pass": 3,
+    "ev_reject": 0,
+    "fills": 3,
+    "execution_health": {
+      "reject_rate": 0.0,
+      "slippage_bps": 0.4000000000000152
+    }
+  },
+  "debug": {
+    "csv_loader": {
+      "skipped_rows": 0
+    }
+  },
+  "decay": 0.02,
+  "manifest_id": "day_orb_5m_v1",
+  "symbol": "USDJPY",
+  "mode": "conservative",
+  "equity": 100000.0,
+  "router": [
+    {
+      "manifest_id": "day_orb_5m_v1",
+      "eligible": true,
+      "score": 0.2,
+      "reasons": [
+        "category headroom (headroom=40.0%, usage=0.0%, cap=40.0%, score_delta=+0.20)",
+        "category budget headroom (headroom=40.0%, usage=0.0%, cap=40.0%, status=ok, score_delta=+0.00)"
+      ],
+      "category": "day",
+      "tags": [
+        "orb",
+        "breakout"
+      ]
+    }
+  ],
+  "run_dir": "/workspace/INVEST4_ORB5M_CODEX_B/runs/go_nogo/conservative/USDJPY_conservative_20251016_095757",
+  "session_log": "/workspace/INVEST4_ORB5M_CODEX_B/runs/go_nogo/conservative/USDJPY_conservative_20251016_095757/session.log",
+  "checksums": "/workspace/INVEST4_ORB5M_CODEX_B/runs/go_nogo/conservative/USDJPY_conservative_20251016_095757/checksums.json",
+  "dump_daily": "/workspace/INVEST4_ORB5M_CODEX_B/reports/go_nogo_conservative_daily.csv"
+}
