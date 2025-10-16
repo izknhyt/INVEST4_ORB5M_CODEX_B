@@ -1,8 +1,11 @@
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+import pytest
 
 from core.utils import yaml_compat as yaml
 
@@ -43,6 +46,25 @@ def _write_test_config(path: Path, *, base_output: Path) -> None:
                 {"metric": "metrics.total_pips", "goal": "max"}
             ],
         },
+        "portfolio": {
+            "strategies": [
+                {
+                    "id": "day_orb_5m_v1",
+                    "use_trial_manifest": True,
+                    "use_trial_metrics": True,
+                    "position": 1,
+                }
+            ],
+            "var": {"confidence": 0.95},
+            "constraints": [
+                {
+                    "id": "portfolio_var_cap",
+                    "metric": "portfolio.var.portfolio_pct",
+                    "op": "<=",
+                    "threshold": 0.05,
+                }
+            ],
+        },
     }
     path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
 
@@ -54,6 +76,7 @@ def _write_trial(
     total_pips: float,
     trades_per_month: float,
     *,
+    portfolio_pct: float = 0.02,
     extra: Optional[Dict[str, Any]] = None,
 ) -> None:
     directory.mkdir()
@@ -69,6 +92,7 @@ def _write_trial(
         "seasonal": {"2024_h1": {"sharpe": 0.1}},
         "metrics_path": f"runs/{trial_id}/metrics.json",
         "dataset": {"path": "validated/USDJPY/5m.csv", "sha256": "abc", "rows": 579578},
+        "portfolio": {"var": {"portfolio_pct": portfolio_pct}},
     }
     if extra:
         payload.update(extra)
@@ -80,6 +104,7 @@ def test_select_best_params_pareto_filter(tmp_path):
     runs_dir = tmp_path / "runs"
     out_path = tmp_path / "best.json"
     runs_dir.mkdir()
+    portfolio_dir = tmp_path / "portfolio_exports"
     _write_test_config(config_path, base_output=runs_dir)
 
     _write_trial(runs_dir / "trial_a", "trial_a", sharpe=1.0, total_pips=40.0, trades_per_month=18.0)
@@ -97,6 +122,8 @@ def test_select_best_params_pareto_filter(tmp_path):
         "3",
         "--out",
         str(out_path),
+        "--portfolio-out",
+        str(portfolio_dir),
     ]
     result = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
@@ -112,7 +139,16 @@ def test_select_best_params_pareto_filter(tmp_path):
         assert entry["pareto_optimal"] is True
         assert entry["metrics_path"].endswith("metrics.json")
         assert entry["dataset_fingerprint"]["path"] == "validated/USDJPY/5m.csv"
+        assert entry["portfolio"]["var"]["portfolio_pct"] <= 0.05
     assert "trial_c" not in ranking_ids
+
+    stdout_payload = json.loads(result.stdout.strip())
+    assert "portfolio_output" in stdout_payload
+    portfolio_path = Path(stdout_payload["portfolio_output"])
+    assert portfolio_path.exists()
+    portfolio_payload = json.loads(portfolio_path.read_text(encoding="utf-8"))
+    assert portfolio_payload["ranking"][0]["portfolio"]["var"]["portfolio_pct"] <= 0.05
+    assert portfolio_payload["ranking"][0]["constraints_summary"]["failed"] == []
 
 
 def test_select_best_params_preserves_bayes_metadata(tmp_path):
@@ -162,4 +198,17 @@ def test_select_best_params_preserves_bayes_metadata(tmp_path):
     assert entry["params"]["or_n"] == 4
     assert entry["search_metadata"]["strategy"] == "bayes"
     assert entry["search_metadata"]["retry"] == 1
+    assert "portfolio" in entry
     assert entry["history"]["logged"] is True
+    stdout_payload = json.loads(result.stdout.strip())
+    assert "portfolio_output" in stdout_payload
+    portfolio_path = REPO_ROOT / Path(stdout_payload["portfolio_output"])
+    assert portfolio_path.exists()
+    portfolio_data = json.loads(portfolio_path.read_text(encoding="utf-8"))
+    assert portfolio_data["experiment"] == payload["experiment"]
+    assert portfolio_data["ranking"][0]["trial_id"] == "bayes_trial"
+    assert portfolio_data["ranking"][0]["portfolio"]["var"]["portfolio_pct"] == pytest.approx(0.02)
+    shutil.rmtree(portfolio_path.parent)
+    day_orb_dir = portfolio_path.parent.parent
+    if day_orb_dir.exists() and not any(day_orb_dir.iterdir()):
+        day_orb_dir.rmdir()

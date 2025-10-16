@@ -21,6 +21,30 @@ runner:
   equity: 100000.0
   use_years_from_data: true
   record_runtime: true
+portfolio:
+  telemetry_path: reports/portfolio_samples/router_demo/telemetry.json
+  strategies:
+    - id: day_orb_5m_v1
+      use_trial_manifest: true
+      use_trial_metrics: true
+      position: 1
+    - id: tokyo_micro_mean_reversion_v0
+      manifest_path: configs/strategies/tokyo_micro_mean_reversion.yaml
+      metrics_path: reports/portfolio_samples/router_demo/metrics/tokyo_micro_mean_reversion_v0.json
+      position: 2
+  var:
+    confidence: 0.95
+  constraints:
+    - id: portfolio_var_cap
+      metric: portfolio.var.portfolio_pct
+      op: "<="
+      threshold: 0.04
+      description: Portfolio 95% VaR must remain below 4% of equity
+    - id: day_category_budget_ceiling
+      metric: portfolio.state.category_budget_pct.day
+      op: "<="
+      threshold: 35.0
+      description: Day category budget must stay within governance allocation
 search_space:
   or_n:
     path: strategy.parameters.or_n

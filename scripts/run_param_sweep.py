@@ -25,11 +25,14 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from configs.strategies.loader import load_manifest  # noqa: E402
+from core.router_pipeline import PortfolioTelemetry, build_portfolio_state  # noqa: E402
 from core.utils import yaml_compat as yaml  # noqa: E402
 from experiments.history.utils import compute_dataset_fingerprint  # noqa: E402
 from scripts._param_sweep import (  # noqa: E402
     BayesConfig,
     ExperimentConfig,
+    PortfolioConfig,
     evaluate_constraints,
     load_experiment_config,
 )
@@ -73,6 +76,10 @@ def _parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--seed", type=int, help="Random seed for sampling order")
     parser.add_argument("--log-history", action="store_true", help="Log runs to experiments/history")
     parser.add_argument("--dry-run", action="store_true", help="Plan trials without executing run_sim")
+    parser.add_argument(
+        "--portfolio-config",
+        help="Optional portfolio configuration override (YAML file or inline mapping)",
+    )
     return parser.parse_args(argv)
 
 
@@ -100,6 +107,89 @@ def _relative_path(path: Path) -> str:
         return path.relative_to(ROOT).as_posix()
     except ValueError:
         return path.resolve().as_posix()
+
+
+def _normalise_equity_curve(curve_raw: Any) -> List[Tuple[str, float]]:
+    result: List[Tuple[str, float]] = []
+    if not isinstance(curve_raw, Sequence):
+        return result
+    for entry in curve_raw:
+        timestamp: Optional[str]
+        equity_value: Optional[float]
+        if isinstance(entry, Mapping):
+            timestamp = entry.get("timestamp") or entry.get("time") or entry.get("ts")
+            equity_raw = entry.get("equity") or entry.get("value")
+        elif isinstance(entry, Sequence) and len(entry) >= 2:
+            timestamp = entry[0]
+            equity_raw = entry[1]
+        else:
+            continue
+        if timestamp is None:
+            continue
+        try:
+            equity_value = float(equity_raw)
+        except (TypeError, ValueError):
+            continue
+        result.append((str(timestamp), equity_value))
+    result.sort(key=lambda item: item[0])
+    return result
+
+
+def _curve_returns(curve: Sequence[Tuple[str, float]]) -> Tuple[List[float], float]:
+    if not curve:
+        return [], 0.0
+    base_equity = float(curve[0][1]) if curve else 0.0
+    returns: List[float] = []
+    if base_equity == 0:
+        base_equity = 1.0
+    previous = curve[0][1]
+    for _, equity in curve[1:]:
+        try:
+            next_equity = float(equity)
+        except (TypeError, ValueError):
+            continue
+        returns.append((next_equity - previous) / base_equity)
+        previous = next_equity
+    return returns, float(curve[0][1]) if curve else 0.0
+
+
+def _combine_returns(
+    returns_map: Mapping[str, Sequence[float]], positions: Mapping[str, float]
+) -> List[float]:
+    if not returns_map:
+        return []
+    max_len = max(len(values) for values in returns_map.values())
+    if max_len == 0:
+        return []
+    combined = [0.0] * max_len
+    for key, values in returns_map.items():
+        weight = float(positions.get(key, 0.0))
+        for index, value in enumerate(values):
+            combined[index] += weight * float(value)
+    return combined
+
+
+def _historical_var(returns: Sequence[float], confidence: float) -> float:
+    if not returns:
+        return 0.0
+    if confidence <= 0 or confidence >= 1:
+        return 0.0
+    ordered = sorted(float(value) for value in returns)
+    if not ordered:
+        return 0.0
+    tail_probability = max(0.0, min(1.0, 1.0 - confidence))
+    if tail_probability == 0.0:
+        quantile = ordered[0]
+    else:
+        position = (len(ordered) - 1) * tail_probability
+        lower = math.floor(position)
+        upper = math.ceil(position)
+        if lower == upper:
+            quantile = ordered[int(position)]
+        else:
+            weight = position - lower
+            quantile = ordered[lower] * (1.0 - weight) + ordered[upper] * weight
+    return max(0.0, -quantile)
 
 
 def _compute_trades_per_month(daily: pd.DataFrame) -> float:
@@ -237,6 +327,9 @@ class SweepRunner:
         self.repo_root = ROOT
         self.dataset_path = self._discover_dataset_path()
         self.dataset_fingerprint = self._compute_dataset_fingerprint()
+        self.portfolio_config = self._resolve_portfolio_config()
+        self._portfolio_metrics_cache: Dict[Path, Dict[str, Any]] = {}
+        self.active_constraints = self.config.constraints_for(self.portfolio_config)
 
     def _apply_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         manifest_data = copy.deepcopy(self.base_manifest_data)
@@ -296,6 +389,185 @@ class SweepRunner:
             "sha256": sha_value,
             "rows": rows,
         }
+
+    def _resolve_portfolio_config(self) -> Optional[PortfolioConfig]:
+        override = getattr(self.args, "portfolio_config", None)
+        if override:
+            override_path = Path(str(override))
+            if not override_path.is_absolute():
+                override_path = (ROOT / override_path).resolve()
+            if not override_path.exists():
+                raise FileNotFoundError(f"portfolio configuration override not found: {override_path}")
+            payload = yaml.safe_load(override_path.read_text(encoding="utf-8")) or {}
+            if not isinstance(payload, Mapping):
+                raise ValueError("portfolio configuration override must be a mapping")
+            block = payload.get("portfolio") if isinstance(payload.get("portfolio"), Mapping) else payload
+            if not isinstance(block, Mapping):
+                raise ValueError("portfolio configuration override missing 'portfolio' mapping")
+            return PortfolioConfig.from_dict(block)
+        return self.config.portfolio
+
+    def _load_portfolio_metrics(self, path: Path) -> Optional[Mapping[str, Any]]:
+        cache_key = path.resolve()
+        cached = self._portfolio_metrics_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        try:
+            payload = json.loads(cache_key.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return None
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(payload, Mapping):
+            return None
+        self._portfolio_metrics_cache[cache_key] = dict(payload)
+        return self._portfolio_metrics_cache[cache_key]
+
+    def _compute_portfolio_report(
+        self,
+        *,
+        manifest_path: Path,
+        metrics_data: Mapping[str, Any],
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        cfg = self.portfolio_config
+        if not cfg:
+            return None, None
+        telemetry_payload: Dict[str, Any] = {}
+        if cfg.telemetry_path:
+            try:
+                telemetry_payload = json.loads(cfg.telemetry_path.read_text(encoding="utf-8"))
+            except FileNotFoundError:
+                telemetry_payload = {}
+            except json.JSONDecodeError:
+                telemetry_payload = {}
+        if cfg.telemetry:
+            telemetry_payload.update(copy.deepcopy(cfg.telemetry))
+        telemetry = PortfolioTelemetry(**telemetry_payload)
+        manifests: List[Any] = []
+        positions: Dict[str, float] = {}
+        strategies_summary: List[Dict[str, Any]] = []
+        returns_map: Dict[str, List[float]] = {}
+        base_equity_map: Dict[str, float] = {}
+        errors: List[str] = []
+
+        for strategy_cfg in cfg.strategies:
+            if strategy_cfg.use_trial_manifest:
+                manifest_source = manifest_path
+            else:
+                if not strategy_cfg.manifest_path:
+                    errors.append(f"strategy {strategy_cfg.id} missing manifest_path")
+                    continue
+                manifest_source = strategy_cfg.manifest_path
+            try:
+                manifest = load_manifest(manifest_source)
+            except FileNotFoundError as exc:
+                errors.append(str(exc))
+                continue
+            manifests.append(manifest)
+            strategy_id = manifest.id
+            positions[strategy_id] = float(strategy_cfg.position)
+            telemetry.active_positions[strategy_id] = int(round(strategy_cfg.position))
+            metrics_payload: Optional[Mapping[str, Any]]
+            if strategy_cfg.use_trial_metrics:
+                metrics_payload = metrics_data
+            else:
+                metrics_payload = None
+                if strategy_cfg.metrics_path:
+                    metrics_payload = self._load_portfolio_metrics(strategy_cfg.metrics_path)
+                    if metrics_payload is None:
+                        errors.append(
+                            f"metrics not found for strategy {strategy_cfg.id}: {strategy_cfg.metrics_path}"
+                        )
+            curve_raw = metrics_payload.get("equity_curve") if metrics_payload else None
+            curve = _normalise_equity_curve(curve_raw)
+            returns, base_equity = _curve_returns(curve)
+            if returns:
+                returns_map[strategy_id] = returns
+            if base_equity:
+                base_equity_map[strategy_id] = base_equity
+            summary_entry = {
+                "id": strategy_id,
+                "name": manifest.name,
+                "position": float(strategy_cfg.position),
+                "use_trial_manifest": strategy_cfg.use_trial_manifest,
+                "use_trial_metrics": strategy_cfg.use_trial_metrics,
+            }
+            if strategy_cfg.manifest_path:
+                summary_entry["manifest_path"] = _relative_path(strategy_cfg.manifest_path)
+            else:
+                summary_entry["manifest_path"] = _relative_path(manifest_path)
+            if strategy_cfg.metrics_path:
+                summary_entry["metrics_path"] = _relative_path(strategy_cfg.metrics_path)
+            strategies_summary.append(summary_entry)
+
+        if not manifests:
+            return None, None
+
+        portfolio_state = build_portfolio_state(manifests, telemetry=telemetry)
+        state_payload: Dict[str, Any] = {
+            "active_positions": dict(portfolio_state.active_positions),
+            "category_utilisation_pct": dict(portfolio_state.category_utilisation_pct),
+            "category_caps_pct": dict(portfolio_state.category_caps_pct),
+            "category_headroom_pct": dict(portfolio_state.category_headroom_pct),
+            "category_budget_pct": dict(portfolio_state.category_budget_pct),
+            "category_budget_headroom_pct": dict(portfolio_state.category_budget_headroom_pct),
+            "gross_exposure_pct": portfolio_state.gross_exposure_pct,
+            "gross_exposure_cap_pct": portfolio_state.gross_exposure_cap_pct,
+            "gross_exposure_headroom_pct": portfolio_state.gross_exposure_headroom_pct,
+            "strategy_correlations": dict(portfolio_state.strategy_correlations),
+            "correlation_meta": portfolio_state.correlation_meta,
+            "correlation_window_minutes": portfolio_state.correlation_window_minutes,
+        }
+        if portfolio_state.execution_health:
+            state_payload["execution_health"] = portfolio_state.execution_health
+
+        per_strategy_var = {
+            key: _historical_var(values, cfg.var.confidence)
+            for key, values in returns_map.items()
+            if values
+        }
+        aggregated_returns = _combine_returns(returns_map, positions)
+        portfolio_var_pct = _historical_var(aggregated_returns, cfg.var.confidence)
+        base_equity = float(self.config.runner_equity or 0.0)
+        if base_equity <= 0:
+            base_equity = next((value for value in base_equity_map.values() if value > 0), 0.0)
+        if base_equity <= 0 and base_equity_map:
+            weighted_sum = 0.0
+            weight_total = 0.0
+            for key, value in base_equity_map.items():
+                weight = abs(positions.get(key, 0.0))
+                weighted_sum += value * weight
+                weight_total += weight
+            if weight_total > 0:
+                base_equity = weighted_sum / weight_total
+        var_payload: Dict[str, Any] = {
+            "confidence": cfg.var.confidence,
+            "horizon_days": cfg.var.horizon_days,
+            "portfolio_pct": portfolio_var_pct,
+        }
+        if base_equity > 0:
+            var_payload["portfolio_value"] = portfolio_var_pct * base_equity
+        if per_strategy_var:
+            var_payload["per_strategy_pct"] = per_strategy_var
+
+        positions_payload = {key: float(value) for key, value in positions.items()}
+        portfolio_payload: Dict[str, Any] = {
+            "strategies": strategies_summary,
+            "positions": positions_payload,
+            "state": state_payload,
+            "var": var_payload,
+        }
+        if cfg.telemetry_path:
+            portfolio_payload["telemetry_source"] = _relative_path(cfg.telemetry_path)
+        if errors:
+            portfolio_payload["errors"] = errors
+
+        portfolio_context = {
+            "positions": positions_payload,
+            "state": state_payload,
+            "var": var_payload,
+        }
+        return portfolio_payload, portfolio_context
 
     def _log_history(self, run_dir: Path, command: str) -> Dict[str, Any]:
         details: Dict[str, Any] = {"logged": False}
@@ -404,8 +676,16 @@ class SweepRunner:
             equity=self.config.runner_equity,
             years_from_data=self.config.use_years_from_data,
         )
-        context = self.config.make_context(params=spec.params, metrics=summary, seasonal=seasonal)
-        constraints, feasible = evaluate_constraints(context, self.config.constraints)
+        portfolio_payload, portfolio_context = self._compute_portfolio_report(
+            manifest_path=manifest_override, metrics_data=metrics_data
+        )
+        context = self.config.make_context(
+            params=spec.params,
+            metrics=summary,
+            seasonal=seasonal,
+            portfolio=portfolio_context,
+        )
+        constraints, feasible = evaluate_constraints(context, self.active_constraints)
         score, breakdown = self.config.scoring.compute(context)
         metadata.update(
             {
@@ -421,6 +701,8 @@ class SweepRunner:
                 "tie_breakers": self.config.scoring.tie_breaker_values(context),
             }
         )
+        if portfolio_payload is not None:
+            metadata["portfolio"] = portfolio_payload
         history_info = self._log_history(run_dir, command_str)
         if history_info:
             metadata["history"] = history_info

@@ -6,7 +6,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -26,6 +26,13 @@ def _parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--runs-dir", help="Directory containing sweep trial folders")
     parser.add_argument("--top-k", type=int, default=5, help="Number of candidates to keep")
     parser.add_argument("--out", help="Output path for best parameter JSON")
+    parser.add_argument(
+        "--portfolio-out",
+        help=(
+            "Optional path or directory for exporting portfolio metrics summary. "
+            "Defaults to reports/day_orb/<experiment>/portfolio_candidates.json when unset"
+        ),
+    )
     parser.add_argument("--include-infeasible", action="store_true", help="List infeasible trials in the output")
     return parser.parse_args(argv)
 
@@ -59,8 +66,14 @@ def _build_candidate(
     params = payload.get("params", {})
     metrics = payload.get("metrics", {})
     seasonal = payload.get("seasonal", {})
-    context = config.make_context(params=params, metrics=metrics, seasonal=seasonal)
-    constraints, feasible = evaluate_constraints(context, config.constraints)
+    portfolio = payload.get("portfolio")
+    context = config.make_context(
+        params=params,
+        metrics=metrics,
+        seasonal=seasonal,
+        portfolio=portfolio,
+    )
+    constraints, feasible = evaluate_constraints(context, config.constraints_for())
     score, breakdown = config.scoring.compute(context)
     tie_key = config.scoring.tie_breaker_key(context)
     candidate = {
@@ -91,6 +104,8 @@ def _build_candidate(
     dataset = payload.get("dataset")
     if dataset:
         candidate["dataset_fingerprint"] = dataset
+    if portfolio is not None:
+        candidate["portfolio"] = portfolio
     return candidate
 
 
@@ -117,6 +132,7 @@ def _objective_vector(config: ExperimentConfig, candidate: Dict[str, Any]) -> Op
         params=candidate.get("params"),
         metrics=candidate.get("metrics"),
         seasonal=candidate.get("seasonal"),
+        portfolio=candidate.get("portfolio"),
     )
     values: List[float] = []
     for term in config.scoring.objectives:
@@ -212,6 +228,53 @@ def _build_payload(
     return payload
 
 
+def _build_portfolio_summary(payload: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
+    ranking = payload.get("ranking") or []
+    records: List[Dict[str, Any]] = []
+    for entry in ranking:
+        portfolio = entry.get("portfolio")
+        if not portfolio:
+            continue
+        record = {
+            "trial_id": entry.get("trial_id"),
+            "rank": entry.get("rank"),
+            "feasible": entry.get("feasible"),
+            "score": entry.get("score"),
+            "constraints_summary": entry.get("constraints_summary"),
+            "pareto_optimal": entry.get("pareto_optimal"),
+            "portfolio": portfolio,
+        }
+        records.append(record)
+    if not records:
+        return None
+    summary: Dict[str, Any] = {
+        "experiment": payload.get("experiment"),
+        "generated_at": payload.get("generated_at"),
+        "runs_dir": payload.get("runs_dir"),
+        "top_k": payload.get("top_k"),
+        "trials": payload.get("trials"),
+        "ranking": records,
+    }
+    notes = payload.get("notes")
+    if notes is not None:
+        summary["notes"] = notes
+    return summary
+
+
+def _resolve_portfolio_output_path(
+    config: ExperimentConfig, path_hint: Optional[str], *, default_enabled: bool
+) -> Optional[Path]:
+    if path_hint:
+        candidate = Path(path_hint)
+        if candidate.suffix:
+            return candidate.resolve()
+        return (candidate / "portfolio_candidates.json").resolve()
+    if not default_enabled:
+        return None
+    default_dir = ROOT / "reports" / "day_orb" / config.identifier
+    return (default_dir / "portfolio_candidates.json").resolve()
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = _parse_args(argv)
     config = load_experiment_config(args.experiment)
@@ -244,7 +307,27 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps({"output": _relative(out_path), "feasible": payload["trials"]["feasible"]}, ensure_ascii=False))
+    portfolio_summary = _build_portfolio_summary(payload)
+    portfolio_output: Optional[Path] = None
+    if portfolio_summary is not None:
+        portfolio_output = _resolve_portfolio_output_path(
+            config,
+            args.portfolio_out,
+            default_enabled=config.portfolio is not None,
+        )
+        if portfolio_output is not None:
+            portfolio_output.parent.mkdir(parents=True, exist_ok=True)
+            portfolio_output.write_text(
+                json.dumps(portfolio_summary, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+    output_payload: Dict[str, Any] = {
+        "output": _relative(out_path),
+        "feasible": payload["trials"]["feasible"],
+    }
+    if portfolio_output is not None:
+        output_payload["portfolio_output"] = _relative(portfolio_output)
+    print(json.dumps(output_payload, ensure_ascii=False))
     return 0
 
 

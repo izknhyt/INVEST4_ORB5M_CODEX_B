@@ -105,6 +105,107 @@ def test_load_experiment_config_includes_bayes_section():
     assert hint.bounds == (0.15, 0.4)
 
 
+def test_compute_portfolio_report_generates_state_and_var(tmp_path):
+    telemetry_payload = {
+        "active_positions": {"day_orb_5m_v1": 1, "tokyo_micro_mean_reversion_v0": 1},
+        "category_utilisation_pct": {"day": 12.0, "scalping": 6.0},
+        "category_caps_pct": {"day": 40.0, "scalping": 25.0},
+        "category_budget_pct": {"day": 35.0, "scalping": 15.0},
+        "category_budget_headroom_pct": {"day": 23.0, "scalping": 9.0},
+        "strategy_correlations": {"day_orb_5m_v1": {"tokyo_micro_mean_reversion_v0": 0.3}},
+    }
+    telemetry_path = tmp_path / "telemetry.json"
+    telemetry_path.write_text(json.dumps(telemetry_payload), encoding="utf-8")
+
+    peer_curve = [
+        ["2025-01-01T00:00:00Z", 100000.0],
+        ["2025-01-02T00:00:00Z", 100800.0],
+        ["2025-01-03T00:00:00Z", 100400.0],
+    ]
+    peer_metrics_path = tmp_path / "peer_metrics.json"
+    peer_metrics_path.write_text(json.dumps({"equity_curve": peer_curve}), encoding="utf-8")
+
+    config_payload: Dict[str, Any] = {
+        "name": "portfolio-test",
+        "manifest_path": str(sweep.ROOT / "configs/strategies/day_orb_5m.yaml"),
+        "runner": {"base_cli": []},
+        "search_space": {},
+        "constraints": [],
+        "seasonal_slices": [],
+        "scoring": {},
+        "portfolio": {
+            "telemetry_path": str(telemetry_path),
+            "strategies": [
+                {
+                    "id": "day_orb_5m_v1",
+                    "use_trial_manifest": True,
+                    "use_trial_metrics": True,
+                    "position": 1,
+                },
+                {
+                    "id": "tokyo_micro_mean_reversion_v0",
+                    "manifest_path": str(sweep.ROOT / "configs/strategies/tokyo_micro_mean_reversion.yaml"),
+                    "metrics_path": str(peer_metrics_path),
+                    "position": 1,
+                },
+            ],
+            "var": {"confidence": 0.95},
+        },
+    }
+    config_path = tmp_path / "experiment.yaml"
+    config_path.write_text(yaml.safe_dump(config_payload, sort_keys=False), encoding="utf-8")
+    config = load_experiment_config(config_path)
+
+    args = SimpleNamespace(
+        search="grid",
+        workers=1,
+        max_trials=0,
+        out=None,
+        seed=None,
+        log_history=False,
+        dry_run=False,
+        portfolio_config=None,
+    )
+    runner = sweep.SweepRunner(config, args, timestamp="20240101_000000")
+
+    metrics_data = {
+        "equity_curve": [
+            ["2025-01-01T00:00:00Z", 100000.0],
+            ["2025-01-02T00:00:00Z", 101000.0],
+            ["2025-01-03T00:00:00Z", 100500.0],
+        ]
+    }
+    portfolio_payload, portfolio_context = runner._compute_portfolio_report(
+        manifest_path=config.manifest_path, metrics_data=metrics_data
+    )
+
+    assert portfolio_payload is not None
+    assert portfolio_context is not None
+    assert portfolio_payload["state"]["category_budget_pct"]["day"] == pytest.approx(35.0)
+    assert portfolio_context["positions"]["day_orb_5m_v1"] == pytest.approx(1.0)
+
+    trial_returns, _ = sweep._curve_returns(
+        sweep._normalise_equity_curve(metrics_data["equity_curve"])
+    )
+    peer_payload = json.loads(peer_metrics_path.read_text(encoding="utf-8"))
+    peer_returns, _ = sweep._curve_returns(
+        sweep._normalise_equity_curve(peer_payload["equity_curve"])
+    )
+    combined_returns = sweep._combine_returns(
+        {
+            "day_orb_5m_v1": trial_returns,
+            "tokyo_micro_mean_reversion_v0": peer_returns,
+        },
+        {
+            "day_orb_5m_v1": 1.0,
+            "tokyo_micro_mean_reversion_v0": 1.0,
+        },
+    )
+    expected_var = sweep._historical_var(combined_returns, 0.95)
+    assert portfolio_payload["var"]["portfolio_pct"] == pytest.approx(expected_var)
+    assert portfolio_context["var"]["portfolio_pct"] == pytest.approx(expected_var)
+
+
 def test_bayes_runner_retries_and_summary(tmp_path, monkeypatch):
     manifest_path = tmp_path / "manifest.yaml"
     manifest_path.write_text("strategy:\n  parameters:\n    k_tp: 1.5\n", encoding="utf-8")

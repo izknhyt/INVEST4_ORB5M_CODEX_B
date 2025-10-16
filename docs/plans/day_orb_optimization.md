@@ -28,7 +28,9 @@
   - `--search grid|random|bayes`
   - `--score sharpe:max --constraint dd:0.05 --constraint trades_per_month:20`
   - seasonal scoring (`--subperiod 2022Q1` etc.) to guard against regime bias.
+  - portfolio overrides via `--portfolio-config <path-or-inline-yaml>` for testing alternative allocations without editing the base experiment YAML.
 - `python3 scripts/select_best_params.py --experiment day_orb_core --out reports/simulations/day_orb_core/best_params.json` filters to feasible Pareto front and writes ranked candidates.
+- Portfolio-aware sweeps populate each `runs/sweeps/<trial>/result.json` with a `portfolio` block covering router telemetry headroom, correlation matrix, and historical VaR. The ranked output mirrors this data so constraint breaches can be audited from a single file.
 
 ### 2.3 Gate Diagnostics
 - Extend `scripts/summarize_strategy_gate.py` to compute per-reason EV loss & volume gap; store JSON at `reports/day_orb/gate_breakdown_<run_id>.json` and Markdown at `reports/day_orb/gate_diagnostics_<date>.md`.
@@ -45,6 +47,7 @@
   - `python3 scripts/build_router_snapshot.py --output runs/router_pipeline/day_orb --manifest configs/strategies/day_orb_5m.yaml --manifest configs/strategies/tokyo_micro_mean_reversion.yaml --manifest-run day_orb_5m_v1=reports/portfolio_samples/router_demo/metrics/day_orb_5m_v1.json --manifest-run tokyo_micro_mean_reversion_v0=reports/portfolio_samples/router_demo/metrics/tokyo_micro_mean_reversion_v0.json --positions day_orb_5m_v1=1 --positions tokyo_micro_mean_reversion_v0=1 --correlation-window-minutes 240 --indent 2`
   - `python3 scripts/report_portfolio_summary.py --input runs/router_pipeline/day_orb --output reports/portfolio_summary_day_orb.json --indent 2`
   These commands provide the Go/No-Go sanity check without requiring new tooling.
+- Ranked sweeps export portfolio risk artefacts at `reports/day_orb/<experiment>/portfolio_candidates.json`, keeping VaR/correlation statistics alongside constraint summaries for downstream reporting.
 
 ### 2.6 Reporting & Approvals
 - `python3 scripts/generate_experiment_report.py --experiment day_orb_core --out reports/experiments/day_orb_core_2026w32.md`
@@ -58,10 +61,11 @@
 3. Append notes to `state.md`, ship alerts if thresholds breached.
 
 ### 3.2 Weekly
-1. `python3 scripts/run_param_sweep.py --experiment day_orb_core --search bayes --max-trials 300 --workers 4`.
-2. `python3 scripts/select_best_params.py --experiment day_orb_core --out reports/simulations/day_orb_core/best_params.json`.
+1. `python3 scripts/run_param_sweep.py --experiment day_orb_core --search bayes --max-trials 300 --workers 4 --portfolio-config configs/experiments/day_orb_core.yaml`.
+2. `python3 scripts/select_best_params.py --experiment day_orb_core --out reports/simulations/day_orb_core/best_params.json --portfolio-out reports/day_orb/day_orb_core`.
 3. `python3 scripts/generate_experiment_report.py --experiment day_orb_core`.
 4. `python3 scripts/propose_param_update.py --experiment day_orb_core --best reports/simulations/day_orb_core/best_params.json` to start approval.
+   - Review `reports/simulations/day_orb_core/best_params.json` → `ranking[].portfolio` and the aggregated `reports/day_orb/day_orb_core/portfolio_candidates.json` to confirm category utilisation, VaR, and correlation headroom before filing Go/No-Go notes.
 
 ### 3.3 Go/No-Go
 - Review Markdown packet + artefacts.

@@ -1,5 +1,7 @@
 # Work State Log
 
+- 2026-10-23: Extended the Day ORB sweep + ranking toolchain with portfolio risk outputs. `scripts/run_param_sweep.py` now loads portfolio blocks (or `--portfolio-config` overrides) and injects category utilisation, VaR, and correlation metrics into each trial `result.json`, while `scripts/select_best_params.py --portfolio-out` mirrors the data into `reports/day_orb/<experiment>/portfolio_candidates.json`. Synced the experiment schema/config + optimisation plan docs with usage notes, updated progress logs, and seeded dashboard turnover fixtures so regressions keep passing after the run archive reset. Commands: `python3 scripts/run_param_sweep.py --experiment configs/experiments/day_orb_core.yaml --search random --max-trials 4 --workers 1 --dry-run --portfolio-config configs/experiments/day_orb_core.yaml --out tmp/sweeps/day_orb_core_demo`, `python3 scripts/select_best_params.py --experiment configs/experiments/day_orb_core.yaml --runs-dir tmp/sweeps/day_orb_core_demo --out tmp/sweeps/day_orb_core_demo/best_params.json --portfolio-out reports/day_orb/day_orb_core`, `python3 -m pytest`.
+
 - 2026-10-22: Reset Day ORB simulation artefacts on user request by clearing `runs/*` and rebuilding the run index so fresh simulations start from a clean slate. Commands: `rm -rf runs/*`, `python3 scripts/rebuild_runs_index.py --runs-dir runs --out runs/index.csv`. Updated `docs/task_backlog.md` / `docs/todo_next.md` to reflect the temporary P0-23 task slot and removed it after completion. No code changes, so pytest was not re-run.
 
 ## Workflow Rule

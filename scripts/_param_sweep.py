@@ -264,6 +264,120 @@ class ConstraintConfig:
 
 
 @dataclass(frozen=True)
+class PortfolioStrategyConfig:
+    """Configuration describing a strategy included in portfolio evaluation."""
+
+    id: str
+    manifest_path: Optional[Path]
+    metrics_path: Optional[Path]
+    position: float
+    use_trial_manifest: bool
+    use_trial_metrics: bool
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "PortfolioStrategyConfig":
+        if not isinstance(data, Mapping):
+            raise ValueError("portfolio.strategies entries must be mappings")
+        strategy_id = str(data.get("id") or "").strip()
+        if not strategy_id:
+            raise ValueError("portfolio strategies require an id")
+        manifest_raw = data.get("manifest_path")
+        manifest_path = None
+        if manifest_raw:
+            manifest_path = (REPO_ROOT / str(manifest_raw)).resolve()
+        metrics_raw = data.get("metrics_path")
+        metrics_path = None
+        if metrics_raw:
+            metrics_path = (REPO_ROOT / str(metrics_raw)).resolve()
+        position = float(data.get("position", 1.0) or 0.0)
+        use_trial_manifest = bool(data.get("use_trial_manifest", False))
+        use_trial_metrics = bool(data.get("use_trial_metrics", False))
+        if not manifest_path and not use_trial_manifest:
+            raise ValueError(
+                f"portfolio strategy '{strategy_id}' requires manifest_path or use_trial_manifest=true"
+            )
+        if not metrics_path and not use_trial_metrics:
+            raise ValueError(
+                f"portfolio strategy '{strategy_id}' requires metrics_path or use_trial_metrics=true"
+            )
+        return cls(
+            id=strategy_id,
+            manifest_path=manifest_path,
+            metrics_path=metrics_path,
+            position=position,
+            use_trial_manifest=use_trial_manifest,
+            use_trial_metrics=use_trial_metrics,
+        )
+
+
+@dataclass(frozen=True)
+class PortfolioVaRConfig:
+    """Configuration for historical VaR evaluation."""
+
+    confidence: float = 0.95
+    horizon_days: int = 1
+
+    @classmethod
+    def from_dict(cls, data: Optional[Mapping[str, Any]]) -> "PortfolioVaRConfig":
+        if not data:
+            return cls()
+        confidence_raw = data.get("confidence")
+        confidence = float(confidence_raw) if confidence_raw is not None else 0.95
+        if confidence <= 0 or confidence >= 1:
+            raise ValueError("portfolio.var.confidence must be in (0, 1)")
+        horizon_raw = data.get("horizon_days")
+        horizon_days = int(horizon_raw) if horizon_raw is not None else 1
+        if horizon_days <= 0:
+            raise ValueError("portfolio.var.horizon_days must be positive")
+        return cls(confidence=confidence, horizon_days=horizon_days)
+
+
+@dataclass
+class PortfolioConfig:
+    """Container for portfolio evaluation settings."""
+
+    telemetry_path: Optional[Path]
+    telemetry: Dict[str, Any]
+    strategies: List[PortfolioStrategyConfig]
+    var: PortfolioVaRConfig
+    constraints: List[ConstraintConfig]
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "PortfolioConfig":
+        if not isinstance(data, Mapping):
+            raise ValueError("portfolio configuration must be a mapping")
+        telemetry_payload: Dict[str, Any] = {}
+        telemetry_inline = data.get("telemetry")
+        if telemetry_inline:
+            if not isinstance(telemetry_inline, Mapping):
+                raise ValueError("portfolio.telemetry must be a mapping when provided")
+            telemetry_payload = dict(telemetry_inline)
+        telemetry_path_raw = data.get("telemetry_path")
+        telemetry_path = None
+        if telemetry_path_raw:
+            telemetry_path = (REPO_ROOT / str(telemetry_path_raw)).resolve()
+        strategies_block = data.get("strategies") or []
+        if not isinstance(strategies_block, Sequence) or not strategies_block:
+            raise ValueError("portfolio.strategies must contain at least one entry")
+        strategies = [PortfolioStrategyConfig.from_dict(entry) for entry in strategies_block]
+        var_block = data.get("var")
+        if var_block is not None and not isinstance(var_block, Mapping):
+            raise ValueError("portfolio.var must be a mapping when provided")
+        var_config = PortfolioVaRConfig.from_dict(var_block)
+        constraints_block = data.get("constraints") or []
+        if not isinstance(constraints_block, Sequence):
+            raise ValueError("portfolio.constraints must be a sequence when provided")
+        constraints = [ConstraintConfig.from_dict(entry) for entry in constraints_block]
+        return cls(
+            telemetry_path=telemetry_path,
+            telemetry=telemetry_payload,
+            strategies=strategies,
+            var=var_config,
+            constraints=constraints,
+        )
+
+
+@dataclass(frozen=True)
 class ScoreTerm:
     metric: str
     goal: str
@@ -381,6 +495,7 @@ class ExperimentConfig:
     scoring: ScoreConfig
     history_enabled: bool
     history_notes: Optional[str]
+    portfolio: Optional[PortfolioConfig]
     bayes: Optional[BayesConfig]
 
     def __post_init__(self) -> None:
@@ -418,6 +533,8 @@ class ExperimentConfig:
         history_notes = history_block.get("notes")
         bayes_block = data.get("bayes")
         bayes = BayesConfig.from_dict(bayes_block) if bayes_block else None
+        portfolio_block = data.get("portfolio")
+        portfolio = PortfolioConfig.from_dict(portfolio_block) if portfolio_block else None
         return cls(
             path=path,
             identifier=identifier,
@@ -435,6 +552,7 @@ class ExperimentConfig:
             scoring=scoring,
             history_enabled=history_enabled,
             history_notes=str(history_notes) if history_notes else None,
+            portfolio=portfolio,
             bayes=bayes,
         )
 
@@ -448,6 +566,7 @@ class ExperimentConfig:
         params: Optional[Mapping[str, Any]] = None,
         metrics: Optional[Mapping[str, Any]] = None,
         seasonal: Optional[Mapping[str, Any]] = None,
+        portfolio: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
         context: Dict[str, Any] = {
             "metrics": dict(metrics or {}),
@@ -455,6 +574,8 @@ class ExperimentConfig:
         }
         if params is not None:
             context["params"] = dict(params)
+        if portfolio is not None:
+            context["portfolio"] = dict(portfolio)
         return context
 
     def search_space_size(self) -> int:
@@ -465,6 +586,13 @@ class ExperimentConfig:
         for size in sizes:
             total *= max(1, size)
         return total
+
+    def constraints_for(self, portfolio_override: Optional["PortfolioConfig"] = None) -> List[ConstraintConfig]:
+        constraint_list = list(self.constraints)
+        portfolio_cfg = portfolio_override if portfolio_override is not None else self.portfolio
+        if portfolio_cfg:
+            constraint_list.extend(portfolio_cfg.constraints)
+        return constraint_list
 
 
 def resolve_metric_path(data: Mapping[str, Any], path: str) -> Any:
@@ -550,6 +678,9 @@ __all__ = [
     "BayesDimensionHint",
     "ConstraintConfig",
     "ExperimentConfig",
+    "PortfolioConfig",
+    "PortfolioStrategyConfig",
+    "PortfolioVaRConfig",
     "ScoreConfig",
     "ScoreTerm",
     "SearchDimension",
