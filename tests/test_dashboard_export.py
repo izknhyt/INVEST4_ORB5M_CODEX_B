@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import csv
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 from analysis.dashboard import load_ev_history, load_state_slippage, load_turnover_metrics
 
@@ -12,6 +15,40 @@ from analysis.dashboard import load_ev_history, load_state_slippage, load_turnov
 ARCHIVE_DIR = Path("ops/state_archive/day_orb_5m.DayORB5m/USDJPY/conservative")
 RUNS_ROOT = Path("runs")
 TELEMETRY_PATH = Path("reports/portfolio_samples/router_demo/telemetry.json")
+
+
+@pytest.fixture(autouse=True)
+def _seed_turnover_samples() -> None:
+    index_path = RUNS_ROOT / "index.csv"
+    original_contents = index_path.read_text(encoding="utf-8")
+    fieldnames = original_contents.splitlines()[0].split(",")
+    sample_dir = RUNS_ROOT / "_test_dashboard_turnover"
+    sample_dir.mkdir(parents=True, exist_ok=True)
+    daily_path = sample_dir / "daily.csv"
+    with daily_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["date", "fills"])
+        writer.writeheader()
+        writer.writerow({"date": "2025-01-01", "fills": "2"})
+        writer.writerow({"date": "2025-01-02", "fills": "3"})
+    row = {name: "" for name in fieldnames}
+    row.update(
+        {
+            "run_id": "test_dashboard_turnover",
+            "run_dir": "runs/_test_dashboard_turnover",
+            "timestamp": "20250101_000000",
+            "trades": "5",
+            "wins": "3",
+            "win_rate": "0.6",
+        }
+    )
+    with index_path.open("a", newline="", encoding="utf-8") as handle:
+        if original_contents and not original_contents.endswith("\n"):
+            handle.write("\n")
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writerow(row)
+    yield
+    index_path.write_text(original_contents, encoding="utf-8")
+    shutil.rmtree(sample_dir)
 
 
 def test_loaders_return_data():

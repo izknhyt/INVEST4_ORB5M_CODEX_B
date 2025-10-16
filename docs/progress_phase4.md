@@ -1,5 +1,15 @@
 # フェーズ4 進捗レポート（検証とリリースゲート）
 
+- 2026-10-23: Day ORB パラメータスイープへポートフォリオ評価を統合。`scripts/run_param_sweep.py` の `--portfolio-config` と実験 YAML の `portfolio:` ブロックを解釈し、各トライアルの `result.json` にカテゴリ利用率 / VaR / 相関メトリクスを保存するよう更新。`scripts/select_best_params.py` はランキング JSON へポートフォリオ指標を残しつつ `reports/day_orb/<experiment>/portfolio_candidates.json` を自動生成し、下流の承認レポートで制約状況を確認できるようにした。`tests/test_run_param_sweep.py` / `tests/test_select_best_params.py` / `tests/test_router_pipeline.py` を拡張し、モックされた制約で VaR しきい値やカテゴリ予算が検証されることを確認。関連ドキュメント（`docs/plans/day_orb_optimization.md`, `docs/progress_phase4.md`）へ再現コマンドと指標読み取り手順を追記。
+
+  代表コマンド:
+
+  `python3 scripts/run_param_sweep.py --experiment configs/experiments/day_orb_core.yaml --search random --max-trials 4 --workers 1 --dry-run --portfolio-config configs/experiments/day_orb_core.yaml --out tmp/sweeps/day_orb_core_demo`
+
+  `python3 scripts/select_best_params.py --experiment configs/experiments/day_orb_core.yaml --runs-dir tmp/sweeps/day_orb_core_demo --out tmp/sweeps/day_orb_core_demo/best_params.json --portfolio-out reports/day_orb/day_orb_core`
+
+  `python3 -m pytest tests/test_run_param_sweep.py tests/test_select_best_params.py tests/test_router_pipeline.py`
+
 - 2026-10-22: ユーザーのリセット要望に従い `runs/` 配下のシミュレーション成果物を全削除し、新規検証のための空インデックスを再生成。`rm -rf runs/*` 実行後に `python3 scripts/rebuild_runs_index.py --runs-dir runs --out runs/index.csv` を走らせ、ヘッダーのみの `runs/index.csv` を確認。`docs/task_backlog.md` と `state.md` にリセットログを追記し、次回以降のシミュレーションが新しい成果物パスを前提にするよう整理した。
 
   代表コマンド:
