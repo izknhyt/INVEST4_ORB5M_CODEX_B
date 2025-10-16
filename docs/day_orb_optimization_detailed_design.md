@@ -265,4 +265,4 @@
 - **Testing Strategy**
   - Unit tests will fixture representative JSON inputs to verify Markdown sections, checklist propagation, and PR body templates.
   - Integration tests should cover failure handling (missing artefacts, mismatched ids) and end-to-end generation feeding into `scripts/propose_param_update.py`.
-  - Regression guardrails integrate with the main suite via `python3 -m pytest tests/test_generate_experiment_report.py tests/test_propose_param_update.py` once implemented; until then, manual review must confirm schema adherence.
+  - Regression guardrails integrate with the main suite via `python3 -m pytest tests/test_generate_experiment_report.py tests/test_propose_param_update.py`; reviewers run this bundle before approving parameter updates.

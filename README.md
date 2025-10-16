@@ -33,6 +33,7 @@
 2. `python3 -m pytest` を実行してベースラインのテストがグリーンであることを確認。
 3. `state.md` / `docs/todo_next.md` / `docs/task_backlog.md` のアンカーを揃え、作業ログとドキュメント更新を同じコミットで行う。
 4. 実装後は使用したテストコマンドと生成物を `state.md` ログおよび PR 説明に記録する。
+   - Day ORB パラメータレビューでは `python3 -m pytest tests/test_generate_experiment_report.py tests/test_propose_param_update.py` を追加で実行し、[詳細設計 §4.6](docs/day_orb_optimization_detailed_design.md#46-reporting--approvals-scriptsgenerate_experiment_reportpy-scriptspropose_param_updatepy) の承認フローに沿ってテンプレート生成を確認する。
 
 ## Codex セッションワークフロー
 1. **準備** — `state.md` / [docs/todo_next.md](docs/todo_next.md) のアンカーを一致させ、[docs/task_backlog.md](docs/task_backlog.md) で DoD を再確認。必要に応じて `python3 scripts/manage_task_cycle.py --dry-run start-task --anchor <...>` で昇格フローをプレビュー。

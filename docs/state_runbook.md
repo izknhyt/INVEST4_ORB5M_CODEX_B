@@ -39,6 +39,31 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
   - `--alert-mode disable` で通知停止、`--alert-mode force` で異常が無くても送信を強制（`--dry-run` 時は `status=preview` のみ出力）。
   - 差戻しトリガーが発火した場合、出力 JSON に `rollback_triggered=true` とアラート送信結果が含まれるので、`docs/progress_phase4.md` の該当週に証跡リンクを追記する。
 
+## パラメータ承認パケット生成
+- Go/No-Go 判定前の最適化結果は `scripts/generate_experiment_report.py` で Markdown+JSON に整形する。
+  ```bash
+  python3 scripts/generate_experiment_report.py \
+      --best reports/simulations/day_orb_core/best_params.json \
+      --gate-json reports/day_orb_core/gate_breakdown.json \
+      --portfolio runs/router_pipeline/day_orb_core/telemetry.json \
+      --out reports/experiments/day_orb_core_review.md \
+      --json-out reports/experiments/day_orb_core_review.json
+  ```
+  - `reports/experiments/<experiment>.md` には `Summary` / `Metrics` / `Constraint Compliance` / `Gate Diagnostics` / `Risk Snapshot` / `Next Steps` を含める。
+  - 添付 JSON は `docs/go_nogo_checklist.md` の証跡欄へリンクし、レビュー対象が同じデータを参照できるようにする。
+- 承認レビューでは `scripts/propose_param_update.py` で PR 下書きと参照資料を集約する。
+  ```bash
+  python3 scripts/propose_param_update.py \
+      --best reports/simulations/day_orb_core/best_params.json \
+      --report-json reports/experiments/day_orb_core_review.json \
+      --state-archive ops/state_archive/day_orb_core/USDJPY_conservative/proposal_20261024_diff.json \
+      --out docs/proposals/day_orb_core_20261024.md \
+      --json-out docs/proposals/day_orb_core_20261024.json
+  ```
+  - 既存ファイルがある場合は `--force` を付与する。未指定での上書きは exit code 2 で失敗する。
+  - JSON 出力には `pull_request.title/body`、レビュー対象ドキュメント、state 差分が含まれる。PR 作成時は `body` を貼り付け、`docs/go_nogo_checklist.md` のチェックを進める。
+  - `python3 -m pytest tests/test_generate_experiment_report.py tests/test_propose_param_update.py` を実行し、テンプレート生成ロジックの回帰を確認する。
+
 ## ロードチェックリスト
 - [ ] 自動ロードを有効化する manifest では、`ops/state_archive/...` の最新ファイルが参照されることを CLI ログで確認した。
 - [ ] 自動ロードを避けたいテストは manifest を複製し `auto_state: false` を明示した。

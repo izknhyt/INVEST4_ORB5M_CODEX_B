@@ -326,6 +326,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - チェック項目ごとに担当者・頻度・検証ログテンプレを付与し、`state.md` と `docs/todo_next_archive.md` へ記録方法を明記する。
   - モックレビューを実施し、記録を残すことで実運用の準備が整っていることを確認する。
 - **Notes**:
+  - 2026-10-24: 自動生成スクリプト `scripts/generate_experiment_report.py` / `scripts/propose_param_update.py` を追加し、Go/No-Go チェックリストと state runbook にレビュー手順・証跡リンクのテンプレートを追記。`python3 -m pytest tests/test_generate_experiment_report.py tests/test_propose_param_update.py` を CI コマンドセットへ組み込み、最適化レビューのテンプレート化を完了。
   - 2026-07-15: `docs/go_nogo_checklist.md` を担当者・頻度・証跡列付きテーブルへ刷新し、Paper 判定ログを `docs/progress_phase4.md` と連携させる更新ルールを追加。
   - 2026-06-27: 検証計画でチェック項目を「データ品質 / シミュレーション / 運用準備 / レビュー体制」に分類し、担当者・頻度・証跡リンク欄を `docs/go_nogo_checklist.md` へ追加する更新ステップとモックレビュー記録先（本ドキュメント／`docs/todo_next_archive.md`）を設定。
   - 2025-10-11: Ready へ昇格予定。P4-01 の結果を踏まえて更新範囲を確定する。
