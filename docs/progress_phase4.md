@@ -1,5 +1,10 @@
 # フェーズ4 進捗レポート（検証とリリースゲート）
 
+- 2026-10-17: Day ORB パラメータ最適化ループの初期版を整備。`configs/experiments/day_orb_core.yaml` を新設し、
+  `python3 scripts/run_param_sweep.py --experiment configs/experiments/day_orb_core.yaml --search grid --max-trials 2 --dry-run --out runs/sweeps/day_orb_core_smoke`
+  でマニフェスト差し替え・制約評価・季節性メトリクス出力を検証。続いて
+  `python3 scripts/select_best_params.py --experiment configs/experiments/day_orb_core.yaml --runs-dir runs/sweeps/day_orb_core_smoke --top-k 3 --out reports/simulations/day_orb_core/best_params.json`
+  を実行し、dry-run 設定でもランキング JSON が生成されること、`result.json` に Sharpe・最大DD・月次トレード件数の制約判定/スコア分解が残ることを確認。バックログ (`docs/task_backlog.md#p0-21-day-orb-optimisation-engine-bring-up-open`) と `state.md` に進捗を同期した。
 - 2026-10-16: 実験履歴リポジトリ（[設計計画](plans/day_orb_optimization.md) §4.1）を立ち上げ、既存 Day ORB ラン 12 件を
   `experiments/history/runs/*.json` へ移行（バイナリアーカイブは GitHub Web UI で拒否されるため、Parquet は生成物扱いに変更）。
   `data/usdjpy_5m_2018-2024_utc.csv` の指紋は rows=523,743 /
