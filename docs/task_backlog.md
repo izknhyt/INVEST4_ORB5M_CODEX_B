@@ -329,6 +329,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - 2026-06-27: 検証計画でチェック項目を「データ品質 / シミュレーション / 運用準備 / レビュー体制」に分類し、担当者・頻度・証跡リンク欄を `docs/go_nogo_checklist.md` へ追加する更新ステップとモックレビュー記録先（本ドキュメント／`docs/todo_next_archive.md`）を設定。
   - 2025-10-11: Ready へ昇格予定。P4-01 の結果を踏まえて更新範囲を確定する。
 
+<a id="p4-04-day-orb-シンプル化リブート2025-10-13追加"></a>
 ### P4-04 Day ORB シンプル化リブート（2025-10-13追加）
 - **目的**: EVゲート凍結後の Day ORB 5m を再構成し、シンプルなフィルタでも一定のトレード頻度・勝率を確保できる状態へ戻す。
 - **スコープ**:
