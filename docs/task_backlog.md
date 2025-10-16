@@ -184,6 +184,7 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - Document operations + disable/enable procedures in `docs/state_runbook.md` and cross-link from `docs/progress_phase4.md` with dry-run logs.
 - **Notes**: Coordinate with risk_manager owners; include reproduction commands (`python3 scripts/update_state.py --simulate-live --dry-run --max-delta 0.2 --var-cap 0.04`).
 - 2026-10-18: `scripts/update_state.py` に擬似ライブガードを追加し、`--max-delta` / `--var-cap` / `--liquidity-cap` の違反で自動ロールバックを発火。`ops/state_archive/<strategy>/<symbol>/<mode>/*_diff.json` に差分を保存し、`notifications/emit_signal.py` 連携とオーバーライド手順を [docs/state_runbook.md](state_runbook.md#擬似ライブ更新フローscriptsupdate_statepy---simulate-live) / [docs/progress_phase4.md](progress_phase4.md) に追記した。
+- 2026-10-21: `scripts/update_state.py --simulate-live` の `diff.json` へ `reason[]`（`conditions_met` / `dry_run` / `override_disabled` / `anomaly:<type>`）を書き込み、`decision.status` / `decision.reasons` / `risk` を `--json-out` に含めて解析ログを補強。VAR 超過・オーバーライド停止・最大デルタ違反の pytest を `tests/test_update_state.py` へ追加し、`notifications/emit_signal.py` のフォールバック出力を `note=no_webhook_configured` + `env_var=SIGNAL_WEBHOOK_URLS` で明示化。関連運用手順を [docs/state_runbook.md](state_runbook.md#擬似ライブ更新フローscriptsupdate_statepy---simulate-live) / [docs/progress_phase4.md](progress_phase4.md) に同期。
 
 
 

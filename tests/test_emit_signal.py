@@ -1,4 +1,5 @@
 import json
+import json
 from unittest import mock
 
 import notifications.emit_signal as emit
@@ -31,7 +32,7 @@ def test_log_latency_and_fallback(tmp_path):
         meta={"note": "test"},
     )
     emit.log_latency(str(latency), payload.signal_id, payload.timestamp_utc, False, "error")
-    emit.log_fallback(str(fallback), payload, "error")
+    emit.log_fallback(str(fallback), payload, "error", extra={"reason": "unit_test"})
 
     rows = latency.read_text().strip().splitlines()
     assert len(rows) == 2
@@ -40,6 +41,7 @@ def test_log_latency_and_fallback(tmp_path):
     record = json.loads(fallback.read_text().strip())
     assert record["signal_id"] == "sig1"
     assert record["note"] == "error"
+    assert record["extra"] == {"reason": "unit_test"}
 
 
 def test_log_files_without_dir(monkeypatch, tmp_path):
@@ -92,3 +94,37 @@ def test_send_webhook_success(monkeypatch):
     ok, detail = emit.send_webhook("https://example.com", payload)
     assert ok is True
     assert detail == "status=200"
+
+
+def test_main_logs_extra_when_no_webhook(monkeypatch, tmp_path, capsys):
+    monkeypatch.delenv("SIGNAL_WEBHOOK_URLS", raising=False)
+    latency = tmp_path / "latency.csv"
+    fallback = tmp_path / "fallback.log"
+
+    exit_code = emit.main([
+        "--signal-id",
+        "state_update_rollback",
+        "--side",
+        "SELL",
+        "--entry",
+        "0",
+        "--tp",
+        "0",
+        "--sl",
+        "0",
+        "--trail",
+        "0",
+        "--confidence",
+        "0",
+        "--latency-log",
+        str(latency),
+        "--fallback-log",
+        str(fallback),
+    ])
+
+    assert exit_code == 0
+    capsys.readouterr()
+    record = json.loads(fallback.read_text().strip())
+    assert record["note"] == "no_webhook_configured"
+    assert record["extra"]["env_var"] == "SIGNAL_WEBHOOK_URLS"
+    assert record["extra"]["message"].startswith("No webhook URLs configured")
