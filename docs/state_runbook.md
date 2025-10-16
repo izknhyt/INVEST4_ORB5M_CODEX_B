@@ -23,8 +23,8 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
       --alert-mode auto \
       --json-out out/state_update_preview.json
   ```
-  - `stdout` / `--json-out` には `risk.var`（5% VaR）、`risk.liquidity_usage`、`diff.updated`（上位 20 件の差分）、`anomalies[]` が表示される。
-  - 擬似ライブモードでは `ops/state_archive/<strategy_key>/<symbol>/<mode>/<ts>_diff.json` が生成され、`status=applied|preview|blocked` と判定理由を記録する。ドライラン時はファイルを書き出さず JSON のみ確認する。
+  - `stdout` / `--json-out` には `risk.var`（5% VaR）、`risk.liquidity_usage`、`diff.updated`（上位 20 件の差分）、`anomalies[]`、および `decision.status` / `decision.reasons` が表示される。
+  - 擬似ライブモードでは `ops/state_archive/<strategy_key>/<symbol>/<mode>/<ts>_diff.json` が生成され、`status=applied|preview|blocked` と `reason[]`（`conditions_met` / `dry_run` / `override_disabled` / `anomaly:<type>` 等）を記録する。ドライラン時はファイルを書き出さず JSON のみ確認する。
 - リスクガード
   - `--max-delta` を超えるパラメータは `max_delta_exceeded` として `anomalies` に列挙される。
   - `--var-cap` 超過（pips 単位の 5% 分位）、`--liquidity-cap` 超過（新規トレードの絶対数量合計）も同様に記録され、適用が拒否される。
@@ -35,7 +35,7 @@ EV ゲートや滑り学習などの内部状態を `state.json` として保存
   - 状態確認: `python3 scripts/update_state.py --override-action status`。フラグは `ops/state_archive/auto_adjust_override.json` に保存される。
   - オーバーライドが無効状態のまま `--simulate-live` を流すと、`ops/state_archive/.../<ts>_diff.json` が `status=blocked` で更新案のみ残し、`state.json` は更新されない。
 - アラート
-  - 異常発生時は `notifications/emit_signal.py` を介して `signal_id=state_update_rollback` を送信する。Webhook は `SIGNAL_WEBHOOK_URLS` または `--alert-webhook` で指定し、ログは `ops/state_alert_latency.csv` / `ops/state_alerts.log` に追記される。
+  - 異常発生時は `notifications/emit_signal.py` を介して `signal_id=state_update_rollback` を送信する。Webhook は `SIGNAL_WEBHOOK_URLS` または `--alert-webhook` で指定し、ログは `ops/state_alert_latency.csv` / `ops/state_alerts.log` に追記される。Webhook が未設定の場合は `note=no_webhook_configured` と理由 (`env_var=SIGNAL_WEBHOOK_URLS` など) を含むフォールバック行が `ops/state_alerts.log` に残る。
   - `--alert-mode disable` で通知停止、`--alert-mode force` で異常が無くても送信を強制（`--dry-run` 時は `status=preview` のみ出力）。
   - 差戻しトリガーが発火した場合、出力 JSON に `rollback_triggered=true` とアラート送信結果が含まれるので、`docs/progress_phase4.md` の該当週に証跡リンクを追記する。
 

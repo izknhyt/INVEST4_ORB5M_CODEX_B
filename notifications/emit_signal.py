@@ -74,7 +74,7 @@ def log_latency(output_path: str, signal_id: str, ts_emit: str, success: bool, d
         f.write(line + "\n")
 
 
-def log_fallback(path: str, payload: SignalPayload, note: str) -> None:
+def log_fallback(path: str, payload: SignalPayload, note: str, extra: Optional[dict] = None) -> None:
     _ensure_parent_dir(path)
     ts = datetime.now(timezone.utc).isoformat()
     record = {
@@ -82,6 +82,8 @@ def log_fallback(path: str, payload: SignalPayload, note: str) -> None:
         "note": note,
         **asdict(payload),
     }
+    if extra:
+        record["extra"] = extra
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
@@ -143,16 +145,22 @@ def main(argv=None) -> int:
     urls = resolve_webhook_urls(args.webhook_url)
     success = False
     detail = "noop"
+    fallback_extra: Optional[dict] = None
     for url in urls:
         ok, detail = send_webhook(url, payload)
         if ok:
             success = True
             break
     if not urls:
-        detail = "no_webhook"
+        detail = "no_webhook_configured"
+        fallback_extra = {
+            "env_var": "SIGNAL_WEBHOOK_URLS",
+            "cli_override": bool(args.webhook_url),
+            "message": "No webhook URLs configured; skipped delivery",
+        }
     log_latency(args.latency_log, args.signal_id, ts, success, detail)
     if not success:
-        log_fallback(args.fallback_log, payload, detail)
+        log_fallback(args.fallback_log, payload, detail, extra=fallback_extra)
     print(payload.to_json())
     return 0 if success or not urls else 1
 

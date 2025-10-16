@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -61,6 +62,27 @@ def _build_state_diff(previous: Dict[str, Any], current: Dict[str, Any]) -> Dict
     added = sorted(set(curr_numeric) - set(prev_numeric))
     removed = sorted(set(prev_numeric) - set(curr_numeric))
     return {"updated": updated, "added": added, "removed": removed}
+
+
+def _build_decision_reasons(args, override_status: Dict[str, Any], anomalies: List[Dict[str, Any]], applied: bool) -> List[str]:
+    reasons: List[str] = []
+    if args.dry_run:
+        reasons.append("dry_run")
+    if not override_status.get("enabled", True):
+        reasons.append("override_disabled")
+    if args.simulate_live and anomalies:
+        seen = set()
+        for anomaly in anomalies:
+            label = anomaly.get("type", "anomaly")
+            key = f"anomaly:{label}"
+            if key not in seen:
+                reasons.append(key)
+                seen.add(key)
+    if applied and not reasons:
+        reasons.append("conditions_met")
+    elif not applied and not reasons:
+        reasons.append("blocked")
+    return reasons
 
 
 def _compute_var(trade_returns: Iterable[float], percentile: float = 5.0) -> float:
@@ -161,6 +183,14 @@ def _load_override_status(path: Path) -> Dict[str, Any]:
 def _send_alert(args, simulate_live: bool, dry_run: bool, anomalies: List[Dict[str, Any]]) -> Dict[str, Any]:
     timestamp = utcnow_aware(dt_cls=datetime).isoformat()
     urls = emit_signal.resolve_webhook_urls(args.alert_webhook)
+    fallback_extra: Optional[Dict[str, Any]] = None
+    if not urls:
+        fallback_extra = {
+            "env_var": "SIGNAL_WEBHOOK_URLS",
+            "env_present": bool(os.getenv("SIGNAL_WEBHOOK_URLS")),
+            "cli_override": bool(args.alert_webhook),
+            "message": "No webhook URLs configured for state_update_rollback",
+        }
     payload = emit_signal.SignalPayload(
         signal_id="state_update_rollback",
         timestamp_utc=timestamp,
@@ -197,8 +227,17 @@ def _send_alert(args, simulate_live: bool, dry_run: bool, anomalies: List[Dict[s
 
     if dry_run or not urls:
         record["status"] = "preview"
-        record["detail"] = "dry_run" if dry_run else "no_webhook"
+        record_detail = "dry_run" if dry_run else "no_webhook_configured"
+        record["detail"] = record_detail
         record["payload"] = json.loads(payload.to_json())
+        if not dry_run and not urls:
+            emit_signal.log_latency(args.alert_latency_log, payload.signal_id, timestamp, False, record_detail)
+            emit_signal.log_fallback(
+                args.alert_fallback_log,
+                payload,
+                record_detail,
+                extra=fallback_extra,
+            )
         return record
 
     success = False
@@ -211,7 +250,7 @@ def _send_alert(args, simulate_live: bool, dry_run: bool, anomalies: List[Dict[s
 
     emit_signal.log_latency(args.alert_latency_log, payload.signal_id, timestamp, success, detail)
     if not success:
-        emit_signal.log_fallback(args.alert_fallback_log, payload, detail)
+        emit_signal.log_fallback(args.alert_fallback_log, payload, detail, extra=fallback_extra)
 
     record["status"] = "sent" if success else "failed"
     record["detail"] = detail
@@ -457,8 +496,8 @@ def main(argv=None) -> int:
 
     state_diff = _build_state_diff(previous_state, new_state)
     risk_summary = {
-        "var": _compute_var(getattr(metrics, "trade_returns", []) if metrics else []),
-        "liquidity_usage": _compute_liquidity(getattr(metrics, "records", []) if metrics else []),
+        "var": float(_compute_var(getattr(metrics, "trade_returns", []) if metrics else [])),
+        "liquidity_usage": float(_compute_liquidity(getattr(metrics, "records", []) if metrics else [])),
     }
 
     anomalies: List[Dict[str, Any]] = []
@@ -504,6 +543,9 @@ def main(argv=None) -> int:
         and (not args.simulate_live or not anomalies)
     )
 
+    decision_status = "applied" if should_apply else ("preview" if args.dry_run else "blocked")
+    decision_reasons = _build_decision_reasons(args, override_status, anomalies, should_apply)
+
     archive_meta: Dict[str, Any] = {}
 
     if should_apply:
@@ -523,7 +565,7 @@ def main(argv=None) -> int:
             _save_snapshot(snapshot_path, snapshot)
 
         diff_payload = {
-            "status": "applied",
+            "status": decision_status,
             "strategy_key": strategy_key,
             "symbol": args.symbol,
             "mode": args.mode,
@@ -531,6 +573,7 @@ def main(argv=None) -> int:
             "diff": state_diff,
             "risk": risk_summary,
             "anomalies": anomalies,
+            "reason": decision_reasons,
         }
         archive_dir.mkdir(parents=True, exist_ok=True)
         with diff_file.open("w") as f:
@@ -543,17 +586,19 @@ def main(argv=None) -> int:
             "ev_archives_pruned": [str(p) for p in pruned],
             "aggregate_ev_rc": agg_rc,
             "diff_path": str(diff_file),
+            "diff_status": decision_status,
+            "diff_reason": decision_reasons,
         }
     else:
-        reason: List[str] = []
+        legacy_reason: List[str] = []
         if args.dry_run:
-            reason.append("dry_run")
+            legacy_reason.append("dry_run")
         if not override_status["enabled"]:
-            reason.append("override_disabled")
+            legacy_reason.append("override_disabled")
         if args.simulate_live and anomalies:
-            reason.append("anomalies_present")
+            legacy_reason.append("anomalies_present")
         diff_payload = {
-            "status": "preview" if args.dry_run else "blocked",
+            "status": decision_status,
             "strategy_key": strategy_key,
             "symbol": args.symbol,
             "mode": args.mode,
@@ -561,7 +606,7 @@ def main(argv=None) -> int:
             "diff": state_diff,
             "risk": risk_summary,
             "anomalies": anomalies,
-            "reason": reason,
+            "reason": decision_reasons,
         }
         if not args.dry_run:
             archive_dir.mkdir(parents=True, exist_ok=True)
@@ -571,7 +616,9 @@ def main(argv=None) -> int:
             "strategy_key": strategy_key,
             "archive_dir": str(archive_dir),
             "diff_path": str(diff_file) if diff_file.exists() else None,
-            "apply_reason": reason,
+            "apply_reason": legacy_reason,
+            "diff_status": decision_status,
+            "diff_reason": decision_reasons,
         }
 
     result = metrics.as_dict()
@@ -589,6 +636,10 @@ def main(argv=None) -> int:
             "removed": state_diff["removed"][:20],
         },
     })
+    result["decision"] = {
+        "status": decision_status,
+        "reasons": decision_reasons,
+    }
     if archive_meta:
         result.update(archive_meta)
 

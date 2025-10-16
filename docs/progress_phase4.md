@@ -34,7 +34,7 @@
 
   `python3 scripts/update_state.py --override-action disable --override-reason "phase4_maintenance" --dry-run`
 
-  ドライランは `risk.var` / `risk.liquidity_usage` / `diff.updated` を含む JSON を出力し、`ops/state_archive/<strategy>/<symbol>/<mode>/<ts>_diff.json` に適用結果（`status=applied|blocked`）を残す。オーバーライド状態は `ops/state_archive/auto_adjust_override.json` で管理し、異常時は `notifications/emit_signal.py` 経由の `state_update_rollback` 通知が `ops/state_alert_latency.csv` / `ops/state_alerts.log` に記録される。証跡リンクと運用フローは [docs/state_runbook.md#擬似ライブ更新フロー（scriptsupdate_statepy---simulate-live）](state_runbook.md#擬似ライブ更新フローscriptsupdate_statepy---simulate-live) を参照。
+  ドライランは `risk.var` / `risk.liquidity_usage` / `diff.updated` / `decision.status` / `decision.reasons` を含む JSON を出力し、`ops/state_archive/<strategy>/<symbol>/<mode>/<ts>_diff.json` に適用結果（`status=applied|preview|blocked` と `reason[]`）を残す。オーバーライド状態は `ops/state_archive/auto_adjust_override.json` で管理し、異常時は `notifications/emit_signal.py` 経由の `state_update_rollback` 通知が `ops/state_alert_latency.csv` / `ops/state_alerts.log` に記録される。Webhook 未設定時は `note=no_webhook_configured` のフォールバック行が残る。証跡リンクと運用フローは [docs/state_runbook.md#擬似ライブ更新フロー（scriptsupdate_statepy---simulate-live）](state_runbook.md#擬似ライブ更新フローscriptsupdate_statepy---simulate-live) を参照。
 
 - 2026-10-17: Day ORB パラメータ最適化ループの初期版を整備。`configs/experiments/day_orb_core.yaml` を新設し、
   `python3 scripts/run_param_sweep.py --experiment configs/experiments/day_orb_core.yaml --search grid --max-trials 2 --dry-run --out runs/sweeps/day_orb_core_smoke`
