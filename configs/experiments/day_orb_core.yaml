@@ -1,0 +1,169 @@
+name: Day ORB Core Sweep
+summary: Parameter sweep configuration for the Day ORB 5m conservative baseline with risk and seasonal guardrails.
+manifest_path: configs/strategies/day_orb_5m.yaml
+manifest_id: day_orb_5m_v1
+mode: conservative
+base_output_dir: runs/sweeps/day_orb_core
+runner:
+  base_cli:
+    - --csv
+    - validated/USDJPY/5m.csv
+    - --symbol
+    - USDJPY
+    - --mode
+    - conservative
+    - --no-auto-state
+    - --debug
+    - --debug-sample-limit
+    - "250000"
+  equity: 100000.0
+  use_years_from_data: true
+  record_runtime: true
+search_space:
+  or_n:
+    path: strategy.parameters.or_n
+    type: choice
+    values: [4, 5, 6, 7]
+  k_tp:
+    path: strategy.parameters.k_tp
+    type: float_range
+    min: 1.2
+    max: 1.6
+    step: 0.1
+    precision: 2
+  k_sl:
+    path: strategy.parameters.k_sl
+    type: float_range
+    min: 0.6
+    max: 1.0
+    step: 0.1
+    precision: 2
+  k_tr:
+    path: strategy.parameters.k_tr
+    type: choice
+    values: [0.2, 0.3, 0.4]
+  min_or_atr_ratio:
+    path: runner.runner_config.min_or_atr_ratio
+    type: float_range
+    min: 0.20
+    max: 0.35
+    step: 0.05
+    precision: 3
+  ny_high_rv_min_or_atr_ratio:
+    path: runner.runner_config.ny_high_rv_min_or_atr_ratio
+    type: float_range
+    min: 0.30
+    max: 0.40
+    step: 0.05
+    precision: 3
+  cooldown_bars:
+    path: strategy.parameters.cooldown_bars
+    type: range
+    min: 0
+    max: 2
+    step: 1
+  max_loss_streak:
+    path: strategy.parameters.max_loss_streak
+    type: choice
+    values: [3, 4, 5]
+  max_daily_loss_pips:
+    path: strategy.parameters.max_daily_loss_pips
+    type: choice
+    values: [100.0, 120.0, 150.0]
+  fallback_win_rate:
+    path: strategy.parameters.fallback_win_rate
+    type: choice
+    values: [0.50, 0.55, 0.60]
+  min_atr_pips:
+    path: strategy.parameters.min_atr_pips
+    type: choice
+    values: [0.0, 2.0, 4.0]
+  require_retest:
+    path: strategy.parameters.require_retest
+    type: choice
+    values: [false, true]
+  retest_tol_k:
+    path: strategy.parameters.retest_tol_k
+    type: float_range
+    min: 0.15
+    max: 0.30
+    step: 0.05
+    precision: 2
+constraints:
+  - id: max_drawdown_limit
+    metric: metrics.max_drawdown
+    op: ">="
+    threshold: -120.0
+    description: Max drawdown (pips) must stay within the 120 pip guardrail.
+  - id: sharpe_floor
+    metric: metrics.sharpe
+    op: ">="
+    threshold: 0.20
+    description: Overall Sharpe must be non-negative with margin for noise.
+  - id: trades_per_month_floor
+    metric: metrics.trades_per_month
+    op: ">="
+    threshold: 18.0
+    description: Average fills per month must sustain liquidity needs.
+  - id: seasonal_2020_q1
+    metric: seasonal.2020_q1.sharpe
+    op: ">="
+    threshold: 0.0
+  - id: seasonal_2020_q2
+    metric: seasonal.2020_q2.sharpe
+    op: ">="
+    threshold: 0.0
+  - id: seasonal_2021_h1
+    metric: seasonal.2021_h1.sharpe
+    op: ">="
+    threshold: 0.0
+  - id: seasonal_2022_h1
+    metric: seasonal.2022_h1.sharpe
+    op: ">="
+    threshold: 0.0
+  - id: seasonal_2023_h1
+    metric: seasonal.2023_h1.sharpe
+    op: ">="
+    threshold: 0.0
+seasonal_slices:
+  - id: 2020_q1
+    start: 2020-01-01
+    end: 2020-03-31
+  - id: 2020_q2
+    start: 2020-04-01
+    end: 2020-06-30
+  - id: 2021_h1
+    start: 2021-01-01
+    end: 2021-06-30
+  - id: 2022_h1
+    start: 2022-01-01
+    end: 2022-06-30
+  - id: 2023_h1
+    start: 2023-01-01
+    end: 2023-06-30
+scoring:
+  objectives:
+    - metric: metrics.sharpe
+      goal: max
+      weight: 1.0
+    - metric: metrics.total_pips
+      goal: max
+      weight: 0.01
+    - metric: metrics.trades_per_month
+      goal: max
+      weight: 0.05
+  penalties:
+    - metric: metrics.max_drawdown
+      goal: max
+      weight: 0.5
+    - metric: metrics.profit_factor
+      goal: max
+      weight: 0.2
+  tie_breakers:
+    - metric: metrics.max_drawdown
+      goal: max
+    - metric: metrics.win_rate
+      goal: max
+history:
+  enabled: true
+  notes: Append successful runs to experiments/history via log_experiment.
