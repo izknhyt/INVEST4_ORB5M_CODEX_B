@@ -361,6 +361,8 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2026-10-17: `configs/strategies/day_orb_5m.yaml` を再調整して `min_or_atr_ratio=0.20` / `ny_high_rv_min_or_atr_ratio=0.30` / `tokyo_low_rv_micro_trend_min=0.10` を適用し、Runner 側でも `allow_low_rv=true` が確実に届くよう `runner_config` へ追記。
   `strategies/day_orb_5m.DayORB5m` には Tokyo セッション低 RV のみ `micro_trend` 方向閾値（BUY: ≥0.1 / SELL: ≤-0.1）を課す分岐を実装し、埋め込みマニフェストを `reports/portfolio_samples/router_demo/metrics/configs/strategies/day_orb_5m.yaml` と同期。
   `runs/USDJPY_conservative_20251017_005817`（3 トレード・総損益 -6.92 pips）を生成して `python3 scripts/summarize_strategy_gate.py --run-dir runs/USDJPY_conservative_20251017_005817 --json` を再実行したところ、`rv_filter=14,215` 件 / `tokyo_low_rv_guard=5,608` 件 / `or_filter=98` 件 / `ny_high_rv_or_filter=29` 件に集計が変化。`python3 -m pytest` で回帰グリーンを確認。
+- 2026-10-18: guard-relaxed ランの `or_filter` 449 件を `analysis/or_filter_guard_relaxed_summary.py` で再集計し、`rv_band=high`=246 件 (54.8%)・`mid`=162 件 (36.1%)・`low`=41 件 (9.1%) の偏りを確認。
+  高/中 RV 帯の OR 幅が依然不足しているため、次のイテレーションでは RV 帯別 `min_or_atr_ratio` 段階化（例: high≈0.12 / mid≈0.14 / low=0.18）と連敗・日次損失ガードしきい値の再調整を合わせて検討する。集計結果は [reports/diffs/or_filter_guard_relaxed_summary.md](../reports/diffs/or_filter_guard_relaxed_summary.md) に保存。
 
 
 ## 継続タスク / 保守

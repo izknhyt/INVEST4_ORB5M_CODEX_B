@@ -25,6 +25,12 @@
   `docs/progress_phase4.md`, and `docs/task_backlog.md#p0-22-pseudo-live-adaptive-guardrails-open` with the new
   operations flow and evidence links. Validated by running `python3 -m pytest` and a dry-run sanity check
   (`python3 scripts/update_state.py --simulate-live --dry-run --max-delta 0.2 --var-cap 0.04 --liquidity-cap 5 --alert-mode disable`).
+- 2026-10-18: Re-aggregated the guard-relaxed Day ORB `or_filter` events with `analysis/or_filter_guard_relaxed_summary.py`,
+  producing Markdown/JSON outputs (`reports/diffs/or_filter_guard_relaxed_summary.md` / `.json`). Confirmed 449 blocks split as
+  high=246 (54.8%) / mid=162 (36.1%) / low=41 (9.1%) with `min_or_atr_ratio=0.18` fixed and `or_atr_ratio` spanning 0–0.179.
+  Updated `docs/progress_phase4.md#長期バックテスト`, `docs/task_backlog.md#p4-04-day-orb-シンプル化リブート2025-10-13追加`, and
+  `docs/todo_next.md` with the findings plus follow-up actions (RV-band thresholds + loss guard review). Reproduction:
+  `python3 analysis/or_filter_guard_relaxed_summary.py --input conservative=reports/diffs/conservative_guard_relaxed_strategy_gate.json --input bridge=reports/diffs/bridge_guard_relaxed_strategy_gate.json --json-output reports/diffs/or_filter_guard_relaxed_summary.json --markdown-output reports/diffs/or_filter_guard_relaxed_summary.md`.
 - 2026-10-17: Updated the experiment history workflow so Parquet snapshots remain local artefacts (GitHub Web UI rejects binary uploads).
   Removed `experiments/history/records.parquet` from version control, documented the regeneration flow in `docs/progress_phase4.md`
   / `docs/task_backlog.md` / `docs/plans/day_orb_optimization.md` / `docs/day_orb_optimization_detailed_design.md`, tightened

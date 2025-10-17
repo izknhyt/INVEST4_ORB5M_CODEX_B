@@ -22,8 +22,10 @@
   2. **完了 (2026-08-18)** LDN/NY 偏重だったセッション設定を見直し、`configs/strategies/day_orb_5m_guard_relaxed.yaml` で `allowed_sessions=[TOK,LDN,NY]` / `or_n=4` を採用した緩和マニフェストを追加。`scripts/summarize_strategy_gate.py` でのブロック分布比較を準備済み。
   3. **完了 (2026-08-18)** `min_or_atr_ratio=0.18` へ暫定緩和した同マニフェストを Conservative / Bridge 共通で利用し、`runner_config` / CLI 引数も同期。フォールバックサイジングを維持したまま ATR 閾値変更の影響を観測できる状態。
   4. **完了 (2026-08-19)** `scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml --csv validated/USDJPY/5m.csv --symbol USDJPY --mode <mode> --out-dir runs/phase4/backtests_guard_relaxed --no-auto-state --debug --debug-sample-limit 600000` を Conservative / Bridge 両モードで実行し、`reports/diffs/conservative_guard_relaxed_metrics.json` / `reports/diffs/bridge_guard_relaxed_metrics.json` にメトリクス差分、`reports/diffs/conservative_guard_relaxed_strategy_gate.json` に `or_filter` 449 件（rv_band high 246 / mid 162 / low 41）を記録。`docs/progress_phase4.md#現状サマリ` を更新済み。
-  5. `reports/diffs/conservative_guard_relaxed_strategy_gate.json` を基に `min_or_atr_ratio` 帯のヒット率と `rv_band` 分布を整理し、追加の ATR 閾値緩和案と連敗・日次損失ガード調整案を次イテレーション用にまとめる。
-     - **進捗 (2026-10-15)**: `ny_high_rv_min_or_atr_ratio=0.34` を試験導入し、`runs/tmp/day_orb5m_ny_filter/USDJPY_conservative_20251015_041253` の `records.csv` で `NY:narrow:high` バケットが 0 件となることを確認。`analysis/ev_profile_summary.csv` / `analysis/hybrid_ev_stats.csv` を無取引扱いへ更新済み。次ステップは RV 高止まり時の OR 分布を追加採取し、抑制しすぎていないかを `scripts/summarize_strategy_gate.py` で評価する。
+  5. **完了 (2026-10-18)** guard-relaxed ランの `or_filter` 449 件を `analysis/or_filter_guard_relaxed_summary.py` で再集計し、`rv_band=high`=246 件 (54.8%)・`mid`=162 件 (36.1%)・`low`=41 件 (9.1%) の偏りと `min_or_atr_ratio=0.18` 固定を確認。レポートを [reports/diffs/or_filter_guard_relaxed_summary.md](../reports/diffs/or_filter_guard_relaxed_summary.md) / [JSON](../reports/diffs/or_filter_guard_relaxed_summary.json) に保存済み。
+  6. **次セッション候補**
+     - `configs/strategies/day_orb_5m_guard_relaxed.yaml` に RV 帯別 `min_or_atr_ratio`（例: high=0.12 / mid=0.14 / low=0.18）を導入し、`python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml --csv validated/USDJPY/5m.csv --symbol USDJPY --mode <mode> --out-dir runs/phase4/backtests_guard_relaxed --no-auto-state --debug --debug-sample-limit 600000` を Conservative / Bridge 両モードで再実行して `reports/diffs/` を更新する。
+     - `scripts/summarize_strategy_gate.py --run-dir <latest_run_dir> --stage loss_streak_guard --stage daily_loss_guard --stage or_filter --json` を再実行し、RV 帯別しきい値変更が連敗・日次損失ガードに与える影響を定量化する。必要に応じて `docs/progress_phase4.md` とバックログの調整案を更新する。
 
 ### On Hold
 
