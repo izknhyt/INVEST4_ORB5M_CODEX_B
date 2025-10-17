@@ -886,6 +886,20 @@ def _runner_config_snapshot(rcfg: RunnerConfig) -> Dict[str, Any]:
         "size_floor": getattr(rcfg, "size_floor_mult", None),
     }
 
+    rv_band_floor = getattr(rcfg, "rv_band_min_or_atr_ratio", None)
+    if isinstance(rv_band_floor, Mapping) and rv_band_floor:
+        floor_snapshot: Dict[str, float] = {}
+        for key, raw_value in rv_band_floor.items():
+            if key is None:
+                continue
+            try:
+                numeric = float(raw_value)
+            except (TypeError, ValueError):
+                continue
+            floor_snapshot[str(key)] = numeric
+        if floor_snapshot:
+            snapshot["rv_band_min_or_atr"] = floor_snapshot
+
     return snapshot
 
 

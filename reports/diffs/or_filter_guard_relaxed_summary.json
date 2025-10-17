@@ -3,35 +3,35 @@
     {
       "label": "conservative",
       "path": "/workspace/INVEST4_ORB5M_CODEX_B/reports/diffs/conservative_guard_relaxed_strategy_gate.json",
-      "total_count": 449,
+      "total_count": 278,
       "rv_band": [
         {
-          "name": "high",
-          "count": 246,
-          "share_pct": 54.78841870824054
+          "name": "mid",
+          "count": 137,
+          "share_pct": 49.280575539568346
         },
         {
-          "name": "mid",
-          "count": 162,
-          "share_pct": 36.080178173719375
+          "name": "high",
+          "count": 100,
+          "share_pct": 35.97122302158273
         },
         {
           "name": "low",
           "count": 41,
-          "share_pct": 9.131403118040089
+          "share_pct": 14.748201438848922
         }
       ],
       "numeric": {
         "or_atr_ratio": {
-          "count": 449,
-          "mean": 0.09344685698712794,
+          "count": 278,
+          "mean": 0.05841269916576315,
           "min": 0.0,
-          "max": 0.1794871794871795
+          "max": 0.1772151898734071
         },
         "min_or_atr_ratio": {
-          "count": 449,
-          "mean": 0.18000000000000121,
-          "min": 0.18,
+          "count": 278,
+          "mean": 0.13870503597122286,
+          "min": 0.12,
           "max": 0.18
         }
       }
@@ -39,35 +39,35 @@
     {
       "label": "bridge",
       "path": "/workspace/INVEST4_ORB5M_CODEX_B/reports/diffs/bridge_guard_relaxed_strategy_gate.json",
-      "total_count": 449,
+      "total_count": 278,
       "rv_band": [
         {
-          "name": "high",
-          "count": 246,
-          "share_pct": 54.78841870824054
+          "name": "mid",
+          "count": 137,
+          "share_pct": 49.280575539568346
         },
         {
-          "name": "mid",
-          "count": 162,
-          "share_pct": 36.080178173719375
+          "name": "high",
+          "count": 100,
+          "share_pct": 35.97122302158273
         },
         {
           "name": "low",
           "count": 41,
-          "share_pct": 9.131403118040089
+          "share_pct": 14.748201438848922
         }
       ],
       "numeric": {
         "or_atr_ratio": {
-          "count": 449,
-          "mean": 0.09344685698712794,
+          "count": 278,
+          "mean": 0.05841269916576315,
           "min": 0.0,
-          "max": 0.1794871794871795
+          "max": 0.1772151898734071
         },
         "min_or_atr_ratio": {
-          "count": 449,
-          "mean": 0.18000000000000121,
-          "min": 0.18,
+          "count": 278,
+          "mean": 0.13870503597122286,
+          "min": 0.12,
           "max": 0.18
         }
       }
@@ -76,75 +76,73 @@
   "rv_band_table": [
     {
       "mode": "conservative",
-      "rv_band": "high",
-      "count": 246,
-      "share_pct": 54.78841870824054
+      "rv_band": "mid",
+      "count": 137,
+      "share_pct": 49.280575539568346
     },
     {
       "mode": "conservative",
-      "rv_band": "mid",
-      "count": 162,
-      "share_pct": 36.080178173719375
+      "rv_band": "high",
+      "count": 100,
+      "share_pct": 35.97122302158273
     },
     {
       "mode": "conservative",
       "rv_band": "low",
       "count": 41,
-      "share_pct": 9.131403118040089
-    },
-    {
-      "mode": "bridge",
-      "rv_band": "high",
-      "count": 246,
-      "share_pct": 54.78841870824054
+      "share_pct": 14.748201438848922
     },
     {
       "mode": "bridge",
       "rv_band": "mid",
-      "count": 162,
-      "share_pct": 36.080178173719375
+      "count": 137,
+      "share_pct": 49.280575539568346
+    },
+    {
+      "mode": "bridge",
+      "rv_band": "high",
+      "count": 100,
+      "share_pct": 35.97122302158273
     },
     {
       "mode": "bridge",
       "rv_band": "low",
       "count": 41,
-      "share_pct": 9.131403118040089
+      "share_pct": 14.748201438848922
     }
   ],
   "numeric_summary": {
     "conservative": {
-      "total_count": 449,
+      "total_count": 278,
       "numeric": {
         "or_atr_ratio": {
-          "count": 449,
-          "mean": 0.09344685698712794,
+          "count": 278,
+          "mean": 0.05841269916576315,
           "min": 0.0,
-          "max": 0.1794871794871795
+          "max": 0.1772151898734071
         },
         "min_or_atr_ratio": {
-          "count": 449,
-          "mean": 0.18000000000000121,
-          "min": 0.18,
-          "max": 0.18,
-          "constant": 0.18
+          "count": 278,
+          "mean": 0.13870503597122286,
+          "min": 0.12,
+          "max": 0.18
         }
       }
     },
     "bridge": {
-      "total_count": 449,
+      "total_count": 278,
       "numeric": {
         "or_atr_ratio": {
-          "count": 449,
-          "mean": 0.09344685698712794,
+          "count": 278,
+          "mean": 0.05841269916576315,
           "min": 0.0,
-          "max": 0.1794871794871795
+          "max": 0.1772151898734071
         },
         "min_or_atr_ratio": {
-          "count": 449,
-          "mean": 0.18000000000000121,
-          "min": 0.18,
-          "max": 0.18,
-          "constant": 0.18
+          "count": 278,
+          "mean": 0.13870503597122286,
+          "min": 0.12,
+          "max": 0.18
         }
       }
     }

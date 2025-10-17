@@ -273,6 +273,7 @@ class RunnerConfig:
     threshold_lcb_pip: float = 0.5
     slip_cap_pip: float = 1.5
     min_or_atr_ratio: float = 0.6
+    rv_band_min_or_atr_ratio: Dict[str, float] = field(default_factory=dict)
     rv_band_cuts: List[float] = field(default_factory=lambda: [0.005, 0.015])  # tuned for 5m FX RV scale
     spread_bands: Dict[str, float] = field(default_factory=lambda: {"narrow": 0.5, "normal": 1.2, "wide": 99})
     # Spread input/threshold configuration
@@ -1319,6 +1320,24 @@ class BacktestRunner:
 
         spread_band = self._band_spread(spread_pips)
         rv_band = self._band_rv(realized_vol_value, session)
+        min_or_value = self.rcfg.min_or_atr_ratio
+        rv_band_floor = getattr(self.rcfg, "rv_band_min_or_atr_ratio", None)
+        if isinstance(rv_band_floor, Mapping):
+            overrides: Dict[str, float] = {}
+            for key, raw_value in rv_band_floor.items():
+                if key is None:
+                    continue
+                try:
+                    numeric = float(raw_value)
+                except (TypeError, ValueError):
+                    continue
+                if not math.isfinite(numeric):
+                    continue
+                overrides[str(key).strip().lower()] = numeric
+            key_lower = str(rv_band).strip().lower()
+            override = overrides.get(key_lower)
+            if override is not None:
+                min_or_value = override
         allowed_sessions: Optional[Tuple[str, ...]] = None
         if self.rcfg.allowed_sessions:
             allowed_sessions = tuple(self.rcfg.allowed_sessions)
@@ -1355,7 +1374,7 @@ class BacktestRunner:
             slip_cap_pip=self.rcfg.slip_cap_pip,
             threshold_lcb_pip=threshold_ctx,
             or_atr_ratio=or_ratio,
-            min_or_atr_ratio=self.rcfg.min_or_atr_ratio,
+            min_or_atr_ratio=min_or_value,
             allow_low_rv=self.rcfg.allow_low_rv,
             warmup_left=self._warmup_left,
             warmup_mult=0.05,

@@ -22,6 +22,7 @@ class DayORB5m(Strategy):
         self.cfg.setdefault("max_daily_loss_pips", 0.0)
         self.cfg.setdefault("max_daily_trade_count", 0)
         self.cfg.setdefault("tokyo_low_rv_micro_trend_min", 0.1)
+        self.cfg.setdefault("rv_band_min_or_atr_ratio", {})
         self.state = {
             "or_h": None,
             "or_l": None,
@@ -368,7 +369,28 @@ class DayORB5m(Strategy):
     def strategy_gate(self, ctx: Dict[str, Any], pending: Dict[str, Any]) -> bool:
         """戦略固有のゲート判定（OR/ATR、RVバンドなど）。"""
         self._last_gate_reason = None
-        min_or = self.cfg.get("min_or_atr_ratio", ctx.get("min_or_atr_ratio", 0.0))
+        min_or: Optional[float] = None
+        if ctx:
+            raw_min = ctx.get("min_or_atr_ratio")
+            try:
+                if raw_min is not None:
+                    min_or = float(raw_min)
+            except (TypeError, ValueError):
+                min_or = None
+        if min_or is None:
+            rv_band_ctx = ctx.get("rv_band") if isinstance(ctx, Mapping) else None
+            rv_overrides = self.cfg.get("rv_band_min_or_atr_ratio", {})
+            if isinstance(rv_overrides, Mapping) and rv_band_ctx is not None:
+                key = str(rv_band_ctx).strip().lower()
+                try:
+                    min_or = float(rv_overrides.get(key, rv_overrides.get(rv_band_ctx)))
+                except (TypeError, ValueError):
+                    min_or = None
+        if min_or is None:
+            try:
+                min_or = float(self.cfg.get("min_or_atr_ratio", 0.0))
+            except (TypeError, ValueError):
+                min_or = 0.0
         or_ratio = ctx.get("or_atr_ratio", 0.0)
         if min_or and or_ratio < min_or:
             self._last_gate_reason = {
