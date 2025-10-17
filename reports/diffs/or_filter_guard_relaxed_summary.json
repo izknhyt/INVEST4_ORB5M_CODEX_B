@@ -3,72 +3,72 @@
     {
       "label": "conservative",
       "path": "/workspace/INVEST4_ORB5M_CODEX_B/reports/diffs/conservative_guard_relaxed_strategy_gate.json",
-      "total_count": 278,
+      "total_count": 208,
       "rv_band": [
         {
           "name": "mid",
-          "count": 137,
-          "share_pct": 49.280575539568346
+          "count": 110,
+          "share_pct": 52.88461538461539
         },
         {
           "name": "high",
-          "count": 100,
-          "share_pct": 35.97122302158273
+          "count": 60,
+          "share_pct": 28.846153846153843
         },
         {
           "name": "low",
-          "count": 41,
-          "share_pct": 14.748201438848922
+          "count": 38,
+          "share_pct": 18.269230769230766
         }
       ],
       "numeric": {
         "or_atr_ratio": {
-          "count": 278,
-          "mean": 0.05841269916576315,
+          "count": 208,
+          "mean": 0.03688653991480635,
           "min": 0.0,
-          "max": 0.1772151898734071
+          "max": 0.11898016997167776
         },
         "min_or_atr_ratio": {
-          "count": 278,
-          "mean": 0.13870503597122286,
-          "min": 0.12,
-          "max": 0.18
+          "count": 208,
+          "mean": 0.12153846153846196,
+          "min": 0.1,
+          "max": 0.16
         }
       }
     },
     {
       "label": "bridge",
       "path": "/workspace/INVEST4_ORB5M_CODEX_B/reports/diffs/bridge_guard_relaxed_strategy_gate.json",
-      "total_count": 278,
+      "total_count": 208,
       "rv_band": [
         {
           "name": "mid",
-          "count": 137,
-          "share_pct": 49.280575539568346
+          "count": 110,
+          "share_pct": 52.88461538461539
         },
         {
           "name": "high",
-          "count": 100,
-          "share_pct": 35.97122302158273
+          "count": 60,
+          "share_pct": 28.846153846153843
         },
         {
           "name": "low",
-          "count": 41,
-          "share_pct": 14.748201438848922
+          "count": 38,
+          "share_pct": 18.269230769230766
         }
       ],
       "numeric": {
         "or_atr_ratio": {
-          "count": 278,
-          "mean": 0.05841269916576315,
+          "count": 208,
+          "mean": 0.03688653991480635,
           "min": 0.0,
-          "max": 0.1772151898734071
+          "max": 0.11898016997167776
         },
         "min_or_atr_ratio": {
-          "count": 278,
-          "mean": 0.13870503597122286,
-          "min": 0.12,
-          "max": 0.18
+          "count": 208,
+          "mean": 0.12153846153846196,
+          "min": 0.1,
+          "max": 0.16
         }
       }
     }
@@ -77,74 +77,112 @@
     {
       "mode": "conservative",
       "rv_band": "mid",
-      "count": 137,
-      "share_pct": 49.280575539568346
+      "count": 110,
+      "share_pct": 52.88461538461539
     },
     {
       "mode": "conservative",
       "rv_band": "high",
-      "count": 100,
-      "share_pct": 35.97122302158273
+      "count": 60,
+      "share_pct": 28.846153846153843
     },
     {
       "mode": "conservative",
       "rv_band": "low",
-      "count": 41,
-      "share_pct": 14.748201438848922
+      "count": 38,
+      "share_pct": 18.269230769230766
     },
     {
       "mode": "bridge",
       "rv_band": "mid",
-      "count": 137,
-      "share_pct": 49.280575539568346
+      "count": 110,
+      "share_pct": 52.88461538461539
     },
     {
       "mode": "bridge",
       "rv_band": "high",
-      "count": 100,
-      "share_pct": 35.97122302158273
+      "count": 60,
+      "share_pct": 28.846153846153843
     },
     {
       "mode": "bridge",
       "rv_band": "low",
-      "count": 41,
-      "share_pct": 14.748201438848922
+      "count": 38,
+      "share_pct": 18.269230769230766
     }
   ],
   "numeric_summary": {
     "conservative": {
-      "total_count": 278,
+      "total_count": 208,
       "numeric": {
         "or_atr_ratio": {
-          "count": 278,
-          "mean": 0.05841269916576315,
+          "count": 208,
+          "mean": 0.03688653991480635,
           "min": 0.0,
-          "max": 0.1772151898734071
+          "max": 0.11898016997167776
         },
         "min_or_atr_ratio": {
-          "count": 278,
-          "mean": 0.13870503597122286,
-          "min": 0.12,
-          "max": 0.18
+          "count": 208,
+          "mean": 0.12153846153846196,
+          "min": 0.1,
+          "max": 0.16
         }
       }
     },
     "bridge": {
-      "total_count": 278,
+      "total_count": 208,
       "numeric": {
         "or_atr_ratio": {
-          "count": 278,
-          "mean": 0.05841269916576315,
+          "count": 208,
+          "mean": 0.03688653991480635,
           "min": 0.0,
-          "max": 0.1772151898734071
+          "max": 0.11898016997167776
         },
         "min_or_atr_ratio": {
-          "count": 278,
-          "mean": 0.13870503597122286,
-          "min": 0.12,
-          "max": 0.18
+          "count": 208,
+          "mean": 0.12153846153846196,
+          "min": 0.1,
+          "max": 0.16
         }
       }
     }
+  },
+  "recommendations": {
+    "bands": [
+      {
+        "rv_band": "high",
+        "current": 0.1,
+        "proposed": 0.08,
+        "delta": -0.020000000000000004,
+        "share_pct": 28.846153846153843
+      },
+      {
+        "rv_band": "mid",
+        "current": 0.12,
+        "proposed": 0.09999999999999999,
+        "delta": -0.020000000000000004,
+        "share_pct": 52.88461538461539
+      },
+      {
+        "rv_band": "low",
+        "current": 0.16,
+        "proposed": 0.14,
+        "delta": -0.01999999999999999,
+        "share_pct": 18.269230769230766
+      }
+    ],
+    "params_source": "/workspace/INVEST4_ORB5M_CODEX_B/runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251017_112231/params.json",
+    "base_drop": 0.02,
+    "floor": 0.05,
+    "global": {
+      "current": 0.16,
+      "proposed": 0.14,
+      "delta": -0.01999999999999999
+    }
+  },
+  "heuristics": {
+    "base_drop": 0.02,
+    "floor": 0.05,
+    "params_source": "/workspace/INVEST4_ORB5M_CODEX_B/runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251017_112231/params.json"
   }
 }

@@ -1,5 +1,33 @@
 # フェーズ4 進捗レポート（検証とリリースゲート）
 
+- 2026-10-27: Guard-relaxed Day ORB の ATR ガードと損失ガードを再調整し、2018–2025 ロングランを再実行。
+  `configs/strategies/day_orb_5m_guard_relaxed.yaml` を `min_or_atr_ratio=0.16`・`rv_band_min_or_atr_ratio={high:0.10,mid:0.12,low:0.16}`・
+  `max_loss_streak=4`・`max_daily_loss_pips=180` に更新後、以下を再現。
+
+  ```bash
+  python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml \
+    --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs/phase4/backtests_guard_relaxed \
+    --no-auto-state --debug --debug-sample-limit 600000
+  python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml \
+    --csv validated/USDJPY/5m.csv --mode bridge --out-dir runs/phase4/backtests_guard_relaxed \
+    --no-auto-state --debug --debug-sample-limit 600000
+  python3 scripts/summarize_strategy_gate.py --run-dir runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251017_112231 --json
+  python3 scripts/summarize_strategy_gate.py --run-dir runs/phase4/backtests_guard_relaxed/USDJPY_bridge_20251017_112729 --json
+  python3 scripts/compare_metrics.py --left reports/diffs/conservative_guard_relaxed_metrics.json \
+    --right runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251017_112231/metrics.json \
+    --out-json reports/diffs/conservative_guard_relaxed_metrics_next.json
+  python3 scripts/compare_metrics.py --left reports/diffs/bridge_guard_relaxed_metrics.json \
+    --right runs/phase4/backtests_guard_relaxed/USDJPY_bridge_20251017_112729/metrics.json \
+    --out-json reports/diffs/bridge_guard_relaxed_metrics_next.json
+  ```
+
+  Conservative/Bridge 両モードとも 8 トレード（勝率 12.5% / Sharpe≈-5.02）まで発火し、`or_filter` ブロックが 278→208 件へ減少
+  （mid 110 / high 60 / low 38）。`reports/diffs/or_filter_guard_relaxed_summary.json` / `.md` に RV 帯別の分布と
+  推奨 `min_or_atr_ratio`（現状 0.10 / 0.12 / 0.16 から 0.08 / 0.10 / 0.14 への再調整案）を追記し、
+  `reports/diffs/*_metrics_next.json` へメトリクス差分を保存。
+  `analysis/or_filter_guard_relaxed_summary.py` は `--params-json` / `--base-drop` / `--floor` オプションに対応し、
+  `params.json` からバンド閾値を読み込んで提案値を Markdown/JSON に出力できるよう更新。
+
 - 2026-10-25: Day ORB 最適化バンドルを `scripts/run_daily_workflow.py` に統合し、データ監査→スイープ→Router構築→Paperリハーサル→承認レポートまでの自動判定を JSON へ記録できるよう整備。`configs/day_orb/optimization_bundle.yaml` / `configs/day_orb/paper_validation.yaml` を新設し、`scripts/generate_paper_validation.py` で `update_state --simulate-live` と `compare_metrics` の結果を集約。CI では `.github/workflows/day_orb_bundle.yml` と `ops/cron/day_orb_weekly.yaml` で dry-run/本番スケジュールを登録し、Go/No-Go 基準違反で失敗するよう更新。回帰として `tests/test_run_daily_workflow.py::test_day_orb_bundle_*` と `tests/test_update_state.py` に Paper リハーサル分岐の検証を追加した。
 
   代表コマンド:
