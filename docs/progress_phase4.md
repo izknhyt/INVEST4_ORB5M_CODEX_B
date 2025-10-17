@@ -161,6 +161,7 @@
 - `reports/diffs/README.md` を新設し、Phase4 ゴールドラン比較用の diff アーティファクト格納規約と `scripts/compare_metrics.py` 実行例を明文化。
 - 自動 state 再開時に設定ハッシュ不一致でも `loaded_state` が出力されてしまう誤報告を解消し、メトリクス JSON が実際に復元した時のみパスを記録するよう `scripts/run_sim.py` / Runner ライフサイクルを修正した（`tests/test_run_sim_cli.py::test_run_sim_cli_omits_loaded_state_on_mismatch` で回帰を追加）。
 - `validated/USDJPY/5m.csv` の指紋を記録（579,578 行 / SHA256=85fa08f2224eb6119878f3689a5af617cb666eaab37c5acb7e3603c4bfda48d4）し、`state.md` と同期した。
+- 2026-10-26: `tail -n 1 validated/USDJPY/5m.csv` で終端 `2025-10-02T22:15:00` を再確認し、`python3 scripts/check_data_quality.py --csv validated/USDJPY/5m.csv --calendar-day-summary --fail-under-coverage 0.995 --fail-on-duplicate-groups 5` を再実行。`coverage_ratio=0.7108490774310342`（週末/祝日ギャップ起因）のため監査は既定閾値未達で非ゼロ終了だが、行数・SHA256・終端タイムスタンプは据え置き。
 - `docs/progress_phase4.md#バグトラッキング` にバグノートのテーブル雛形を追加し、W0 の共有テンプレート整備を完了した。
 - `scripts/compare_metrics.py` を新設し、長期ランの `metrics.json` 差分をトレラントに比較できる CLI / JSON レポート出力を整備。Pytest で回帰を追加し、Diff ツール欠如リスクを解消した。
 - `scripts/run_sim.py` に `--no-auto-state` / `--auto-state` フラグを追加し、フェーズ4長期ランを過去 state に依存せず再現できるようにした。`configs/strategies/day_orb_5m.yaml` は Bridge モードを併記し、`runs/phase4/backtests/` 配下へベースライン run を保存してパラメータ探索の足場を確保。
