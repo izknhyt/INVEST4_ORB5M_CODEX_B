@@ -2031,6 +2031,35 @@ class TestRunner(unittest.TestCase):
         self.assertEqual(record["max_signals_per_day"], 4)
         self.assertEqual(record["allow_low_rv"], features.entry_ctx.allow_low_rv)
 
+    def test_entry_context_respects_rv_band_specific_min_or_ratio(self):
+        rcfg = RunnerConfig(
+            min_or_atr_ratio=0.2,
+            rv_band_min_or_atr_ratio={"high": 0.12, "mid": 0.14},
+        )
+        runner = BacktestRunner(100000, "USDJPY", runner_cfg=rcfg)
+        with patch.object(runner, "_band_rv", return_value="high"):
+            ctx = runner._build_ctx(
+                bar={
+                    "spread": 0.01,
+                    "window": [],
+                },
+                session="NY",
+                atr14=1.0,
+                or_h=1.2,
+                or_l=1.0,
+                realized_vol_value=0.02,
+            )
+        self.assertEqual(ctx.rv_band, "high")
+        self.assertAlmostEqual(ctx.min_or_atr_ratio, 0.12)
+        ctx_map = ctx.to_mapping()
+        ctx_map["or_atr_ratio"] = 0.05
+        allowed = runner.stg.strategy_gate(ctx_map, {})
+        self.assertFalse(allowed)
+        reason = runner.stg._last_gate_reason
+        self.assertIsNotNone(reason)
+        self.assertEqual(reason["stage"], "or_filter")
+        self.assertAlmostEqual(reason["min_or_atr_ratio"], 0.12)
+
     def test_evaluate_ev_threshold_rejects_when_ev_below_threshold(self):
         runner, pending, breakout, features, calibrating = self._prepare_breakout_environment(
             warmup_left=0

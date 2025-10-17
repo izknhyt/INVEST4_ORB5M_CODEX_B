@@ -1,29 +1,29 @@
 {
   "or_filter": {
-    "count": 449,
+    "count": 278,
     "numeric": {
       "or_atr_ratio": {
-        "count": 449,
-        "mean": 0.09344685698712794,
+        "count": 278,
+        "mean": 0.05841269916576315,
         "min": 0.0,
-        "max": 0.1794871794871795
+        "max": 0.1772151898734071
       },
       "min_or_atr_ratio": {
-        "count": 449,
-        "mean": 0.18000000000000121,
-        "min": 0.18,
+        "count": 278,
+        "mean": 0.13870503597122286,
+        "min": 0.12,
         "max": 0.18
       }
     },
     "categorical": {
       "rv_band": [
         [
-          "high",
-          246
+          "mid",
+          137
         ],
         [
-          "mid",
-          162
+          "high",
+          100
         ],
         [
           "low",
@@ -33,7 +33,7 @@
       "allow_low_rv": [
         [
           "True",
-          449
+          278
         ]
       ]
     }

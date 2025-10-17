@@ -216,7 +216,18 @@ _2026-08-12 review_: Confirmed W2 バグ掃討後のノートを再確認し、H
 - フェーズ4長期ラン（state 自動ロード無効化）: `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode <mode> --start-ts 2018-01-01T00:00:00Z --end-ts 2025-12-31T23:55:00Z --out-json reports/long_<mode>.json --out-daily-csv reports/long_<mode>_daily.csv --out-dir runs/phase4/backtests --no-auto-state`
 
 ## 長期バックテスト
-### 現状サマリ（2026-10-18 更新）
+### 現状サマリ（2026-10-19 更新）
+- 2026-10-19: Guard-relaxed マニフェストに RV 帯別 `min_or_atr_ratio`
+  （high=0.12 / mid=0.14 / low=0.18）を導入したうえで Conservative / Bridge の
+  デバッグランを再実行。`python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml --csv validated/USDJPY/5m.csv --symbol USDJPY --mode conservative --out-dir runs/phase4/backtests_guard_relaxed --no-auto-state --debug --debug-sample-limit 600000`
+  と `--mode bridge` で `runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251017_050450` / `USDJPY_bridge_20251017_050746`
+  を取得し、`total_pips=-4.91`・`win_rate=0`・`sharpe=-5.55` は従来と同水準ながら
+  `or_filter` は 278 件に減少（`rv_band=mid` 137 件 / `high` 100 件 / `low` 41 件、
+  `min_or_atr_ratio` 平均 ≈0.1387・最小 0.12・最大 0.18）。
+  `reports/diffs/conservative_guard_relaxed_strategy_gate.json` / `bridge_guard_relaxed_strategy_gate.json`
+  と [reports/diffs/or_filter_guard_relaxed_summary.md](../reports/diffs/or_filter_guard_relaxed_summary.md)
+  ・[JSON](../reports/diffs/or_filter_guard_relaxed_summary.json) を更新し、
+  RV 帯別緩和が Tokyo 低RVブロック以外の `or_filter` に効いていることを確認。
 - 2026-10-18: `analysis/or_filter_guard_relaxed_summary.py` で guard-relaxed ランの `or_filter` 449 件を再集計し、
   `rv_band=high` が 246 件 (54.8%)、`mid` が 162 件 (36.1%)、`low` が 41 件 (9.1%) と判明。
   全件で `min_or_atr_ratio` は 0.18 に張り付き、実際の `or_atr_ratio` は平均 ≈0.093（最小 0 / 最大 0.179）。
