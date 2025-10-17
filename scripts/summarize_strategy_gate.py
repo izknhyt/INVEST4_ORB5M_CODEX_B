@@ -179,9 +179,13 @@ def _load_records(path: Path, stage: str) -> Dict[str, ReasonSummary]:
         if "stage" not in reader.fieldnames:
             raise SystemExit("records.csv is missing the 'stage' column")
         for row in reader:
-            if row.get("stage") != stage:
+            row_stage = (row.get("stage") or "").strip()
+            reason_stage = (
+                (row.get("reason_stage") or row.get("reason") or "").strip()
+            )
+            if stage not in {row_stage, reason_stage}:
                 continue
-            reason = row.get("reason_stage") or row.get("reason") or "unknown"
+            reason = reason_stage or row_stage or "unknown"
             summary = summaries.get(reason)
             if summary is None:
                 summary = ReasonSummary(NUMERIC_FIELDS, CATEGORICAL_FIELDS)
@@ -238,8 +242,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     parser.add_argument(
         "--stage",
-        default="strategy_gate",
-        help="Record stage to summarise (default: strategy_gate)",
+        dest="stages",
+        action="append",
+        help="Record stage to summarise (repeatable; default: strategy_gate)",
     )
     parser.add_argument(
         "--limit",
@@ -254,25 +259,79 @@ def main(argv: Optional[List[str]] = None) -> int:
         action="store_true",
         help="Emit summary as JSON instead of formatted text",
     )
+    parser.add_argument(
+        "--out-json",
+        help="Write JSON summary to the given path (implies --json)",
+    )
     args = parser.parse_args(argv)
 
+    if args.out_json and not args.json:
+        args.json = True
+
     records_path = _resolve_records_path(args)
-    summaries = _load_records(records_path, args.stage)
-    if not summaries:
-        print(f"No records found for stage '{args.stage}' in {records_path}")
-        return 0
+    stages = args.stages or ["strategy_gate"]
+
+    stage_payloads: Dict[str, Dict[str, object]] = {}
+    text_sections: List[str] = []
+
+    for stage in stages:
+        summaries = _load_records(records_path, stage)
+        ordered = sorted(
+            summaries.items(), key=lambda item: item[1].count, reverse=True
+        )
+        if not ordered:
+            stage_payloads[stage] = {"total_count": 0, "reasons": {}}
+            if not args.json:
+                text_sections.append(
+                    f"No records found for stage '{stage}' in {records_path}"
+                )
+            continue
+
+        stage_payloads[stage] = {
+            "total_count": sum(summary.count for _, summary in ordered),
+            "reasons": {
+                reason: summary.to_dict()
+                for reason, summary in ordered
+            },
+        }
+
+        if not args.json:
+            text_sections.append(f"[Stage: {stage}]")
+            text_sections.append(_render_text_summary(summaries, args.limit))
 
     if args.json:
-        payload = {
-            reason: summary.to_dict()
-            for reason, summary in sorted(
-                summaries.items(), key=lambda item: item[1].count, reverse=True
-            )
-        }
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        multi_stage = len(stages) > 1 or args.out_json
+        if not multi_stage:
+            stage = stages[0]
+            payload = stage_payloads.get(stage, {"total_count": 0, "reasons": {}})
+            if not payload.get("total_count"):
+                print(f"No records found for stage '{stage}' in {records_path}")
+                return 0
+            json_payload = payload["reasons"]
+        else:
+            json_payload = {
+                "records_path": str(records_path),
+                "stages": stage_payloads,
+            }
+
+        text = json.dumps(json_payload, ensure_ascii=False, indent=2)
+        print(text)
+
+        if args.out_json:
+            out_path = Path(args.out_json)
+            if not out_path.is_absolute():
+                out_path = Path.cwd() / out_path
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(text, encoding="utf-8")
         return 0
 
-    print(_render_text_summary(summaries, args.limit))
+    if not text_sections:
+        print(
+            f"No records found for stages {', '.join(stages)} in {records_path}"
+        )
+        return 0
+
+    print("\n\n".join(section for section in text_sections if section))
     return 0
 
 

@@ -296,6 +296,14 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - 改善後のメトリクスと再現コマンドを `docs/progress_phase4.md`・`state.md`・PR 説明に記録し、`reports/long_{mode}.json` / `reports/long_{mode}_daily.csv` を更新する。
   - Paper 判定に向けたエビデンスを `docs/go_nogo_checklist.md`・`docs/progress_phase4.md#運用チェックリスト` に保存し、承認ログのリンクとともに共有する。
 - **Notes**:
+
+- 2026-10-19: Guard-relaxed reruns (`runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251017_060706` /
+  `USDJPY_bridge_20251017_061157`) confirmed `loss_streak_guard` / `daily_loss_guard`
+  remain inactive while `or_filter` stays at 278 hits (mid 137 / high 100 / low 41).
+  Recorded the multi-stage summary under `reports/diffs/guard_stage_summary.json` /
+  `reports/diffs/guard_stage_summary.md` and queued follow-up tuning to lower
+  high/mid RV floors (e.g., 0.10 / 0.12) plus sandbox trials for tighter loss/daily
+  guard limits.
 - 2026-08-19: Guard-relaxed manifest (`configs/strategies/day_orb_5m_guard_relaxed.yaml`) long-runs executed for Conservative / Bridge
   (`runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251014_051935` /
   `runs/phase4/backtests_guard_relaxed/USDJPY_bridge_20251014_052447`).
