@@ -1,39 +1,107 @@
 {
-  "or_filter": {
-    "count": 278,
+  "rv_filter": {
+    "count": 15367,
     "numeric": {
       "or_atr_ratio": {
-        "count": 278,
-        "mean": 0.05841269916576315,
-        "min": 0.0,
-        "max": 0.1772151898734071
+        "count": 15367,
+        "mean": 4.70201168953329,
+        "min": 0.4607594936705724,
+        "max": 52.17417417418391
       },
       "min_or_atr_ratio": {
-        "count": 278,
-        "mean": 0.13870503597122286,
-        "min": 0.12,
-        "max": 0.18
+        "count": 15367,
+        "mean": 0.16000000000000544,
+        "min": 0.16,
+        "max": 0.16
+      }
+    },
+    "categorical": {
+      "rv_band": [
+        [
+          "low",
+          15367
+        ]
+      ],
+      "allow_low_rv": [
+        [
+          "True",
+          15367
+        ]
+      ]
+    }
+  },
+  "tokyo_low_rv_guard": {
+    "count": 5880,
+    "numeric": {
+      "or_atr_ratio": {
+        "count": 5880,
+        "mean": 3.4600822495200774,
+        "min": 0.29577464788731406,
+        "max": 15.842105263159869
+      },
+      "min_or_atr_ratio": {
+        "count": 5880,
+        "mean": 0.15999999999999148,
+        "min": 0.16,
+        "max": 0.16
+      },
+      "micro_trend": {
+        "count": 5880,
+        "mean": -0.112535394185891,
+        "min": -0.9877385327431674,
+        "max": 0.9859644205234048
+      }
+    },
+    "categorical": {
+      "rv_band": [
+        [
+          "low",
+          5880
+        ]
+      ],
+      "allow_low_rv": [
+        [
+          "True",
+          5880
+        ]
+      ]
+    }
+  },
+  "or_filter": {
+    "count": 208,
+    "numeric": {
+      "or_atr_ratio": {
+        "count": 208,
+        "mean": 0.03688653991480635,
+        "min": 0.0,
+        "max": 0.11898016997167776
+      },
+      "min_or_atr_ratio": {
+        "count": 208,
+        "mean": 0.12153846153846196,
+        "min": 0.1,
+        "max": 0.16
       }
     },
     "categorical": {
       "rv_band": [
         [
           "mid",
-          137
+          110
         ],
         [
           "high",
-          100
+          60
         ],
         [
           "low",
-          41
+          38
         ]
       ],
       "allow_low_rv": [
         [
           "True",
-          278
+          208
         ]
       ]
     }
