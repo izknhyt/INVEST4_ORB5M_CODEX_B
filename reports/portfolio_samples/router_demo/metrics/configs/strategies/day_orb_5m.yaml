@@ -19,16 +19,20 @@ strategy:
       mode: bridge
   parameters:
     or_n: 6
-    k_tp: 1.4
-    k_sl: 0.7
+    k_tp: 1.25
+    k_sl: 0.6
     k_tr: 0.3
     require_close_breakout: false
     require_retest: false
     retest_max_bars: 4
     retest_tol_k: 0.2
-    min_or_atr_ratio: 0.20
-    ny_high_rv_min_or_atr_ratio: 0.30
-    tokyo_low_rv_micro_trend_min: 0.10
+    min_or_atr_ratio: 0.16
+    rv_band_min_or_atr_ratio:
+      low: 0.18
+      mid: 0.16
+      high: 0.12
+    ny_high_rv_min_or_atr_ratio: 0.24
+    tokyo_low_rv_micro_trend_min: 0.0
     cooldown_bars: 1
     min_micro_trend: 0.0
     min_atr_pips: 0.0
@@ -42,7 +46,7 @@ strategy:
 router:
   allowed_sessions: [LDN, NY]
   allow_spread_bands: [narrow, normal]
-  allow_rv_bands: [mid, high]
+  allow_rv_bands: [low, mid, high]
   max_latency_ms: 80
   category_cap_pct: 40
   tags: [breakout, usd, jpy]
@@ -61,8 +65,8 @@ features:
 runner:
   runner_config:
     threshold_lcb_pip: -10.0
-    min_or_atr_ratio: 0.20
-    ny_high_rv_min_or_atr_ratio: 0.30
+    min_or_atr_ratio: 0.16
+    ny_high_rv_min_or_atr_ratio: 0.24
     allow_low_rv: true
     allowed_sessions: [LDN, NY]
     warmup_trades: 0

@@ -1,5 +1,61 @@
 # フェーズ4 進捗レポート（検証とリリースゲート）
 
+- 2026-10-17: Day ORB シンプル化リブートの初期値を再調整し、低 RV 帯のブロック理由を整理。
+  `configs/strategies/day_orb_5m.yaml` を `k_tp=1.25` / `k_sl=0.6` / `min_or_atr_ratio=0.16`
+  / `rv_band_min_or_atr_ratio={low:0.18,mid:0.16,high:0.12}` / `ny_high_rv_min_or_atr_ratio=0.24`
+  / `tokyo_low_rv_micro_trend_min=0.0` に刷新し、`strategies/day_orb_5m.DayORB5m` では
+  東京専用の RV フィルタをセッション判定から切り離して低 RV ガードをマイクロトレンドのみに集約した。
+  その結果、デバッグランでは `_last_gate_reason` が `rv_filter=14215` / `tokyo_low_rv_guard=5608`
+  から `or_filter=24` / `ny_high_rv_or_filter=1` に収束し、Tokyo セッション外で空振りしていた
+  ブロックを解消できた（run=`runs/tmp/day_orb5m_debug/USDJPY_conservative_20251017_122719`）。
+
+  ```bash
+  python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml \
+    --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs/tmp/day_orb5m_debug \
+    --debug --debug-sample-limit 500000 --no-auto-state
+  python3 scripts/summarize_strategy_gate.py \
+    --run-dir runs/tmp/day_orb5m_debug/USDJPY_conservative_20251017_122719 --json
+  python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml \
+    --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs/phase4/backtests \
+    --no-auto-state
+  python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml \
+    --csv validated/USDJPY/5m.csv --mode bridge --out-dir runs/phase4/backtests --no-auto-state
+  python3 scripts/compare_metrics.py --left reports/long_conservative.json \
+    --right runs/phase4/backtests/USDJPY_conservative_20251017_122913/metrics.json \
+    --out-json tmp/day_orb_conservative_diff.json
+  python3 scripts/compare_metrics.py --left reports/long_bridge.json \
+    --right runs/phase4/backtests/USDJPY_bridge_20251017_123055/metrics.json \
+    --out-json tmp/day_orb_bridge_diff.json
+  python3 - <<'PY'
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+report = {
+    "generated_at": datetime.now(timezone.utc).isoformat(),
+    "baseline": {
+        "conservative": "reports/long_conservative.json",
+        "bridge": "reports/long_bridge.json",
+    },
+    "candidates": {
+        "conservative": "runs/phase4/backtests/USDJPY_conservative_20251017_122913/metrics.json",
+        "bridge": "runs/phase4/backtests/USDJPY_bridge_20251017_123055/metrics.json",
+    },
+    "diffs": {
+        "conservative": json.load(open("tmp/day_orb_conservative_diff.json")),
+        "bridge": json.load(open("tmp/day_orb_bridge_diff.json")),
+    },
+}
+Path("reports/diffs/day_orb_reboot_metrics.json").write_text(
+    json.dumps(report, indent=2, ensure_ascii=False) + "\n"
+)
+PY
+  ```
+
+  Conservative / Bridge ともに 3 トレードで終了し EV ブロックは発生せず、
+  `reports/diffs/day_orb_reboot_metrics.json` に既存ロングランとの差分を集約。
+  保守的な TP/SL の再設定によって Sharpe / DD は依然マイナスだが、低 RV 帯の
+  ブロック理由が `or_filter` のみとなったため次段の ATR 再校正に集中できる。
+
 - 2026-10-27: Guard-relaxed Day ORB の ATR ガードと損失ガードを再調整し、2018–2025 ロングランを再実行。
   `configs/strategies/day_orb_5m_guard_relaxed.yaml` を `min_or_atr_ratio=0.16`・`rv_band_min_or_atr_ratio={high:0.10,mid:0.12,low:0.16}`・
   `max_loss_streak=4`・`max_daily_loss_pips=180` に更新後、以下を再現。

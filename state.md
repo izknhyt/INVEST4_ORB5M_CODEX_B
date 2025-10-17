@@ -1,5 +1,20 @@
 # Work State Log
 
+- 2026-10-17: Day ORB シンプル化リブートの再調整。`configs/strategies/day_orb_5m.yaml` を `k_tp=1.25` / `k_sl=0.6` /
+  `min_or_atr_ratio=0.16` / `rv_band_min_or_atr_ratio={low:0.18,mid:0.16,high:0.12}` /
+  `ny_high_rv_min_or_atr_ratio=0.24` / `tokyo_low_rv_micro_trend_min=0.0` へ更新し、
+  `strategies/day_orb_5m.DayORB5m` の低 RV 判定からセッション依存ブロックを排除。
+  コマンド: `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs/tmp/day_orb5m_debug --debug --debug-sample-limit 500000 --no-auto-state`,
+  `python3 scripts/summarize_strategy_gate.py --run-dir runs/tmp/day_orb5m_debug/USDJPY_conservative_20251017_122719 --json`,
+  `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs/phase4/backtests --no-auto-state`,
+  `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode bridge --out-dir runs/phase4/backtests --no-auto-state`,
+  `python3 scripts/compare_metrics.py --left reports/long_conservative.json --right runs/phase4/backtests/USDJPY_conservative_20251017_122913/metrics.json --out-json tmp/day_orb_conservative_diff.json`,
+  `python3 scripts/compare_metrics.py --left reports/long_bridge.json --right runs/phase4/backtests/USDJPY_bridge_20251017_123055/metrics.json --out-json tmp/day_orb_bridge_diff.json`,
+  `python3 -m pytest`。
+  結果: `_last_gate_reason` が `rv_filter=14215` / `tokyo_low_rv_guard=5608` から `or_filter=24` / `ny_high_rv_or_filter=1` に減少。
+  `reports/diffs/day_orb_reboot_metrics.json` へロングラン差分を集約し、`docs/progress_phase4.md` / `docs/task_backlog.md#P4-04` /
+  `reports/portfolio_samples/router_demo/metrics/configs/strategies/day_orb_5m.yaml` を同期。
+
 - 2026-10-27: Re-validated guard-relaxed ATR/loss guard tweaks (`min_or_atr_ratio=0.16`, rv_band overrides 0.10/0.12/0.16,
   `max_loss_streak=4`, `max_daily_loss_pips=180`) by sampling the previous long-run blocks and launching fresh 2018–2025 runs.
   Commands: `python3 scripts/summarize_strategy_gate.py --run-dir runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251017_105209 --json`,
