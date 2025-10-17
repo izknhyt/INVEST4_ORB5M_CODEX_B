@@ -160,7 +160,9 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - Backlog and progress docs log the update so future sessions can follow the remediation playbook without rediscovery.
 - 2026-07-21: Reauthored the plan with an executive summary, objectives, workstreams, test/tooling strategy, timeline, and open questions to guide Phase 4 simulation bugfix and refactor execution; aligned references for Codex Cloud hand-offs.
 
-### P0-20 Day ORB experiment history bootstrap (Open)
+### ~~P0-20 Day ORB experiment history bootstrap~~ ✅ (2026-10-25 クローズ)
+- **DoD 達成要約**: Day ORB 過去 12 run の JSON 履歴を整備し、`scripts/log_experiment.py` / `scripts/recover_experiment_history.py` を追加して二重書き込みと Parquet 再生成を pytest で担保、データセット指紋と運用フローを `docs/progress_phase4.md` に反映。
+- **最終ログ**: 2026-10-19 `state.md` / `docs/progress_phase4.md` 更新。
 - **DoD**:
   - Stand up per-run JSON under `experiments/history/runs/`, seeded with legacy Day ORB runs and annotated with dataset SHA256/row count, CLI command, and git commit. Parquet snapshots are regenerated locally via `scripts/recover_experiment_history.py` instead of being checked into the repo.
   - Deliver `scripts/log_experiment.py` + `scripts/recover_experiment_history.py` with pytest coverage ensuring dual-write integrity and recovery from JSON.
@@ -169,7 +171,9 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2026-10-16: Experiments history populated with 12 legacy Day ORB runs via the new logging CLI, dataset fingerprint (`data/usdjpy_5m_2018-2024_utc.csv` rows=523,743 / SHA256=e8155a79cab613b9a9d9c72b994328b114f32e4d4b7f354c106e55ab711e4dd1) recorded, recovery flow validated (`python3 scripts/recover_experiment_history.py --from-json ...`). See [docs/progress_phase4.md](progress_phase4.md).
 - 2026-10-19: JSON 監査で 12 件すべての `run_id` / `dataset_sha256` / `dataset_rows` / `command` が揃っていること、`python3 scripts/log_experiment.py` の dry-run 出力が既知の指紋（rows=523,743 / SHA256=e8155a79cab613b9a9d9c72b994328b114f32e4d4b7f354c106e55ab711e4dd1）を維持することを確認。`metrics.json` 欠損・既存 JSON への再投入で stderr に警告が出る挙動をキャプチャし、`python3 scripts/recover_experiment_history.py --from-json --parquet experiments/history/records.parquet` の結果（12 行・SHA256=b82357608b887c9131889e5bb4a9fbbc9e36d201847a71f9e569853a5414f56c）と pytest コマンドを DoD チェックリストへ追記した。詳細は [docs/progress_phase4.md](progress_phase4.md#フェーズ4-進捗レポート検証とリリースゲート) を参照。
 
-### P0-21 Day ORB optimisation engine bring-up (Open)
+### ~~P0-21 Day ORB optimisation engine bring-up~~ ✅ (2026-10-25 クローズ)
+- **DoD 達成要約**: `configs/experiments/day_orb_core.yaml` と `scripts/run_param_sweep.py` / `scripts/select_best_params.py` を実装し、制約ログ・Pareto 選抜・ポートフォリオ指標出力を pytest で検証、成果を `reports/simulations/day_orb_core/` と進捗ドキュメントへ連携。
+- **最終ログ**: 2026-10-23 `state.md` / `docs/progress_phase4.md` 更新。
 - **DoD**:
   - Add `configs/experiments/day_orb_core.yaml` and implement `scripts/run_param_sweep.py` with grid/random search + hard constraints (drawdown, trades/month).
   - Ship `scripts/select_best_params.py` that emits ranked candidates to `reports/simulations/day_orb_core/best_params.json` and logs provenance to the experiment history.
@@ -178,7 +182,9 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
 - 2026-10-20: Expanded the sweep config with 2019–2025 seasonal slices, win-rate / profit-factor guardrails, and a linked JSON schema. Added consolidated `log.json` output in `scripts/run_param_sweep.py`, Pareto-front ranking with dataset fingerprints in `scripts/select_best_params.py`, and new mock-based coverage (`tests/test_run_param_sweep.py`, `tests/test_select_best_params.py`). Updated `docs/progress_phase4.md` / `state.md` accordingly.
 - 2026-10-17: Delivered the core sweep loop by adding `configs/experiments/day_orb_core.yaml`, implementing `scripts/run_param_sweep.py` (grid/random search, seasonal metrics, constraint logging), and `scripts/select_best_params.py` (Pareto filter + JSON emitter). Logged the dry-run commands and outcomes in `docs/progress_phase4.md` and recorded the sweep footprint in `state.md`.
 
-### P0-22 Pseudo-live adaptive guardrails (Open)
+### ~~P0-22 Pseudo-live adaptive guardrails~~ ✅ (2026-10-25 クローズ)
+- **DoD 達成要約**: `scripts/update_state.py --simulate-live` へ最大デルタ / VAR / 流動性キャップとロールバック通知を導入し、`notifications/emit_signal.py` 連携・差分アーカイブ・pytest 回帰を追加、運用手順を `docs/state_runbook.md` / `docs/progress_phase4.md` に反映。
+- **最終ログ**: 2026-10-21 `state.md` / `docs/progress_phase4.md` 更新。
 - **DoD**:
   - Extend `scripts/update_state.py --simulate-live` with bounded parameter deltas (`--max-delta`), VAR/liquidity caps, and archival diffs in `ops/state_archive/`.
   - Implement automatic rollback + alert hooks via `notifications/emit_signal.py` when drift or anomaly thresholds trigger.
