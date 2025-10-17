@@ -403,18 +403,14 @@ class DayORB5m(Strategy):
         allow_low = bool(ctx.get("allow_low_rv", False))
         rv_band = ctx.get("rv_band")
         session = ctx.get("session")
-        session_code = str(session) if session is not None else None
-        if rv_band not in ("mid", "high"):
-            if rv_band == "low" and allow_low:
-                if session_code != "TOK":
-                    self._last_gate_reason = {
-                        "stage": "rv_filter",
-                        "rv_band": rv_band,
-                        "session": session,
-                        "allow_low_rv": allow_low,
-                    }
-                    return False
-
+        session_code: Optional[str] = None
+        if session is not None:
+            session_code = str(session).strip().upper()
+            if not session_code:
+                session_code = None
+        rv_band_code = str(rv_band).strip().lower() if rv_band is not None else None
+        if rv_band_code not in ("mid", "high"):
+            if rv_band_code == "low" and allow_low:
                 tokyo_min = ctx.get("tokyo_low_rv_micro_trend_min")
                 if tokyo_min is None:
                     tokyo_min = self.cfg.get("tokyo_low_rv_micro_trend_min", 0.1)
@@ -464,7 +460,7 @@ class DayORB5m(Strategy):
                 }
                 return False
 
-        if session == "NY" and rv_band == "high":
+        if session_code == "NY" and rv_band_code == "high":
             # Optional hard block for scenarios where high RV moves during NY session
             # have proven too volatile for the OR breakout.
             ny_high_block = ctx.get("ny_high_rv_block")
