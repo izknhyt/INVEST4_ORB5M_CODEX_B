@@ -115,6 +115,16 @@
   `analysis/ev_profile_summary.csv` / `analysis/hybrid_ev_stats.csv` の同バケット値を
   `alpha_avg=beta_avg=1.0`・`p_mean=0.5`・`observations=0` に更新し、将来の EV 再集計時に
   無取引扱いとして扱えるよう整備した。推奨パラメータは manifest / runner_config 双方に反映済み。
+- 2026-10-17: Manifest と戦略ロジックを更新し、Tokyo 低 RV 許容の分岐を試験。`configs/strategies/day_orb_5m.yaml`
+  に `runner.runner_config.allow_low_rv=true` / `min_or_atr_ratio=0.20` / `ny_high_rv_min_or_atr_ratio=0.30`
+  / `tokyo_low_rv_micro_trend_min=0.10` を反映し、`strategies/day_orb_5m.DayORB5m` で Tokyo セッションのみ
+  低 RV を許容する代わりに `micro_trend` の方向閾値（BUY: ≥0.1 / SELL: ≤-0.1）を追加。埋め込みマニフェストも
+  `reports/portfolio_samples/router_demo/metrics/configs/strategies/day_orb_5m.yaml` へ同期。
+  `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs --debug --debug-sample-limit 500000 --no-auto-state`
+  を再実行し、新ラン `runs/USDJPY_conservative_20251017_005817` では 3 トレード（総損益 -6.92 pips）。
+  `python3 scripts/summarize_strategy_gate.py --run-dir runs/USDJPY_conservative_20251017_005817 --json` の結果、
+  `rv_filter=14,215` 件（`rv_band=low`）、`tokyo_low_rv_guard=5,608` 件、`or_filter=98` 件、`ny_high_rv_or_filter=29` 件を確認。
+  回帰は `python3 -m pytest` で 417 passed / 5 skipped を維持。
 - 2026-10-15: `runs/USDJPY_conservative_20251002_214013` を再生成して `scripts/summarize_strategy_gate.py` の JSON 集計を
   `reports/analysis/day_orb5m_20251002_gate_summary.json` / `reports/analysis/day_orb5m_20251002_gate_block_summary.json` に保存。
   `records.csv` ベースの件数は `router_gate=182,198`（86.4%）/`strategy_gate=28,623`（13.6%）で、

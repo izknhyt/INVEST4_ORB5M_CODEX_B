@@ -21,6 +21,7 @@ class DayORB5m(Strategy):
         self.cfg.setdefault("max_loss_streak", 0)
         self.cfg.setdefault("max_daily_loss_pips", 0.0)
         self.cfg.setdefault("max_daily_trade_count", 0)
+        self.cfg.setdefault("tokyo_low_rv_micro_trend_min", 0.1)
         self.state = {
             "or_h": None,
             "or_l": None,
@@ -377,15 +378,69 @@ class DayORB5m(Strategy):
             }
             return False
 
-        allow_low = ctx.get("allow_low_rv", False)
+        allow_low = bool(ctx.get("allow_low_rv", False))
         rv_band = ctx.get("rv_band")
         session = ctx.get("session")
-        if not allow_low and rv_band not in ("mid", "high"):
-            self._last_gate_reason = {
-                "stage": "rv_filter",
-                "rv_band": rv_band,
-            }
-            return False
+        session_code = str(session) if session is not None else None
+        if rv_band not in ("mid", "high"):
+            if rv_band == "low" and allow_low:
+                if session_code != "TOK":
+                    self._last_gate_reason = {
+                        "stage": "rv_filter",
+                        "rv_band": rv_band,
+                        "session": session,
+                        "allow_low_rv": allow_low,
+                    }
+                    return False
+
+                tokyo_min = ctx.get("tokyo_low_rv_micro_trend_min")
+                if tokyo_min is None:
+                    tokyo_min = self.cfg.get("tokyo_low_rv_micro_trend_min", 0.1)
+                try:
+                    tokyo_min_val = float(tokyo_min)
+                except (TypeError, ValueError):
+                    tokyo_min_val = 0.1
+
+                micro_val = None
+                side = None
+                if isinstance(pending, dict):
+                    micro_val = pending.get("micro_trend")
+                    side = pending.get("side")
+
+                if micro_val is None or side not in ("BUY", "SELL"):
+                    self._last_gate_reason = {
+                        "stage": "tokyo_low_rv_guard",
+                        "reason": "missing_signal_context",
+                        "micro_trend": micro_val,
+                        "session": session,
+                        "tokyo_low_rv_micro_trend_min": tokyo_min_val,
+                    }
+                    return False
+
+                if tokyo_min_val > 0.0:
+                    if side == "BUY" and micro_val < tokyo_min_val:
+                        self._last_gate_reason = {
+                            "stage": "tokyo_low_rv_guard",
+                            "signal_side": side,
+                            "micro_trend": micro_val,
+                            "tokyo_low_rv_micro_trend_min": tokyo_min_val,
+                        }
+                        return False
+                    if side == "SELL" and micro_val > -tokyo_min_val:
+                        self._last_gate_reason = {
+                            "stage": "tokyo_low_rv_guard",
+                            "signal_side": side,
+                            "micro_trend": micro_val,
+                            "tokyo_low_rv_micro_trend_min": tokyo_min_val,
+                        }
+                        return False
+            else:
+                self._last_gate_reason = {
+                    "stage": "rv_filter",
+                    "rv_band": rv_band,
+                    "session": session,
+                }
+                return False
 
         if session == "NY" and rv_band == "high":
             # Optional hard block for scenarios where high RV moves during NY session
