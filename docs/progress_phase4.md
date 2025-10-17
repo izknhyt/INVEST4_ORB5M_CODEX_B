@@ -217,6 +217,19 @@ _2026-08-12 review_: Confirmed W2 バグ掃討後のノートを再確認し、H
 
 ## 長期バックテスト
 ### 現状サマリ（2026-10-19 更新）
+
+- 2026-10-19: RV 帯別 `min_or_atr_ratio` 導入後のガード動作を最新 rerun
+  (`runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251017_060706` /
+  `USDJPY_bridge_20251017_061157`) で再集計。
+  `loss_streak_guard` / `daily_loss_guard` は両モードとも発火 0 件、
+  `or_filter` は 278 件（`rv_band=mid` 137 件 / `high` 100 件 / `low` 41 件）で据え置きだった。
+  集計結果を `reports/diffs/guard_stage_summary.json` と
+  [Markdown 版](../reports/diffs/guard_stage_summary.md) に保存し、
+  ガード別の稼働状況を共有。
+  - Next: OR フィルタ 278 件のうち高・中 RV 帯を中心に再緩和案
+    （例: high=0.10, mid=0.12）を試算し、`loss_streak_guard` / `daily_loss_guard`
+    が有効に働く閾値（`max_loss_streak=2` / `max_daily_loss_pips=80` 等）の
+    サンドボックス検証を行う。
 - 2026-10-19: Guard-relaxed マニフェストに RV 帯別 `min_or_atr_ratio`
   （high=0.12 / mid=0.14 / low=0.18）を導入したうえで Conservative / Bridge の
   デバッグランを再実行。`python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml --csv validated/USDJPY/5m.csv --symbol USDJPY --mode conservative --out-dir runs/phase4/backtests_guard_relaxed --no-auto-state --debug --debug-sample-limit 600000`

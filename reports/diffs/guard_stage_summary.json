@@ -1,0 +1,123 @@
+{
+  "generated_at": "2025-10-17T06:16:20.916374Z",
+  "runs": [
+    {
+      "mode": "bridge",
+      "run_dir": "/workspace/INVEST4_ORB5M_CODEX_B/runs/phase4/backtests_guard_relaxed/USDJPY_bridge_20251017_061157",
+      "records_path": "/workspace/INVEST4_ORB5M_CODEX_B/runs/phase4/backtests_guard_relaxed/USDJPY_bridge_20251017_061157/records.csv",
+      "stages": {
+        "loss_streak_guard": {
+          "total_count": 0,
+          "reasons": {}
+        },
+        "daily_loss_guard": {
+          "total_count": 0,
+          "reasons": {}
+        },
+        "or_filter": {
+          "total_count": 278,
+          "reasons": {
+            "or_filter": {
+              "count": 278,
+              "numeric": {
+                "or_atr_ratio": {
+                  "count": 278,
+                  "mean": 0.05841269916576315,
+                  "min": 0.0,
+                  "max": 0.1772151898734071
+                },
+                "min_or_atr_ratio": {
+                  "count": 278,
+                  "mean": 0.13870503597122286,
+                  "min": 0.12,
+                  "max": 0.18
+                }
+              },
+              "categorical": {
+                "rv_band": [
+                  [
+                    "mid",
+                    137
+                  ],
+                  [
+                    "high",
+                    100
+                  ],
+                  [
+                    "low",
+                    41
+                  ]
+                ],
+                "allow_low_rv": [
+                  [
+                    "True",
+                    278
+                  ]
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "mode": "conservative",
+      "run_dir": "/workspace/INVEST4_ORB5M_CODEX_B/runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251017_060706",
+      "records_path": "/workspace/INVEST4_ORB5M_CODEX_B/runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251017_060706/records.csv",
+      "stages": {
+        "loss_streak_guard": {
+          "total_count": 0,
+          "reasons": {}
+        },
+        "daily_loss_guard": {
+          "total_count": 0,
+          "reasons": {}
+        },
+        "or_filter": {
+          "total_count": 278,
+          "reasons": {
+            "or_filter": {
+              "count": 278,
+              "numeric": {
+                "or_atr_ratio": {
+                  "count": 278,
+                  "mean": 0.05841269916576315,
+                  "min": 0.0,
+                  "max": 0.1772151898734071
+                },
+                "min_or_atr_ratio": {
+                  "count": 278,
+                  "mean": 0.13870503597122286,
+                  "min": 0.12,
+                  "max": 0.18
+                }
+              },
+              "categorical": {
+                "rv_band": [
+                  [
+                    "mid",
+                    137
+                  ],
+                  [
+                    "high",
+                    100
+                  ],
+                  [
+                    "low",
+                    41
+                  ]
+                ],
+                "allow_low_rv": [
+                  [
+                    "True",
+                    278
+                  ]
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
