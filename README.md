@@ -3,7 +3,7 @@
 
 ## 概要
 - 戦術: 5m Opening Range Breakout（OCO/任意トレール）
-- EVゲート: OCO=Beta-Binomial（勝率LCB）/ トレール=t下側分位、閾値はデフォルト0.5 pip（`RunnerConfig.threshold_lcb_pip` / CLI `--threshold-lcb` で調整可能）
+- EVゲート: OCO=Beta-Binomial（勝率LCB）/ トレール=t下側分位、閾値はデフォルト0.5 pip（`RunnerConfig.threshold_lcb_pip` / manifest の `runner.runner_config.threshold_lcb_pip` などで調整可能）
 - Fill二系統: Conservative / Bridge（Brownian Bridge近似のフック）
 - サイズ: 分数ケリー(0.25×) + ガード（1トレード≤0.5%, 日次DD≤2%, クールダウン）
 - 想定環境: 個人開発者が単一PCで実行する前提。社内アーティファクトサーバや大規模配布は不要で、必要な依存はローカル環境で `pip install` すればよい。

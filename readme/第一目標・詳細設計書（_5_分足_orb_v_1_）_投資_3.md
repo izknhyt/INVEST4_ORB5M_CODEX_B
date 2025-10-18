@@ -473,7 +473,7 @@ class DayORB5m(Strategy):
 
 ## 研究ワークフロー（CLI・台帳）
 - 通しの基礎ラン（緩め設定）
-  - 例: `--allow-low-rv --rv-cuts 0.004,0.012 --min-or-atr 0.4 --threshold-lcb 0.0 --warmup 50 --out-dir runs/`
+  - 例: manifest の `runner.runner_config.allow_low_rv: true` / `runner.runner_config.min_or_atr_ratio: 0.4` / `runner.runner_config.threshold_lcb_pip: 0.0` / `runner.runner_config.warmup_trades: 50` を設定し、`scripts/run_sim.py --manifest ... --out-dir runs/` で保存する。
   - 出力: `runs/<id>/params.json, metrics.json, daily.csv, records.csv`/ `runs/index.csv` に1行。
 - 締め直し（現実化）
   - 門を段階的に厳格化。`index.csv` の勝率/総pips/pnl_per_tradeで比較。

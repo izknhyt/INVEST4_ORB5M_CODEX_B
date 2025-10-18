@@ -182,7 +182,7 @@
 - **CLI**
   - Core invocation: `python3 scripts/update_state.py --simulate-live --symbol USDJPY --mode conservative --max-delta 0.2 --var-cap 0.04 --liquidity-cap 1.5 --alert-mode auto --alert-webhook risk-alerts.json`
     - Data sources: `--bars` (defaults to `validated/<symbol>/5m.csv`), `--snapshot` for incremental replay metadata, `--state-in`/`--state-out` for manual override.
-    - Runner overrides mirror `scripts/run_sim.py` (`--threshold-lcb`, `--min-or-atr`, `--or-n`, `--allowed-sessions`, etc.) so tuning changes can be staged without editing manifests.
+    - Runner overrides mirror the manifest settings consumed by `scripts/run_sim.py`（`runner.runner_config.threshold_lcb_pip`, `runner.runner_config.min_or_atr_ratio`, `runner.runner_config.allowed_sessions` など）so tuning changes can be staged without editing CLI flags.
     - Guardrail flags: `--simulate-live` toggles anomaly detection; `--max-delta`, `--var-cap`, `--liquidity-cap` bound parameter drift, VAR, and gross notional usage respectively.
     - Override management: `--override-action {status,disable,enable}` and `--override-path` to gate auto-application, with `--override-reason` required when disabling.
     - Alert routing: `--alert-mode {auto,disable,force}`, `--alert-webhook` override, latency/fallback logs default to `ops/state_alert_latency.csv` and `ops/state_alerts.log`.
