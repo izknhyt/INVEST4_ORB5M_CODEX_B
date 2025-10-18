@@ -43,7 +43,7 @@
    - `--retention-days` で履歴保持期間を切り替え可能。検証結果は stdout と `--json-out` 先に JSON で保存でき、`ops/automation_runs.log` にも自動追記される。
 
 ## リフレッシュ手順
-1. `runs/index.csv` の `configs/ev_profiles/day_orb_5m.yaml` 行をチェックして Day ORB 最新ラン（例: `runs/USDJPY_conservative_20251002_214013`）を確認し、Tokyo Micro Mean Reversion についてはサンプルメトリクス `reports/portfolio_samples/router_demo/metrics/tokyo_micro_mean_reversion_v0.json` を利用する。以下のコマンドでルーター snapshot とポートフォリオサマリーを更新し、`budget_status` / `budget_over_pct` / `correlation_window_minutes` / `drawdowns` をレビューする。
+1. `runs/index.csv` は 2026-10-22 のクリーンアップ以降ヘッダーのみで配布されているため、Day ORB の最新ランは `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode <mode> --no-auto-state` 等で各自再生成する。Tokyo Micro Mean Reversion についてはサンプルメトリクス `reports/portfolio_samples/router_demo/metrics/tokyo_micro_mean_reversion_v0.json` を利用する。以下のコマンドでルーター snapshot とポートフォリオサマリーを更新し、`budget_status` / `budget_over_pct` / `correlation_window_minutes` / `drawdowns` をレビューする。
    ```bash
    python3 scripts/build_router_snapshot.py \
        --output runs/router_pipeline/latest \
@@ -60,7 +60,7 @@
        --output reports/portfolio_summary.json \
        --indent 2
    ```
-   - 最新スナップショットは [`runs/router_pipeline/latest/`](../runs/router_pipeline/latest/) 配下に保存される。特に [`telemetry.json`](../runs/router_pipeline/latest/telemetry.json) の `category_budget_headroom_pct` / `category_budget_pct` と `strategy_correlations` をレビューし、ヘッドルームが負値の場合は `budget_status` と `budget_over_pct` を記録する。
+   - 最新スナップショットは指定した出力先（例: `runs/router_pipeline/latest/`）に生成されるが、リポジトリには同梱されていない。生成した `telemetry.json` の `category_budget_headroom_pct` / `category_budget_pct` と `strategy_correlations` をレビューし、ヘッドルームが負値の場合は `budget_status` と `budget_over_pct` を記録する。
    - ポートフォリオサマリーは [`reports/portfolio_summary.json`](../reports/portfolio_summary.json) に上書きされるため、`category_utilisation[*].budget_status`・`correlation_heatmap[*].bucket_budget_pct`・`correlation_window_minutes`・`drawdowns.*` を確認し、ダッシュボードで強調すべきアラート項目を整理する。
    - Review checklist (portfolio monitoring):
      - **Budget headroom** — confirm positive `category_budget_headroom_pct` と `category_utilisation[*].budget_headroom_pct`; マイナス値があれば警告/逸脱量をコメントする。
