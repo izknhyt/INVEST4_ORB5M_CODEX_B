@@ -1,9 +1,17 @@
 # フェーズ4 進捗レポート（検証とリリースゲート）
 
 - 2026-10-29: Day ORB シンプル化リブートで EV オフを維持したまま ATR ガードと損失ガードを段階化。
-  `configs/strategies/day_orb_5m.yaml` に RV 帯別の ATR 下限/上限（`rv_band_min_atr_pips` / `rv_band_max_atr_pips`）と
-  グローバルしきい値（`min_or_atr_ratio=0.12` / `max_atr_pips=55.0` / `max_loss_streak=4` / `max_daily_loss_pips=150.0`）を導入し、
-  `strategies/day_orb_5m.DayORB5m` では `_last_gate_reason` が RV 帯別しきい値を出力できるよう ATR ガードを動的化した。
+  `configs/strategies/day_orb_5m.yaml` に RV 帯別の ATR 下限/上限
+  (`rv_band_min_atr_pips={low:6.0, mid:4.0, high:0.0}` /
+  `rv_band_max_atr_pips={low:45.0, mid:55.0, high:65.0}`) と
+  RV 帯別 ATR 比しきい値
+  (`rv_band_min_or_atr_ratio={low:0.14, mid:0.12, high:0.10}` /
+  `ny_high_rv_min_or_atr_ratio=0.20` /
+  `ny_high_rv_or_multiplier=1.2`) を導入しつつ、
+  グローバルしきい値（`min_or_atr_ratio=0.12` / `max_atr_pips=55.0` /
+  `max_loss_streak=4` / `max_daily_loss_pips=150.0`）を適用。
+  `strategies/day_orb_5m.DayORB5m` では `_last_gate_reason` が RV 帯別しきい値を
+  出力できるよう ATR ガードを動的化した。
   直近デバッグランでは OR 起因のブロックが `or_filter=24` / `ny_high_rv_or_filter=1`
   （`min_or_atr_ratio` 平均 0.16）で停滞していたため、新閾値後の Conservative バックテストでは
   `or_filter=5`（平均 0.094）まで減少した。

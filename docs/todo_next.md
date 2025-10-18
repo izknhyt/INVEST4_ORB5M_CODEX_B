@@ -36,7 +36,13 @@
   9. **次セッション候補**
      - base_drop 0.02 の提案値（rv_band={0.06,0.08,0.12} / global=0.12）をサンドボックスで検証し、さらなる ATR フロア低減の可否を判断する。
      - 2025-06 / 2024-Q1 のショートランで `max_loss_streak=3` のみブロック増（Bridge: +9 件, Conservative: +9 or +5 件）、`max_daily_loss_pips=150〜220` は発火 0 件であることを確認済み。次セッションでは `max_loss_streak=3` / `max_daily_loss_pips=150` を組み合わせたサンドボックス再現 → 差分比較レポート化 → 長期ラン反映可否の判断、の順に進める。
-  10. **完了 (2026-10-29)** Day ORB シンプル化リブートマニフェストを `min_or_atr_ratio=0.12`・RV 帯別 ATR フロア/上限 (`rv_band_min_atr_pips` / `rv_band_max_atr_pips`)・`max_loss_streak=4`・`max_daily_loss_pips=150` へ更新し、`strategies/day_orb_5m.DayORB5m` の ATR ガードを RV 帯別に再実装。`python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs/phase4/backtests --no-auto-state --debug --debug-sample-limit 500000` と `--mode bridge` を実行し、23 トレード（勝率 39.1% / 25.3%、最大 DD -103.6 / -97.3 pips）と `or_filter=5` への縮減を確認。`reports/diffs/day_orb_reboot_strategy_gate.json` / `reports/diffs/day_orb_reboot_metrics.json` を再生成し、KPI・停止条件を `docs/progress_phase4.md` に記録した。
+  10. **完了 (2026-10-29)** Day ORB シンプル化リブートマニフェストを `min_or_atr_ratio=0.12`・RV 帯別 ATR フロア/上限
+      (`rv_band_min_atr_pips={low:6.0, mid:4.0, high:0.0}` /
+      `rv_band_max_atr_pips={low:45.0, mid:55.0, high:65.0}`)・
+      RV 帯別 ATR 比 (`rv_band_min_or_atr_ratio={low:0.14, mid:0.12, high:0.10}` /
+      `ny_high_rv_min_or_atr_ratio=0.20` /
+      `ny_high_rv_or_multiplier=1.2`)・`max_loss_streak=4`・`max_daily_loss_pips=150` へ更新し、
+      `strategies/day_orb_5m.DayORB5m` の ATR ガードを RV 帯別に再実装。`python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs/phase4/backtests --no-auto-state --debug --debug-sample-limit 500000` と `--mode bridge` を実行し、23 トレード（勝率 39.1% / 25.3%、最大 DD -103.6 / -97.3 pips）と `or_filter=5` への縮減を確認。`reports/diffs/day_orb_reboot_strategy_gate.json` / `reports/diffs/day_orb_reboot_metrics.json` を再生成し、KPI・停止条件を `docs/progress_phase4.md` に記録した。
   11. **フォローアップ** Conservative Sharpe が 0 未満へ逆行、またはどちらかのモードで `trades < 15` / 最大 DD ≤ -180 pips が検知された場合のみ追加緩和を行う。次回は 2024-Q1 サンドボックスで `min_or_atr_ratio` < 0.12 と `max_loss_streak=3` の組み合わせを試験し、`reports/diffs/day_orb_reboot_metrics.json` を基準に差分を評価する。
 
 ### On Hold
