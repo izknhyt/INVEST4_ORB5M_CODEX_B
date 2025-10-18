@@ -319,7 +319,7 @@ PY
 
 ## データ指紋（2026-08-03 更新）
 - `validated/USDJPY/5m.csv` — rows=579,578 / SHA256=85fa08f2224eb6119878f3689a5af617cb666eaab37c5acb7e3603c4bfda48d4（2018-01-01T00:00:00Z〜2025-10-02T22:15:00Z）。
-- 対応するヘッダ付きスナップショットは現時点で存在しないため、ヘッダが必要な検証では `scripts/run_sim.py --strict` を併用しつつ、既存のヘッダレス CSV を読み込む。
+- 共有リポジトリにはヘッダ無しスナップショットのみが含まれる。ヘッダ付きの `validated/USDJPY/5m_with_header.csv` は 2026-10-22 の runs/ リセット後に削除済みで、再検証時はこのヘッダレス CSV を直接読み込むか、必要に応じてローカルでヘッダを付与したコピーを作成する。
 - 長期ラン成果物の索引（計画済みパス）: [`runs/phase4/backtests/index.csv`](../runs/phase4/backtests/index.csv) — 初回ゴールドラン確定後に生成する index で、W0/W1 の基準 run を記録する際はこのファイルへの permalink を併記する。
 
 ## バグトラッキング
@@ -340,7 +340,7 @@ _2026-08-12 review_: Confirmed W2 バグ掃討後のノートを再確認し、H
 - 2026-08-05: Phase4 diff ワークフローを `reports/diffs/README.md` にまとめ、W1 Step 4/7 のエビデンス保存手順（メトリクス diff・日次 CSV 変換補助スクリプト・ハッシュ記録フロー）を整理。バックログ/State 連携も更新。
 - 2026-08-03: `scripts/compare_metrics.py` を追加し、`--ignore state_loaded` などのグロブ指定・絶対/相対トレランス・JSON レポート出力に対応させた。`python3 -m pytest tests/test_compare_metrics.py` を実行し、W0 の Diff ツール整備項目を完了。さらに `scripts/manage_task_cycle.py --dry-run start-task --anchor docs/task_backlog.md#p4-01-長期バックテスト改善` を実行し、In Progress 昇格フローを確認。
 - 2026-07-05: `configs/strategies/day_orb_5m.yaml` に Bridge モードを追加し、`scripts/run_sim.py --no-auto-state` で Conservative/Bridge のベースラインを `runs/phase4/backtests/` に保存。最新 `validated/USDJPY/5m.csv` が 2025 年 10 月以降のみであることを確認し、2018–2024 の validated データ再発行を TODO に登録。
-- 2026-07-15: `data/usdjpy_5m_2018-2024_utc.csv` / `data/usdjpy_5m_2025.csv` / 既存の短期スナップショットをマージし、`validated/USDJPY/5m.csv`（ヘッダ無し）と当時はヘッダ付きの `validated/USDJPY/5m_with_header.csv` を更新。従来の短期ビューは `validated/USDJPY/5m_recent*.csv` へ退避し、`scripts/check_data_quality.py --calendar-day-summary` 実行でギャップが週末・祝日由来であることを確認（coverage_ratio=0.71）。その後リポジトリ規模削減のためヘッダ付きスナップショットは除去され、現在はヘッダ無し CSV を共通ソースとして利用している。
+- 2026-07-15: `data/usdjpy_5m_2018-2024_utc.csv` / `data/usdjpy_5m_2025.csv` / 既存の短期スナップショットをマージし、`validated/USDJPY/5m.csv`（ヘッダ無し）と当時はヘッダ付きで併存していた `validated/USDJPY/5m_with_header.csv` を更新。従来の短期ビューは `validated/USDJPY/5m_recent*.csv` へ退避し、`scripts/check_data_quality.py --calendar-day-summary` 実行でギャップが週末・祝日由来であることを確認（coverage_ratio=0.71）。2026-10-22 の runs/ クリーンアップでヘッダ付きスナップショットは除去済みのため、現在はヘッダ無し CSV を共通ソースとして利用している。
 - 2026-06-27: `docs/plans/phase4_validation_plan.md` を新設。長期バックテスト改善・異常系テスト自動化・Go/No-Go チェックリスト確定の3ストリームについて、評価軸、検証コマンド、アーティファクト更新ルール、週次マイルストーン、リスク対応を定義した。
 - 2025-10-11: EV プロファイル更新手順を `scripts/aggregate_ev.py` で確認し、Conservative/Bridge 双方の比較材料を整備。
 
