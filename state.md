@@ -1,5 +1,7 @@
 # Work State Log
 
+- 2026-10-29: README と Day ORB 関連ドキュメントから `--threshold-lcb` フラグ説明を manifest ベース (`runner.runner_config.threshold_lcb_pip` など) に更新し、EVゲート閾値調整手順の記述ズレを解消。コード変更なしのドキュメント整備につきテスト未実施。
+
 - 2026-10-29: Day ORB シンプル化リブートの ATR / リスクガードを段階化。`configs/strategies/day_orb_5m.yaml` へ
   `min_or_atr_ratio=0.12`・`rv_band_min_atr_pips`・`rv_band_max_atr_pips`・`max_loss_streak=4`・`max_daily_loss_pips=150.0`
   を導入し、`strategies/day_orb_5m.DayORB5m` の ATR ガードを RV 帯別に再実装して `_last_gate_reason` に帯情報を出力。

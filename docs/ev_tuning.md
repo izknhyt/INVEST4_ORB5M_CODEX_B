@@ -18,7 +18,7 @@
 - 学習状態を継続利用する場合は、run 実行後の `state.json` を定期的にアーカイブし、トレード開始時にロードする運用フローを runbook にまとめておくと便利です。
 
 ## ケーススタディ例
-- `scripts/generate_ev_case_study.py` は複数の `--threshold-lcb` / `--decay` / `--prior-alpha` / `--prior-beta` / `--warmup` を一括掃討し、結果を `analysis/ev_param_sweep.json`（階層化サマリ）と `analysis/ev_param_sweep.csv`（フラットテーブル）に出力します。
+- `scripts/generate_ev_case_study.py` は manifest に渡す `runner.runner_config.threshold_lcb_pip` 値（`--threshold` 引数）や `--decay` / `--prior-alpha` / `--prior-beta` / `--warmup` を一括掃討し、結果を `analysis/ev_param_sweep.json`（階層化サマリ）と `analysis/ev_param_sweep.csv`（フラットテーブル）に出力します。
   - 例:
 
     ```bash
