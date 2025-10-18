@@ -309,6 +309,16 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   `reports/diffs/guard_stage_summary.json|.md`), and queued the next proposal to
   taper ATR guards further (0.08 / 0.10 / 0.14) while planning sandbox trials for
   relaxed `max_loss_streak` / `max_daily_loss_pips` thresholds.
+- 2026-10-27: Conducted short-window guard simulations
+  (`runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251018_021103`,
+  `_021211`, `_bridge_20251018_021120`, `_021232`) to evaluate
+  `max_loss_streak` = 3〜5 / `max_daily_loss_pips` = 150〜220. `max_loss_streak=3`
+  would block 5〜9 loss trades per window (pips avoided: -5.63〜-8.53),
+  whereas `max_loss_streak ≥4` / `max_daily_loss_pips ≥150` showed no
+  additional blocks. Logged commands in `state.md`, updated
+  `docs/progress_phase4.md#長期バックテスト` tables, and planned
+  sandbox reruns with `max_loss_streak=3` / `max_daily_loss_pips=150` before
+  touching long-run baselines.
 - 2026-10-19: Guard-relaxed reruns (`runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251017_060706` /
   `USDJPY_bridge_20251017_061157`) confirmed `loss_streak_guard` / `daily_loss_guard`
   remain inactive while `or_filter` stays at 278 hits (mid 137 / high 100 / low 41).

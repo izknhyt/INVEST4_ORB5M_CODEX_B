@@ -319,6 +319,33 @@ _2026-08-12 review_: Confirmed W2 バグ掃討後のノートを再確認し、H
     `rv_band_min_or_atr_ratio` をさらに緩める案（例: high=0.08, mid=0.10, low=0.14）と
     `max_loss_streak` / `max_daily_loss_pips` を上げたフォローオンテストをサンドボックス化し、
     次の長期ラン候補とする。
+- 2026-10-27: 連敗 / 日次損失ガードの試算を迅速化するため、2 つの短期窓で
+  guard-relaxed マニフェストを再実行（2025-06-01〜2025-07-01、
+  2024-01-01〜2024-04-01）。`python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml --csv validated/USDJPY/5m.csv --symbol USDJPY --mode <mode> --start-ts <start> --end-ts <end> --out-dir runs/phase4/backtests_guard_relaxed --no-auto-state --debug --debug-sample-limit 200000`
+  で Conservative / Bridge 両モードを再現し、`scripts/summarize_strategy_gate.py --run-dir <run_dir> --stage loss_streak_guard --stage daily_loss_guard --json`
+  により `loss_streak_guard` / `daily_loss_guard` がいずれも 0 件であることを確認。
+  取得した `records.csv` をもとに候補閾値（`max_loss_streak` = 3〜5、
+  `max_daily_loss_pips` = 150〜220）をシミュレーションしたところ、
+  日次損失ガードは全候補でブロック 0 件、連敗ガードのみ
+  `max_loss_streak=3` にした場合に追加ブロックが発生（いずれも
+  実際の損失トレードを除外するため、負の PnL を回避する効果が見込める）。
+
+  | 窓口 | モード | トレード数 | `max_loss_streak=3` でのブロック数 (累計 pips) | `max_loss_streak=4` | `max_loss_streak=5` |
+  | --- | --- | ---: | --- | --- | --- |
+  | 2025-06 | Conservative | 12 | 9（-5.63） | 0 | 0 |
+  | 2025-06 | Bridge | 12 | 9（-8.53） | 0 | 0 |
+  | 2024-Q1 | Conservative | 8 | 5（-5.97） | 0 | 0 |
+  | 2024-Q1 | Bridge | 8 | 5（-6.84） | 0 | 0 |
+
+  | 窓口 | モード | 最悪日次損失 (pips) | `max_daily_loss_pips=150`〜`220` |
+  | --- | --- | ---: | --- |
+  | 2025-06 | Conservative | -4.30 | いずれも 0 件 |
+  | 2025-06 | Bridge | -4.30 | いずれも 0 件 |
+  | 2024-Q1 | Conservative | -8.45 | いずれも 0 件 |
+  | 2024-Q1 | Bridge | -8.45 | いずれも 0 件 |
+
+  - Next: `max_loss_streak=3` を軸にしたサンドボックス再現（Bridge / Conservative）と、
+    `max_daily_loss_pips` の緩和（150〜180 pips）有無での差分比較を次セッションで段階的に実施する。
 - 2026-10-19: RV 帯別 `min_or_atr_ratio` 導入後のガード動作を最新 rerun
   (`runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251017_060706` /
   `USDJPY_bridge_20251017_061157`) で再集計。

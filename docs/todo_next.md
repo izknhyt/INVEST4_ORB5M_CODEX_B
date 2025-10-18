@@ -34,7 +34,7 @@
      と統合サマリ（`reports/diffs/guard_stage_summary.json` / `.md`）へ反映済み。
   8. **次セッション候補**
      - OR フィルタ 208 件の内訳（mid/high 帯 81.7%）に基づき、`rv_band_min_or_atr_ratio` をさらに緩める案（例: high=0.08, mid=0.10, low=0.14）を試算する。
-     - 連敗 / 日次損失ガードを有効活用するため、`max_loss_streak` と `max_daily_loss_pips` の緩和案をサンドボックスで検証し、次回ロングラン候補へ昇格させる。
+     - 2025-06 / 2024-Q1 のショートランで `max_loss_streak=3` のみブロック増（Bridge: +9 件, Conservative: +9 or +5 件）、`max_daily_loss_pips=150〜220` は発火 0 件であることを確認済み。次セッションでは `max_loss_streak=3` / `max_daily_loss_pips=150` を組み合わせたサンドボックス再現 → 差分比較レポート化 → 長期ラン反映可否の判断、の順に進める。
 
 ### On Hold
 

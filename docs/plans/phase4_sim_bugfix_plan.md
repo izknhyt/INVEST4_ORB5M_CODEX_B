@@ -153,6 +153,8 @@ Run a shortened resume scenario (`python3 scripts/run_sim.py --manifest configs/
 ### 5.4 Simulation Spot Checks
 Run shortened windows (e.g., 2024 Q1) during development to validate performance quickly before launching the full 2018–2025 backtest.
 
+- Guard tuning quick-check: `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml --csv validated/USDJPY/5m.csv --symbol USDJPY --mode <mode> --start-ts 2025-06-01T00:00:00Z --end-ts 2025-07-01T00:00:00Z --out-dir runs/phase4/backtests_guard_relaxed --no-auto-state --debug --debug-sample-limit 200000` （および 2024-01-01〜2024-04-01 窓口）で Conservative / Bridge 両モードを再現し、`scripts/summarize_strategy_gate.py --run-dir <run_dir> --stage loss_streak_guard --stage daily_loss_guard --json` によりガード発火状況を確認する。`max_loss_streak` を 3 にした場合のみブロックが増えること、`max_daily_loss_pips` を 150〜220 にしても発火しないことをサンドボックスで把握したうえで、長期ランへ反映するか判断する。
+
 ### 5.5 Compare-metrics Automation
 Adopt `python3 scripts/compare_metrics.py --left runs/phase4/backtests/<prev>/metrics.json --right runs/phase4/backtests/<curr>/metrics.json` to automate numerical comparisons; the CLI now supports glob ignores and tolerance flags (2026-08-03) so resume artefact paths can be filtered without custom tooling.
 - 2026-08-08: Added webhook delivery options (`--webhook-url`, `--webhook-url-env`, `--webhook-timeout`, `--dry-run-webhook`, `--fail-on-webhook-error`) so significant metric drift can trigger alerting without manual review. Payloads summarise significant differences (top 20 keys by default) and note missing keys to align with W3 observability guardrails.
