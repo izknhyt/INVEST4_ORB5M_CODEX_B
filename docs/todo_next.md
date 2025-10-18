@@ -24,9 +24,17 @@
   4. **完了 (2026-08-19)** `scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml --csv validated/USDJPY/5m.csv --symbol USDJPY --mode <mode> --out-dir runs/phase4/backtests_guard_relaxed --no-auto-state --debug --debug-sample-limit 600000` を Conservative / Bridge 両モードで実行し、`reports/diffs/conservative_guard_relaxed_metrics.json` / `reports/diffs/bridge_guard_relaxed_metrics.json` にメトリクス差分、`reports/diffs/conservative_guard_relaxed_strategy_gate.json` に `or_filter` 449 件（rv_band high 246 / mid 162 / low 41）を記録。`docs/progress_phase4.md#現状サマリ` を更新済み。
   5. **完了 (2026-10-18)** guard-relaxed ランの `or_filter` 449 件を `analysis/or_filter_guard_relaxed_summary.py` で再集計し、`rv_band=high`=246 件 (54.8%)・`mid`=162 件 (36.1%)・`low`=41 件 (9.1%) の偏りと `min_or_atr_ratio=0.18` 固定を確認。レポートを [reports/diffs/or_filter_guard_relaxed_summary.md](../reports/diffs/or_filter_guard_relaxed_summary.md) / [JSON](../reports/diffs/or_filter_guard_relaxed_summary.json) に保存済み。
   6. **完了 (2026-10-19)** `configs/strategies/day_orb_5m_guard_relaxed.yaml` に RV 帯別 `min_or_atr_ratio`（high=0.12 / mid=0.14 / low=0.18）を導入し、`python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml --csv validated/USDJPY/5m.csv --symbol USDJPY --mode conservative --out-dir runs/phase4/backtests_guard_relaxed --no-auto-state --debug --debug-sample-limit 600000` と `--mode bridge` を再実行。`reports/diffs/conservative_guard_relaxed_strategy_gate.json` / `bridge_guard_relaxed_strategy_gate.json` で `or_filter=278`（mid 137 / high 100 / low 41, `min_or_atr_ratio` 平均 ≈0.1387）へ更新し、集計レポートも差し替えた。
-  7. **次セッション候補**
-     - `scripts/summarize_strategy_gate.py --run-dir runs/phase4/backtests_guard_relaxed/<latest>` に `--stage loss_streak_guard --stage daily_loss_guard --stage or_filter --json` を付与し、RV 帯別しきい値変更が連敗・日次損失ガードに与える影響を定量化する。必要に応じて `docs/progress_phase4.md` とバックログの調整案を更新する。
-     - Conservative / Bridge で 3 トレード止まりの状態を改善するため、`max_loss_streak` や `max_daily_loss_pips` 緩和案をシミュレーション計画にまとめ、次ラウンドのパラメータ調整候補を洗い出す。
+  7. **完了 (2026-10-27)** Conservative / Bridge の最新ガード緩和ラン
+     (`runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251018_011918` /
+     `USDJPY_bridge_20251018_012216`) を対象に
+     `scripts/summarize_strategy_gate.py --stage loss_streak_guard --stage daily_loss_guard --stage or_filter --json`
+     でガード別集計を作成。`loss_streak_guard` / `daily_loss_guard` は両モード 0 件、`or_filter` は 208 件
+     （mid 110 / high 60 / low 38、`min_or_atr_ratio` 平均 ≈0.1215）まで減少したことを
+     `reports/diffs/conservative_guard_relaxed_guard_stages.json` / `bridge_guard_relaxed_guard_stages.json`
+     と統合サマリ（`reports/diffs/guard_stage_summary.json` / `.md`）へ反映済み。
+  8. **次セッション候補**
+     - OR フィルタ 208 件の内訳（mid/high 帯 81.7%）に基づき、`rv_band_min_or_atr_ratio` をさらに緩める案（例: high=0.08, mid=0.10, low=0.14）を試算する。
+     - 連敗 / 日次損失ガードを有効活用するため、`max_loss_streak` と `max_daily_loss_pips` の緩和案をサンドボックスで検証し、次回ロングラン候補へ昇格させる。
 
 ### On Hold
 
