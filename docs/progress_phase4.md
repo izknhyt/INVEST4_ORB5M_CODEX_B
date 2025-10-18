@@ -1,5 +1,42 @@
 # フェーズ4 進捗レポート（検証とリリースゲート）
 
+- 2026-10-29: Day ORB シンプル化リブートで EV オフを維持したまま ATR ガードと損失ガードを段階化。
+  `configs/strategies/day_orb_5m.yaml` に RV 帯別の ATR 下限/上限（`rv_band_min_atr_pips` / `rv_band_max_atr_pips`）と
+  グローバルしきい値（`min_or_atr_ratio=0.12` / `max_atr_pips=55.0` / `max_loss_streak=4` / `max_daily_loss_pips=150.0`）を導入し、
+  `strategies/day_orb_5m.DayORB5m` では `_last_gate_reason` が RV 帯別しきい値を出力できるよう ATR ガードを動的化した。
+  直近デバッグランでは OR 起因のブロックが `or_filter=24` / `ny_high_rv_or_filter=1`
+  （`min_or_atr_ratio` 平均 0.16）で停滞していたため、新閾値後の Conservative バックテストでは
+  `or_filter=5`（平均 0.094）まで減少した。
+
+  ```bash
+  python3 scripts/summarize_strategy_gate.py \
+    --run-dir runs/tmp/day_orb5m_debug/USDJPY_conservative_20251018_070155 --json \
+    --out-json reports/diffs/day_orb_reboot_strategy_gate.json
+  python3 -m pytest tests/test_day_orb_retest.py tests/test_strategy_manifest.py
+  python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml \
+    --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs/phase4/backtests \
+    --no-auto-state --debug --debug-sample-limit 500000
+  python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml \
+    --csv validated/USDJPY/5m.csv --mode bridge --out-dir runs/phase4/backtests \
+    --no-auto-state --debug --debug-sample-limit 500000
+  python3 scripts/summarize_strategy_gate.py \
+    --run-dir runs/phase4/backtests/USDJPY_conservative_20251018_070506 --json
+  python3 scripts/compare_metrics.py \
+    --left runs/tmp/day_orb5m_debug/USDJPY_conservative_20251018_070155/metrics.json \
+    --right runs/phase4/backtests/USDJPY_conservative_20251018_070506/metrics.json \
+    --out-json reports/diffs/day_orb_reboot_metrics.json
+  ```
+
+  KPI 定義: (1) Conservative / Bridge ともデバッグサンプル 50 万本あたり `trades ≥ 20`、
+  (2) Conservative win rate ≥ 35%・Bridge win rate ≥ 25%、(3) 最大 DD ≥ -150 pips を確保する。
+  Conservative ラン (`runs/phase4/backtests/USDJPY_conservative_20251018_070506`) は
+  23 トレード・勝率 39.1%・最大 DD -103.6 pips、Bridge ラン (`runs/phase4/backtests/USDJPY_bridge_20251018_070652`) は
+  23 トレード・勝率 25.3%・最大 DD -97.3 pips を記録した。
+  停止条件は「どちらかのモードで `trades < 15` または 最大 DD ≤ -180 pips に悪化した場合は閾値緩和を打ち切り、
+  直近安定版（2026-10-28 時点の guard-relaxed しきい値）へロールバックする」と定義した。
+  `reports/diffs/day_orb_reboot_metrics.json` に差分を保存し、次回は Conservative の Sharpe 改善が 0.0 未満に戻った場合のみ
+  追加緩和を検討する。
+
 - 2026-10-17: Day ORB シンプル化リブートの初期値を再調整し、低 RV 帯のブロック理由を整理。
   `configs/strategies/day_orb_5m.yaml` を `k_tp=1.25` / `k_sl=0.6` / `min_or_atr_ratio=0.16`
   / `rv_band_min_or_atr_ratio={low:0.18,mid:0.16,high:0.12}` / `ny_high_rv_min_or_atr_ratio=0.24`

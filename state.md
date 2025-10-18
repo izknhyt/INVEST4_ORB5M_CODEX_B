@@ -1,5 +1,18 @@
 # Work State Log
 
+- 2026-10-29: Day ORB シンプル化リブートの ATR / リスクガードを段階化。`configs/strategies/day_orb_5m.yaml` へ
+  `min_or_atr_ratio=0.12`・`rv_band_min_atr_pips`・`rv_band_max_atr_pips`・`max_loss_streak=4`・`max_daily_loss_pips=150.0`
+  を導入し、`strategies/day_orb_5m.DayORB5m` の ATR ガードを RV 帯別に再実装して `_last_gate_reason` に帯情報を出力。
+  コマンド: `python3 scripts/summarize_strategy_gate.py --run-dir runs/tmp/day_orb5m_debug/USDJPY_conservative_20251018_070155 --json --out-json reports/diffs/day_orb_reboot_strategy_gate.json`,
+  `python3 -m pytest tests/test_day_orb_retest.py tests/test_strategy_manifest.py`,
+  `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs/phase4/backtests --no-auto-state --debug --debug-sample-limit 500000`,
+  `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode bridge --out-dir runs/phase4/backtests --no-auto-state --debug --debug-sample-limit 500000`,
+  `python3 scripts/summarize_strategy_gate.py --run-dir runs/phase4/backtests/USDJPY_conservative_20251018_070506 --json`,
+  `python3 scripts/compare_metrics.py --left runs/tmp/day_orb5m_debug/USDJPY_conservative_20251018_070155/metrics.json --right runs/phase4/backtests/USDJPY_conservative_20251018_070506/metrics.json --out-json reports/diffs/day_orb_reboot_metrics.json`。
+  Conservative は 23 トレード・勝率 39.1%・最大 DD -103.6 pips、Bridge も 23 トレード・勝率 25.3%・最大 DD -97.3 pips。
+  `or_filter` ブロックは 24→5 に減少。`docs/progress_phase4.md` / `docs/task_backlog.md#P4-04` / `docs/todo_next.md` を更新し、
+  KPI（trades ≥ 20, win rate ≥ 35%/25%, max DD ≥ -150 pips）と停止条件（trades < 15 または DD ≤ -180 pips でロールバック）を記録。
+
 - 2026-10-17: Day ORB シンプル化リブートの再調整。`configs/strategies/day_orb_5m.yaml` を `k_tp=1.25` / `k_sl=0.6` /
   `min_or_atr_ratio=0.16` / `rv_band_min_or_atr_ratio={low:0.18,mid:0.16,high:0.12}` /
   `ny_high_rv_min_or_atr_ratio=0.24` / `tokyo_low_rv_micro_trend_min=0.0` へ更新し、

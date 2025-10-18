@@ -247,20 +247,52 @@ class DayORB5m(Strategy):
         atr_pips = sig.get("atr_pips")
         min_atr = float(self.cfg.get("min_atr_pips", 0.0) or 0.0)
         max_atr = float(self.cfg.get("max_atr_pips", 0.0) or 0.0)
+        rv_band_ctx = ctx_data.get("rv_band")
+        rv_band_code = str(rv_band_ctx).strip().lower() if rv_band_ctx is not None else None
         if atr_pips is not None:
+            min_override: Optional[float] = None
+            max_override: Optional[float] = None
+            rv_min_cfg = self.cfg.get("rv_band_min_atr_pips")
+            if isinstance(rv_min_cfg, Mapping) and rv_band_code:
+                raw_min = rv_min_cfg.get(rv_band_code, rv_min_cfg.get(rv_band_ctx))
+                try:
+                    if raw_min is not None:
+                        min_override = float(raw_min)
+                except (TypeError, ValueError):
+                    min_override = None
+            if min_override is not None:
+                min_atr = max(0.0, min_override)
+
+            rv_max_cfg = self.cfg.get("rv_band_max_atr_pips")
+            if isinstance(rv_max_cfg, Mapping) and rv_band_code:
+                raw_max = rv_max_cfg.get(rv_band_code, rv_max_cfg.get(rv_band_ctx))
+                try:
+                    if raw_max is not None:
+                        max_override = float(raw_max)
+                except (TypeError, ValueError):
+                    max_override = None
+            if max_override is not None:
+                max_atr = max(0.0, max_override)
+
             if min_atr and atr_pips < min_atr:
-                self._last_gate_reason = {
+                reason = {
                     "stage": "atr_filter",
                     "atr_pips": atr_pips,
                     "min_atr_pips": min_atr,
                 }
+                if min_override is not None and rv_band_ctx is not None:
+                    reason["rv_band"] = rv_band_ctx
+                self._last_gate_reason = reason
                 return []
             if max_atr and atr_pips > max_atr:
-                self._last_gate_reason = {
+                reason = {
                     "stage": "atr_filter",
                     "atr_pips": atr_pips,
                     "max_atr_pips": max_atr,
                 }
+                if max_override is not None and rv_band_ctx is not None:
+                    reason["rv_band"] = rv_band_ctx
+                self._last_gate_reason = reason
                 return []
 
         min_micro = float(self.cfg.get("min_micro_trend", 0.0) or 0.0)
