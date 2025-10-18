@@ -29,9 +29,9 @@ strategy:
     retest_tol_k: 0.2
     min_or_atr_ratio: 0.16
     rv_band_min_or_atr_ratio:
-      high: 0.1
-      mid: 0.12
-      low: 0.16
+      high: 0.08
+      mid: 0.10
+      low: 0.14
     cooldown_bars: 1
     min_micro_trend: 0.0
     min_atr_pips: 0.0
@@ -66,9 +66,9 @@ runner:
     threshold_lcb_pip: -10.0
     min_or_atr_ratio: 0.16
     rv_band_min_or_atr_ratio:
-      high: 0.1
-      mid: 0.12
-      low: 0.16
+      high: 0.08
+      mid: 0.10
+      low: 0.14
     allowed_sessions: [TOK, LDN, NY]
     warmup_trades: 0
     include_expected_slip: true
@@ -91,4 +91,4 @@ state:
 notes:
   - Trial manifest for Phase4 guard tuning with EV disabled and fallback sizing enabled.
   - Router sessions expanded to TOK/LDN/NY for comparison against LDN+NY baseline.
-  - ATR gate relaxed to min_or_atr_ratio=0.16 with rv_band overrides (high=0.10 / mid=0.12 / low=0.16); monitor strategy_gate fallout via summarize_strategy_gate.
+  - ATR gate relaxed to min_or_atr_ratio=0.16 with rv_band overrides (high=0.08 / mid=0.10 / low=0.14); monitor strategy_gate fallout via summarize_strategy_gate.

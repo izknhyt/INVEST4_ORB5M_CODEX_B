@@ -190,7 +190,7 @@
     "summary.missing_in_right",
     "summary.significant_differences"
   ],
-  "right": "runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251017_112231/metrics.json",
+  "right": "runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251018_030339/metrics.json",
   "summary": {
     "differences": 0,
     "ignored": 0,

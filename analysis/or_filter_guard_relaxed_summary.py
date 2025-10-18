@@ -231,9 +231,32 @@ class AggregateResult:
 def _load_mode_summary(label: str, path: Path) -> ModeSummary:
     with path.open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
-    if "or_filter" not in payload:
+    if "or_filter" in payload:
+        data = payload["or_filter"]
+    elif "stages" in payload:
+        stages = payload["stages"]
+        if not isinstance(stages, Mapping) or "or_filter" not in stages:
+            raise ValueError(f"{path} does not include 'or_filter' statistics")
+        stage_payload = stages["or_filter"]
+        if not isinstance(stage_payload, Mapping):
+            raise ValueError(
+                f"Expected mapping for stages['or_filter'], got {stage_payload!r}"
+            )
+        reasons = stage_payload.get("reasons", {})
+        if not isinstance(reasons, Mapping) or "or_filter" not in reasons:
+            raise ValueError(f"{path} does not include 'or_filter' statistics")
+        reason_payload = reasons["or_filter"]
+        if not isinstance(reason_payload, Mapping):
+            raise ValueError(
+                f"Expected mapping for reasons['or_filter'], got {reason_payload!r}"
+            )
+        data = dict(reason_payload)
+        if "count" not in data:
+            total_count = stage_payload.get("total_count")
+            if isinstance(total_count, (int, float)):
+                data["count"] = int(total_count)
+    else:
         raise ValueError(f"{path} does not include 'or_filter' statistics")
-    data = payload["or_filter"]
     total_count = int(data.get("count", 0))
     categorical = data.get("categorical", {})
     rv_band_raw: Sequence[Sequence[object]] = categorical.get("rv_band", [])  # type: ignore[assignment]
