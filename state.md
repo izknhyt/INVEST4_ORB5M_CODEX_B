@@ -1,5 +1,6 @@
 # Work State Log
 
+- 2026-11-02: Task: Document the removal of the headered validated snapshot so operators rely on `validated/USDJPY/5m.csv`. DoD: README / `docs/data_quality_ops.md` / `docs/task_backlog.md` / `docs/progress_phase4.md` から `validated/USDJPY/5m_with_header.csv` を既定ソースとして扱う表現を更新し、現状はヘッダ無し CSV のみが共有リポジトリに含まれることを明示。ドキュメント更新のみのためテスト未実施。
 - 2026-11-02: Task: Align README overview risk thresholds with the Day ORB manifest. DoD: README に `risk_per_trade_pct=0.25%` / `max_daily_dd_pct=5%` を明記し、変更時にマニフェスト（`configs/strategies/day_orb_5m.yaml`）を単一の参照元とする備考を追加すること。README を更新し、ドキュメント修正のみのためテスト未実施。
 - 2026-10-31: README の `scripts/run_sim.py` 節でヘッダ必須表現をエイリアス/ヘッダレス対応の説明へ更新し、カノニカル列とシンボル/タイムフレームの既定値補完挙動を追記。ドキュメント調整のみのためテスト未実施。
 

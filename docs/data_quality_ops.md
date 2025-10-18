@@ -56,25 +56,26 @@ consistent location.
    been resolved by a manual retry. Example reproduction:
 
    ```bash
-   python3 scripts/check_data_quality.py \
-     --csv validated/USDJPY/5m_with_header.csv \
-     --symbol USDJPY \
-     --out-json reports/data_quality/usdjpy_5m_summary.json \
-     --out-gap-csv reports/data_quality/usdjpy_5m_gap_inventory.csv \
-     --out-gap-json reports/data_quality/usdjpy_5m_gap_inventory.json \
-     --calendar-day-summary \
-     --fail-under-coverage 0.995 \
-     --fail-on-calendar-day-warnings
-   ```
+  python3 scripts/check_data_quality.py \
+    --csv validated/USDJPY/5m.csv \
+    --symbol USDJPY \
+    --out-json reports/data_quality/usdjpy_5m_summary.json \
+    --out-gap-csv reports/data_quality/usdjpy_5m_gap_inventory.csv \
+    --out-gap-json reports/data_quality/usdjpy_5m_gap_inventory.json \
+    --calendar-day-summary \
+    --fail-under-coverage 0.995 \
+    --fail-on-calendar-day-warnings
+  ```
 
-   The CLI prefers the headered snapshot. When
-   `validated/<SYMBOL>/5m_with_header.csv` is missing it automatically
-   recognises the legacy headerless format, so coverage thresholds still
-   fire during reproductions. Keeping the headered snapshot available is
-   recommended because the column names simplify manual inspection, but
-   the fallback remains fully validated. Capture the reported
-   `coverage_ratio` and `calendar_day_summary.warnings` values from
-   stdout — they feed directly into the acknowledgement log.
+  The CLI checks for a headered snapshot first, but **the repository now
+  ships only the headerless `validated/USDJPY/5m.csv`**. When
+  `validated/<SYMBOL>/5m_with_header.csv` is absent the loader
+  automatically recognises the legacy format, so coverage thresholds
+  still fire during reproductions. If operators prefer explicit column
+  names they can create a local headered copy alongside the shared
+  snapshot. Capture the reported
+  `coverage_ratio` and `calendar_day_summary.warnings` values from
+  stdout — they feed directly into the acknowledgement log.
 
 5. **Schedule remediation** — Decide whether the resolution requires a
    data backfill (`scripts/pull_prices.py`), manual CSV patching, or an
