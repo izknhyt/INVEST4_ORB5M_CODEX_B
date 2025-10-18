@@ -13,6 +13,8 @@
   `or_filter` ブロックは 24→5 に減少。`docs/progress_phase4.md` / `docs/task_backlog.md#P4-04` / `docs/todo_next.md` を更新し、
   KPI（trades ≥ 20, win rate ≥ 35%/25%, max DD ≥ -150 pips）と停止条件（trades < 15 または DD ≤ -180 pips でロールバック）を記録。
 
+- 2026-10-27: Synced the router demo embedded Day ORB manifest with `configs/strategies/day_orb_5m.yaml` to resolve the SampleValidationError and reran `python3 -m pytest tests/test_strategy_manifest.py` to confirm manifest integrity.
+
 - 2026-10-17: Day ORB シンプル化リブートの再調整。`configs/strategies/day_orb_5m.yaml` を `k_tp=1.25` / `k_sl=0.6` /
   `min_or_atr_ratio=0.16` / `rv_band_min_or_atr_ratio={low:0.18,mid:0.16,high:0.12}` /
   `ny_high_rv_min_or_atr_ratio=0.24` / `tokyo_low_rv_micro_trend_min=0.0` へ更新し、
