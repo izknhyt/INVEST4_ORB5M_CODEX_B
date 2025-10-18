@@ -12,7 +12,8 @@
 ### 1. 長期バックテスト改善（P4-01）
 - **評価軸**: 日次Sharpe ≥ 0.15、最大ドローダウン ≤ -8%、年間勝率 ≥ 52% を暫定基準とし、Bridge/Conservative双方で達成する。
 - **検証手順**:
-  - `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode <mode> --start-ts 2018-01-01T00:00:00Z --end-ts 2025-12-31T23:55:00Z --out-json reports/long_<mode>.json --out-daily-csv reports/long_<mode>_daily.csv --out-dir runs/phase4/backtests --no-auto-state` をベースコマンドとして採用。
+  - `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode <mode> --start-ts 2018-01-01T00:00:00Z --end-ts 2025-10-02T22:15:00Z --out-json reports/long_<mode>.json --out-daily-csv reports/long_<mode>_daily.csv --out-dir runs/phase4/backtests --no-auto-state` をベースコマンドとして採用。
+    - `validated/USDJPY/5m.csv` の最新スナップショットは 2026-10-26 時点で **2018-01-01T00:00:00Z–2025-10-02T22:15:00Z** / 579,578 行 / SHA256=85fa08f2224eb6119878f3689a5af617cb666eaab37c5acb7e3603c4bfda48d4 で固定されている。終端を変更した場合は [docs/plans/phase4_sim_bugfix_plan.md](./phase4_sim_bugfix_plan.md) §0.2 と `state.md` のハッシュ記録を同時に更新する。
   - パラメータ探索は `threshold_lcb_pip`、`alpha_prior`、`or_n` を中心に試行し、各トライアルを `runs/phase4/backtests/<timestamp>_<mode>_<paramset>/` 以下に保存。
   - 週次レビュー時に `docs/progress_phase4.md` へ最新メトリクス表と改善サマリを追記。
 - **安全策**:
