@@ -47,7 +47,8 @@
 - 戦略 `day_orb_5m` は OR 計算 → ブレイク検出 → EV ゲート → 分数ケリーで `qty` 決定までを実装。
 - EV ゲートは `core.ev_gate.BetaBinomialEV` を参照（`ctx['ev_oco']` にインスタンスを渡す）。
 - サイズ計算は `core.sizing`（`ctx['equity']`, `ctx['pip_value']`, `ctx['sizing_cfg']` が必要）。
-- ルーターゲートは `router/router_v0.py`（`session/spread_band/rv_band` 等は `ctx` に渡す）。
+- ルーティング候補のスコアリング/選定は `router/router_v1.py` の `select_candidates` を基盤にしたパイプラインで実行し、セッション/スプレッド/ポートフォリオ制約/相関評価を段階的に行う。
+- 戦略ローカルでの簡易ゲートやウォームアップ抑制には `router/router_v0.py` のような軽量チェック（セッション・スプレッド帯域など）を利用。
 - 注文は OCO パラメータ（`tp_pips/sl_pips/trail_pips`）を `OrderIntent.oco` に格納。
 
 ### バックテストランナー
