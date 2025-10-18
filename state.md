@@ -9,7 +9,11 @@
 - 2026-10-29: README と Day ORB 関連ドキュメントから `--threshold-lcb` フラグ説明を manifest ベース (`runner.runner_config.threshold_lcb_pip` など) に更新し、EVゲート閾値調整手順の記述ズレを解消。コード変更なしのドキュメント整備につきテスト未実施。
 
 - 2026-10-29: Day ORB シンプル化リブートの ATR / リスクガードを段階化。`configs/strategies/day_orb_5m.yaml` へ
-  `min_or_atr_ratio=0.12`・`rv_band_min_atr_pips`・`rv_band_max_atr_pips`・`max_loss_streak=4`・`max_daily_loss_pips=150.0`
+  `min_or_atr_ratio=0.12`・`rv_band_min_atr_pips={low:6.0, mid:4.0, high:0.0}`・
+  `rv_band_max_atr_pips={low:45.0, mid:55.0, high:65.0}`・
+  `rv_band_min_or_atr_ratio={low:0.14, mid:0.12, high:0.10}`・
+  `ny_high_rv_min_or_atr_ratio=0.20`・`ny_high_rv_or_multiplier=1.2`・
+  `max_loss_streak=4`・`max_daily_loss_pips=150.0`
   を導入し、`strategies/day_orb_5m.DayORB5m` の ATR ガードを RV 帯別に再実装して `_last_gate_reason` に帯情報を出力。
   コマンド: `python3 scripts/summarize_strategy_gate.py --run-dir runs/tmp/day_orb5m_debug/USDJPY_conservative_20251018_070155 --json --out-json reports/diffs/day_orb_reboot_strategy_gate.json`,
   `python3 -m pytest tests/test_day_orb_retest.py tests/test_strategy_manifest.py`,

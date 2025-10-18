@@ -312,9 +312,15 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   `reports/diffs/*_metrics_next.json` も新ランとの差分で差し替えた。次アクションは
   base_drop 0.02 提案（0.06 / 0.08 / 0.12）を検証しつつ、損失ガードの追加緩和有無を判断する。
 
-- 2026-10-29: Introduced `min_or_atr_ratio=0.12`, RV-band ATR floors/ceilings (`rv_band_min_atr_pips`,
-  `rv_band_max_atr_pips`), and relaxed loss guards (`max_loss_streak=4`, `max_daily_loss_pips=150.0`)
-  in `configs/strategies/day_orb_5m.yaml`; updated `strategies/day_orb_5m.DayORB5m` so ATR guards report
+- 2026-10-29: Introduced `min_or_atr_ratio=0.12`, RV-band ATR floors/ceilings
+  (`rv_band_min_atr_pips={low:6.0, mid:4.0, high:0.0}` /
+  `rv_band_max_atr_pips={low:45.0, mid:55.0, high:65.0}`) and
+  RV-band ATR ratio thresholds
+  (`rv_band_min_or_atr_ratio={low:0.14, mid:0.12, high:0.10}` /
+  `ny_high_rv_min_or_atr_ratio=0.20` /
+  `ny_high_rv_or_multiplier=1.2`), while keeping
+  relaxed loss guards (`max_loss_streak=4`, `max_daily_loss_pips=150.0`) in
+  `configs/strategies/day_orb_5m.yaml`; updated `strategies/day_orb_5m.DayORB5m` so ATR guards report
   RV-aware reasons. Conservative debug run (`runs/tmp/day_orb5m_debug/USDJPY_conservative_20251018_070155`)
   showing `or_filter=24` / `ny_high_rv_or_filter=1` (avg 0.16) now drops to `or_filter=5`
   (avg 0.094) in the refreshed Conservative backtest
