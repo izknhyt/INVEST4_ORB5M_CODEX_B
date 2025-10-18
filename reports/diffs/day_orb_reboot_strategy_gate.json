@@ -1,0 +1,72 @@
+{
+  "records_path": "/workspace/INVEST4_ORB5M_CODEX_B/runs/tmp/day_orb5m_debug/USDJPY_conservative_20251018_070155/records.csv",
+  "stages": {
+    "strategy_gate": {
+      "total_count": 25,
+      "reasons": {
+        "or_filter": {
+          "count": 24,
+          "numeric": {
+            "or_atr_ratio": {
+              "count": 24,
+              "mean": 0.12958551354378522,
+              "min": 0.0,
+              "max": 0.15238095238096122
+            },
+            "min_or_atr_ratio": {
+              "count": 24,
+              "mean": 0.16000000000000006,
+              "min": 0.16,
+              "max": 0.16
+            }
+          },
+          "categorical": {
+            "rv_band": [
+              [
+                "high",
+                24
+              ]
+            ],
+            "allow_low_rv": [
+              [
+                "True",
+                24
+              ]
+            ]
+          }
+        },
+        "ny_high_rv_or_filter": {
+          "count": 1,
+          "numeric": {
+            "or_atr_ratio": {
+              "count": 1,
+              "mean": 0.23972602739723672,
+              "min": 0.23972602739723672,
+              "max": 0.23972602739723672
+            },
+            "min_or_atr_ratio": {
+              "count": 1,
+              "mean": 0.16,
+              "min": 0.16,
+              "max": 0.16
+            }
+          },
+          "categorical": {
+            "rv_band": [
+              [
+                "high",
+                1
+              ]
+            ],
+            "allow_low_rv": [
+              [
+                "True",
+                1
+              ]
+            ]
+          }
+        }
+      }
+    }
+  }
+}

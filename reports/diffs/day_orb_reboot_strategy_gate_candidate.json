@@ -1,0 +1,41 @@
+{
+  "records_path": "/workspace/INVEST4_ORB5M_CODEX_B/runs/phase4/backtests/USDJPY_conservative_20251018_070506/records.csv",
+  "stages": {
+    "strategy_gate": {
+      "total_count": 5,
+      "reasons": {
+        "or_filter": {
+          "count": 5,
+          "numeric": {
+            "or_atr_ratio": {
+              "count": 5,
+              "mean": 0.09364698407770403,
+              "min": 0.0,
+              "max": 0.11978609625668996
+            },
+            "min_or_atr_ratio": {
+              "count": 5,
+              "mean": 0.12,
+              "min": 0.12,
+              "max": 0.12
+            }
+          },
+          "categorical": {
+            "rv_band": [
+              [
+                "high",
+                5
+              ]
+            ],
+            "allow_low_rv": [
+              [
+                "True",
+                5
+              ]
+            ]
+          }
+        }
+      }
+    }
+  }
+}
