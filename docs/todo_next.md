@@ -32,8 +32,9 @@
      （mid 110 / high 60 / low 38、`min_or_atr_ratio` 平均 ≈0.1215）まで減少したことを
      `reports/diffs/conservative_guard_relaxed_guard_stages.json` / `bridge_guard_relaxed_guard_stages.json`
      と統合サマリ（`reports/diffs/guard_stage_summary.json` / `.md`）へ反映済み。
-  8. **次セッション候補**
-     - OR フィルタ 208 件の内訳（mid/high 帯 81.7%）に基づき、`rv_band_min_or_atr_ratio` をさらに緩める案（例: high=0.08, mid=0.10, low=0.14）を試算する。
+  8. **完了 (2026-10-28)** `rv_band_min_or_atr_ratio` を {high:0.08, mid:0.10, low:0.14} に更新し、`runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251018_030339` / `USDJPY_bridge_20251018_030536` を取得。`scripts/summarize_strategy_gate.py --stage or_filter` と `analysis/or_filter_guard_relaxed_summary.py` を再実行して `or_filter` を 171 件（mid 99 / low 38 / high 34、`min_or_atr_ratio` 平均 ≈0.1049）へ更新し、`reports/diffs/*_metrics_next.json` も新ランの比較に差し替えた。
+  9. **次セッション候補**
+     - base_drop 0.02 の提案値（rv_band={0.06,0.08,0.12} / global=0.12）をサンドボックスで検証し、さらなる ATR フロア低減の可否を判断する。
      - 2025-06 / 2024-Q1 のショートランで `max_loss_streak=3` のみブロック増（Bridge: +9 件, Conservative: +9 or +5 件）、`max_daily_loss_pips=150〜220` は発火 0 件であることを確認済み。次セッションでは `max_loss_streak=3` / `max_daily_loss_pips=150` を組み合わせたサンドボックス再現 → 差分比較レポート化 → 長期ラン反映可否の判断、の順に進める。
 
 ### On Hold

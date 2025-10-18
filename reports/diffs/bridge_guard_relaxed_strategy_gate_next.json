@@ -1,0 +1,49 @@
+{
+  "records_path": "/workspace/INVEST4_ORB5M_CODEX_B/runs/phase4/backtests_guard_relaxed/USDJPY_bridge_20251018_030536/records.csv",
+  "stages": {
+    "or_filter": {
+      "total_count": 171,
+      "reasons": {
+        "or_filter": {
+          "count": 171,
+          "numeric": {
+            "or_atr_ratio": {
+              "count": 171,
+              "mean": 0.023931694821669198,
+              "min": 0.0,
+              "max": 0.09929078014184398
+            },
+            "min_or_atr_ratio": {
+              "count": 171,
+              "mean": 0.10491228070175408,
+              "min": 0.08,
+              "max": 0.14
+            }
+          },
+          "categorical": {
+            "rv_band": [
+              [
+                "mid",
+                99
+              ],
+              [
+                "low",
+                38
+              ],
+              [
+                "high",
+                34
+              ]
+            ],
+            "allow_low_rv": [
+              [
+                "True",
+                171
+              ]
+            ]
+          }
+        }
+      }
+    }
+  }
+}

@@ -297,6 +297,19 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - Paper 判定に向けたエビデンスを `docs/go_nogo_checklist.md`・`docs/progress_phase4.md#運用チェックリスト` に保存し、承認ログのリンクとともに共有する。
 - **Notes**:
 
+- 2026-10-28: Updated guard-relaxed manifest to
+  `rv_band_min_or_atr_ratio={high:0.08, mid:0.10, low:0.14}` (global `min_or_atr_ratio` 0.16
+  維持、`max_loss_streak=4` / `max_daily_loss_pips=180` 据え置き)。
+  Long-run再実行で Conservative/Bridge の両モードが
+  `runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251018_030339` /
+  `USDJPY_bridge_20251018_030536` へ更新され、トレード数=8・Sharpe≈-5.02を維持しながら
+  `or_filter` ブロックが 171 件（mid 99 / low 38 / high 34、`min_or_atr_ratio` 平均 ≈0.1049）まで減少。
+  `reports/diffs/conservative_guard_relaxed_strategy_gate_next.json` /
+  `bridge_guard_relaxed_strategy_gate_next.json` を生成し、
+  `analysis/or_filter_guard_relaxed_summary.py` の `stages.or_filter` 対応を加えて
+  `reports/diffs/or_filter_guard_relaxed_summary.(json|md)` を再作成、
+  `reports/diffs/*_metrics_next.json` も新ランとの差分で差し替えた。次アクションは
+  base_drop 0.02 提案（0.06 / 0.08 / 0.12）を検証しつつ、損失ガードの追加緩和有無を判断する。
 - 2026-10-27: Guard-relaxed manifest lowered ATR floors (`min_or_atr_ratio=0.16`,
   `rv_band_min_or_atr_ratio={high:0.10, mid:0.12, low:0.16}`) and widened loss guards
   (`max_loss_streak=4`, `max_daily_loss_pips=180`). Re-ran long runs
