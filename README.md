@@ -126,13 +126,13 @@ python3 scripts/analyze_signal_latency.py \
 
 ```bash
 python3 scripts/check_data_quality.py \
-  --csv validated/USDJPY/5m_with_header.csv \
+  --csv validated/USDJPY/5m.csv \
   --out-json reports/data_quality/usdjpy_5m_summary.json \
   --max-gap-report 10
 
 # 推奨: 運用と同じガードを再現する場合
 python3 scripts/check_data_quality.py \
-  --csv validated/USDJPY/5m_with_header.csv \
+  --csv validated/USDJPY/5m.csv \
   --symbol USDJPY \
   --out-json reports/data_quality/usdjpy_5m_summary.json \
   --calendar-day-summary \
@@ -143,13 +143,13 @@ python3 scripts/check_data_quality.py \
   --fail-on-duplicate-occurrences 3
 
 python3 scripts/check_data_quality.py \
-  --csv validated/USDJPY/5m_with_header.csv \
+  --csv validated/USDJPY/5m.csv \
   --symbol USDJPY \
   --out-gap-csv reports/data_quality/usdjpy_5m_gaps.csv \
   --out-gap-json reports/data_quality/usdjpy_5m_gaps.json \
   --min-gap-minutes 15
 
-`scripts/run_daily_workflow.py --check-data-quality` also prefers `validated/<SYMBOL>/5m_with_header.csv` and only falls back to the legacy headerless snapshot if needed. The audit CLI automatically detects headerless files, so coverage checks continue to run even when the fallback is used, but the headered snapshot remains the recommended source for manual investigations.
+`scripts/run_daily_workflow.py --check-data-quality` はヘッダ付きスナップショットが存在する場合に優先して利用しますが、**現在リポジトリに含まれるのはヘッダ無しの `validated/USDJPY/5m.csv` のみ**です。ヘッダ行が見つからない場合でも CLI は自動検出して読み込むため、追加の前処理は不要です。ヘッダ付きバージョンが必要な場合は手元でカラム名を付与した CSV を生成し、同じディレクトリに配置してください。
 ```
 
 - デフォルトのサマリーには `missing_rows_estimate` / `total_gap_minutes` / `average_gap_minutes` / `gap_details`（上位ギャップの詳細）を含みます。
