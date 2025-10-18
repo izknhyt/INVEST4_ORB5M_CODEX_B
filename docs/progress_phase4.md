@@ -358,7 +358,7 @@ _2026-08-12 review_: Confirmed W2 バグ掃討後のノートを再確認し、H
 ### 再現コマンド
 - `python3 -m pytest tests/test_data_robustness.py`
 - （スモーク）`python3 -m pytest -k robustness --maxfail=1`
-- フェーズ4長期ラン（state 自動ロード無効化）: `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode <mode> --start-ts 2018-01-01T00:00:00Z --end-ts 2025-12-31T23:55:00Z --out-json reports/long_<mode>.json --out-daily-csv reports/long_<mode>_daily.csv --out-dir runs/phase4/backtests --no-auto-state`
+- フェーズ4長期ラン（state 自動ロード無効化）: `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode <mode> --start-ts 2018-01-01T00:00:00Z --end-ts 2025-10-02T22:15:00Z --out-json reports/long_<mode>.json --out-daily-csv reports/long_<mode>_daily.csv --out-dir runs/phase4/backtests --no-auto-state`
 
 ## 長期バックテスト
 ### 現状サマリ（2026-10-27 更新）
@@ -450,7 +450,7 @@ _2026-08-12 review_: Confirmed W2 バグ掃討後のノートを再確認し、H
 - 2026-08-17: Runner サイジングゲートへ EV オフ時のフォールバック（`fallback_win_rate` / `size_floor_mult`）を実装し、`tests/test_runner.py::test_sizing_gate_ev_off_uses_fallback_quantity` でゼロ数量を防止する回帰を追加。Phase4 シンプル化リブート検証でも EV 無効のままロットが算出できる状態を確認し、`docs/todo_next.md`・`docs/task_backlog.md`・`state.md` を同期。
 - 2026-08-16: 2025-01-01〜2025-10-13 のデバッグ run を `scripts/summarize_strategy_gate.py` で解析し、`gate_block=19,091` 件が Tokyo セッション由来の `router_gate`、`strategy_gate=41` 件が `min_or_atr_ratio` 超過、`zero_qty=248,230` 件が EV オフ時の Kelly サイジング失敗であることを確認。改善案（セッション緩和 / ATR 閾値調整 / Runner 側フォールバック導入）を [reports/simulations/day_orb5m_20251013_summary.md](../reports/simulations/day_orb5m_20251013_summary.md) に追記し、次ステップを `docs/todo_next.md`・`docs/task_backlog.md` へ連携した。
 - 2025-10-13: Manifest 既定条件（EV 無効・auto_state=false）で再実行したところ、Conservative / Bridge ともに `gate_block` 196,554 件・`zero_qty` 248,230 件によりトレード 0 件となった。詳細は [reports/simulations/day_orb5m_20251013_summary.md](../reports/simulations/day_orb5m_20251013_summary.md) を参照。
-- 2018-01-01T00:00:00Z〜2025-12-31T23:55:00Z のロングランを Conservative / Bridge の両モードで再取得した結果（2026-08-07 時点、`runs/phase4/backtests/USDJPY_conservative_20251013_061258` / `runs/phase4/backtests/USDJPY_bridge_20251013_061509`）、Sharpe・勝率ともに依然としてマイナス圏であり調整余地が大きい。
+- 2018-01-01T00:00:00Z〜2025-10-02T22:15:00Z のロングランを Conservative / Bridge の両モードで再取得した結果（2026-08-07 時点、`runs/phase4/backtests/USDJPY_conservative_20251013_061258` / `runs/phase4/backtests/USDJPY_bridge_20251013_061509`）、Sharpe・勝率ともに依然としてマイナス圏であり調整余地が大きい。
 - 直近データだけの分析用途は `validated/USDJPY/5m_recent*.csv`（91 行）へ切り出し済み。長期検証は `validated/USDJPY/5m.csv` を使用する。
 - `scripts/check_data_quality.py --csv validated/USDJPY/5m.csv --calendar-day-summary` の結果、週末・祝日ギャップのみ検出（coverage_ratio=0.71, duplicates=0）。必要に応じて日次しきい値を調整して監視する。
 
@@ -463,7 +463,7 @@ _2026-08-12 review_: Confirmed W2 バグ掃討後のノートを再確認し、H
 - 日次 Sharpe ≥ 0.15 / 最大DD ≥ -8% / 年間勝率 ≥ 52% を暫定目標とし、Bridge/Conservative 双方で達成する。
 - `threshold_lcb_pip`・`alpha_prior`・`or_n` を中心にパラメータ探索し、各トライアルを `runs/phase4/backtests/<timestamp>_<mode>_<paramset>/` に保存して比較。
 - ベースコマンド：
-  - `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode <mode> --start-ts 2018-01-01T00:00:00Z --end-ts 2025-12-31T23:55:00Z --out-json reports/long_<mode>.json --out-daily-csv reports/long_<mode>_daily.csv --out-dir runs/phase4/backtests --no-auto-state`
+  - `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode <mode> --start-ts 2018-01-01T00:00:00Z --end-ts 2025-10-02T22:15:00Z --out-json reports/long_<mode>.json --out-daily-csv reports/long_<mode>_daily.csv --out-dir runs/phase4/backtests --no-auto-state`
 - 週次レビューで `docs/progress_phase4.md` にメトリクス表を追記し、改善度合いをトラッキングする。
 - 成果反映前に `python3 -m pytest tests/test_runner.py tests/test_runner_features.py` を実行し、既存回帰が破損していないかを確認する。
 
