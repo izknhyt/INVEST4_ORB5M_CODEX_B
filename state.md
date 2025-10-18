@@ -1,5 +1,6 @@
 # Work State Log
 
+- 2026-11-01: README 概要のリスク関連記述を `risk_per_trade_pct=0.25%` / `max_daily_dd_pct=5%` に合わせて更新し、値が `configs/strategies/day_orb_5m.yaml` マニフェスト基準で管理される旨を明記。ドキュメント修正のみのためテスト未実施。
 - 2026-10-31: README の `scripts/run_sim.py` 節でヘッダ必須表現をエイリアス/ヘッダレス対応の説明へ更新し、カノニカル列とシンボル/タイムフレームの既定値補完挙動を追記。ドキュメント調整のみのためテスト未実施。
 
 - 2026-10-30: README の戦略スケルトン節でルーター記述を刷新し、`router/router_v1.py` の `select_candidates` パイプラインへの言及と `router/router_v0.py` の軽量ゲート用途を明示。コード変更なしのドキュメント更新のためテスト未実施。
