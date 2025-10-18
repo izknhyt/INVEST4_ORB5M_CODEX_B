@@ -301,8 +301,24 @@ _2026-08-12 review_: Confirmed W2 バグ掃討後のノートを再確認し、H
 - フェーズ4長期ラン（state 自動ロード無効化）: `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m.yaml --csv validated/USDJPY/5m.csv --mode <mode> --start-ts 2018-01-01T00:00:00Z --end-ts 2025-12-31T23:55:00Z --out-json reports/long_<mode>.json --out-daily-csv reports/long_<mode>_daily.csv --out-dir runs/phase4/backtests --no-auto-state`
 
 ## 長期バックテスト
-### 現状サマリ（2026-10-19 更新）
+### 現状サマリ（2026-10-27 更新）
 
+- 2026-10-27: Guard-relaxed マニフェスト（`min_or_atr_ratio=0.16`、
+  `rv_band_min_or_atr_ratio={high:0.10, mid:0.12, low:0.16}`）を Conservative / Bridge 両モードで再実行
+  (`runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251018_011918` /
+  `USDJPY_bridge_20251018_012216`) し、`trades=8`・`total_pips=-14.38`・`sharpe=-5.02`（両モード共通）のまま
+  ガード挙動を再集計。
+  `loss_streak_guard` / `daily_loss_guard` は引き続き発火 0 件、
+  `or_filter` は 208 件（`rv_band=mid` 110 件 / `high` 60 件 / `low` 38 件、
+  `min_or_atr_ratio` 平均 ≈0.1215・範囲 0.10–0.16）まで減少した。
+  集計結果を `reports/diffs/conservative_guard_relaxed_guard_stages.json` /
+  `reports/diffs/bridge_guard_relaxed_guard_stages.json` に保存し、
+  `reports/diffs/guard_stage_summary.json` と
+  [Markdown 版](../reports/diffs/guard_stage_summary.md) を更新。
+  - Next: OR フィルタ 208 件の内訳（mid/high 帯 81.7%）を踏まえ、
+    `rv_band_min_or_atr_ratio` をさらに緩める案（例: high=0.08, mid=0.10, low=0.14）と
+    `max_loss_streak` / `max_daily_loss_pips` を上げたフォローオンテストをサンドボックス化し、
+    次の長期ラン候補とする。
 - 2026-10-19: RV 帯別 `min_or_atr_ratio` 導入後のガード動作を最新 rerun
   (`runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251017_060706` /
   `USDJPY_bridge_20251017_061157`) で再集計。

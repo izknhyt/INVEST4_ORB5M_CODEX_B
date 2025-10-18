@@ -297,16 +297,18 @@ Document the repeatable workflow that lets Codex keep `state.md`, `docs/todo_nex
   - Paper 判定に向けたエビデンスを `docs/go_nogo_checklist.md`・`docs/progress_phase4.md#運用チェックリスト` に保存し、承認ログのリンクとともに共有する。
 - **Notes**:
 
-- 2026-10-27: Guard-relaxed manifest lowered ATR floors (`min_or_atr_ratio=0.16`, rv_band={high:0.10, mid:0.12, low:0.16})
-  and expanded loss guards (`max_loss_streak=4`, `max_daily_loss_pips=180`). Re-ran long runs
-  (`runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251017_112231` /
-  `runs/phase4/backtests_guard_relaxed/USDJPY_bridge_20251017_112729`),
-  confirmed trades=8 per mode with `or_filter=208` (mid 110 / high 60 / low 38), refreshed
-  diff artefacts (`reports/diffs/or_filter_guard_relaxed_summary.json|.md`,
-  `reports/diffs/conservative_guard_relaxed_metrics_next.json`,
-  `reports/diffs/bridge_guard_relaxed_metrics_next.json`), and logged the next
-  proposal to taper ATR guards further (0.08 / 0.10 / 0.14) based on the updated
-  summary.
+- 2026-10-27: Guard-relaxed manifest lowered ATR floors (`min_or_atr_ratio=0.16`,
+  `rv_band_min_or_atr_ratio={high:0.10, mid:0.12, low:0.16}`) and widened loss guards
+  (`max_loss_streak=4`, `max_daily_loss_pips=180`). Re-ran long runs
+  (`runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251018_011918` /
+  `runs/phase4/backtests_guard_relaxed/USDJPY_bridge_20251018_012216`),
+  confirmed trades=8 per mode with `or_filter=208` (mid 110 / high 60 / low 38,
+  `min_or_atr_ratio` mean ≈0.1215), refreshed stage artefacts
+  (`reports/diffs/conservative_guard_relaxed_guard_stages.json`,
+  `reports/diffs/bridge_guard_relaxed_guard_stages.json`,
+  `reports/diffs/guard_stage_summary.json|.md`), and queued the next proposal to
+  taper ATR guards further (0.08 / 0.10 / 0.14) while planning sandbox trials for
+  relaxed `max_loss_streak` / `max_daily_loss_pips` thresholds.
 - 2026-10-19: Guard-relaxed reruns (`runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251017_060706` /
   `USDJPY_bridge_20251017_061157`) confirmed `loss_streak_guard` / `daily_loss_guard`
   remain inactive while `or_filter` stays at 278 hits (mid 137 / high 100 / low 41).

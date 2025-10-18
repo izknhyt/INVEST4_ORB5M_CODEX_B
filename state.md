@@ -15,21 +15,17 @@
   `reports/diffs/day_orb_reboot_metrics.json` へロングラン差分を集約し、`docs/progress_phase4.md` / `docs/task_backlog.md#P4-04` /
   `reports/portfolio_samples/router_demo/metrics/configs/strategies/day_orb_5m.yaml` を同期。
 
-- 2026-10-27: Re-validated guard-relaxed ATR/loss guard tweaks (`min_or_atr_ratio=0.16`, rv_band overrides 0.10/0.12/0.16,
-  `max_loss_streak=4`, `max_daily_loss_pips=180`) by sampling the previous long-run blocks and launching fresh 2018–2025 runs.
-  Commands: `python3 scripts/summarize_strategy_gate.py --run-dir runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251017_105209 --json`,
-  `python3 scripts/summarize_strategy_gate.py --run-dir runs/phase4/backtests_guard_relaxed/USDJPY_bridge_20251017_105707 --json`,
-  `python3 analysis/or_filter_guard_relaxed_summary.py --input conservative=reports/diffs/conservative_guard_relaxed_strategy_gate.json --input bridge=reports/diffs/bridge_guard_relaxed_strategy_gate.json --params-json runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251017_105209/params.json --json-output reports/diffs/or_filter_guard_relaxed_summary.json --markdown-output reports/diffs/or_filter_guard_relaxed_summary.md --base-drop 0.02 --floor 0.05`,
-  `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs/phase4/backtests_guard_relaxed --no-auto-state --debug --debug-sample-limit 600000`,
+- 2026-10-27: Re-ran the guard-relaxed long-run bundle with the relaxed ATR / loss guard parameters
+  (`min_or_atr_ratio=0.16`, `rv_band_min_or_atr_ratio={high:0.10, mid:0.12, low:0.16}`,
+  `max_loss_streak=4`, `max_daily_loss_pips=180`) to refresh the guard-stage evidence.
+  Commands: `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml --csv validated/USDJPY/5m.csv --mode conservative --out-dir runs/phase4/backtests_guard_relaxed --no-auto-state --debug --debug-sample-limit 600000`,
   `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml --csv validated/USDJPY/5m.csv --mode bridge --out-dir runs/phase4/backtests_guard_relaxed --no-auto-state --debug --debug-sample-limit 600000`,
-  `python3 scripts/summarize_strategy_gate.py --run-dir runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251017_112231 --json`,
-  `python3 scripts/summarize_strategy_gate.py --run-dir runs/phase4/backtests_guard_relaxed/USDJPY_bridge_20251017_112729 --json`,
-  `python3 analysis/or_filter_guard_relaxed_summary.py --input conservative=reports/diffs/conservative_guard_relaxed_strategy_gate.json --input bridge=reports/diffs/bridge_guard_relaxed_strategy_gate.json --params-json runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251017_112231/params.json --json-output reports/diffs/or_filter_guard_relaxed_summary.json --markdown-output reports/diffs/or_filter_guard_relaxed_summary.md --base-drop 0.02 --floor 0.05`,
-  `python3 scripts/compare_metrics.py --left reports/diffs/conservative_guard_relaxed_metrics.json --right runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251017_112231/metrics.json --out-json reports/diffs/conservative_guard_relaxed_metrics_next.json`,
-  `python3 scripts/compare_metrics.py --left reports/diffs/bridge_guard_relaxed_metrics.json --right runs/phase4/backtests_guard_relaxed/USDJPY_bridge_20251017_112729/metrics.json --out-json reports/diffs/bridge_guard_relaxed_metrics_next.json`.
-  Logged the reduced `or_filter` counts (278→208 with mid/high/low = 110/60/38), captured the new adjustment proposal (0.08 / 0.10 / 0.14),
-  and refreshed `docs/progress_phase4.md`, `docs/task_backlog.md#P4-01`, `reports/diffs/or_filter_guard_relaxed_summary.*`,
-  `reports/diffs/*_metrics_next.json`, and `reports/diffs/*_strategy_gate.json` accordingly.
+  `python3 scripts/summarize_strategy_gate.py --run-dir runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251018_011918 --stage loss_streak_guard --stage daily_loss_guard --stage or_filter --json --out-json reports/diffs/conservative_guard_relaxed_guard_stages.json`,
+  `python3 scripts/summarize_strategy_gate.py --run-dir runs/phase4/backtests_guard_relaxed/USDJPY_bridge_20251018_012216 --stage loss_streak_guard --stage daily_loss_guard --stage or_filter --json --out-json reports/diffs/bridge_guard_relaxed_guard_stages.json`,
+  `python3 scripts/summarize_strategy_gate.py --records runs/phase4/backtests_guard_relaxed/USDJPY_conservative_20251018_011918/records.csv --stage or_filter --limit 5`.
+  Consolidated both stage outputs into `reports/diffs/guard_stage_summary.json` / `.md`, updated
+  `docs/progress_phase4.md#長期バックテスト`, `docs/todo_next.md`, `docs/task_backlog.md#P4-01`, and logged the follow-up plan
+  to taper ATR floors (0.08 / 0.10 / 0.14) while trialing looser loss/daily guard caps.
 
 
 - 2026-10-19: Re-ran the guard-relaxed Day ORB manifest to capture RV-band guard metrics after the per-band `min_or_atr_ratio` change. Commands: `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml --csv validated/USDJPY/5m.csv --symbol USDJPY --mode conservative --out-dir runs/phase4/backtests_guard_relaxed --no-auto-state --debug --debug-sample-limit 600000`, `python3 scripts/run_sim.py --manifest configs/strategies/day_orb_5m_guard_relaxed.yaml --csv validated/USDJPY/5m.csv --symbol USDJPY --mode bridge --out-dir runs/phase4/backtests_guard_relaxed --no-auto-state --debug --debug-sample-limit 600000`, and `python3 scripts/summarize_strategy_gate.py --run-dir runs/phase4/backtests_guard_relaxed/USDJPY_<mode>_20251017_<ts> --stage loss_streak_guard --stage daily_loss_guard --stage or_filter --json --out-json reports/diffs/guard_stage_summary.json` for both modes. Aggregated the outputs into `reports/diffs/guard_stage_summary.json` / `.md`, updated `docs/progress_phase4.md` / `docs/task_backlog.md`, and ran `python3 -m pytest tests/test_summarize_strategy_gate.py` to confirm the summariser changes.
