@@ -62,7 +62,7 @@ print(metrics.as_dict())
 備考: スプレッド帯域・RV帯域・セッション判定は簡易版（プレースホルダ）。実データに合わせて更新してください。
 
 ### CLI 概要
-- `scripts/run_sim.py`: CSV から実行し、JSON メトリクスを出力する最小 CLI。ヘッダ行は `timestamp,symbol,tf,o,h,l,c,v,spread` が必須。`v` と `spread` が空欄または欠損の場合は 0.0 として取り込み、行はスキップされません。
+- `scripts/run_sim.py`: CSV から実行し、JSON メトリクスを出力する最小 CLI。`timestamp` / `o` / `h` / `l` / `c` はカノニカル列として解釈され、`time` / `sym` などのエイリアスにも対応します。ヘッダが無い場合でもカノニカル順 (`timestamp,symbol,tf,o,h,l,c,v,spread`) が揃っていればフォールバックして読込可能です。`symbol` / `tf` を含まない場合はマニフェスト既定値で補完され、`v` と `spread` が空欄または欠損の場合は 0.0 として取り込み行はスキップされません。
 - `scripts/manage_task_cycle.py`: `state.md` / `docs/todo_next.md` / backlog を同期する運用ヘルパー。
 
 ## CLI リファレンス
