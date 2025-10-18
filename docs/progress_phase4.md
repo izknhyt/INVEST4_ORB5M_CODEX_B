@@ -267,8 +267,8 @@ PY
   ルーター拒否は全件が LDN/NY 以外の時間帯（UTC 08:00〜21:59 を除外）で発生、セッションガードが主因であることを確認した。
   `strategy_gate` 側は 28,240 件が `rv_filter`（`rv_band=low`・`allow_low_rv=False`）、331 件が `or_filter`
   （`or_atr_ratio` 平均 0.212、上限 0.2499）で、`min_or_atr_ratio=0.25` の閾値ぎりぎりで除外されている。
-  `params.json` には `allow_low_rv=false` が残っており（manifest の `runner.allow_low_rv` が `runner_config` に連動していない）、
-  低 RV 帯が意図せず遮断されていることも判明した。【F:reports/analysis/day_orb5m_20251002_stage_counts.json†L1-L16】【F:reports/analysis/day_orb5m_20251002_gate_summary.json†L1-L24】【F:runs/USDJPY_conservative_20251002_214013/params.json†L18-L24】
+  当時の `params.json`（`runs/USDJPY_conservative_20251002_214013/params.json`、2026-10-22 の `runs/` クリーンアップで削除済み）には `allow_low_rv=false` が残っており（manifest の `runner.allow_low_rv` が `runner_config` に連動していない）、
+  低 RV 帯が意図せず遮断されていることも判明した。【F:reports/analysis/day_orb5m_20251002_stage_counts.json†L1-L16】【F:reports/analysis/day_orb5m_20251002_gate_summary.json†L1-L24】
   次ステップでは以下を実施する：
   - Manifest を調整して `runner.runner_config.allow_low_rv=true` / `size_floor_mult=0.05` を反映し、低 RV 帯の拒否を解消する。
   - `min_or_atr_ratio` を 0.20（NY 高 RV 用は 0.30 相当）へ一旦引き下げ、`scripts/summarize_strategy_gate.py` で OR 閾値

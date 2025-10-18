@@ -61,7 +61,7 @@ debug カウンタが正しく記録されることを確認しています。
 
 2026-08-14 アップデート: Day ORB シンプル化リブートの監視強化として、`strategy_gate` レコードは連敗ガード (`loss_streak` / `max_loss_streak`)、日次損失・本数ガード、ATR 帯、マイクロトレンド、サイズ算出 (`qty` / `p_lcb` / `sl_pips`) など `_last_gate_reason` のサマリをすべて含むよう拡張した。EV を無効化したままでもブロック理由を `records.csv` から直接追跡できる。
 
-Example: `runs/USDJPY_conservative_20250922_175708/records.csv` contains the appended debug rows that match the table above, starting with `no_breakout` entries for the Tokyo session.【F:runs/USDJPY_conservative_20250922_175708/records.csv†L1-L4】
+Example: `tests/data/runner_sample_records.csv` contains the appended debug rows that match the table above, starting with `no_breakout` entries for the Tokyo session.【F:tests/data/runner_sample_records.csv†L1-L6】
 
 ## Daily roll-ups (`run_dir/daily.csv`)
 
